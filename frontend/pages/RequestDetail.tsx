@@ -10,6 +10,7 @@ import RequestFormFields from '../src/components/request/RequestFormFields';
 import HiringWorkflowPanel from '../src/components/request/HiringWorkflowPanel';
 import WorkflowCockpit from '../src/components/request-detail/WorkflowCockpit';
 import { requestService } from '../src/services/request.service';
+import { pollPdfJob } from '../src/services/pdfJob.service';
 import ResolutionModal from '../src/components/request/modals/ResolutionModal';
 import RejectionModal from '../src/components/request/modals/RejectionModal';
 import CompleteOnboardingModal from '../src/components/request/modals/CompleteOnboardingModal';
@@ -20,18 +21,6 @@ import LOAApprovalModal from '../src/components/request/modals/LOAApprovalModal'
 import CEODecisionModal from '../src/components/request/modals/CEODecisionModal';
 import ManagerDecisionModal from '../src/components/request/modals/ManagerDecisionModal';
 import BatchUploadModal from '../src/components/request-detail/BatchUploadModal';
-
-/** Download a Blob as a file */
-function downloadBlob(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
 
 const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
@@ -50,8 +39,12 @@ const RequestDetailContainer: React.FC = () => {
         if (!rq.request) return;
         setExportingPdf(true);
         try {
-            const blob = await requestService.exportPdf(rq.request.referenceNumber || rq.id!);
-            downloadBlob(blob, `${rq.request.referenceNumber || rq.id}.pdf`);
+            const { jobId } = await requestService.exportPdf(rq.request.referenceNumber || rq.id!);
+            const url = await pollPdfJob(jobId);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${rq.request.referenceNumber || rq.id}.pdf`;
+            a.click();
         } catch (err: any) {
             alert(err?.response?.data?.message || err?.message || 'Failed to export PDF');
         } finally {

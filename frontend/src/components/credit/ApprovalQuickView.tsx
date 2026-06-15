@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import creditService, {
   CreditApplication, CreditApproval, ApplicationState, ApprovalDecision,
 } from '../../services/credit.service';
+import { pollPdfJob } from '../../services/pdfJob.service';
 import { formatCurrency, formatDate } from '../../../pages/credit/creditUtils';
 import StateBadge from './StateBadge';
 import RiskBadge from './RiskBadge';
@@ -307,9 +308,8 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
                 <button
                   onClick={async () => {
                     try {
-                      const res = await creditService.downloadCaMemo(fullApp.id);
-                      const blob = res.data ?? res;
-                      const url = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' }));
+                      const { jobId } = await creditService.downloadCaMemo(fullApp.id);
+                      const url = await pollPdfJob(jobId);
                       window.open(url, '_blank');
                     } catch (e) {
                       console.error('Failed to generate CA Memo preview', e);

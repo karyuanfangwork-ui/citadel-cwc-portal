@@ -7,6 +7,7 @@ import {
 } from '../../../src/services/credit.service';
 import creditService from '../../../src/services/credit.service';
 import { useAuth } from '../../../src/context/AuthContext';
+import { pollPdfJob } from '../../../src/services/pdfJob.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
@@ -170,9 +171,8 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
           <button
             onClick={async () => {
               try {
-                const res = await creditService.downloadCaMemo(application.id);
-                const blob = res.data ?? res;
-                const url = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' }));
+                const { jobId } = await creditService.downloadCaMemo(application.id);
+                const url = await pollPdfJob(jobId);
                 window.open(url, '_blank');
               } catch (e) { console.error('Failed to generate CA Memo preview', e); }
             }}

@@ -4,6 +4,7 @@ import { logger } from './utils/logger';
 import { initScheduler, shutdownScheduler } from './services/scheduler.service';
 import { initSseRedis, disconnectSseRedis } from './utils/sseClients';
 import { startWorkflowEngine } from './services/crm-workflow.service';
+import { startPdfWorker } from './workers/pdf.worker';
 import app from './app';
 
 // Load environment variables
@@ -27,6 +28,9 @@ const server = app.listen(PORT, () => {
 
     // Start workflow automation engine
     startWorkflowEngine();
+
+    // Start PDF generation worker (BullMQ)
+    startPdfWorker();
 });
 
 // Graceful shutdown

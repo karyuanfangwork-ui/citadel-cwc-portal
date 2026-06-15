@@ -31,6 +31,21 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
 ];
 
+/* ── Kinetic Enterprise design tokens ─────────────────────────────── */
+const TOKENS = {
+  teal:          '#006a61',
+  tealLight:     '#86f2e4',
+  tealDark:      '#006f66',
+  surface:       '#f8f9ff',
+  white:         '#ffffff',
+  border:        '#e2e8f0',
+  borderSubtle:  '#f1f5f9',
+  textPrimary:   '#0b1c30',
+  textSecondary: '#64748b',
+  textMuted:     '#94a3b8',
+  shadow:       '0px 4px 12px rgba(15, 23, 42, 0.08)',
+} as const;
+
 const CrmLayout: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -44,7 +59,6 @@ const CrmLayout: React.FC = () => {
   const visibleItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(user, item.permission));
   const mainItems = visibleItems.filter((item) => !item.admin);
   const adminItems = visibleItems.filter((item) => item.admin);
-  const canWrite = hasPermission(user, 'crm:write');
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const adminActive = adminItems.some((item) => isActive(item.to));
@@ -60,68 +74,112 @@ const CrmLayout: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col h-full min-w-0">
-      {/* Horizontal top sub-nav */}
-      <div className="flex-shrink-0 bg-white border-b border-[var(--border,#e5e7eb)] sticky top-0 z-20">
-        <div className="flex items-center gap-1 px-4 h-11">
-          {canWrite && (
-            <Link
-              to="/crm/leads?create=1"
-              className="flex-shrink-0 flex items-center gap-1 py-1 px-3 bg-brand-600 text-white text-xs font-semibold rounded-md hover:bg-brand-700 transition-colors mr-2"
-              style={{ textDecoration: 'none' }}
-            >
-              <span className="material-symbols-outlined text-[15px]">add</span>
-              New Lead
-            </Link>
-          )}
-
+    <div className="flex min-h-full min-w-0 flex-col" style={{ background: TOKENS.surface }}>
+      {/* ── Horizontal Sub-Nav (Kinetic Enterprise) ──────────────── */}
+      <div
+        data-testid="crm-nav-track"
+        className="flex-shrink-0 sticky top-0 z-20"
+        style={{
+          background: TOKENS.white,
+          borderBottom: `1px solid ${TOKENS.border}`,
+          boxShadow: '0 1px 0 rgba(15,23,42,0.04)',
+        }}
+      >
+        <div className="flex h-12 items-center gap-1 overflow-visible px-4 lg:px-6 max-w-[1440px] mx-auto w-full">
+          {/* ── Primary tabs ── */}
           {mainItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-2 h-full text-xs font-semibold border-b-2 transition-colors ${
-                isActive(item.to)
-                  ? 'border-brand-600 text-brand-700'
-                  : 'border-transparent text-[var(--text-secondary,#6b7280)] hover:text-[var(--text-primary,#111827)] hover:border-[var(--border,#e5e7eb)]'
-              }`}
-              style={{ textDecoration: 'none' }}
+              className="flex h-full flex-shrink-0 items-center gap-1.5 border-b-2 px-3 text-[13px] font-semibold transition-colors"
+              style={{
+                textDecoration: 'none',
+                borderBottomColor: isActive(item.to) ? TOKENS.teal : 'transparent',
+                color: isActive(item.to) ? TOKENS.teal : TOKENS.textSecondary,
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive(item.to)) {
+                  (e.currentTarget as HTMLElement).style.borderBottomColor = `${TOKENS.teal}30`;
+                  (e.currentTarget as HTMLElement).style.color = TOKENS.teal;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive(item.to)) {
+                  (e.currentTarget as HTMLElement).style.borderBottomColor = 'transparent';
+                  (e.currentTarget as HTMLElement).style.color = TOKENS.textSecondary;
+                }
+              }}
             >
+              <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
               {item.label}
             </Link>
           ))}
 
+          {/* ── "More" dropdown for admin items ── */}
           {adminItems.length > 0 && (
             <>
-              <div className="flex-shrink-0 w-px h-5 bg-[var(--border,#e5e7eb)] mx-1" />
-              <div ref={moreRef} className="relative flex-shrink-0 h-full flex items-center">
+              <div className="mx-1 h-6 w-px flex-shrink-0" style={{ background: TOKENS.border }} />
+              <div ref={moreRef} className="relative flex h-full flex-shrink-0 items-center">
                 <button
                   onClick={() => setMoreOpen((o) => !o)}
-                  className={`flex items-center gap-1 px-2 h-full text-xs font-semibold border-b-2 transition-colors ${
-                    adminActive
-                      ? 'border-brand-600 text-brand-700'
-                      : 'border-transparent text-[var(--text-secondary,#6b7280)] hover:text-[var(--text-primary,#111827)] hover:border-[var(--border,#e5e7eb)]'
-                  }`}
-                  style={{ background: 'none', cursor: 'pointer' }}
+                  className="flex h-full items-center gap-1 border-b-2 px-3 text-[13px] font-semibold transition-colors"
+                  style={{
+                    background: 'none',
+                    cursor: 'pointer',
+                    borderBottomColor: adminActive ? TOKENS.teal : 'transparent',
+                    color: adminActive ? TOKENS.teal : TOKENS.textSecondary,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!adminActive) {
+                      (e.currentTarget as HTMLElement).style.color = TOKENS.teal;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!adminActive) {
+                      (e.currentTarget as HTMLElement).style.color = TOKENS.textSecondary;
+                    }
+                  }}
                 >
                   More
                   <span className="material-symbols-outlined text-[14px]">{moreOpen ? 'expand_less' : 'expand_more'}</span>
                 </button>
 
                 {moreOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-44 bg-white border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg py-1 z-30">
+                  <div
+                    className="absolute left-0 top-full z-30 mt-1.5 w-56 p-1.5"
+                    style={{
+                      background: TOKENS.white,
+                      borderRadius: '8px',
+                      border: `1px solid ${TOKENS.border}`,
+                      boxShadow: TOKENS.shadow,
+                    }}
+                  >
                     {adminItems.map((item) => (
                       <Link
                         key={item.to}
                         to={item.to}
                         onClick={() => setMoreOpen(false)}
-                        className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold transition-colors ${
-                          isActive(item.to)
-                            ? 'text-brand-700 bg-brand-50'
-                            : 'text-[var(--text-secondary,#6b7280)] hover:bg-[var(--bg-subtle,#f3f4f6)] hover:text-[var(--text-primary,#111827)]'
-                        }`}
-                        style={{ textDecoration: 'none' }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold transition-colors"
+                        style={{
+                          textDecoration: 'none',
+                          borderRadius: '6px',
+                          background: isActive(item.to) ? TOKENS.tealLight : 'transparent',
+                          color: isActive(item.to) ? TOKENS.tealDark : TOKENS.textSecondary,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive(item.to)) {
+                            (e.currentTarget as HTMLElement).style.background = TOKENS.borderSubtle;
+                            (e.currentTarget as HTMLElement).style.color = TOKENS.textPrimary;
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive(item.to)) {
+                            (e.currentTarget as HTMLElement).style.background = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = TOKENS.textSecondary;
+                          }
+                        }}
                       >
-                        <span className="material-symbols-outlined text-[15px]">{item.icon}</span>
+                        <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                         {item.label}
                       </Link>
                     ))}
@@ -133,43 +191,40 @@ const CrmLayout: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile nav drawer */}
+      {/* ── Mobile nav drawer ── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="w-64 bg-white shadow-xl flex flex-col py-4 px-2 overflow-y-auto">
+          <div
+            className="flex w-64 flex-col overflow-y-auto px-2 py-4"
+            style={{
+              background: TOKENS.white,
+              boxShadow: TOKENS.shadow,
+            }}
+          >
             <div className="flex justify-between items-center px-3 mb-4">
-              <span className="text-base font-extrabold text-brand-700">CRM</span>
+              <span className="text-base font-extrabold" style={{ color: TOKENS.teal }}>CRM</span>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-[var(--bg-subtle,#f3f4f6)]"
-                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                className="p-1.5 rounded-lg"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: TOKENS.textSecondary }}
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            {canWrite && (
-              <Link
-                to="/crm/leads?create=1"
-                className="mx-2 mb-3 py-2 px-3 bg-brand-600 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-1.5 hover:bg-brand-700 transition-colors"
-                style={{ textDecoration: 'none' }}
-                onClick={() => setMobileOpen(false)}
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-                New Lead
-              </Link>
-            )}
             <nav className="flex flex-col gap-0.5">
               {visibleItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
                   onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    isActive(item.to)
-                      ? 'bg-brand-50 text-brand-700'
-                      : 'text-[var(--text-secondary,#6b7280)] hover:bg-[var(--bg-subtle,#f3f4f6)] hover:text-[var(--text-primary,#111827)]'
-                  }`}
-                  style={{ textDecoration: 'none' }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold transition-colors"
+                  style={{
+                    textDecoration: 'none',
+                    borderRadius: '6px',
+                    background: isActive(item.to) ? TOKENS.tealLight : 'transparent',
+                    color: isActive(item.to) ? TOKENS.tealDark : TOKENS.textSecondary,
+                    borderRight: isActive(item.to) ? `3px solid ${TOKENS.teal}` : '3px solid transparent',
+                  }}
                 >
                   <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
                   {item.label}
@@ -181,20 +236,35 @@ const CrmLayout: React.FC = () => {
         </div>
       )}
 
+      {/* ── Content area ── */}
       <div className="flex-1 min-w-0 overflow-auto">
-        {/* Mobile hamburger — only shown on small screens */}
-        <div className="md:hidden flex items-center gap-2 px-4 py-3 border-b border-[var(--border,#e5e7eb)] bg-white sticky top-0 z-10">
+        {/* Mobile hamburger bar */}
+        <div
+          className="sticky top-0 z-10 flex items-center gap-2 border-b px-4 py-3 md:hidden"
+          style={{
+            background: TOKENS.white,
+            borderBottomColor: TOKENS.border,
+          }}
+        >
           <button
             onClick={() => setMobileOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-[var(--bg-subtle,#f3f4f6)]"
-            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            className="p-1.5 rounded-lg"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: TOKENS.textSecondary }}
           >
-            <span className="material-symbols-outlined text-[var(--text-secondary,#6b7280)]">menu</span>
+            <span className="material-symbols-outlined">menu</span>
           </button>
-          <span className="text-sm font-bold text-brand-700">CRM</span>
+          <span className="text-sm font-bold" style={{ color: TOKENS.teal }}>CRM</span>
         </div>
 
-        <Outlet />
+        <div
+          data-testid="crm-content-shell"
+          className="min-h-full"
+          style={{ background: TOKENS.surface }}
+        >
+          <div className="mx-auto min-h-full w-full max-w-[1680px]">
+            <Outlet />
+          </div>
+        </div>
       </div>
     </div>
   );

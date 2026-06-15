@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { getCaMemoData } from '../services/caMemoPdf.service';
-import { htmlToPdf } from '../services/htmlToPdf.service';
+import { enqueuePdf } from '../../services/pdfJob.service';
 
 const fmt = (v: any) => (v != null ? Number(v).toLocaleString('en-MY', { maximumFractionDigits: 2 }) : '—');
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -269,10 +269,7 @@ export async function generateCaMemo(req: Request, res: Response, next: NextFunc
     const app = await getCaMemoData(String(req.params.appId));
     const title = `CA Memo — ${app.applicationNo}`;
     const html = buildHtml(app, title);
-    const pdf = await htmlToPdf(html);
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${app.applicationNo}-ca-memo.pdf"`);
-    res.send(pdf);
+    const jobId = await enqueuePdf(html, 'credit/ca-memo/');
+    res.json({ status: 'success', data: { jobId, message: 'PDF generation started. Poll /api/v1/pdf-jobs/:jobId for the download URL.' } });
   } catch (e) { next(e); }
 }

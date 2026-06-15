@@ -43,6 +43,7 @@ const CrmLeadDetail = () => {
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   const [editingOwner, setEditingOwner] = useState(false);
   const [savingOwner, setSavingOwner] = useState(false);
+  const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
@@ -265,6 +266,7 @@ const CrmLeadDetail = () => {
       setSavingOwner(true);
       await crmService.updateLead(id, { ownerId: newOwnerId });
       setEditingOwner(false);
+      setOwnerSearchQuery('');
       reload();
     } catch (e) { console.error(e); }
     finally { setSavingOwner(false); }
@@ -331,7 +333,7 @@ const CrmLeadDetail = () => {
   if (loading) return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem' }}>
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
+        <div key={i} className="bg-white border border-[#e2e8f0] rounded-xl p-5 mb-4 animate-pulse">
           <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
           <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
           <div className="h-3 bg-gray-200 rounded w-1/2" />
@@ -348,326 +350,485 @@ const CrmLeadDetail = () => {
 
   return (
     <>
-      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
-        <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
-        <span>/</span>
-        <Link to="/crm/leads" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Leads</Link>
-        <span>/</span>
-        <span className="font-semibold text-text-primary">{lead.title}</span>
-      </div>
-
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-black text-text-primary">{lead.title}</h1>
-            <StateBadge state={lead.status} size="sm" />
-            {/* AI Score Badge (Task 8) */}
-            {(leadScore.scoreData || lead.aiScore != null) ? (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  scoreColor(leadScore.scoreData?.score ?? lead.aiScore!)
-                }`}
-                title={leadScore.scoreData?.reason ?? lead.aiScoreReason ?? ''}
+      <div className="min-h-full bg-[#f8f9ff] flex flex-col lg:flex-row">
+        <aside className="w-full lg:w-72 flex-shrink-0 bg-white border-b lg:border-b-0 lg:border-r border-[#e2e8f0] flex flex-col overflow-y-auto">
+          <div className="p-5 flex flex-col gap-5 flex-1">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
+                style={{ background: '#006a61' }}
               >
-                <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                {leadScore.scoreData?.score ?? lead.aiScore}/100
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                <button
-                  onClick={() => leadScore.fetch(lead.id)}
-                  disabled={leadScore.loading}
-                  className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-text-tertiary hover:bg-brand-100 hover:text-brand-700 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                  {leadScore.loading ? '…' : 'Score'}
-                </button>
-                {leadScore.error && (
-                  <span className="text-xs text-danger" title={leadScore.error}>
-                    <span className="material-symbols-outlined text-xs align-middle">error</span>
-                  </span>
+                {lead.title?.[0]?.toUpperCase() ?? 'L'}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-[#0b1c30] truncate">{lead.title}</p>
+                <p className="text-[11px] text-[#45464d] opacity-70">{lead.companyName || '—'}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-[#e2e8f0]" />
+
+            <div>
+              <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-3">Contact Details</p>
+              <div className="space-y-3">
+                {lead.contactEmail && (
+                  <div className="flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 mt-0.5 flex-shrink-0">mail</span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-[#45464d] opacity-60 uppercase tracking-wide mb-0.5">Email Address</p>
+                      <a href={`mailto:${lead.contactEmail}`} className="text-[13px] text-[#006a61] font-medium truncate block" style={{ textDecoration: 'none' }}>{lead.contactEmail}</a>
+                    </div>
+                  </div>
                 )}
-              </span>
-            )}
+                {lead.contactPhone && (
+                  <div className="flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 mt-0.5 flex-shrink-0">phone</span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-[#45464d] opacity-60 uppercase tracking-wide mb-0.5">Mobile Number</p>
+                      <p className="text-[13px] text-[#0b1c30] font-medium">{lead.contactPhone}</p>
+                    </div>
+                  </div>
+                )}
+                {lead.contactName && (
+                  <div className="flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 mt-0.5 flex-shrink-0">badge</span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-[#45464d] opacity-60 uppercase tracking-wide mb-0.5">Contact Person</p>
+                      <p className="text-[13px] text-[#0b1c30] font-medium">{lead.contactName}</p>
+                    </div>
+                  </div>
+                )}
+                {lead.source && (
+                  <div className="flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 mt-0.5 flex-shrink-0">link</span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-[#45464d] opacity-60 uppercase tracking-wide mb-0.5">Lead Source</p>
+                      <p className="text-[13px] text-[#0b1c30] font-medium">{lead.source.replace(/_/g, ' ')}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#e2e8f0]" />
+
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
+              <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-3">Lead Owner</p>
+              {lead.owner ? (
+                <div className="flex items-start gap-3">
+                  {lead.owner.avatarUrl ? (
+                    <img src={lead.owner.avatarUrl} alt={`${lead.owner.firstName} ${lead.owner.lastName}`} className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: '#006a61' }}>
+                      {lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-semibold text-[#0b1c30] leading-snug truncate">{lead.owner.firstName} {lead.owner.lastName}</p>
+                    <p className="text-[12px] text-[#45464d] opacity-70 leading-snug mt-0.5 truncate">
+                      {[lead.owner.jobTitle, lead.owner.department].filter(Boolean).join(' · ') || 'Team Member'}
+                    </p>
+                    {lead.owner.email && (
+                      <a href={`mailto:${lead.owner.email}`} className="text-[12px] text-[#006a61] font-medium truncate block mt-1 hover:underline" style={{ textDecoration: 'none' }}>
+                        {lead.owner.email}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center border border-dashed border-[#e2e8f0] flex-shrink-0">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-40">person</span>
+                  </div>
+                  <p className="text-[13px] text-[#45464d] opacity-50">No owner assigned</p>
+                </div>
+              )}
+              {hasPermission(user, 'crm:admin') && !editingOwner && (
+                <button
+                  onClick={() => { setEditingOwner(true); setOwnerSearchQuery(''); }}
+                  className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-[#006a61] border border-[#006a61]/20 hover:bg-[#006a61]/5 transition-colors"
+                  style={{ background: 'none', cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                  {lead.owner ? 'Reassign Owner' : 'Assign Owner'}
+                </button>
+              )}
+              {editingOwner && (
+                <div className="mt-3 border-t border-[#e2e8f0] pt-3">
+                  <div className="relative">
+                    <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 absolute left-2.5 top-1/2 -translate-y-1/2">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search by name or email…"
+                      value={ownerSearchQuery}
+                      onChange={e => setOwnerSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 border border-[#e2e8f0] rounded-lg text-[13px] text-[#0b1c30] outline-none focus:border-[#006a61] focus:ring-1 focus:ring-[#006a61]/20 transition-colors"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="mt-2 max-h-48 overflow-y-auto divide-y divide-[#e2e8f0]">
+                    {crmUsers
+                      .filter(u => {
+                        if (!ownerSearchQuery.trim()) return true;
+                        const q = ownerSearchQuery.toLowerCase();
+                        return (
+                          `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
+                          u.email?.toLowerCase().includes(q) ||
+                          u.jobTitle?.toLowerCase().includes(q) ||
+                          u.department?.toLowerCase().includes(q)
+                        );
+                      })
+                      .map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => handleChangeOwner(u.id)}
+                        disabled={savingOwner || u.id === lead.ownerId}
+                        className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[#f8f9ff] transition-colors text-left disabled:opacity-40"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        {u.avatarUrl ? (
+                          <img src={u.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: '#006a61' }}>
+                            {u.firstName?.[0]}{u.lastName?.[0]}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-[#0b1c30] truncate">{u.firstName} {u.lastName}</p>
+                          <p className="text-[11px] text-[#45464d] opacity-60 truncate">{[u.jobTitle, u.department].filter(Boolean).join(' · ') || u.email}</p>
+                        </div>
+                        {u.id === lead.ownerId && (
+                          <span className="material-symbols-outlined text-[14px] text-[#006a61] flex-shrink-0">check_circle</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#e2e8f0]">
+                    {savingOwner && <p className="text-[11px] text-[#006a61]">Saving…</p>}
+                    {!savingOwner && <span />}
+                    <button
+                      onClick={() => { setEditingOwner(false); setOwnerSearchQuery(''); }}
+                      className="text-[11px] text-[#45464d] opacity-60 hover:opacity-100 transition-opacity"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="text-text-secondary text-sm">{lead.companyName || ''}{lead.contactName ? ` · ${lead.contactName}` : ''}</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={openEdit}
-            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
-            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">edit</span> Edit
-          </button>
-          {hasPermission(user, 'crm:delete') && (
-            <button onClick={() => setShowDelete(true)}
-              className="flex items-center gap-2 text-danger px-3 py-2.5 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
-              style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">delete</span> Delete
-            </button>
-          )}
-          {!isConverted && !isLost && (
-            <button onClick={openConvert}
-              className="flex items-center gap-2 bg-success text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-success/90 transition-colors"
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">swap_horiz</span> Convert to Opportunity
-            </button>
-          )}
-          {!isConverted && !isLost && (
-            <button onClick={handleMarkLost}
-              className="flex items-center gap-2 border border-danger text-danger px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
-              style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">cancel</span> Mark Lost
-            </button>
-          )}
-          {isConverted && lead.convertedToOppId && (
-            <Link to={`/crm/opportunities/${lead.convertedToOppId}`}
-              className="flex items-center gap-2 text-sm font-semibold text-brand-700 border border-brand-200 px-4 py-2 rounded-lg hover:bg-brand-50"
-              style={{ textDecoration: 'none' }}>
-              <span className="material-symbols-outlined text-base">open_in_new</span> View Opportunity
-            </Link>
-          )}
-          <button onClick={() => setShowAddActivity(true)}
-            className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">add</span> Log Activity
-          </button>
-          <button onClick={() => setShowAddNote(true)}
-            className="flex items-center gap-2 border border-border px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
-            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">sticky_note_2</span> Add Note
-          </button>
-          {/* Draft Message button (Task 6) */}
-          {!isConverted && !isLost && (
-            <button
-              onClick={() => { setDraftModal(true); }}
-              className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2.5 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
-              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-            >
-              <span className="material-symbols-outlined text-sm">auto_awesome</span>
-              Draft Message
-            </button>
-          )}
-        </div>
-      </div>
+        </aside>
 
-      {/* AI Suggested Actions */}
-      {nba.loading && !nba.data && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
-          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
-        </div>
-      )}
-      {nba.data && nba.data.actions?.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
-          {nba.data.actions.map((a, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
-              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
-              {a.action}
-            </span>
-          ))}
-        </div>
-      )}
+        <div className="flex-1 min-w-0 flex flex-col overflow-auto">
+          <div className="flex items-center gap-1.5 text-[12px] text-[#45464d] opacity-70 px-6 pt-5 mb-1">
+            <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:opacity-100">CRM</Link>
+            <span>/</span>
+            <Link to="/crm/leads" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:opacity-100">Leads</Link>
+            <span>/</span>
+            <span className="text-[#0b1c30] opacity-100 font-semibold truncate max-w-[240px]">{lead.title}</span>
+          </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'activities', 'notes', 'audit'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab === 'audit' ? 'Audit Log' : tab}
+          <div className="flex items-start justify-between gap-6 px-6 py-6 border-b border-[#e2e8f0] bg-white flex-wrap">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-20 h-20 rounded-2xl bg-[#86f2e4]/25 text-[#006a61] flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[40px]">apartment</span>
+              </div>
+              <div className="min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-[26px] lg:text-[34px] font-bold text-[#0b1c30] tracking-tight leading-tight">{lead.title}</h1>
+                <StateBadge state={lead.status} size="sm" />
+                {(leadScore.scoreData || lead.aiScore != null) ? (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scoreColor(leadScore.scoreData?.score ?? lead.aiScore!)}`}
+                    title={leadScore.scoreData?.reason ?? lead.aiScoreReason ?? ''}
+                  >
+                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                    {leadScore.scoreData?.score ?? lead.aiScore}/100
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => leadScore.fetch(lead.id)}
+                    disabled={leadScore.loading}
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border border-[#e2e8f0] text-[#45464d] hover:border-[#006a61] hover:text-[#006a61] disabled:opacity-50 transition-colors"
+                    style={{ background: 'white', cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                    {leadScore.loading ? 'Scoring…' : 'Score Lead'}
+                  </button>
+                )}
+              </div>
+              <p className="text-[13px] text-[#45464d] opacity-70 mt-1">
+                {[
+                  // Avoid repeating companyName if already embedded in title
+                  // e.g. title "Probate Admin — Azman & Lee" + companyName "Azman & Lee Advocates"
+                  (() => {
+                    if (!lead.companyName) return null;
+                    // Direct substring match either way
+                    if (lead.title.includes(lead.companyName) || lead.companyName.includes(lead.title.split(' — ').pop() || '')) return null;
+                    return lead.companyName;
+                  })(),
+                  lead.contactName,
+                ].filter(Boolean).join(' · ')}
+                {lead.updatedAt && ` · Updated ${new Date(lead.updatedAt).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}`}
+              </p>
+            </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              <button
+                onClick={openEdit}
+                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#0b1c30] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all shadow-sm"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined text-[18px]">edit</span> Edit Lead
+              </button>
+              {isConverted && lead.convertedToOppId ? (
+                <Link
+                  to={`/crm/opportunities/${lead.convertedToOppId}`}
+                  className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold rounded-xl border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-all"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">open_in_new</span> View Opportunity
+                </Link>
+              ) : !isConverted && !isLost ? (
+                <button
+                  onClick={openConvert}
+                  className="flex items-center gap-2 px-6 py-2.5 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">swap_horiz</span> Convert to Opportunity
+                </button>
+              ) : null}
+              <button
+                onClick={() => setShowAddActivity(true)}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined text-[16px]">add_task</span> Log Activity
+              </button>
+              <button
+                onClick={() => setShowAddNote(true)}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined text-[16px]">sticky_note_2</span> Add Note
+              </button>
+              {!isConverted && !isLost ? (
+                <button
+                  onClick={() => setDraftModal(true)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">auto_awesome</span> Draft Message
+                </button>
+              ) : null}
+              {!isConverted && !isLost ? (
+                <button
+                  onClick={handleMarkLost}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#fff5f5] transition-all"
+                  style={{ cursor: 'pointer', color: '#ba1a1a' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">cancel</span> Mark as Lost
+                </button>
+              ) : null}
+              {hasPermission(user, 'crm:delete') ? (
+                <button
+                  onClick={() => setShowDelete(true)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#fff5f5] transition-all"
+                  style={{ cursor: 'pointer', color: '#ba1a1a' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span> Delete Lead
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+      <div className="flex border-b border-[#e2e8f0] bg-white px-6 overflow-x-auto flex-shrink-0">
+        {([
+          { key: 'overview', label: 'Overview' },
+          { key: 'activities', label: 'Activities' },
+          { key: 'notes', label: 'Notes & Documents' },
+          { key: 'audit', label: 'Timeline' },
+        ] as const).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 h-11 text-[13px] font-semibold border-b-2 transition-colors flex-shrink-0 ${
+              activeTab === key
+                ? 'border-[#006a61] text-[#006a61]'
+                : 'border-transparent text-[#45464d] hover:text-[#0b1c30] hover:border-[#e2e8f0]'
+            }`}
+            style={{ background: 'none', cursor: 'pointer' }}
+          >
+            {label}
           </button>
         ))}
       </div>
+      <div className="flex-1 overflow-auto p-6">
 
       {/* Overview tab */}
       {activeTab === 'overview' && (
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Lead Info</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-            {/* Status — select inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">flag</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Status</span>
-              <InlineEdit
-                value={lead.status}
-                type="select"
-                options={([
-                  { label: 'New', value: 'NEW' },
-                  { label: 'Contacted', value: 'CONTACTED' },
-                  { label: 'Qualified', value: 'QUALIFIED' },
-                  { label: 'Unqualified', value: 'UNQUALIFIED' },
-                  { label: 'Converted', value: 'CONVERTED' },
-                  { label: 'Lost', value: 'LOST' },
-                ] as { label: string; value: string }[])}
-                editable={hasPermission(user, 'crm:admin') && lead.status !== 'CONVERTED'}
-                onSave={async (v) => { await crmService.updateLead(id!, { status: v as LeadStatus }); reload(); }}
-                className="font-bold"
-              />
+        <div className="space-y-5 max-w-5xl">
+          {nba.data?.actions?.length ? (
+            <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-[#e2e8f0] rounded-xl">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[#45464d] opacity-60">AI Suggested</span>
+              {nba.data.actions.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#f8f9ff] border border-[#e2e8f0]" title={a.reason}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${a.priority === 'high' ? 'bg-[#ba1a1a]' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-[#45464d]'}`} />
+                  {a.action}
+                </span>
+              ))}
             </div>
-            {/* Source — select inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">source</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Source</span>
-              <InlineEdit
-                value={lead.source ?? '—'}
-                type="select"
-                options={([
-                  { label: 'Website', value: 'WEBSITE' },
-                  { label: 'Referral', value: 'REFERRAL' },
-                  { label: 'Cold Call', value: 'COLD_CALL' },
-                  { label: 'Trade Show', value: 'TRADE_SHOW' },
-                  { label: 'LinkedIn', value: 'LINKEDIN' },
-                  { label: 'Advertisement', value: 'ADVERTISEMENT' },
-                  { label: 'Partner', value: 'PARTNER' },
-                  { label: 'Other', value: 'OTHER' },
-                ] as { label: string; value: string }[])}
-                onSave={async (v) => { await crmService.updateLead(id!, { source: v as LeadSource }); reload(); }}
-              />
-            </div>
-            {/* Company Name — text inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">business</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Company</span>
-              <InlineEdit
-                value={lead.companyName}
-                onSave={async (v) => { await crmService.updateLead(id!, { companyName: v || null }); reload(); }}
-              />
-            </div>
-            {/* Account — link (not editable inline) */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">apartment</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Account</span>
-              {lead.account ? (
-                <Link to={`/crm/accounts/${lead.account.id}`} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">{lead.account.name}</Link>
-              ) : (
-                <span className="text-sm text-text-secondary">—</span>
-              )}
-            </div>
-            {/* Contact — link (not editable inline) */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">person</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Contact</span>
-              {lead.contact ? (
-                <Link to={`/crm/contacts/${lead.contact.id}`} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">{lead.contact.firstName} {lead.contact.lastName}</Link>
-              ) : (
-                <InlineEdit
-                  value={lead.contactName}
-                  onSave={async (v) => { await crmService.updateLead(id!, { contactName: v || null }); reload(); }}
-                />
-              )}
-            </div>
-            {/* Email — text inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">mail</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Email</span>
-              <InlineEdit
-                value={lead.contactEmail ?? (lead.contact?.email ?? null)}
-                onSave={async (v) => { await crmService.updateLead(id!, { contactEmail: v || null }); reload(); }}
-              />
-            </div>
-            {/* Phone — text inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">call</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Phone</span>
-              <InlineEdit
-                value={lead.contactPhone ?? (lead.contact?.phone ?? null)}
-                onSave={async (v) => { await crmService.updateLead(id!, { contactPhone: v || null }); reload(); }}
-              />
-            </div>
-            {/* Estimated Value — number inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Estimated Value</span>
-              <InlineEdit
-                value={lead.estimatedValue}
-                type="number"
-                display={formatCurrency(lead.estimatedValue)}
-                onSave={async (v) => { await crmService.updateLead(id!, { estimatedValue: v ? Number(v) : null }); reload(); }}
-              />
-            </div>
-            {/* Owner — select inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Owner</span>
-              <InlineEdit
-                value={lead.owner?.id ?? null}
-                display={lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : '—'}
-                type="select"
-                options={crmUsers.map(u => ({ label: `${u.firstName} ${u.lastName}`, value: u.id }))}
-                editable={hasPermission(user, 'crm:admin')}
-                onSave={async (v) => { await crmService.updateLead(id!, { ownerId: v }); reload(); }}
-              />
-            </div>
-            {/* Follow-up Date — date inline edit */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">event</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Follow-up Date</span>
-              <InlineEdit
-                value={lead.followUpDate ? lead.followUpDate.slice(0, 10) : null}
-                type="date"
-                display={lead.followUpDate ? formatDate(lead.followUpDate) : '—'}
-                onSave={async (v) => { await crmService.updateLead(id!, { followUpDate: v || null }); reload(); }}
-              />
-            </div>
-            {/* Created — read-only */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Created</span>
-              <span className="text-sm text-text-primary">{formatDate(lead.createdAt)}</span>
-            </div>
-            {/* Converted At — read-only */}
-            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Converted At</span>
-              <span className="text-sm text-text-secondary">{lead.convertedAt ? formatDate(lead.convertedAt) : '—'}</span>
-            </div>
-          </div>
-          {lead.description && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs font-semibold text-text-secondary mb-1">Description</p>
-              <p className="text-sm text-text-primary leading-relaxed">{lead.description}</p>
-            </div>
-          )}
-          {lead.followUpNote && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs font-semibold text-text-secondary mb-1">Follow-up Note</p>
-              <p className="text-sm text-text-primary leading-relaxed">{lead.followUpNote}</p>
-            </div>
-          )}
-          {lead.lostReason && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs font-semibold text-danger mb-1">Lost Reason</p>
-              <p className="text-sm text-text-primary">{lead.lostReason}</p>
-            </div>
-          )}
+          ) : null}
 
-          {/* AI Summary Panel (Task 7) */}
-          <div className="mt-4 pt-4 border-t border-border">
+          {leadSummary.loading || leadSummary.error || leadSummary.summary ? (
             <AiInsightCard
-              title="AI Summary"
+              title="AI Lead Summary"
               loading={leadSummary.loading}
               error={leadSummary.error}
               onRefresh={handleGetSummary}
             >
               {!leadSummary.summary ? (
-                <button
-                  onClick={handleGetSummary}
-                  className="text-sm text-brand-600 hover:underline"
-                >
+                <button onClick={handleGetSummary} className="text-sm text-[#006a61] hover:underline">
                   Generate summary
                 </button>
               ) : (
-                <ul className="space-y-2 text-sm">
-                  <li><span className="font-medium text-text-secondary">Status:</span> {leadSummary.summary.statusSummary}</li>
-                  <li><span className="font-medium text-text-secondary">Key facts:</span> {leadSummary.summary.keyFacts}</li>
-                  <li><span className="font-medium text-brand-700">Next step:</span> {leadSummary.summary.recommendedNextStep}</li>
+                <ul className="space-y-2 text-sm text-[#45464d]">
+                  <li><span className="font-medium text-[#0b1c30]">Status:</span> {leadSummary.summary.statusSummary}</li>
+                  <li><span className="font-medium text-[#0b1c30]">Key facts:</span> {leadSummary.summary.keyFacts}</li>
+                  <li><span className="font-medium text-[#006a61]">Next step:</span> {leadSummary.summary.recommendedNextStep}</li>
                 </ul>
               )}
             </AiInsightCard>
+          ) : null}
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className="xl:col-span-2 bg-white border border-[#e2e8f0] rounded-xl p-5">
+              <h3 className="text-[13px] font-bold text-[#0b1c30] mb-4 flex items-center gap-2">
+                Lead Information
+                <span className="w-1.5 h-1.5 rounded-full bg-[#006a61]" />
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Industry</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.account?.industry || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Lead Source</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.source ? lead.source.replace(/_/g, ' ') : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Estimated Value</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{formatCurrency(lead.estimatedValue)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Status</p>
+                  <div><StateBadge state={lead.status} size="sm" /></div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Company</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.companyName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Date</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.followUpDate ? formatDate(lead.followUpDate) : '—'}</p>
+                </div>
+              </div>
+              {lead.description ? (
+                <div className="mt-5 pt-4 border-t border-[#e2e8f0]">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Description</p>
+                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.description}</p>
+                </div>
+              ) : null}
+              {lead.followUpNote ? (
+                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Note</p>
+                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.followUpNote}</p>
+                </div>
+              ) : null}
+              {lead.lostReason ? (
+                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#ba1a1a] mb-1">Lost Reason</p>
+                  <p className="text-[13px] text-[#45464d]">{lead.lostReason}</p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
+              <h3 className="text-[13px] font-bold text-[#0b1c30] mb-5 uppercase tracking-wide">Financial Health</h3>
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[12px] font-semibold text-[#45464d]">CTOS Availability</p>
+                    <span className="text-[12px] font-bold text-[#006a61]">VERIFIED</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden">
+                    <div className="h-full rounded-full bg-[#006a61] w-[84%]" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[12px] font-semibold text-[#45464d]">Cash Flow Growth</p>
+                    <span className="text-[12px] font-bold text-[#006a61]">POSITIVE</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden">
+                    <div className="h-full rounded-full bg-[#006a61] w-[70%]" />
+                  </div>
+                </div>
+                {lead.aiScore != null ? (
+                  <div className="pt-4 border-t border-[#e2e8f0] flex items-center justify-between">
+                    <p className="text-[12px] font-semibold text-[#45464d]">AI Score</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scoreColor(lead.aiScore)}`}>
+                      <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                      {lead.aiScore}/100
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#e2e8f0]">
+              <h3 className="text-[13px] font-bold text-[#0b1c30]">Related Opportunities</h3>
+            </div>
+            {lead.opportunities?.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="bg-[#f8f9ff]">
+                      <th className="px-5 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60">Opportunity Name</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60">Stage</th>
+                      <th className="px-4 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60">Amount</th>
+                      <th className="px-4 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60">Prob.</th>
+                      <th className="px-5 py-3 text-right text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60">Close Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lead.opportunities.map((opp: any) => (
+                      <tr key={opp.id} className="border-t border-[#e2e8f0] hover:bg-[#f8f9ff] transition-colors">
+                        <td className="px-5 py-4">
+                          <Link to={`/crm/opportunities/${opp.id}`} className="font-semibold text-[#006a61] hover:underline" style={{ textDecoration: 'none' }}>
+                            {opp.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-4 text-[#45464d]">{opp.stage?.name || '—'}</td>
+                        <td className="px-4 py-4 text-right font-medium text-[#0b1c30]">{formatCurrency(opp.value ?? null)}</td>
+                        <td className="px-4 py-4 text-right text-[#45464d]">{opp.probability != null ? `${opp.probability}%` : '—'}</td>
+                        <td className="px-5 py-4 text-right text-[#45464d]">{opp.expectedCloseDate ? formatDate(opp.expectedCloseDate) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-5 py-8">
+                <EmptyState
+                  icon="rocket_launch"
+                  title="No related opportunities"
+                  description="Convert this lead or link an existing opportunity to populate this section."
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -675,16 +836,16 @@ const CrmLeadDetail = () => {
       {/* Activities tab */}
       {activeTab === 'activities' && (
         <div className="space-y-3">
-          {activities.length === 0 && <p className="text-text-secondary text-sm">No activities yet. Click "Log Activity" to add one.</p>}
+          {activities.length === 0 && <p className="text-[#45464d] text-sm">No activities yet. Click "Log Activity" to add one.</p>}
           {activities.map((a: CrmActivity) => (
-            <div key={a.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
-              <span className="material-symbols-outlined text-brand-700 mt-0.5">{ACTIVITY_ICONS[a.activityType] || 'event'}</span>
+            <div key={a.id} className="flex gap-4 bg-white border border-[#e2e8f0] rounded-xl p-4">
+              <span className="material-symbols-outlined text-[#006a61] mt-0.5">{ACTIVITY_ICONS[a.activityType] || 'event'}</span>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-text-primary text-sm">{a.subject}</p>
-                {a.description && <p className="text-xs text-text-secondary mt-0.5">{a.description}</p>}
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="font-semibold text-[#0b1c30] text-sm">{a.subject}</p>
+                {a.description && <p className="text-xs text-[#45464d] mt-0.5">{a.description}</p>}
+                <p className="text-xs text-[#45464d] mt-1">
                   {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
-                  {a.scheduledAt && <span className="ml-2 text-brand-600">Scheduled: {formatDate(a.scheduledAt)}</span>}
+                  {a.scheduledAt && <span className="ml-2 text-[#006a61]">Scheduled: {formatDate(a.scheduledAt)}</span>}
                   {a.scheduledAt && !a.completedAt && new Date(a.scheduledAt) < new Date() && (
                     <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
                       <span className="material-symbols-outlined" style={{fontSize:11}}>warning</span>
@@ -700,7 +861,7 @@ const CrmLeadDetail = () => {
                   {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
                     <button
                       onClick={() => handleSetReminder(a.id)}
-                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
+                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-[#006a61] hover:text-[#006a61] px-1.5 py-0.5 rounded-full hover:bg-[#f8f9ff] transition-colors"
                       style={{ border: 'none', cursor: 'pointer', background: 'none' }}
                       title="Send a reminder for this scheduled activity"
                     >
@@ -717,13 +878,13 @@ const CrmLeadDetail = () => {
                         <button
                           onClick={() => handleAnalyzeNote(a.id)}
                           disabled={noteAnalyzer.loadingId === a.id}
-                          className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
+                          className="flex items-center gap-1 text-xs text-[#006a61] hover:text-[#006a61] disabled:opacity-50"
                         >
                           <span className="material-symbols-outlined text-sm">auto_awesome</span>
                           {noteAnalyzer.loadingId === a.id ? 'Analyzing…' : 'AI Analyze'}
                         </button>
                         {noteAnalyzer.error && !noteAnalyzer.results[a.id] && (
-                          <p className="text-xs text-danger mt-1">{noteAnalyzer.error}</p>
+                          <p className="text-xs text-[#ba1a1a] mt-1">{noteAnalyzer.error}</p>
                         )}
                       </div>
                     ) : (
@@ -731,22 +892,22 @@ const CrmLeadDetail = () => {
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
-                              noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'text-success'
-                              : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'text-danger'
-                              : 'text-text-tertiary'
+                              noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'text-[#006a61]'
+                              : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'text-[#ba1a1a]'
+                              : 'text-[#45464d] opacity-60'
                             }`}>
                               {noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
                                 : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
                                 : 'sentiment_neutral'}
                             </span>
-                            <span className="capitalize text-text-secondary">{noteAnalyzer.results[a.id]!.sentiment}</span>
+                            <span className="capitalize text-[#45464d]">{noteAnalyzer.results[a.id]!.sentiment}</span>
                           </div>
                           <p><span className="font-medium">Next action:</span> {noteAnalyzer.results[a.id]!.nextAction}</p>
                           {noteAnalyzer.results[a.id]!.suggestedStatusChange && (
-                            <p className="text-brand-700"><span className="font-medium">Suggest status:</span> {noteAnalyzer.results[a.id]!.suggestedStatusChange}</p>
+                            <p className="text-[#006a61]"><span className="font-medium">Suggest status:</span> {noteAnalyzer.results[a.id]!.suggestedStatusChange}</p>
                           )}
                           {noteAnalyzer.results[a.id]!.keyFacts.length > 0 && (
-                            <ul className="list-disc pl-4 text-text-secondary">
+                            <ul className="list-disc pl-4 text-[#45464d]">
                               {noteAnalyzer.results[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
@@ -759,7 +920,7 @@ const CrmLeadDetail = () => {
                                 await crmService.updateLead(lead!.id, { followUpDate: date });
                                 reload();
                               }}
-                              className="mt-2 flex items-center gap-1 text-xs font-bold text-success bg-hr-50 hover:bg-hr-100 px-3 py-1.5 rounded-lg transition-colors"
+                              className="mt-2 flex items-center gap-1 text-xs font-bold text-[#006a61] bg-[#86f2e4]/20 hover:bg-[#86f2e4]/30 px-3 py-1.5 rounded-lg transition-colors"
                               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                             >
                               <span className="material-symbols-outlined text-sm">event_available</span>
@@ -776,7 +937,7 @@ const CrmLeadDetail = () => {
                 {hasPermission(user, 'crm:edit') && (
                   <button
                     onClick={() => openEditActivity(a)}
-                    className="text-text-tertiary hover:text-brand-700 transition-colors"
+                    className="text-[#45464d] opacity-60 hover:text-[#006a61] transition-colors"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
                     title="Edit activity"
                   >
@@ -786,14 +947,14 @@ const CrmLeadDetail = () => {
                 {hasPermission(user, 'crm:delete') && (
                   <button
                     onClick={() => setDeletingActivityId(a.id)}
-                    className="text-text-tertiary hover:text-danger transition-colors"
+                    className="text-[#45464d] opacity-60 hover:text-[#ba1a1a] transition-colors"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
                     title="Delete activity"
                   >
                     <span className="material-symbols-outlined text-base">delete</span>
                   </button>
                 )}
-                <span className="text-xs text-text-secondary">{a.activityType}</span>
+                <span className="text-xs text-[#45464d]">{a.activityType}</span>
               </div>
             </div>
           ))}
@@ -802,8 +963,8 @@ const CrmLeadDetail = () => {
               <button
                 onClick={handleLoadMoreActivities}
                 disabled={loadingMoreActivities}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-brand-700 border border-brand-200 hover:bg-brand-50 transition-colors disabled:opacity-50"
-                style={{ background: loadingMoreActivities ? 'var(--bg-subtle)' : 'var(--bg-surface)', cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-[#006a61] border border-[#e2e8f0] hover:bg-[#f8f9ff] transition-colors disabled:opacity-50"
+                style={{ background: 'white', cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 {loadingMoreActivities ? (
                   <>
@@ -825,12 +986,12 @@ const CrmLeadDetail = () => {
       {/* Notes tab */}
       {activeTab === 'notes' && (
         <div className="space-y-3">
-          {notes.length === 0 && <p className="text-text-secondary text-sm">No notes yet. Click "Add Note" to add one.</p>}
+          {notes.length === 0 && <p className="text-[#45464d] text-sm">No notes yet. Click "Add Note" to add one.</p>}
           {notes.map((n: CrmNote) => (
-            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-warning' : 'border-border'}`}>
+            <div key={n.id} className={`bg-white border rounded-xl p-4 ${n.isPinned ? 'border-amber-300' : 'border-[#e2e8f0]'}`}>
               {n.isPinned && <span className="flex items-center gap-1 text-xs text-warning mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
-              <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
-              <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+              <p className="text-sm text-[#0b1c30] leading-relaxed whitespace-pre-wrap">{n.content}</p>
+              <p className="text-xs text-[#45464d] mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
             </div>
           ))}
         </div>
@@ -846,47 +1007,47 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowConvert(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-1">Convert Lead to Opportunity</h2>
-            <p className="text-sm text-text-secondary mb-4">This will create a new opportunity from this lead.</p>
+            <h2 className="text-lg font-black text-[#0b1c30] mb-1">Convert Lead to Opportunity</h2>
+            <p className="text-sm text-[#45464d] mb-4">This will create a new opportunity from this lead.</p>
             <form onSubmit={handleConvert} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Name *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Opportunity Name *</label>
                 <input required value={convertForm.oppName} onChange={e => setConvertForm(f => ({ ...f, oppName: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Value (MYR)</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Opportunity Value (MYR)</label>
                 <input type="number" min="0" value={convertForm.oppValue} onChange={e => setConvertForm(f => ({ ...f, oppValue: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Expected Close Date</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Expected Close Date</label>
                 <input type="date" value={convertForm.expectedCloseDate} onChange={e => setConvertForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Pipeline *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Pipeline *</label>
                 <select value={convertForm.pipelineId} onChange={e => {
                   const pl = pipelines.find(p => p.id === e.target.value);
                   setConvertForm(f => ({ ...f, pipelineId: e.target.value, stageId: pl?.stages?.[0]?.id ?? '' }));
-                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
+                }} className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Initial Stage *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Initial Stage *</label>
                 <select value={convertForm.stageId} onChange={e => setConvertForm(f => ({ ...f, stageId: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {(selectedPipeline?.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowConvert(false)}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]"
+                  style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-success text-white hover:bg-success/90"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Converting…' : 'Convert to Opportunity'}
                 </button>
               </div>
@@ -900,32 +1061,32 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Log Activity</h2>
+            <h2 className="text-lg font-black text-[#0b1c30] mb-4">Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                  style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving…' : 'Log Activity'}
                 </button>
               </div>
@@ -946,24 +1107,24 @@ const CrmLeadDetail = () => {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-text-primary">Mark as Lost</h2>
+              <h2 className="text-lg font-black text-[#0b1c30]">Mark as Lost</h2>
               <button
                 onClick={() => setShowLostModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer' }}
               >
-                <span className="material-symbols-outlined text-text-secondary">close</span>
+                <span className="material-symbols-outlined text-[#45464d]">close</span>
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">
                   Reason *
                 </label>
                 <select
                   value={lostCategory}
                   onChange={e => setLostCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200"
-                  style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}
+                  className="w-full px-3 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20"
+                  style={{ fontFamily: 'var(--font-sans)', background: 'white' }}
                 >
                   <option value="">Select a reason…</option>
                   {[
@@ -981,7 +1142,7 @@ const CrmLeadDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">
                   Additional notes (optional)
                 </label>
                 <textarea
@@ -989,7 +1150,7 @@ const CrmLeadDetail = () => {
                   value={lostNote}
                   onChange={e => setLostNote(e.target.value)}
                   placeholder="Any additional context…"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200"
+                  className="w-full px-3 py-2 border border-[#e2e8f0] rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-[#006a61]/20"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 />
               </div>
@@ -998,16 +1159,16 @@ const CrmLeadDetail = () => {
               <button
                 type="button"
                 onClick={() => setShowLostModal(false)}
-                className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmLost}
                 disabled={!lostCategory}
-                className="px-4 py-2 text-sm font-bold rounded-lg bg-danger text-white hover:bg-danger/90 disabled:opacity-50 transition-colors"
-                style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                style={{ background: '#ba1a1a', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Mark as Lost
               </button>
@@ -1021,20 +1182,20 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddNote(false); setNoteContent(''); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Add Note</h2>
+            <h2 className="text-lg font-black text-[#0b1c30] mb-4">Add Note</h2>
             <form onSubmit={handleAddNote} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Note *</label>
                 <textarea required rows={5} value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddNote(false); setNoteContent(''); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                  style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving…' : 'Add Note'}
                 </button>
               </div>
@@ -1049,18 +1210,18 @@ const CrmLeadDetail = () => {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
-              <button onClick={() => setDraftModal(false)} className="text-text-tertiary hover:text-text-secondary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setDraftModal(false)} className="text-[#45464d] opacity-60 hover:opacity-100" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             <div className="mb-4 flex gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-text-secondary">Channel</label>
+                <label className="mb-1 block text-xs font-medium text-[#45464d]">Channel</label>
                 <select
                   value={draftConfig.channel}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, channel: e.target.value as 'whatsapp' | 'email' }))}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm"
+                  className="rounded-xl border border-[#e2e8f0] px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="whatsapp">WhatsApp</option>
@@ -1068,11 +1229,11 @@ const CrmLeadDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-text-secondary">Tone</label>
+                <label className="mb-1 block text-xs font-medium text-[#45464d]">Tone</label>
                 <select
                   value={draftConfig.tone}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, tone: e.target.value as 'formal' | 'friendly' }))}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm"
+                  className="rounded-xl border border-[#e2e8f0] px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="friendly">Friendly</option>
@@ -1083,8 +1244,8 @@ const CrmLeadDetail = () => {
                 <button
                   onClick={handleDraftMessage}
                   disabled={draftMsg.loading}
-                  className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-                  style={{ border: 'none', cursor: 'pointer' }}
+                  className="rounded-full px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer' }}
                 >
                   {draftMsg.loading ? 'Drafting…' : 'Generate'}
                 </button>
@@ -1092,7 +1253,7 @@ const CrmLeadDetail = () => {
             </div>
 
             {draftMsg.error && (
-              <div className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
+              <div className="mb-4 rounded-md bg-[#fff5f5] border border-[#f3c7c7] px-3 py-2 text-sm text-[#ba1a1a]">
                 {draftMsg.error}
               </div>
             )}
@@ -1101,20 +1262,20 @@ const CrmLeadDetail = () => {
               <div className="space-y-3">
                 {draftMsg.result.subject && (
                   <div>
-                    <p className="mb-1 text-xs font-medium text-text-secondary">Subject</p>
-                    <p className="rounded-md bg-bg-subtle px-3 py-2 text-sm">{draftMsg.result.subject}</p>
+                    <p className="mb-1 text-xs font-medium text-[#45464d]">Subject</p>
+                    <p className="rounded-md bg-[#f8f9ff] px-3 py-2 text-sm">{draftMsg.result.subject}</p>
                   </div>
                 )}
                 <div>
-                  <p className="mb-1 text-xs font-medium text-text-secondary">Message</p>
+                  <p className="mb-1 text-xs font-medium text-[#45464d]">Message</p>
                   <textarea
-                    className="w-full rounded-md border border-border px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-[#e2e8f0] px-3 py-2 text-sm"
                     rows={8}
                     defaultValue={draftMsg.result.body}
                     style={{ fontFamily: 'var(--font-sans)' }}
                   />
                 </div>
-                <p className="text-xs text-text-tertiary">Edit as needed before sending. AI-generated — review before use.</p>
+                <p className="text-xs text-[#45464d] opacity-60">Edit as needed before sending. AI-generated — review before use.</p>
               </div>
             )}
           </div>
@@ -1126,60 +1287,60 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-extrabold text-text-primary">Edit Lead</h2>
-              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            <div className="flex items-center justify-between p-6 border-b border-[#e2e8f0]">
+              <h2 className="text-lg font-extrabold text-[#0b1c30]">Edit Lead</h2>
+              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-[#45464d]">close</span></button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Title *</label>
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Title *</label>
                 <input required value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                  className={`w-full px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? '!border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-[#006a61]/20'}`} />
                 {formErrors.some(e => e.field === 'title') && (
                   <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'title')?.message}</p>
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Contact Name</label>
                   <input value={editForm.contactName ?? ''} onChange={e => setEditForm(f => ({ ...f, contactName: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Company</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Company</label>
                   <input value={editForm.companyName ?? ''} onChange={e => setEditForm(f => ({ ...f, companyName: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Email</label>
                   <input type="email" value={editForm.contactEmail ?? ''} onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
-                    className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                    className={`w-full px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? '!border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-[#006a61]/20'}`} />
                   {formErrors.some(e => e.field === 'contactEmail') && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'contactEmail')?.message}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Phone</label>
                   <input value={editForm.contactPhone ?? ''} onChange={e => setEditForm(f => ({ ...f, contactPhone: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Source</label>
                   <select value={editForm.source ?? 'OTHER'} onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                     {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
                       <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Estimated Value (MYR)</label>
                   <input type="number" min="0" value={editForm.estimatedValue ?? ''} onChange={e => setEditForm(f => ({ ...f, estimatedValue: e.target.value }))}
-                    className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                    className={`w-full px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? '!border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-[#006a61]/20'}`} />
                   {formErrors.some(e => e.field === 'estimatedValue') && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
                   )}
@@ -1187,14 +1348,14 @@ const CrmLeadDetail = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Follow-up Date</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Follow-up Date</label>
                   <input type="date" value={editForm.followUpDate ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpDate: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Owner</label>
                   <select value={lead!.owner?.id ?? ''} onChange={e => setEditForm(f => ({ ...f, ownerId: e.target.value || undefined }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                     {crmUsers.map(u => (
                       <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                     ))}
@@ -1202,18 +1363,18 @@ const CrmLeadDetail = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Follow-up Note</label>
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Follow-up Note</label>
                 <input value={editForm.followUpNote ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpNote: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Description</label>
                 <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]" style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50" style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
@@ -1225,8 +1386,8 @@ const CrmLeadDetail = () => {
       {/* Quick Log FAB */}
       <button
         onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'CALL' }); }}
-        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-brand-700 text-white shadow-lg hover:bg-brand-800 active:scale-95 transition-all flex items-center justify-center"
-        style={{ border: 'none', cursor: 'pointer' }}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full text-white shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center"
+        style={{ background: '#006a61', border: 'none', cursor: 'pointer' }}
         title="Quick Log Activity"
       >
         <span className="material-symbols-outlined text-2xl">add</span>
@@ -1248,37 +1409,37 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setEditingActivity(null)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Edit Activity</h2>
+            <h2 className="text-lg font-black text-[#0b1c30] mb-4">Edit Activity</h2>
             <form onSubmit={handleEditActivity} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Type</label>
                 <select value={editActivityForm.activityType} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Subject *</label>
                 <input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Description</label>
                 <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Scheduled At</label>
                 <input type="datetime-local" value={editActivityForm.scheduledAt ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditingActivity(null)}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                  style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
@@ -1297,7 +1458,9 @@ const CrmLeadDetail = () => {
         onConfirm={handleDeleteActivity}
         onCancel={() => setDeletingActivityId(null)}
       />
-    </div>
+      </div>
+        </div>
+      </div>
     </>
   );
 };

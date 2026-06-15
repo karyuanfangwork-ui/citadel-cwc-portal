@@ -148,11 +148,9 @@ export const requestService = {
     },
 
     // ── Export ─────────────────────────────────────────────────────────────
-    async exportPdf(id: string): Promise<Blob> {
-        const response = await apiClient.get(`/requests/${id}/export/pdf`, {
-            responseType: 'blob',
-        });
-        return response.data;
+    async exportPdf(id: string): Promise<{ jobId: string }> {
+        const response = await apiClient.get(`/requests/${id}/export/pdf`);
+        return response.data?.data ?? response.data;
     },
 
     async exportXlsx(ids: string[]): Promise<Blob> {

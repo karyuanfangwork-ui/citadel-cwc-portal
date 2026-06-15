@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import creditService, { looApi, LooStatus } from '../../../src/services/credit.service';
+import { pollPdfJob } from '../../../src/services/pdfJob.service';
 
 interface Props {
   applicationId: string;
@@ -12,6 +13,7 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastPdfJobId, setLastPdfJobId] = useState<string | null>(null);
 
   const canGenerate = !readOnly && (state === 'APPROVED' || state === 'OFFER');
 
@@ -34,7 +36,8 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
     setGenerating(true);
     setError(null);
     try {
-      await looApi.generate(applicationId);
+      const result = await looApi.generate(applicationId);
+      setLastPdfJobId(result.pdfJobId);
       await loadStatus();
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to generate LOO');
@@ -47,7 +50,8 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
     setGenerating(true);
     setError(null);
     try {
-      await looApi.regenerate(applicationId);
+      const result = await looApi.regenerate(applicationId);
+      setLastPdfJobId(result.pdfJobId);
       await loadStatus();
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to regenerate LOO');
@@ -56,13 +60,26 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
     }
   };
 
+  const [pdfPending, setPdfPending] = useState(false);
+
   const handleDownload = async () => {
     if (!status?.documentId) return;
+    setPdfPending(true);
     try {
+      // If we have a pdfJobId from the generate response, poll until the PDF is ready
+      if (lastPdfJobId) {
+        try {
+          await pollPdfJob(lastPdfJobId, 1500, 30000);
+        } catch {
+          // Job may have expired (TTL 1h) — try download anyway
+        }
+      }
       const url = await creditService.getDocumentDownloadUrl(status.documentId);
       window.open(url, '_blank');
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to download LOO PDF');
+    } finally {
+      setPdfPending(false);
     }
   };
 
@@ -158,10 +175,10 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
             )}
             <button
               onClick={handleDownload}
-              disabled={!status?.documentId}
+              disabled={!status?.documentId || pdfPending}
               className="px-3 py-1.5 border text-xs font-medium rounded hover:bg-gray-50 disabled:opacity-50"
             >
-              Download PDF
+              {pdfPending ? 'Generating PDF…' : 'Download PDF'}
             </button>
           </div>
 

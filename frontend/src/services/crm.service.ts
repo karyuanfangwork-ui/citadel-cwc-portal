@@ -8,9 +8,9 @@ export type LeadSource = 'WEBSITE' | 'REFERRAL' | 'COLD_CALL' | 'TRADE_SHOW' | '
 export type OpportunityStage = 'PROSPECTING' | 'QUALIFICATION' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
 export type CrmActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | 'FOLLOW_UP' | 'WHATSAPP' | 'SITE_VISIT';
 
-export interface UserRef { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null; }
+export interface UserRef { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null; jobTitle?: string | null; department?: string | null; }
 
-export interface CrmUser { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null; }
+export interface CrmUser { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null; jobTitle?: string | null; department?: string | null; }
 
 export interface CrmAccount {
   id: string; name: string; industry: string | null; companySize: string | null;

@@ -1074,12 +1074,10 @@ const creditService = {
     };
   },
 
-  // CA Memo PDF download (authenticated blob)
-  async downloadCaMemo(applicationId: string) {
-    const res = await apiClient.get(`/credit/applications/${applicationId}/ca-memo`, {
-      responseType: 'blob',
-    });
-    return res;
+  // CA Memo PDF — now returns a jobId for async generation
+  async downloadCaMemo(applicationId: string): Promise<{ jobId: string }> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/ca-memo`);
+    return res.data?.data ?? res.data;
   },
 
   // Approval Pack Preview (Wave 3)
@@ -1095,11 +1093,9 @@ const creditService = {
     return res.data as string;
   },
 
-  async downloadApprovalPackPdf(applicationId: string) {
-    const res = await apiClient.get(`/credit/applications/${applicationId}/approval-pack?format=pdf`, {
-      responseType: 'blob',
-    });
-    return res;
+  async downloadApprovalPackPdf(applicationId: string): Promise<{ jobId: string }> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/approval-pack?format=pdf`);
+    return res.data?.data ?? res.data;
   },
 
   // Credit Scoring (Phase 4C)
@@ -2617,6 +2613,7 @@ export interface LooGenerateResult {
   version: number;
   generatedAt: string;
   expiryDate: string;
+  pdfJobId: string;
 }
 
 export const looApi = {

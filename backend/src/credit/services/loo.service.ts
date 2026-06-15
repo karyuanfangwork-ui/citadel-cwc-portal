@@ -1,9 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
-import { htmlToPdf } from './htmlToPdf.service';
+import { enqueuePdf } from '../../services/pdfJob.service';
 import { renderLooHtml, LooTemplateData } from '../templates/loo.html';
 import { AuditChainService } from './auditChain.service';
-import { s3Service } from '../../services/s3.service';
 
 const prisma = new PrismaClient();
 const LOO_EXPIRY_DAYS = 14;
@@ -23,6 +22,7 @@ export interface LooGenerateResult {
   version: number;
   generatedAt: Date;
   expiryDate: Date;
+  pdfJobId: string;
 }
 
 class LooService {
@@ -96,11 +96,12 @@ class LooService {
       version: newVersion,
     };
 
-    // Render HTML and convert to PDF
+    // Render HTML and enqueue async PDF generation
     const html = renderLooHtml(templateData);
-    const pdfBuffer = await htmlToPdf(html);
+    const s3Prefix = `uploads/credit/${applicationId}/`;
+    const pdfJobId = await enqueuePdf(html, s3Prefix);
 
-    // Save as CreditDocument
+    // Save as CreditDocument (fileSize filled by worker after upload)
     const fileName = `LOO-${templateData.applicationNo}-v${newVersion}.pdf`;
     const filePath = `uploads/credit/${applicationId}/${fileName}`;
 
@@ -111,7 +112,7 @@ class LooService {
         classification: 'LETTER_OF_OFFER',
         fileName,
         filePath,
-        fileSize: pdfBuffer.length,
+        fileSize: null, // Filled after worker completes upload
         mimeType: 'application/pdf',
         verificationStatus: 'PENDING',
         uploadedById: generatedById,
@@ -119,8 +120,8 @@ class LooService {
       },
     });
 
-    // §2.3 — Upload PDF to S3 so the download endpoint can serve it
-    await s3Service.uploadBuffer(filePath, pdfBuffer, 'application/pdf');
+    // Note: The BullMQ PDF worker uploads the PDF to S3 asynchronously.
+    // The client can poll /api/v1/pdf-jobs/:pdfJobId for the presigned download URL.
 
     // Update application LOO fields
     await prisma.creditApplication.update({
@@ -151,6 +152,7 @@ class LooService {
       version: newVersion,
       generatedAt: now,
       expiryDate,
+      pdfJobId,
     };
   }
 

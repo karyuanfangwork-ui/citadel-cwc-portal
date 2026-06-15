@@ -30,7 +30,7 @@ import { broadcast } from '../utils/sseClients';
 
 const prisma = new PrismaClient();
 
-const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true };
+const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true };
 
 /** Mask bankAccount in API responses — only show last 4 digits */
 const maskBankAccount = (account: any): any => {
@@ -1555,7 +1555,7 @@ class CrmController {
           },
         },
       },
-      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true },
       orderBy: { firstName: 'asc' },
     });
     res.json({ status: 'success', data: { users } });

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import creditService from '../../services/credit.service';
+import { pollPdfJob } from '../../services/pdfJob.service';
 
 /**
  * Section anchors matching the IDs in the approval-pack HTML template.
@@ -80,17 +81,22 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
     }
   }, [applicationId]);
 
+  const [downloading, setDownloading] = useState(false);
+
   const handleDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
     try {
-      const res = await creditService.downloadApprovalPackPdf(applicationId);
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const { jobId } = await creditService.downloadApprovalPackPdf(applicationId);
+      const url = await pollPdfJob(jobId);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${applicationNo}-approval-pack.pdf`;
       a.click();
-      URL.revokeObjectURL(url);
     } catch {
       // swallow — user can retry
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -186,11 +192,12 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownloadPdf}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={downloading}
+                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 title="Download PDF"
                 aria-label="Download approval pack as PDF"
               >
-                ↓ Download PDF
+                ↓ {downloading ? 'Generating…' : 'Download PDF'}
               </button>
               <button
                 onClick={onClose}

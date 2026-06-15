@@ -9,29 +9,33 @@ interface CrmKpiCardProps {
   trend?: KpiTrend;
   trendLabel?: string;
   trendPositive?: boolean;
+  highlight?: boolean; // border-l-4 teal accent for featured metric
 }
 
-const CrmKpiCard: React.FC<CrmKpiCardProps> = ({ label, value, icon, trend, trendLabel, trendPositive }) => {
-  const trendIcon = trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'horizontal_rule';
+const CrmKpiCard: React.FC<CrmKpiCardProps> = ({ label, value, icon, trend, trendLabel, trendPositive, highlight }) => {
   const isPositive = trendPositive !== undefined ? trendPositive : trend === 'up';
-  const trendColor = trendLabel
-    ? isPositive ? 'text-emerald-700' : 'text-red-600'
-    : 'text-[var(--text-secondary,#6b7280)]';
+  const badgeColor = isPositive
+    ? 'bg-[#86f2e4]/30 text-[#006a61]'
+    : 'bg-[#ffdad6]/40 text-[#ba1a1a]';
 
   return (
-    <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-4 flex flex-col justify-between h-32 transition-all hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex justify-between items-start gap-3">
-        <span className="text-xs font-semibold text-[var(--text-secondary,#6b7280)] leading-tight">{label}</span>
-        <span className="material-symbols-outlined text-brand-600 text-[20px]">{icon}</span>
+    <div
+      className={`bg-white border border-[#e2e8f0] rounded-xl p-4 flex flex-col justify-between shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#006a61] hover:shadow-md ${highlight ? 'border-l-4 border-l-[#006a61]' : ''}`}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-[11px] font-bold tracking-widest uppercase text-[#45464d] opacity-70 leading-tight">{label}</span>
+        {trendLabel && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeColor}`}>
+            {isPositive ? '+' : ''}{trendLabel}
+          </span>
+        )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-[var(--text-primary,#111827)] leading-tight">{value}</p>
-        {trendLabel && (
-          <div className={`flex items-center gap-1 mt-0.5 ${trendColor}`}>
-            <span className="material-symbols-outlined text-[14px]">{trendIcon}</span>
-            <span className="text-[11px] font-semibold">{trendLabel}</span>
-          </div>
-        )}
+        <p className={`text-[28px] font-bold leading-tight ${highlight ? 'text-[#006a61]' : 'text-[#0b1c30]'}`}>{value}</p>
+        <p className="text-[12px] text-[#45464d] mt-1 opacity-70 flex items-center gap-1">
+          <span className="material-symbols-outlined text-[13px]">{icon}</span>
+          {trend === 'up' ? 'Up this period' : trend === 'down' ? 'Down this period' : 'Stable'}
+        </p>
       </div>
     </div>
   );

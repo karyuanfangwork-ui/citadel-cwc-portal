@@ -1,8 +1,11 @@
 /**
- * requestPdf.controller.ts — Export a single ticket as PDF.
+ * requestPdf.controller.ts — Enqueue a ticket PDF export job.
  *
  * GET /api/v1/requests/:id/export/pdf
  * Permission: request:export (agents & admins only)
+ *
+ * Returns { jobId } immediately. Client polls GET /api/v1/pdf-jobs/:jobId
+ * for the presigned S3 download URL.
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -12,14 +15,7 @@ import { generateRequestPdf } from '../services/requestPdf.service';
 export const exportRequestPdf = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
   const id = String(req.params.id);
 
-  const pdfBuffer = await generateRequestPdf(id);
+  const jobId = await generateRequestPdf(id);
 
-  // Determine filename from reference number if possible
-  // The service already validated the request exists, so we can use the id as fallback
-  const filename = `request-${id}.pdf`;
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Content-Length', pdfBuffer.length);
-  res.send(pdfBuffer);
+  res.json({ status: 'success', data: { jobId, message: 'PDF generation started. Poll /api/v1/pdf-jobs/:jobId for the download URL.' } });
 });

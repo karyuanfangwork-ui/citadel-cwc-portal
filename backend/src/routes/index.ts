@@ -37,6 +37,7 @@ import announcementRoutes from './announcement.routes';
 import creditRoutes from '../credit/routes/credit.routes';
 import schedulerRoutes from './scheduler.routes';
 import insightsRoutes from './insights.routes';
+import pdfJobRoutes from './pdfJob.routes';
 
 const router = Router();
 
@@ -84,6 +85,7 @@ router.use('/announcements', announcementRoutes);
 router.use('/credit', creditRoutes);
 router.use('/admin/scheduler', schedulerRoutes);
 router.use('/insights', insightsRoutes);
+router.use('/pdf-jobs', pdfJobRoutes);
 
 export default router;
 

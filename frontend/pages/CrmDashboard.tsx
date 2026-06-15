@@ -6,7 +6,6 @@ import AiInsightCard from '../src/components/crm/AiInsightCard';
 import CrmKpiCard from '../src/components/crm/CrmKpiCard';
 import PipelineFunnelChart from '../src/components/crm/PipelineFunnelChart';
 import MonthlyTrendChart from '../src/components/crm/MonthlyTrendChart';
-import ProductMixChart from '../src/components/crm/ProductMixChart';
 import MyTasksWidget from '../src/components/crm/MyTasksWidget';
 import UpcomingFollowUpsWidget from '../src/components/crm/UpcomingFollowUpsWidget';
 import { useDailyBriefing } from '../src/hooks/useCrmAi';
@@ -17,6 +16,8 @@ const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
   notation: 'compact',
   maximumFractionDigits: 1,
 }).format(value);
+
+const TEAL = '#006a61';
 
 const DashboardInner: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -31,23 +32,13 @@ const DashboardInner: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-
     setLoading(true);
     setError(null);
     crmService.getDashboard(myDeals)
-      .then((data) => {
-        if (!cancelled) setStats(data);
-      })
-      .catch((err: any) => {
-        if (!cancelled) setError(err.message ?? 'Failed to load dashboard');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .then((data) => { if (!cancelled) setStats(data); })
+      .catch((err: any) => { if (!cancelled) setError(err.message ?? 'Failed to load dashboard'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [myDeals]);
 
   const didAutoLoad = React.useRef(false);
@@ -60,7 +51,7 @@ const DashboardInner: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-6 text-center text-red-600">
+      <div className="p-6 text-center text-[#ba1a1a]">
         <span className="material-symbols-outlined text-4xl block mb-2">error_outline</span>
         {error}
       </div>
@@ -68,25 +59,26 @@ const DashboardInner: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
-      <section className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="min-h-full bg-[#f8f9ff] p-6 space-y-5 max-w-screen-2xl mx-auto">
+
+      {/* Header */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-[var(--text-primary,#111827)]">Relationship Overview</h1>
-          <p className="text-sm text-[var(--text-secondary,#6b7280)] mt-0.5">
-            Performance summary for {quarter} · Last updated: Today, {lastUpdated}
-          </p>
+          <h2 className="text-[28px] font-bold leading-tight text-[#0b1c30] tracking-tight">Relationship Overview</h2>
+          <p className="text-[13px] text-[#45464d] mt-0.5">Performance summary for {quarter} · Last updated: Today, {lastUpdated}</p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-[var(--text-secondary,#6b7280)] cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-[13px] text-[#45464d] cursor-pointer select-none bg-white border border-[#e2e8f0] rounded-full px-4 py-1.5">
           <input
             type="checkbox"
             checked={myDeals}
-            onChange={(event) => setMyDeals(event.target.checked)}
-            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+            onChange={(e) => setMyDeals(e.target.checked)}
+            className="rounded border-[#e2e8f0] accent-[#006a61]"
           />
           My deals only
         </label>
-      </section>
+      </div>
 
+      {/* AI Briefing */}
       {(briefing || briefingLoading || briefingError) && (
         <AiInsightCard
           title="AI Daily Briefing"
@@ -94,17 +86,17 @@ const DashboardInner: React.FC = () => {
           error={briefingError}
           onRefresh={fetchBriefing}
         >
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-[var(--text-primary,#111827)]">{briefing?.headline}</p>
+          <div className="space-y-2">
+            <p className="text-[14px] font-semibold text-[#0b1c30]">{briefing?.headline}</p>
             {!!briefing?.bullets?.length && (
-              <ul className="space-y-1 text-sm text-[var(--text-secondary,#6b7280)] list-disc pl-5">
+              <ul className="space-y-1 text-[13px] text-[#45464d] list-disc pl-5">
                 {briefing.bullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
                 ))}
               </ul>
             )}
             {briefing?.topPriority && (
-              <p className="text-sm text-[var(--text-primary,#111827)]">
+              <p className="text-[13px] text-[#0b1c30]">
                 <span className="font-semibold">Top priority:</span> {briefing.topPriority}
               </p>
             )}
@@ -112,17 +104,18 @@ const DashboardInner: React.FC = () => {
         </AiInsightCard>
       )}
 
+      {/* KPI Cards */}
       <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <CrmKpiCard
-          label="Today's Leads"
+          label="New Leads"
           value={loading ? '—' : (stats?.totalLeads ?? 0)}
           icon="person_add"
           trend={stats?.totalLeads ? 'up' : 'flat'}
-          trendLabel={stats ? `${stats.totalLeads} active` : undefined}
+          trendLabel={stats?.totalLeads ? `${stats.totalLeads} active` : undefined}
           trendPositive
         />
         <CrmKpiCard
-          label="Active Opportunities"
+          label="Open Opps"
           value={loading ? '—' : (stats?.totalOpportunities ?? 0)}
           icon="pending_actions"
           trend="flat"
@@ -151,6 +144,7 @@ const DashboardInner: React.FC = () => {
           trend="up"
           trendLabel={stats?.wonDeals.count ? `${stats.wonDeals.count} won` : undefined}
           trendPositive
+          highlight
         />
         <CrmKpiCard
           label="Win Rate"
@@ -162,128 +156,118 @@ const DashboardInner: React.FC = () => {
         />
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
-          <h3 className="text-base font-bold text-[var(--text-primary,#111827)] mb-4">Pipeline Funnel</h3>
+      {/* Charts Row: Monthly Trend (8) + Funnel (4) */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-8 bg-white border border-[#e2e8f0] rounded-xl p-5 shadow-sm">
+          <div className="flex justify-between items-start mb-5">
+            <div>
+              <h3 className="text-[16px] font-semibold text-[#0b1c30]">Monthly Won Deals</h3>
+              <p className="text-[12px] text-[#45464d] opacity-70 mt-0.5">Closed value trend</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: TEAL }} />
+              <span className="text-[11px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Closed value</span>
+            </div>
+          </div>
+          {loading ? (
+            <div className="h-52 bg-[#f8f9ff] rounded-lg animate-pulse" />
+          ) : (
+            <div className="h-52">
+              <MonthlyTrendChart data={stats?.monthlyTrend ?? []} />
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-4 bg-white border border-[#e2e8f0] rounded-xl p-5 shadow-sm">
+          <h3 className="text-[16px] font-semibold text-[#0b1c30] mb-5">Opportunity Funnel</h3>
           {loading ? (
             <div className="space-y-3 animate-pulse">
-              {[100, 80, 60, 40].map((width) => (
-                <div key={width} className="h-8 bg-gray-100 rounded" style={{ width: `${width}%` }} />
+              {[100, 75, 50, 30].map((w) => (
+                <div key={w} className="h-8 bg-[#f8f9ff] rounded" style={{ width: `${w}%` }} />
               ))}
             </div>
           ) : (
             <PipelineFunnelChart items={stats?.pipelineByName ?? []} />
           )}
         </div>
-
-        <div className="lg:col-span-5 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
-          <div className="flex justify-between items-center mb-4 gap-3">
-            <h3 className="text-base font-bold text-[var(--text-primary,#111827)]">Monthly Won Deals</h3>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-brand-600" />
-              <span className="text-[11px] text-[var(--text-secondary,#6b7280)]">Closed value</span>
-            </div>
-          </div>
-          {loading ? (
-            <div className="h-48 bg-gray-50 rounded animate-pulse" />
-          ) : (
-            <div className="h-48">
-              <MonthlyTrendChart data={stats?.monthlyTrend ?? []} />
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-3 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
-          <h3 className="text-base font-bold text-[var(--text-primary,#111827)] mb-4">Pipeline Mix</h3>
-          {loading ? (
-            <div className="flex flex-col items-center gap-4 animate-pulse">
-              <div className="w-32 h-32 rounded-full bg-gray-100" />
-              <div className="w-full space-y-2">
-                {[1, 2, 3, 4].map((index) => <div key={index} className="h-4 bg-gray-100 rounded" />)}
-              </div>
-            </div>
-          ) : (
-            <ProductMixChart items={stats?.pipelineByName ?? []} />
-          )}
-        </div>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
-          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
-            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">My Tasks</h3>
-            <button className="text-xs font-semibold text-brand-600 hover:underline" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-              View all
-            </button>
+      {/* Bottom Row: Upcoming Activities (6) + My Tasks (6) */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Upcoming Activities */}
+        <div className="lg:col-span-6 bg-white border border-[#e2e8f0] rounded-xl shadow-sm flex flex-col">
+          <div className="px-5 py-4 border-b border-[#e2e8f0] flex justify-between items-center">
+            <h3 className="text-[15px] font-semibold text-[#0b1c30]">Upcoming Follow-Ups</h3>
+            <span className="text-[13px] font-semibold cursor-pointer" style={{ color: TEAL }}>View All</span>
           </div>
-          <div className="p-4 flex-1 overflow-y-auto max-h-80">
-            {loading ? (
-              <div className="space-y-4 animate-pulse">
-                {[1, 2, 3].map((index) => <div key={index} className="h-12 bg-gray-100 rounded" />)}
-              </div>
-            ) : (
-              <MyTasksWidget activities={stats?.recentActivities ?? []} />
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
-          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
-            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">Recent Activities</h3>
-            <span className="material-symbols-outlined text-[var(--text-secondary,#6b7280)] text-[18px] cursor-pointer">filter_list</span>
-          </div>
-          <div className="p-4 flex-1 overflow-y-auto max-h-80">
-            {loading ? (
-              <div className="space-y-4 animate-pulse">
-                {[1, 2, 3].map((index) => <div key={index} className="h-14 bg-gray-100 rounded" />)}
-              </div>
-            ) : (
-              <div className="relative border-l-2 border-gray-100 ml-2 pl-5 space-y-5 py-1">
-                {(stats?.recentActivities ?? []).slice(0, 5).map((activity) => (
-                  <div key={activity.id} className="relative">
-                    <span className="absolute -left-[29px] top-1 w-3.5 h-3.5 bg-brand-600 rounded-full border-2 border-white" />
-                    <p className="text-sm font-semibold text-[var(--text-primary,#111827)]">
-                      {activity.subject ?? activity.activityType}
-                    </p>
-                    {activity.description && (
-                      <p className="text-xs text-[var(--text-secondary,#6b7280)] mt-0.5 line-clamp-2">{activity.description}</p>
-                    )}
-                    <p className="text-[11px] text-[var(--text-secondary,#9ca3af)] mt-1">
-                      {new Date(activity.createdAt).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })}
-                    </p>
-                  </div>
-                ))}
-                {!stats?.recentActivities?.length && (
-                  <p className="text-sm text-[var(--text-secondary,#6b7280)]">No recent activities</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
-          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
-            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">Upcoming Follow-Ups</h3>
-            <div className="flex gap-1">
-              <button className="p-0.5 rounded border border-[var(--border,#e5e7eb)] hover:bg-gray-50" style={{ background: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
-              </button>
-              <button className="p-0.5 rounded border border-[var(--border,#e5e7eb)] hover:bg-gray-50" style={{ background: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-              </button>
-            </div>
-          </div>
-          <div className="p-4 flex-1 overflow-y-auto max-h-80">
+          <div className="p-4 flex-1 overflow-y-auto max-h-72">
             {loading ? (
               <div className="space-y-3 animate-pulse">
-                {[1, 2, 3].map((index) => <div key={index} className="h-16 bg-gray-100 rounded" />)}
+                {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-[#f8f9ff] rounded-lg" />)}
               </div>
             ) : (
               <UpcomingFollowUpsWidget items={stats?.upcomingFollowUps ?? []} />
             )}
           </div>
         </div>
+
+        {/* My Tasks */}
+        <div className="lg:col-span-6 bg-white border border-[#e2e8f0] rounded-xl shadow-sm flex flex-col">
+          <div className="px-5 py-4 border-b border-[#e2e8f0] flex justify-between items-center">
+            <h3 className="text-[15px] font-semibold text-[#0b1c30]">My Tasks</h3>
+            <span className="text-[13px] font-semibold cursor-pointer" style={{ color: TEAL }}>View All</span>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto max-h-72">
+            {loading ? (
+              <div className="space-y-3 animate-pulse">
+                {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-[#f8f9ff] rounded-lg" />)}
+              </div>
+            ) : (
+              <MyTasksWidget activities={stats?.recentActivities ?? []} />
+            )}
+          </div>
+        </div>
       </section>
+
+      {/* Recent Activities */}
+      <section className="bg-white border border-[#e2e8f0] rounded-xl shadow-sm">
+        <div className="px-5 py-4 border-b border-[#e2e8f0] flex justify-between items-center">
+          <h3 className="text-[15px] font-semibold text-[#0b1c30]">Recent Activities</h3>
+          <span className="material-symbols-outlined text-[#45464d] opacity-60 text-[18px] cursor-pointer">filter_list</span>
+        </div>
+        <div className="p-5">
+          {loading ? (
+            <div className="space-y-4 animate-pulse">
+              {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-[#f8f9ff] rounded-lg" />)}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(stats?.recentActivities ?? []).slice(0, 5).map((activity) => (
+                <div key={activity.id} className="flex items-start gap-4 p-3 rounded-lg hover:bg-[#f8f9ff] transition-colors">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#86f2e4', color: TEAL }}>
+                    <span className="material-symbols-outlined text-[16px]">history</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-[#0b1c30] truncate">
+                      {activity.subject ?? activity.activityType}
+                    </p>
+                    {activity.description && (
+                      <p className="text-[12px] text-[#45464d] opacity-70 mt-0.5 line-clamp-1">{activity.description}</p>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#45464d] opacity-60 flex-shrink-0 mt-0.5">
+                    {new Date(activity.createdAt).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                </div>
+              ))}
+              {!stats?.recentActivities?.length && (
+                <p className="text-[13px] text-[#45464d] opacity-60 text-center py-4">No recent activities</p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
     </div>
   );
 };

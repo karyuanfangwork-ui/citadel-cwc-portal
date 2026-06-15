@@ -1,11 +1,11 @@
 /**
- * requestPdf.service.ts — Generate a PDF for a single helpdesk ticket.
+ * requestPdf.service.ts — Enqueue a PDF generation job for a single helpdesk ticket.
  *
- * Reuses the credit module's `htmlToPdf()` (puppeteer-core) to render
- * a styled HTML template into an A4 PDF buffer.
+ * Uses the BullMQ PDF worker to render a styled HTML template into an A4 PDF
+ * and upload to S3. Returns a jobId for polling via GET /api/v1/pdf-jobs/:jobId.
  */
 
-import { htmlToPdf } from '../credit/services/htmlToPdf.service';
+import { enqueuePdf } from './pdfJob.service';
 import prisma from '../utils/prisma';
 import { AppError } from '../middleware/error.middleware';
 import escapeHtml from 'escape-html';
@@ -419,8 +419,8 @@ function buildHtml(req: RequestForPdf): string {
 }
 
 // ── PDF Generation ────────────────────────────────────────────────────────
-export async function generateRequestPdf(idOrRef: string): Promise<Buffer> {
+export async function generateRequestPdf(idOrRef: string): Promise<string> {
   const requestData = await getRequestDataForPdf(idOrRef);
   const html = buildHtml(requestData);
-  return htmlToPdf(html);
+  return enqueuePdf(html, 'requests/');
 }

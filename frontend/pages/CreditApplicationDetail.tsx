@@ -10,6 +10,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { pollPdfJob } from '../src/services/pdfJob.service';
 import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
 import { useCreditFeatureFlags } from '../src/hooks/useCreditFeatureFlags';
 import { useApplicationLane } from '../src/hooks/useApplicationLane';
@@ -333,15 +334,14 @@ const isIdPlaceholder = id === 'new';
   const handleDownloadCaMemo = async () => {
     if (!app) return;
     try {
-      const response = await creditService.downloadCaMemo(app.id);
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const { jobId } = await creditService.downloadCaMemo(app.id);
+      const url = await pollPdfJob(jobId);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `CA-Memo-${app.applicationNo || app.id}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
       toast.success('CA Memo downloaded');
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to export CA Memo'));

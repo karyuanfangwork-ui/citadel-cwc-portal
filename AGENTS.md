@@ -70,44 +70,17 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 <claude-mem-context>
 # Memory Context
 
-# [citadel-cwc-portal] recent context, 2026-06-14 6:36pm GMT+8
+# [citadel-cwc-portal] recent context, 2026-06-14 11:55pm GMT+8
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (16,787t read) | 507,699t work | 97% savings
+Stats: 50 obs (16,016t read) | 582,140t work | 97% savings
 
-### Jun 13, 2026
-S515 CRM Audit Remediation: Next steps and action plan for completing Sprint 1-5 security remediations (Jun 13 at 7:58 PM)
-S516 CRM Remediation Completion Plan — 9-phase implementation plan authored, awaiting greenlight to execute (Jun 13 at 10:23 PM)
-S517 2026-06-13-crm-remediation-completion.md: 9-phase CRM security remediation plan created (Jun 13 at 10:29 PM)
-S519 CRM remediation test files lint-cleaned — warning count reduced from 1042 to 1039 (Jun 13 at 10:30 PM)
 ### Jun 14, 2026
-1955 9:11a ⚖️ CRM Remediation Execution: Proceeding in Current Workspace Without Isolation
-1956 9:12a 🔵 crm.routes.ts: CRM AI Routes and OAuth Callbacks Architecture Confirmed
-1957 " 🔵 crm.controller.ts L393: createContact Uses Unscoped findUnique for accountId Validation
-1958 9:14a 🔵 oauth-state.service.ts: verifyOAuthState Returns userId But Callback Never Checks It Against req.user
-1959 " 🟣 CRM OAuth Session Binding and AI Rate-Limit Integration Tests Created
-1960 9:15a 🔴 auditRetention.job.ts: Fixed Unconditional main() Execution on Import
-1961 9:16a 🔵 Integration Tests Fail: PostgreSQL Not Running at localhost:5432 in Test Environment
-1962 " 🔵 Test Run Results: CRM AI Rate Limit PASSES, OAuth Callback Returns 302 Instead of 403
-1963 9:17a ✅ crm-authz.integration.test.ts: unassigned account seed removed, unassigned entities repoint to visibleAccount
-1964 9:18a 🔴 crm.controller.ts: 7 security gaps fixed — owner assignment, account scoping, OAuth session binding, null-owner visibility, response contracts
-1965 " 🔴 crm-import-export.service.ts: null-owner records now included in export scope
-1966 9:19a 🔵 Test run results: OAuth + rate limit suites PASS; crm-authz still fails at null-owner crmLead seed (L283)
-1967 9:20a ✅ crm-authz.integration.test.ts: unassigned lead/opportunity seeds and null-owner visibility tests fully removed
-1968 " 🔵 crm-authz suite: 25 failures — 500 errors on most tests indicate runtime crash, not missing authz logic
-1969 9:21a 🔴 CRM owner scope reverted to simple ownerId.in — OR null-owner pattern removed from all 4 files
-1970 9:34a ✅ CRM Remediation Completion Plan execution started
-1971 " ✅ CRM Remediation Completion Plan: Steps 1–3 done, step 4 in progress
-1972 9:35a 🔴 OAuth callback session hijacking gap fixed — userId binding check now enforced
-1973 " 🔵 Backend lint baseline: 1042 warnings, 0 errors — all pre-existing
-1974 9:36a ✅ CRM remediation test files lint-cleaned — warning count reduced from 1042 to 1039
-S520 CRM Remediation Plan: Implementation Status Cross-Check (Jun 14 at 9:36 AM)
 1975 9:39a 🔵 CRM Remediation Plan: All 9 phases confirmed implemented in crm.controller.ts
 1976 9:40a 🔵 CRM Remediation Plan: Implementation Status Cross-Check
-S521 CRM Dashboard Redesign: HTML Mockup Assessment Requested (Jun 14 at 9:40 AM)
 1977 9:42a 🔵 crm-scope.service.ts: Owner scoping architecture fully mapped
 1978 9:43a 🔵 crm.controller.ts: Team-scoped RBAC authorization model in opportunities endpoint
 1979 9:44a 🔵 crm-scope.service.test.ts: Authorization model test coverage and deduplication logic
@@ -115,15 +88,12 @@ S521 CRM Dashboard Redesign: HTML Mockup Assessment Requested (Jun 14 at 9:40 AM
 1981 3:46p ⚖️ CRM Dashboard Redesign: HTML Mockup Assessment Commissioned
 1982 3:47p ⚖️ CRM Dashboard Redesign: HTML mockup assessment requested
 1983 " ⚖️ CRM Dashboard Redesign: HTML Mockup Assessment Requested
-S522 CRM Dashboard Redesign Implementation Plan created (Jun 14 at 3:47 PM)
 1984 3:49p 🔵 CrmDashboard.tsx and CrmNav.tsx: Full architecture confirmed
 1985 3:50p 🔵 getDashboardStats backend: 13-query parallel fetch confirmed
 1986 3:54p ✅ CRM Dashboard Redesign Implementation Plan created
-S523 Codex hyperpersonalized suggestion generation for citadel-cwc-portal project (Jun 14 at 3:54 PM)
 1987 4:44p 🔵 Codex suggestion engine requested hyperpersonalized tasks for citadel-cwc-portal
 1988 4:45p 🔵 Codex hyperpersonalized suggestion generation for citadel-cwc-portal
 1989 " 🔵 CrmDashboard.tsx: widget visibility architecture and Task 10 AI Daily Briefing wiring confirmed
-S524 CRM Dashboard Redesign: Implementation Plan Commissioned (Jun 14 at 4:46 PM)
 1990 6:11p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
 1991 6:13p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
 1992 " 🔵 CrmDashboard.tsx: Full widget inventory and render order confirmed
@@ -132,7 +102,7 @@ S524 CRM Dashboard Redesign: Implementation Plan Commissioned (Jun 14 at 4:46 PM
 1995 6:16p 🔵 CRM Dashboard redesign implementation plan exported to docs
 1996 6:17p ✅ CRM Dashboard Redesign Plan Created
 1997 " 🔵 CRM Dashboard Redesign Plan: Full Architecture Mapped
-S525 CRM Dashboard Redesign Plan: Full Architecture Mapped (Jun 14 at 6:17 PM)
+S526 CRM Dashboard Redesign: Nav/Sidebar Layout Conflict Identified (Jun 14 at 6:17 PM)
 1998 6:21p 🔵 CRM Dashboard Redesign: 13-Task Plan Structure Fully Mapped
 1999 6:22p 🔵 backend/src/lib/prisma.ts does not exist at expected path
 2000 " 🔵 crm.service.ts instantiates PrismaClient locally — no shared prisma singleton
@@ -140,6 +110,35 @@ S525 CRM Dashboard Redesign Plan: Full Architecture Mapped (Jun 14 at 6:17 PM)
 2002 6:23p 🟣 getDashboardStats extended with monthlyTrend, pipelineByName, upcomingFollowUps
 2003 " 🔵 Backend test suite pre-existing failures: DB unreachable + Redis mock issue
 2004 6:24p 🔵 App.tsx CRM route structure and AuthContext/permissions API confirmed for CrmLayout integration
+2005 8:43p 🔵 CRM Dashboard Redesign: Nav Bar Conflicts with Sidebar
+2006 8:44p ⚖️ CRM Dashboard Redesign: Nav/Sidebar Conflict — Refinement Plan Requested
+2007 " 🔵 CRM Dashboard Redesign: Nav/Sidebar Layout Conflict Identified
+S527 CrmLayout.tsx: Vertical sidebar replaced with horizontal top sub-nav (Jun 14 at 8:44 PM)
+2008 8:46p 🔄 CrmLayout.tsx: Vertical sidebar replaced with horizontal top sub-nav
+S528 CrmLayout.tsx: CRM nav bar has 17 items causing overflow (Jun 14 at 8:46 PM)
+2009 8:50p 🔵 CrmLayout.tsx: CRM nav bar has 17 items causing overflow
+S529 CRM Dashboard Design System: "Kinetic Enterprise" spec mapped (Jun 14 at 8:50 PM)
+2010 9:24p 🔵 CRM Dashboard Design System: "Kinetic Enterprise" spec mapped
+S530 CrmDashboard.tsx: Full redesign to match new teal design system (Jun 14 at 9:24 PM)
+2011 9:26p 🔵 CrmDashboard.tsx: Current architecture mapped before redesign
+2012 " 🟣 CrmKpiCard.tsx: Redesigned to match new CRM dashboard design
+2013 9:27p 🟣 CrmDashboard.tsx: Full redesign to match new teal design system
+S531 CRM Leads screen: design assets and current implementation mapped (Jun 14 at 9:27 PM)
+2014 9:32p 🔵 CRM Leads screen: design assets and current implementation mapped
+S532 CrmLeads.tsx: Full UI redesign with teal brand colors, stats bar, and consolidated filter bar (Jun 14 at 9:32 PM)
+2015 9:33p 🔵 CrmLeads.tsx: Full architecture mapped — table/card views, bulk actions, AI scoring, urgency badges
+2016 9:36p 🟣 CrmLeads.tsx: Full UI redesign with teal brand colors, stats bar, and consolidated filter bar
+S533 CrmLeads.tsx: Duplicate "border" key in inline style object causes Vite warning (Jun 14 at 9:36 PM)
+2017 9:38p 🔵 CrmLeads.tsx: Duplicate "border" key in inline style object causes Vite warning
+S534 Stitch screen fetch: "Lead 360 View - Kinetic Refined" design for CRM Lead Detail page redesign (Jun 14 at 9:38 PM)
+2018 9:59p 🔵 Stitch Screen: "Lead 360 View - Kinetic Refined" design retrieved
+2019 " 🔵 CRM Lead 360 View design spec content: "Tan Boon Wah" sample persona
+2020 10:02p ⚖️ CRM Lead Detail Layout: Redesign Action Plan Commissioned
+2021 10:08p 🟣 CrmLeadDetail.tsx: Kinetic Enterprise "Lead 360 View" Redesign Plan Exported
+S535 CrmLeadDetail.tsx: Kinetic Enterprise "Lead 360 View" Redesign Plan Exported (Jun 14 at 10:08 PM)
+2023 10:12p 🟣 CrmLeadDetail header redesign test suite created
+2024 10:13p ✅ CrmLeadDetail test file relocated to canonical src/__tests__ directory
+2025 10:14p 🟣 CrmLeadDetail: Two-panel layout shell + header redesign with Actions dropdown implemented
 
-Access 508k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 582k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
