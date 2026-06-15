@@ -602,7 +602,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         requestId,
         Number(values.finalizedAmount) || 0,
         (values.notes as string) || undefined,
-        (values.invoice as File) || undefined,
+        (values.invoice ? [values.invoice as File] : undefined),
       ),
   },
 

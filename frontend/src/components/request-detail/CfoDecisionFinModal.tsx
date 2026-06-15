@@ -29,10 +29,7 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
   onSuccess,
   onClose,
 }) => {
-  const invoiceAttachment = attachments.find(a =>
-    a.storageUrl.includes('invoice') ||
-    a.fileName.toLowerCase().includes('invoice')
-  );
+  const invoiceAttachments = attachments;
   const [decision, setDecision] = useState<'APPROVED' | 'REJECTED' | ''>('');
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -73,33 +70,39 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
             {/* Invoice preview */}
-            {invoiceAttachment && (
+            {invoiceAttachments.length > 0 && (
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Invoice
+                  {invoiceAttachments.length === 1 ? 'Attachment' : `Attachments (${invoiceAttachments.length})`}
                 </label>
-                {invoiceAttachment.mimeType === 'application/pdf' ? (
-                  <iframe
-                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
-                    className="w-full h-48 rounded-lg border border-gray-200"
-                    title="Invoice"
-                  />
-                ) : (
-                  <img
-                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
-                    alt="Invoice"
-                    className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
-                  />
-                )}
-                <a
-                  href={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-600 hover:underline"
-                >
-                  <span className="material-symbols-outlined text-sm">open_in_new</span>
-                  {invoiceAttachment.fileName}
-                </a>
+                <div className="space-y-2">
+                  {invoiceAttachments.map(att => (
+                    <div key={att.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                      {att.mimeType === 'application/pdf' ? (
+                        <iframe
+                          src={`${API_BASE}/requests/${requestId}/attachments/${att.id}?inline=true`}
+                          className="w-full h-48"
+                          title={att.fileName}
+                        />
+                      ) : (
+                        <img
+                          src={`${API_BASE}/requests/${requestId}/attachments/${att.id}?inline=true`}
+                          alt={att.fileName}
+                          className="w-full max-h-48 object-contain bg-gray-50"
+                        />
+                      )}
+                      <a
+                        href={`${API_BASE}/requests/${requestId}/attachments/${att.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 hover:underline bg-gray-50 border-t border-gray-100"
+                      >
+                        <span className="material-symbols-outlined text-sm">open_in_new</span>
+                        {att.fileName}
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

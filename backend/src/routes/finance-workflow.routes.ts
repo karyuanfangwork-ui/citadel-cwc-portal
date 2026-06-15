@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { uploadSingleFile } from '../middleware/upload.middleware';
+import { uploadMultipleFiles } from '../middleware/upload.middleware';
 import {
     acknowledge,
     routeToCfo,
@@ -26,7 +26,7 @@ router.post('/requests/:id/route-to-cfo', authorize('ADMIN', 'AGENT'), routeToCf
 router.post(
     '/requests/:id/set-finalized-amount-and-route-cfo',
     authorize('ADMIN', 'AGENT'),
-    uploadSingleFile('invoice'),
+    uploadMultipleFiles('invoices', 5),
     setFinalizedAmountAndRouteCfo,
 );
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);

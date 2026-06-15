@@ -120,7 +120,7 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         // Multer parses multipart fields into req.body; JSON body stays as-is
         const finalizedAmount = req.body.finalizedAmount ? Number(req.body.finalizedAmount) : NaN;
         const notes = req.body.notes || undefined;
-        const invoiceFile = (req as any).file as Express.Multer.File | undefined;
+        const invoiceFiles = (req as any).files as Express.Multer.File[] | undefined;
         const currentUser = (req as any).user;
 
         if (isNaN(finalizedAmount) || finalizedAmount <= 0) {
@@ -160,23 +160,37 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             data: updateData,
         });
 
-        // Save invoice attachment if provided
-        if (invoiceFile) {
-            await prisma.requestAttachment.create({
-                data: {
-                    requestId: id,
-                    uploadedById: currentUser?.id || null,
-                    fileName: invoiceFile.originalname,
-                    fileSize: BigInt(invoiceFile.size),
-                    mimeType: invoiceFile.mimetype,
-                    fileType: path.extname(invoiceFile.originalname).replace('.', ''),
-                    storagePath: (invoiceFile as any).key,
-                    storageUrl: (invoiceFile as any).key,
-                },
-            });
-        }
+        // Create a system activity and link invoice attachments to it
+        // so they appear in the ActivityFeed for all stakeholders
+        const activity = await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: currentUser?.id || null,
+                authorName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'System',
+                activityType: 'STATUS_CHANGE',
+                message: `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}${invoiceFiles && invoiceFiles.length > 0 ? ` (${invoiceFiles.length} invoice${invoiceFiles.length > 1 ? 's' : ''} attached)` : ''}`,
+                isSystemGenerated: true,
+            },
+        });
 
-        await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}${invoiceFile ? ' (invoice attached)' : ''}`);
+        // Save invoice attachments if provided, linked to the activity
+        if (invoiceFiles && invoiceFiles.length > 0) {
+            for (const f of invoiceFiles) {
+                await prisma.requestAttachment.create({
+                    data: {
+                        requestId: id,
+                        uploadedById: currentUser?.id || null,
+                        activityId: activity.id,
+                        fileName: f.originalname,
+                        fileSize: BigInt(f.size),
+                        mimeType: f.mimetype,
+                        fileType: path.extname(f.originalname).replace('.', ''),
+                        storagePath: (f as any).key,
+                        storageUrl: (f as any).key,
+                    },
+                });
+            }
+        }
         await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
             status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
             previousStatus: request.status,

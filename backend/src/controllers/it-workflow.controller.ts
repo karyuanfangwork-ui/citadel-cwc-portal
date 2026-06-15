@@ -5,7 +5,6 @@ import { hasRole } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 import path from 'path';
-import { uploadSingleFile } from '../middleware/upload.middleware';
 import { reassignToTeam } from '../services/reassign.service';
 
 /** Infer an IT asset category from the hardware name/description. */
@@ -34,9 +33,6 @@ async function resolveRequestId(idOrRef: string): Promise<string | null> {
   });
   return row?.id ?? null;
 }
-
-// Shared S3-backed multer — invoice upload
-export const uploadInvoice = { single: (field: string) => uploadSingleFile(field) };
 
 export async function markProcurement(req: Request, res: Response) {
   try {
@@ -721,12 +717,12 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const { cfoId, notes } = req.body;
     const currentUser = (req as any).user;
-    const file = (req as any).file as Express.Multer.File | undefined;
+    const files = (req as any).files as Express.Multer.File[] | undefined;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!file) {
-      return res.status(400).json({ error: 'Invoice file is required' });
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'At least one invoice file is required' });
     }
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -764,29 +760,38 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       },
     });
 
-    await prisma.requestAttachment.create({
-      data: {
-        requestId: id,
-        uploadedById: currentUser.id,
-        fileName: file.originalname,
-        fileSize: BigInt(file.size),
-        mimeType: file.mimetype,
-        fileType: path.extname(file.originalname).replace('.', ''),
-        storagePath: (file as any).key,
-        storageUrl: (file as any).key,
-      },
-    });
-
-    await prisma.requestActivity.create({
+    // Create a system activity and link invoice attachments to it
+    // so they appear in the ActivityFeed for all stakeholders
+    const fileCount = files.length;
+    const invoiceLabel = fileCount === 1 ? 'Invoice uploaded' : `${fileCount} invoices uploaded`;
+    const activity = await prisma.requestActivity.create({
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Invoice uploaded and routed to CFO for approval${notes ? ': ' + notes : ''}`,
+        message: `${invoiceLabel} and routed to CFO for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
+        authorId: currentUser.id,
       },
     });
+
+    // Create an attachment row for each uploaded invoice file, linked to the activity
+    for (const file of files) {
+      await prisma.requestAttachment.create({
+        data: {
+          requestId: id,
+          uploadedById: currentUser.id,
+          activityId: activity.id,
+          fileName: file.originalname,
+          fileSize: BigInt(file.size),
+          mimeType: file.mimetype,
+          fileType: path.extname(file.originalname).replace('.', ''),
+          storagePath: (file as any).key,
+          storageUrl: (file as any).key,
+        },
+      });
+    }
 
     await notify({
       userId: cfoId,
@@ -800,7 +805,7 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       previousStatus: request.status,
       cfoId,
     }, { status: request.status });
-    return res.json({ success: true, message: 'Invoice uploaded and request routed to CFO for approval' });
+    return res.json({ success: true, message: `${invoiceLabel} and request routed to CFO for approval` });
   } catch (error) {
     console.error('routeToCfoApproval error:', error);
     return res.status(500).json({ error: 'Internal server error' });

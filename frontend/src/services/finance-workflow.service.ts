@@ -6,12 +6,14 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async setFinalizedAmountAndRouteCfo(requestId: string, finalizedAmount: number, notes?: string, invoiceFile?: File) {
-        if (invoiceFile) {
+    async setFinalizedAmountAndRouteCfo(requestId: string, finalizedAmount: number, notes?: string, invoiceFiles?: File[]) {
+        if (invoiceFiles && invoiceFiles.length > 0) {
             const formData = new FormData();
             formData.append('finalizedAmount', String(finalizedAmount));
             if (notes) formData.append('notes', notes);
-            formData.append('invoice', invoiceFile);
+            for (const file of invoiceFiles) {
+                formData.append('invoices', file);
+            }
             const response = await api.post(
                 `/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-cfo`,
                 formData,

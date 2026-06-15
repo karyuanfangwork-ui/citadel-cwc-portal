@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { uploadMultipleFiles } from '../middleware/upload.middleware';
 import {
   markProcurement,
   markFulfilled,
@@ -13,7 +14,6 @@ import {
   cfoDecision,
   markPaymentDone,
   completeDelivery,
-  uploadInvoice,
 } from '../controllers/it-workflow.controller';
 
 const router = Router();
@@ -33,7 +33,7 @@ router.post('/requests/:id/cto-decision', authorize('CTO'), ctoDecision);
 router.post(
   '/requests/:id/route-to-cfo',
   authorize('ADMIN', 'AGENT'),
-  uploadInvoice.single('invoice'),
+  uploadMultipleFiles('invoices', 5),
   routeToCfoApproval
 );
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
