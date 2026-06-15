@@ -64,7 +64,7 @@ describe('CrmOpportunityDetail', () => {
     });
   });
 
-  it('renders breadcrumb header and kinetic overview section naming', async () => {
+  it('renders breadcrumb, header, and kinetic sidebar sections', async () => {
     await renderPage();
 
     await waitFor(() => {
@@ -73,6 +73,8 @@ describe('CrmOpportunityDetail', () => {
 
     expect(screen.getByText('CRM')).toBeInTheDocument();
     expect(screen.getByText('Opportunities')).toBeInTheDocument();
-    expect(screen.getByText('Opportunity Information')).toBeInTheDocument();
+    expect(screen.getByText('DEAL ATTRIBUTES')).toBeInTheDocument();
+    expect(screen.getByText('DEAL HEALTH')).toBeInTheDocument();
+    expect(screen.getByText('DEAL VALUE')).toBeInTheDocument();
   });
 });

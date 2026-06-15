@@ -215,6 +215,7 @@ export interface DashboardStats {
     pipelineDelta: number;
     winRateDelta: number;
   };
+  avgVelocityDays: number | null;
 }
 
 export interface TeamPerformance {
@@ -310,9 +311,26 @@ export interface CrmDuplicateMatch {
 
 const crmService = {
   // Dashboard
-  async getDashboard(myDeals = false) {
-    const res = await api.get('/crm/dashboard', { params: { myDeals } });
+  async getDashboard(myDeals = false, dateFrom?: string, dateTo?: string) {
+    const res = await api.get('/crm/dashboard', {
+      params: { myDeals, ...(dateFrom && { dateFrom }), ...(dateTo && { dateTo }) },
+    });
     return res.data.data as DashboardStats;
+  },
+
+  async exportDashboard(myDeals = false, dateFrom?: string, dateTo?: string): Promise<void> {
+    const res = await api.get('/crm/dashboard/export', {
+      params: { myDeals, ...(dateFrom && { dateFrom }), ...(dateTo && { dateTo }) },
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crm-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   },
 
   // Global Search

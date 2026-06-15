@@ -191,8 +191,21 @@ function assertCanAssignOwner(
 class CrmController {
   // ======== DASHBOARD ========
   getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const stats = await crmService.getDashboardStats(req.query.myDeals === 'true' ? req.user!.id : undefined);
+    const userId = req.query.myDeals === 'true' ? req.user!.id : undefined;
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
+    const dateTo   = req.query.dateTo   ? new Date(req.query.dateTo as string)   : undefined;
+    const stats = await crmService.getDashboardStats(userId, dateFrom, dateTo);
     res.json({ status: 'success', data: stats });
+  });
+
+  exportDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.query.myDeals === 'true' ? req.user!.id : undefined;
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
+    const dateTo   = req.query.dateTo   ? new Date(req.query.dateTo as string)   : undefined;
+    const csv = await crmService.exportDashboardCsv(userId, dateFrom, dateTo);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm-dashboard.csv"');
+    res.send(csv);
   });
 
   // ======== ACCOUNTS ========

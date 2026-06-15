@@ -15,6 +15,7 @@ interface Props {
   items: FunnelItem[];
   opportunitiesByStage?: StageItem[];
   formatValue?: (value: number) => string;
+  avgVelocityDays?: number | null;
 }
 
 // Map pipeline stages to 4 standard funnel buckets
@@ -32,7 +33,7 @@ const fmtDefault = (value: number) => new Intl.NumberFormat('en-MY', {
   maximumFractionDigits: 1,
 }).format(value);
 
-const PipelineFunnelChart: React.FC<Props> = ({ items, opportunitiesByStage, formatValue }) => {
+const PipelineFunnelChart: React.FC<Props> = ({ items, opportunitiesByStage, formatValue, avgVelocityDays }) => {
   const fmt = formatValue ?? fmtDefault;
 
   const funnelData = useMemo(() => {
@@ -107,7 +108,9 @@ const PipelineFunnelChart: React.FC<Props> = ({ items, opportunitiesByStage, for
       <div className="mt-6 pt-4 border-t border-[#e2e8f0] flex items-center justify-between">
         <div>
           <p className="text-[12px] text-[#45464d] opacity-70">Avg. Velocity</p>
-          <p className="text-[15px] font-semibold text-[#006a61]">—</p>
+          <p className="text-[15px] font-semibold text-[#006a61]">
+            {avgVelocityDays != null ? `${avgVelocityDays} days` : '—'}
+          </p>
         </div>
         <div className="text-right">
           <p className="text-[12px] text-[#45464d] opacity-70">Total Value</p>

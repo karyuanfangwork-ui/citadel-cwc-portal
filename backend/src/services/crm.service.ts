@@ -10,9 +10,14 @@ const prisma = new PrismaClient();
 // DASHBOARD STATISTICS
 // ============================================================================
 
-export async function getDashboardStats(userId?: string) {
+export async function getDashboardStats(
+  userId?: string,
+  dateFrom?: Date,
+  dateTo?: Date,
+) {
   const ownerFilter = userId ? { ownerId: userId } : {};
-  const now = new Date();
+  const now = dateTo ?? new Date();
+  const windowStart = dateFrom ?? new Date(now.getTime() - 30 * 86400_000);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
@@ -33,28 +38,30 @@ export async function getDashboardStats(userId?: string) {
     monthlyTrend,
     pipelinesWithValues,
     upcomingFollowUpsRaw,
+    wonOppsForVelocity,
   ] = await Promise.all([
     prisma.crmAccount.count({ where: { isActive: true, deletedAt: null, ...ownerFilter } }),
     prisma.crmContact.count({ where: { isActive: true, deletedAt: null } }),
-    prisma.crmLead.count({ where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, ...ownerFilter } }),
-    prisma.crmOpportunity.count({ where: { deletedAt: null, ...ownerFilter } }),
+    prisma.crmLead.count({ where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, createdAt: { gte: windowStart, lte: now }, ...ownerFilter } }),
+    prisma.crmOpportunity.count({ where: { deletedAt: null, createdAt: { gte: windowStart, lte: now }, ...ownerFilter } }),
     prisma.crmOpportunity.aggregate({
       _sum: { value: true },
       where: {
         stage: { isWonStage: false, isLostStage: false },
         deletedAt: null,
+        createdAt: { gte: windowStart, lte: now },
         ...ownerFilter,
       },
     }),
     prisma.crmOpportunity.aggregate({
       _sum: { value: true },
       _count: true,
-      where: { stage: { isWonStage: true }, deletedAt: null, ...ownerFilter },
+      where: { stage: { isWonStage: true }, deletedAt: null, wonAt: { gte: windowStart, lte: now }, ...ownerFilter },
     }),
     prisma.crmOpportunity.aggregate({
       _sum: { value: true },
       _count: true,
-      where: { stage: { isLostStage: true }, deletedAt: null, ...ownerFilter },
+      where: { stage: { isLostStage: true }, deletedAt: null, lostAt: { gte: windowStart, lte: now }, ...ownerFilter },
     }),
     prisma.crmActivity.findMany({
       take: 10,
@@ -107,10 +114,14 @@ export async function getDashboardStats(userId?: string) {
       },
     }),
     (async () => {
+      // Determine how many months to show based on date window
+      const windowMs = now.getTime() - windowStart.getTime();
+      const windowMonths = Math.max(1, Math.min(6, Math.ceil(windowMs / (30 * 86400_000))));
+
       const months: { month: string; wonCount: number; wonValue: number }[] = [];
-      for (let i = 5; i >= 0; i--) {
+      for (let i = windowMonths - 1; i >= 0; i--) {
         const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
         const result = await prisma.crmOpportunity.aggregate({
           _sum: { value: true },
           _count: true,
@@ -159,6 +170,18 @@ export async function getDashboardStats(userId?: string) {
         followUpNote: true,
         contactName: true,
       },
+    }),
+    // Avg velocity: days from creation to won
+    prisma.crmOpportunity.findMany({
+      select: { createdAt: true, wonAt: true },
+      where: {
+        stage: { isWonStage: true },
+        wonAt: { not: null },
+        deletedAt: null,
+        ...(dateFrom || dateTo ? { wonAt: { ...(dateFrom ? { gte: dateFrom } : {}), ...(dateTo ? { lte: dateTo } : {}) } } : {}),
+        ...ownerFilter,
+      },
+      take: 100,
     }),
   ]);
 
@@ -242,6 +265,15 @@ export async function getDashboardStats(userId?: string) {
     : 0;
   delta.winRateDelta = prevWinRate > 0 ? winRate - prevWinRate : 0;
 
+  // Avg velocity: average days from creation to won
+  const avgVelocityDays: number | null = (() => {
+    const valid = (wonOppsForVelocity as { createdAt: Date; wonAt: Date | null }[])
+      .filter(o => o.wonAt !== null)
+      .map(o => Math.round((o.wonAt!.getTime() - o.createdAt.getTime()) / 86400_000));
+    if (valid.length === 0) return null;
+    return Math.round(valid.reduce((sum, d) => sum + d, 0) / valid.length);
+  })();
+
   return {
     totalAccounts,
     totalContacts,
@@ -262,7 +294,47 @@ export async function getDashboardStats(userId?: string) {
     pipelineByName,
     upcomingFollowUps,
     delta,
+    avgVelocityDays,
   };
+}
+
+// ============================================================================
+// DASHBOARD EXPORT
+// ============================================================================
+
+export async function exportDashboardCsv(
+  userId?: string,
+  dateFrom?: Date,
+  dateTo?: Date,
+): Promise<string> {
+  const stats = await getDashboardStats(userId, dateFrom, dateTo);
+
+  const kpiRows = [
+    ['Metric', 'Value'],
+    ['New Leads', stats.totalLeads],
+    ['Open Opportunities', stats.totalOpportunities],
+    ['Won Deals (count)', stats.wonDeals.count],
+    ['Won Deals (value MYR)', stats.wonDeals.value],
+    ['Lost Deals (count)', stats.lostDeals.count],
+    ['Pipeline Value MYR', stats.pipelineValue],
+    ['Win Rate %', stats.winRate],
+    ['Avg Velocity Days', stats.avgVelocityDays ?? '—'],
+  ].map(row => row.join(',')).join('\n');
+
+  const activityHeader = 'Date,Type,Subject,Description';
+  const activityRows = stats.recentActivities
+    .slice(0, 50)
+    .map((a: any) =>
+      [
+        new Date(a.createdAt).toISOString().slice(0, 10),
+        a.activityType ?? '',
+        `"${(a.subject ?? '').replace(/"/g, '""')}"`,
+        `"${(a.description ?? '').replace(/"/g, '""')}"`,
+      ].join(',')
+    )
+    .join('\n');
+
+  return `${kpiRows}\n\nRecent Activities\n${activityHeader}\n${activityRows}`;
 }
 
 // ============================================================================
@@ -521,6 +593,7 @@ export async function getPipelineStats(pipelineId: string) {
 
 export default {
   getDashboardStats,
+  exportDashboardCsv,
   convertLead,
   moveOpportunityStage,
   getPipelineStats,

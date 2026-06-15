@@ -28,6 +28,7 @@ router.use(authenticate);
 
 // ======== DASHBOARD ========
 router.get('/dashboard', requirePermission('crm:read'), crmController.getDashboard);
+router.get('/dashboard/export', requirePermission('crm:read'), crmController.exportDashboard);
 router.get('/search', requirePermission('crm:read'), crmController.globalSearch);
 router.get('/users', requirePermission('crm:read'), crmController.listCrmUsers);
 

@@ -14,6 +14,7 @@ import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 import {
   STATUS_STYLES,
+  ALL_STATUSES,
   LEAD_SOURCES,
   formatCurrency,
   formatDate,
@@ -716,154 +717,390 @@ const CrmLeads = () => {
         </div>
       )}
 
-      {/* ── Create Modal ── */}
+      {/* ── Create Modal — Kinetic Enterprise design ── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreate(false); setDuplicateWarning(null); }}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-[#e2e8f0]">
-              <h2 className="text-lg font-bold text-[#0b1c30]">New Lead</h2>
-              <button onClick={() => { setShowCreate(false); setDuplicateWarning(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[#45464d]">close</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }}>
+          <div className="absolute inset-0 bg-[#213145]/40 backdrop-blur-sm" />
+          <div className="relative bg-white w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl flex flex-col overflow-hidden border border-[#e2e8f0]/30" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-[#e2e8f0] flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>Create New Lead</h2>
+                <p className="text-[13px] text-[#45464d] mt-1">Capture essential lead information to begin the qualification workflow.</p>
+              </div>
+              <button onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }} className="p-2 hover:bg-[#dce9ff] rounded-full text-[#45464d] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
-              {[
-                { label: 'Lead Title *', field: 'title', type: 'text', required: true },
-                { label: 'Contact Name', field: 'contactName', type: 'text' },
-                { label: 'Contact Email', field: 'contactEmail', type: 'email', onBlur: (e: any) => checkDuplicateLead('contactEmail', e.target.value) },
-                { label: 'Contact Phone', field: 'contactPhone', type: 'text', onBlur: (e: any) => checkDuplicateLead('contactPhone', e.target.value) },
-                { label: 'Company Name', field: 'companyName', type: 'text' },
-              ].map(({ label, field, type, required, onBlur }) => (
-                <div key={field}>
-                  <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">{label}</label>
-                  <input
-                    required={required}
-                    type={type}
-                    value={(form as any)[field] || ''}
-                    onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
-                    onBlur={onBlur}
-                    className={inputCls(formErrors.some(e => e.field === field))}
-                  />
-                  {formErrors.some(e => e.field === field) && (
-                    <p className="text-xs mt-1" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === field)?.message}</p>
-                  )}
-                </div>
-              ))}
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Owner</label>
-                <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))} className={inputCls()}>
-                  <option value="">Myself (default)</option>
-                  {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Source</label>
-                <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))} className={inputCls()}>
-                  {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
-                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Estimated Value (MYR)</label>
-                <input type="number" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))} className={inputCls(formErrors.some(e => e.field === 'estimatedValue'))} />
-                {formErrors.some(e => e.field === 'estimatedValue') && (
-                  <p className="text-xs mt-1" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+
+            {/* Scrollable form body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              <form id="leadCreateForm" onSubmit={handleCreate} className="space-y-10">
+                {/* Section: Lead Information */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Information</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Title *</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g. Tan Boon Wah — SME Loan Inquiry"
+                        value={form.title || ''}
+                        onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                        className={inputCls(formErrors.some(e => e.field === 'title'))}
+                      />
+                      {formErrors.some(e => e.field === 'title') && (
+                        <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'title')?.message}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Company Name *</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g. Acme FinTech Sdn Bhd"
+                        value={form.companyName || ''}
+                        onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
+                        className={inputCls(formErrors.some(e => e.field === 'companyName'))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. John Doe"
+                        value={form.contactName || ''}
+                        onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
+                        className={inputCls()}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section: Contact Details */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>contact_mail</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Contact Details</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Email Address *</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
+                          <span className="material-symbols-outlined text-[18px]">mail</span>
+                        </span>
+                        <input
+                          required
+                          type="email"
+                          placeholder="john.doe@company.com"
+                          value={form.contactEmail || ''}
+                          onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                          onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
+                          className={`pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] ${formErrors.some(e => e.field === 'contactEmail') ? 'border-[#ba1a1a] focus:ring-[#ba1a1a]/20' : ''}`}
+                          style={{ fontFamily: 'Inter, sans-serif' }}
+                        />
+                      </div>
+                      {formErrors.some(e => e.field === 'contactEmail') && (
+                        <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'contactEmail')?.message}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Office Phone</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
+                          <span className="material-symbols-outlined text-[18px]">phone</span>
+                        </span>
+                        <input
+                          type="tel"
+                          placeholder="+60 3-XXXX XXXX"
+                          value={form.contactPhone || ''}
+                          onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
+                          onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
+                          className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
+                          style={{ fontFamily: 'Inter, sans-serif' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</label>
+                      <select
+                        value={form.ownerId || ''}
+                        onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
+                        className={inputCls()}
+                      >
+                        <option value="">Myself (default)</option>
+                        {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section: Lead Source & Qualification */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Source & Qualification</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Lead Source</label>
+                        <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))} className={inputCls()}>
+                          {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
+                            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Status</label>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full shrink-0" style={{ background: STATUS_STYLES[form.status || 'NEW']?.bg || STATUS_STYLES.NEW.bg, border: `2px solid ${STATUS_STYLES[form.status || 'NEW']?.text || STATUS_STYLES.NEW.text}` }} />
+                          <select
+                            value={form.status || 'NEW'}
+                            onChange={e => setForm(prev => ({ ...prev, status: e.target.value as LeadStatus }))}
+                            className="flex-1 border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] bg-white"
+                            style={{ fontFamily: 'Inter, sans-serif' }}
+                          >
+                            {ALL_STATUSES.map(s => (
+                              <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ')}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Loan (MYR)</label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#0b1c30] font-bold text-xs">RM</span>
+                          <input
+                            type="number"
+                            placeholder="0.00"
+                            value={form.estimatedValue || ''}
+                            onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
+                            className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
+                            style={{ fontFamily: 'Inter, sans-serif' }}
+                          />
+                        </div>
+                        {formErrors.some(e => e.field === 'estimatedValue') && (
+                          <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Date</label>
+                        <input
+                          type="date"
+                          value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''}
+                          onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value || undefined }))}
+                          className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
+                          style={{ fontFamily: 'Inter, sans-serif' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2 flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Qualification Notes</label>
+                      <textarea
+                        placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..."
+                        rows={4}
+                        value={form.description || ''}
+                        onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
+                        className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-none"
+                        style={{ fontFamily: 'Inter, sans-serif' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Duplicate warning */}
+                {duplicateWarning && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg border text-sm" style={{ background: '#ffdad6', borderColor: '#ba1a1a', color: '#ba1a1a' }}>
+                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
+                    <div className="flex-1">{duplicateWarning}</div>
+                    <button type="button" onClick={() => setDuplicateWarning(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  </div>
                 )}
+              </form>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-5 border-t border-[#e2e8f0] bg-[#eff4ff] flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2 text-[#45464d]">
+                <span className="material-symbols-outlined text-[18px]">info</span>
+                <span className="text-[13px] italic">Mandatory fields are marked with an asterisk (*)</span>
               </div>
-              {duplicateWarning && (
-                <div className="flex items-start gap-2 p-3 rounded-lg border text-sm" style={{ background: '#ffdad6', borderColor: '#ba1a1a', color: '#ba1a1a' }}>
-                  <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
-                  <div className="flex-1">{duplicateWarning}</div>
-                  <button type="button" onClick={() => setDuplicateWarning(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                </div>
-              )}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreate(false); setDuplicateWarning(null); }} className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]" style={{ background: 'white', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 rounded-full text-sm font-semibold text-white disabled:opacity-50" style={{ background: TEAL, border: 'none', cursor: 'pointer' }}>
-                  {saving ? 'Creating...' : 'Create Lead'}
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }} className="px-6 py-2.5 border border-[#e2e8f0] rounded-lg text-[#45464d] font-semibold hover:bg-[#dce9ff] transition-colors" style={{ background: 'white', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" form="leadCreateForm" disabled={saving} className="px-6 py-2.5 bg-[#006a61] text-white rounded-lg font-semibold hover:opacity-90 shadow-sm transition-all flex items-center gap-2 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer' }}>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  {saving ? 'Saving...' : 'Save Lead'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Edit Modal ── */}
+      {/* ── Edit Modal — Kinetic Enterprise design ── */}
       {showEdit && editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={closeEdit}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-[#e2e8f0]">
-              <h2 className="text-lg font-bold text-[#0b1c30]">Edit Lead</h2>
-              <button onClick={closeEdit} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[#45464d]">close</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={closeEdit}>
+          <div className="absolute inset-0 bg-[#213145]/40 backdrop-blur-sm" />
+          <div className="relative bg-white w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl flex flex-col overflow-hidden border border-[#e2e8f0]/30" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-[#e2e8f0] flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>Edit Lead</h2>
+                <p className="text-[13px] text-[#45464d] mt-1">Update lead details and qualification information.</p>
+              </div>
+              <button onClick={closeEdit} className="p-2 hover:bg-[#dce9ff] rounded-full text-[#45464d] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <form onSubmit={handleEdit} className="p-6 space-y-4">
-              {[
-                { label: 'Lead Title *', field: 'title', type: 'text', required: true },
-                { label: 'Contact Name', field: 'contactName', type: 'text' },
-                { label: 'Contact Email', field: 'contactEmail', type: 'email', onBlur: (e: any) => checkDuplicateLead('contactEmail', e.target.value) },
-                { label: 'Contact Phone', field: 'contactPhone', type: 'text', onBlur: (e: any) => checkDuplicateLead('contactPhone', e.target.value) },
-                { label: 'Company Name', field: 'companyName', type: 'text' },
-              ].map(({ label, field, type, required, onBlur }) => (
-                <div key={field}>
-                  <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">{label}</label>
-                  <input
-                    required={required}
-                    type={type}
-                    value={(form as any)[field] || ''}
-                    onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
-                    onBlur={onBlur}
-                    className={inputCls(formErrors.some(e => e.field === field))}
-                  />
-                  {formErrors.some(e => e.field === field) && (
-                    <p className="text-xs mt-1" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === field)?.message}</p>
-                  )}
-                </div>
-              ))}
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Owner</label>
-                <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))} className={inputCls()}>
-                  <option value="">Myself (default)</option>
-                  {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Source</label>
-                <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))} className={inputCls()}>
-                  {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
-                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#0b1c30] mb-1">Estimated Value (MYR)</label>
-                <input type="number" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))} className={inputCls(formErrors.some(e => e.field === 'estimatedValue'))} />
-                {formErrors.some(e => e.field === 'estimatedValue') && (
-                  <p className="text-xs mt-1" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+
+            {/* Scrollable form body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              <form id="leadEditForm" onSubmit={handleEdit} className="space-y-10">
+                {/* Section: Lead Information */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Information</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Title *</label>
+                      <input required type="text" value={form.title || ''} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} className={inputCls(formErrors.some(e => e.field === 'title'))} />
+                      {formErrors.some(e => e.field === 'title') && <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'title')?.message}</p>}
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Company Name</label>
+                      <input type="text" value={form.companyName || ''} onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))} className={inputCls()} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact Name</label>
+                      <input type="text" value={form.contactName || ''} onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))} className={inputCls()} />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section: Contact Details */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>contact_mail</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Contact Details</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Email Address</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
+                          <span className="material-symbols-outlined text-[18px]">mail</span>
+                        </span>
+                        <input type="email" value={form.contactEmail || ''} onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))} onBlur={e => checkDuplicateLead('contactEmail', e.target.value)} className={`pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] ${formErrors.some(e => e.field === 'contactEmail') ? 'border-[#ba1a1a] focus:ring-[#ba1a1a]/20' : ''}`} style={{ fontFamily: 'Inter, sans-serif' }} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Phone</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
+                          <span className="material-symbols-outlined text-[18px]">phone</span>
+                        </span>
+                        <input type="tel" value={form.contactPhone || ''} onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))} onBlur={e => checkDuplicateLead('contactPhone', e.target.value)} className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</label>
+                      <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))} className={inputCls()}>
+                        <option value="">Myself (default)</option>
+                        {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Section: Lead Source & Qualification */}
+                <section>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
+                    </div>
+                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Source & Qualification</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Lead Source</label>
+                        <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))} className={inputCls()}>
+                          {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
+                            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Loan (MYR)</label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#0b1c30] font-bold text-xs">RM</span>
+                          <input type="number" placeholder="0.00" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))} className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Date</label>
+                      <input type="date" value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''} onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
+                    </div>
+                    <div className="md:col-span-2 flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Qualification Notes</label>
+                      <textarea placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..." rows={4} value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-none" style={{ fontFamily: 'Inter, sans-serif' }} />
+                    </div>
+                  </div>
+                </section>
+
+                {duplicateWarning && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg border text-sm" style={{ background: '#ffdad6', borderColor: '#ba1a1a', color: '#ba1a1a' }}>
+                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
+                    <div className="flex-1">{duplicateWarning}</div>
+                    <button type="button" onClick={() => setDuplicateWarning(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  </div>
                 )}
+              </form>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-5 border-t border-[#e2e8f0] bg-[#eff4ff] flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2 text-[#45464d]">
+                <span className="material-symbols-outlined text-[18px]">info</span>
+                <span className="text-[13px] italic">Mandatory fields are marked with an asterisk (*)</span>
               </div>
-              {duplicateWarning && (
-                <div className="flex items-start gap-2 p-3 rounded-lg border text-sm" style={{ background: '#ffdad6', borderColor: '#ba1a1a', color: '#ba1a1a' }}>
-                  <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
-                  <div className="flex-1">{duplicateWarning}</div>
-                  <button type="button" onClick={() => setDuplicateWarning(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                </div>
-              )}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeEdit} className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]" style={{ background: 'white', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 rounded-full text-sm font-semibold text-white disabled:opacity-50" style={{ background: TEAL, border: 'none', cursor: 'pointer' }}>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={closeEdit} className="px-6 py-2.5 border border-[#e2e8f0] rounded-lg text-[#45464d] font-semibold hover:bg-[#dce9ff] transition-colors" style={{ background: 'white', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" form="leadEditForm" disabled={saving} className="px-6 py-2.5 bg-[#006a61] text-white rounded-lg font-semibold hover:opacity-90 shadow-sm transition-all flex items-center gap-2 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer' }}>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

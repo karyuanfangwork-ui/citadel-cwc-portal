@@ -15,7 +15,7 @@ import {
   getLeadDisplayId,
 } from './crmConstants';
 
-type SortField = 'title' | 'status' | 'aiScore' | 'ruleScore' | 'estimatedValue' | 'followUpDate' | 'createdAt';
+type SortField = 'title' | 'status' | 'aiScore' | 'estimatedValue' | 'followUpDate' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export interface SortConfig {
@@ -112,14 +112,7 @@ const TableHeader: React.FC<{
         {sortableCol('Lead Name', 'title')}
         {sortableCol('Status', 'status')}
         {sortableCol('Score', 'aiScore')}
-        <th style={{ ...labelCaps, padding: '10px 12px', cursor: 'pointer', userSelect: 'none', textAlign: 'left' }} className="hidden xl:table-cell" onClick={() => onSort('ruleScore')}
-          aria-sort={sortConfig?.field === 'ruleScore' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-        >
-          <span className="inline-flex items-center gap-0.5">
-            Rule
-            <SortIcon active={sortConfig?.field === 'ruleScore'} direction={sortConfig?.field === 'ruleScore' ? sortConfig.direction : null} />
-          </span>
-        </th>
+
         <th style={{ ...labelCaps, padding: '10px 12px', textAlign: 'left' }}>Contact</th>
         {sortableCol('Value', 'estimatedValue')}
         {sortableCol('Follow-up', 'followUpDate')}
@@ -180,8 +173,8 @@ const LeadRow: React.FC<{
         />
       </td>
 
-      {/* Lead ID — data-mono style */}
-      <td style={{ padding: '10px 12px', fontFamily: '"JetBrains Mono", monospace', fontSize: 13, fontWeight: 500, color: T.onSurfaceVar }}>
+      {/* Lead ID — data-mono style, never wraps */}
+      <td style={{ padding: '10px 12px', fontFamily: '"JetBrains Mono", monospace', fontSize: 13, fontWeight: 500, color: T.onSurfaceVar, whiteSpace: 'nowrap', minWidth: 70 }}>
         {getLeadDisplayId(lead.id)}
       </td>
 
@@ -189,7 +182,7 @@ const LeadRow: React.FC<{
       <td
         style={{
           padding: '10px 12px',
-          minWidth: 180,
+          minWidth: 220,
           position: 'sticky',
           left: 0,
           zIndex: 10,
@@ -247,26 +240,16 @@ const LeadRow: React.FC<{
       <td style={{ padding: '10px 12px' }}>
         {lead.aiScore != null ? (() => {
           const s = scoreStyle(lead.aiScore);
+          const tip = lead.ruleScore != null ? `AI: ${lead.aiScore} · Rule: ${lead.ruleScore}` : `AI Score: ${lead.aiScore}`;
           return (
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold"
-              style={{ background: s.bg, color: s.text }}>
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold cursor-default"
+              style={{ background: s.bg, color: s.text }}
+              title={tip}>
               <span className="material-symbols-outlined text-sm">auto_awesome</span>
               {lead.aiScore}
             </span>
           );
         })() : (
-          <span className="text-xs" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
-        )}
-      </td>
-
-      {/* Rule Score */}
-      <td style={{ padding: '10px 12px' }} className="hidden xl:table-cell">
-        {lead.ruleScore != null ? (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: '#ede9fe', color: '#6d28d9' }}>
-            <span className="material-symbols-outlined text-sm">rule</span>
-            {lead.ruleScore}
-          </span>
-        ) : (
           <span className="text-xs" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
         )}
       </td>
@@ -533,7 +516,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
   // Desktop table
   const desktopTable = (
     <div className="hidden lg:block w-full overflow-x-auto rounded-xl border shadow-sm" style={{ borderColor: T.outline, background: T.surfaceLowest }}>
-      <table className="w-full" style={{ minWidth: 860 }}>
+      <table className="w-full" style={{ minWidth: 800 }}>
         <TableHeader sortConfig={sortConfig} onSort={onSort} isAllSelected={isAllSelected} onSelectAll={onSelectAll} onClearSelection={onClearSelection} leadCount={leads.length} />
         <tbody className="divide-y" style={{ borderColor: T.borderSubtle }}>
           {leads.map(lead => (

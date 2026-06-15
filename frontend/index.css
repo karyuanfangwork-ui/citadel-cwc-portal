@@ -136,3 +136,15 @@ body.modal-open .edgem-watermark {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── KINETIC ENTERPRISE: Custom scrollbar ── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
