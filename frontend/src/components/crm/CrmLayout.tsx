@@ -15,7 +15,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm', label: 'Dashboard', icon: 'dashboard' },
   { to: '/crm/leads', label: 'Leads', icon: 'lightbulb' },
   { to: '/crm/opportunities', label: 'Opportunities', icon: 'monetization_on' },
-  { to: '/crm/pipeline', label: 'Pipeline', icon: 'trending_up' },
   { to: '/crm/accounts', label: 'Accounts', icon: 'business' },
   { to: '/crm/contacts', label: 'Contacts', icon: 'person' },
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },

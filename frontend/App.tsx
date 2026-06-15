@@ -62,7 +62,7 @@ import CrmAccounts from './pages/CrmAccounts';
 import CrmContacts from './pages/CrmContacts';
 import CrmLeads from './pages/CrmLeads';
 import CrmOpportunities from './pages/CrmOpportunities';
-import CrmPipelineView from './pages/CrmPipeline';
+
 import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
 import CrmGuide from './pages/CrmGuide';
@@ -277,7 +277,7 @@ const AppShell = () => {
                 <Route path="/crm/leads/:id" element={<CrmLeadDetail />} />
                 <Route path="/crm/opportunities" element={<CrmOpportunities />} />
                 <Route path="/crm/opportunities/:id" element={<CrmOpportunityDetail />} />
-                <Route path="/crm/pipeline" element={<CrmPipelineView />} />
+
                 <Route path="/crm/team" element={<CrmTeamDashboard />} />
                 <Route path="/crm/reports" element={<CrmReports />} />
                 <Route path="/crm/guide" element={<CrmGuide />} />
