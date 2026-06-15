@@ -14,7 +14,7 @@ interface StepDetailsProps {
   submitting: boolean;
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
-  handleCustomFieldChange: (fieldId: string, value: string) => void;
+  handleCustomFieldChange: (fieldId: string, value: any) => void;
   autoSummary?: string;
   isAutoSummary?: boolean;
   isAutoConfidential?: boolean;
@@ -116,49 +116,172 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         );
       case 'file': {
         const fieldValue = formData.customFields[field.id];
-        const displayName = fieldValue?.fileName || fieldValue || null;
+        // Support both single file (object) and multiple files (array)
+        const files: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[] = (() => {
+          if (Array.isArray(fieldValue)) return fieldValue.filter(f => f && f.s3Key);
+          if (fieldValue && typeof fieldValue === 'object' && fieldValue.s3Key) return [fieldValue];
+          return [];
+        })();
         const isUploading = uploadingFields[field.id];
+        const MAX_FILES = 5;
+        const canAddMore = files.length < MAX_FILES;
+
+        const uploadFile = async (file: File) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await apiClient.post('/files/upload', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          return res.data.data as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number };
+        };
+
+        const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
+          const selectedFiles = e.target.files;
+          if (!selectedFiles || selectedFiles.length === 0) return;
+          setUploadingFields(prev => ({ ...prev, [field.id]: true }));
+          try {
+            const newFiles: typeof files = [];
+            for (let i = 0; i < selectedFiles.length; i++) {
+              if (files.length + newFiles.length >= MAX_FILES) break;
+              const result = await uploadFile(selectedFiles[i]);
+              newFiles.push(result);
+            }
+            // If original was a single object, migrate to array; if already array, append
+            if (Array.isArray(fieldValue)) {
+              handleCustomFieldChange(field.id, [...fieldValue, ...newFiles] as any);
+            } else if (fieldValue && typeof fieldValue === 'object' && fieldValue.s3Key) {
+              handleCustomFieldChange(field.id, [fieldValue, ...newFiles] as any);
+            } else {
+              handleCustomFieldChange(field.id, newFiles.length === 1 ? newFiles[0] as any : newFiles as any);
+            }
+          } catch {
+            setError('File upload failed. Please try again.');
+          } finally {
+            setUploadingFields(prev => ({ ...prev, [field.id]: false }));
+            // Reset input so re-selecting the same file triggers onChange
+            e.target.value = '';
+          }
+        };
+
+        const removeFile = (index: number) => {
+          if (Array.isArray(fieldValue)) {
+            const updated = fieldValue.filter((_: any, i: number) => i !== index);
+            handleCustomFieldChange(field.id, (updated.length === 0 ? '' : updated) as any);
+          } else {
+            // Single file — just clear it
+            handleCustomFieldChange(field.id, '');
+          }
+        };
+
+        const getFileIcon = (mimeType?: string) => {
+          if (!mimeType) return 'description';
+          if (mimeType.startsWith('image/')) return 'image';
+          if (mimeType === 'application/pdf') return 'picture_as_pdf';
+          return 'description';
+        };
+
+        const formatFileSize = (size?: number) => {
+          if (!size) return '';
+          if (size > 1024 * 1024) return ` (${(size / (1024 * 1024)).toFixed(1)} MB)`;
+          return ` (${(size / 1024).toFixed(0)} KB)`;
+        };
+
         return (
-          <div className="relative">
-            <input
-              required={field.required && !fieldValue}
-              type="file"
-              accept="image/*,.pdf,.doc,.docx,.txt"
-              className="hidden"
-              id={`file-${field.id}`}
-              onChange={async e => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setUploadingFields(prev => ({ ...prev, [field.id]: true }));
-                try {
-                  const fd = new FormData();
-                  fd.append('file', file);
-                  const res = await apiClient.post('/files/upload', fd, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                  });
-                  handleCustomFieldChange(field.id, res.data.data);
-                } catch {
-                  setError('File upload failed. Please try again.');
-                } finally {
-                  setUploadingFields(prev => ({ ...prev, [field.id]: false }));
-                }
-              }}
-              disabled={submitting || isUploading}
-            />
-            <label
-              htmlFor={`file-${field.id}`}
-              className="flex items-center justify-center gap-3 w-full px-4 py-6 bg-white border-2 border-dashed border-cwc-border rounded-cwc-md hover:border-brand-700 hover:bg-brand-50/30 transition-all cursor-pointer group"
-            >
-              <span className="material-symbols-outlined text-3xl text-text-tertiary group-hover:text-brand-700">
-                {isUploading ? 'hourglass_empty' : 'upload_file'}
-              </span>
-              <div className="text-left">
-                <p className="text-sm font-bold text-text-primary group-hover:text-brand-700">
-                  {isUploading ? 'Uploading...' : displayName || 'Click to upload or drag and drop'}
-                </p>
-                <p className="text-xs text-text-secondary">PNG, JPG, PDF, DOC (max 10MB)</p>
+          <div className="space-y-2">
+            {/* File list — show uploaded files with remove and preview */}
+            {files.length > 0 && (
+              <div className="space-y-2">
+                {files.map((f, idx) => {
+                  const isImage = f.mimeType?.startsWith('image/');
+                  const isPdf = f.mimeType === 'application/pdf';
+                  const fileUrl = `${(import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'}/files/download/${encodeURIComponent(f.s3Key)}`;
+                  return (
+                    <div key={f.s3Key} className="border border-green-200 bg-green-50 rounded-cwc-md overflow-hidden">
+                      {/* Preview for images */}
+                      {isImage && (
+                        <div className="px-3 pt-3">
+                          <img
+                            src={fileUrl}
+                            alt={f.fileName}
+                            className="max-h-48 rounded border border-green-200 object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <span className="material-symbols-outlined text-green-600 text-lg">
+                          {getFileIcon(f.mimeType)}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          {isPdf ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(`${fileUrl}?inline=true`, '_blank')}
+                              className="text-sm font-medium text-brand-700 hover:underline truncate block text-left"
+                              title="Click to preview"
+                            >
+                              {f.fileName}{formatFileSize(f.fileSize)}
+                            </button>
+                          ) : isImage ? (
+                            <span className="text-sm font-medium text-green-800 truncate block" title={f.fileName}>
+                              {f.fileName}{formatFileSize(f.fileSize)}
+                            </span>
+                          ) : (
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-brand-700 hover:underline truncate block"
+                            >
+                              {f.fileName}{formatFileSize(f.fileSize)}
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="text-green-600 hover:text-red-500 transition-colors shrink-0"
+                          title="Remove file"
+                        >
+                          <span className="material-symbols-outlined text-lg">close</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </label>
+            )}
+
+            {/* Upload area */}
+            {canAddMore && (
+              <div className="relative">
+                <input
+                  required={field.required && files.length === 0}
+                  type="file"
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  multiple
+                  className="hidden"
+                  id={`file-${field.id}`}
+                  onChange={handleFileAdd}
+                  disabled={submitting || isUploading}
+                />
+                <label
+                  htmlFor={`file-${field.id}`}
+                  className={`flex items-center justify-center gap-3 w-full px-4 py-5 bg-white border-2 border-dashed border-cwc-border rounded-cwc-md hover:border-brand-700 hover:bg-brand-50/30 transition-all cursor-pointer group ${submitting || isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                >
+                  <span className={`material-symbols-outlined text-3xl ${isUploading ? 'animate-spin' : 'text-text-tertiary group-hover:text-brand-700'}`}>
+                    {isUploading ? 'progress_activity' : 'upload_file'}
+                  </span>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-text-primary group-hover:text-brand-700">
+                      {isUploading ? 'Uploading...' : files.length > 0 ? 'Add more files' : 'Click to upload or drag and drop'}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      PNG, JPG, PDF, DOC (max 10MB per file{files.length > 0 ? `, ${files.length}/${MAX_FILES} uploaded` : ''})
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
         );
       }

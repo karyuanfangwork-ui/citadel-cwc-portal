@@ -119,14 +119,23 @@ const StepReview: React.FC<StepReviewProps> = ({
     return opt?.label || value;
   };
 
+  const formatFileSize = (size?: number) => {
+    if (!size) return '';
+    if (size > 1024 * 1024) return ` (${(size / (1024 * 1024)).toFixed(1)} MB)`;
+    return ` (${(size / 1024).toFixed(0)} KB)`;
+  };
+
   const formatCustomFieldDisplay = (field: any, value: any) => {
     if (!value && value !== 0) return '—';
     if (field.type === 'entity' && entityOptions.length > 0) {
       const entity = entityOptions.find(e => e.code === value);
       return entity ? `${entity.name} (${entity.code})` : value;
     }
-    if (field.type === 'file' && value?.fileName) {
-      return value.fileName;
+    // File field: single object or array of file objects
+    if (field.type === 'file') {
+      const files: { fileName: string; s3Key?: string; mimeType?: string; fileSize?: number }[] = Array.isArray(value) ? value : (value?.fileName ? [value] : []);
+      if (files.length === 0) return '—';
+      return files.map(f => f.fileName + formatFileSize(f.fileSize)).join(', ');
     }
     if (field.type === 'currency') {
       return `RM ${value}`;

@@ -17,6 +17,13 @@ const prisma = new PrismaClient();
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {
     if (val === null || val === undefined || val === '') return '';
+    if (Array.isArray(val)) {
+        // Array of file objects — list filenames
+        if (val.length > 0 && val[0]?.s3Key && val[0]?.fileName) {
+            return val.map((f: any) => f.fileName).join(', ');
+        }
+        return val.join(', ');
+    }
     if (typeof val === 'object' && val !== null) {
         // File upload objects — return the original filename for display
         if (val.s3Key && val.fileName) return val.fileName;
@@ -768,6 +775,8 @@ class RequestController {
                 }
 
                 if (typeof value === 'object' && value.s3Key) continue;
+                // Skip file arrays in description
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
                 if (typeof value === 'object' && !value.s3Key) {
                     // candidateDocuments or other nested objects — summarize instead of dumping raw
                     if (key === 'candidates') {
@@ -801,6 +810,7 @@ class RequestController {
             for (const [key, value] of Object.entries(cf)) {
                 if (value === null || value === undefined || value === '') continue;
                 if (typeof value === 'object' && value.s3Key) continue;
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
 
                 let label = key;
                 if (formConfig && Array.isArray(formConfig)) {
@@ -832,6 +842,7 @@ class RequestController {
                 
                 // Skip file uploads in description
                 if (typeof value === 'object' && value.s3Key) continue;
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
                 
                 // Find label from formConfig for dynamic field IDs
                 let label = key;

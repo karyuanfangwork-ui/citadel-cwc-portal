@@ -125,23 +125,67 @@ const DATE_KEYS = new Set([
   'receiptDate', 'approvalDate', 'acceptedDate', 'lastDay',
 ]);
 
-function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }): React.ReactNode {
+function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, showPreview = false): React.ReactNode {
   const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
+  const inlineHref = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}?inline=true`;
   const sizeStr = value.fileSize
     ? value.fileSize > 1024 * 1024
       ? ` (${(value.fileSize / (1024 * 1024)).toFixed(1)} MB)`
       : ` (${(value.fileSize / 1024).toFixed(0)} KB)`
     : '';
+  const isImage = value.mimeType?.startsWith('image/');
+  const isPdf = value.mimeType === 'application/pdf';
+
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-[#0052cc] hover:underline font-medium"
-    >
-      <span className="material-symbols-outlined text-base">download</span>
-      {value.fileName}{sizeStr}
-    </a>
+    <div className="space-y-1">
+      {showPreview && isImage && (
+        <a href={href} target="_blank" rel="noopener noreferrer">
+          <img
+            src={inlineHref}
+            alt={value.fileName}
+            className="max-h-32 rounded border border-gray-200 object-contain hover:border-brand-300 transition-colors"
+          />
+        </a>
+      )}
+      <div className="flex items-center gap-1.5">
+        <span className="material-symbols-outlined text-base text-[#0052cc]">
+          {isPdf ? 'picture_as_pdf' : isImage ? 'image' : 'download'}
+        </span>
+        {isPdf ? (
+          <button
+            type="button"
+            onClick={() => window.open(inlineHref, '_blank')}
+            className="inline-flex items-center gap-1 text-[#0052cc] hover:underline font-medium"
+            title="Click to preview PDF"
+          >
+            {value.fileName}{sizeStr}
+          </button>
+        ) : (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[#0052cc] hover:underline font-medium"
+          >
+            {value.fileName}{sizeStr}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatFileList(values: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[]): React.ReactNode {
+  if (values.length === 0) return '\u2014';
+  if (values.length === 1) return formatFileLink(values[0], true);
+  return (
+    <div className="space-y-2">
+      {values.map((f, i) => (
+        <div key={f.s3Key || i}>
+          {formatFileLink(f, true)}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -184,7 +228,14 @@ function formatCandidateDocuments(value: Record<string, Record<string, any>>): R
 function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.join(', ');
+  // File array: multiple files in a single field
+  if (Array.isArray(value)) {
+    // Check if it's an array of file objects
+    if (value.length > 0 && value[0]?.s3Key && value[0]?.fileName) {
+      return formatFileList(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[]);
+    }
+    return value.join(', ');
+  }
   if (typeof value === 'object') {
     if (key === 'payment') return formatPayment(value);
     // Nested candidate documents structure
@@ -196,7 +247,7 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
       }
     }
     if (value.s3Key && value.fileName) {
-      return formatFileLink(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number });
+      return formatFileLink(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, true);
     }
     return JSON.stringify(value);
   }

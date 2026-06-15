@@ -432,8 +432,14 @@ interface AttachmentCardProps {
 
 function AttachmentCard({ attachment, requestId, canDelete, onDelete }: AttachmentCardProps) {
   const isImage = isImageMimeType(attachment.mimeType);
+  const isPdf = attachment.mimeType === 'application/pdf';
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(isImage); // only fetch blob for images
+
+  // Build the direct API URL for inline preview (uses same-origin auth cookies)
+  const apiBase = (apiClient.defaults as any).baseURL || '/api/v1';
+  const inlineUrl = `${apiBase}/requests/${requestId}/attachments/${attachment.id}?inline=true`;
+  const downloadUrl = `${apiBase}/requests/${requestId}/attachments/${attachment.id}`;
 
   // Fetch image via axios (with auth cookies) and create a blob URL for <img src>
   const blobUrlRef = useRef<string | null>(null);
@@ -465,6 +471,12 @@ function AttachmentCard({ attachment, requestId, canDelete, onDelete }: Attachme
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
+    // PDFs and images: open in new tab for preview via ?inline=true
+    if (isPdf || isImage) {
+      window.open(inlineUrl, '_blank');
+      return;
+    }
+    // Other files: force download
     try {
       const blob = await requestService.downloadAttachment(requestId, attachment.id);
       const url = URL.createObjectURL(blob);
@@ -476,9 +488,8 @@ function AttachmentCard({ attachment, requestId, canDelete, onDelete }: Attachme
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      // fallback: open the API URL directly (may work for top-level nav with lax cookies)
-      const apiBase = (apiClient.defaults as any).baseURL || '/api/v1';
-      window.open(`${apiBase}/requests/${requestId}/attachments/${attachment.id}`, '_blank');
+      // fallback: open the API URL directly
+      window.open(downloadUrl, '_blank');
     }
   };
 
@@ -528,10 +539,14 @@ function AttachmentCard({ attachment, requestId, canDelete, onDelete }: Attachme
         <button
           onClick={handleDownload}
           className="text-xs font-bold text-gray-700 hover:text-[#0052cc] truncate block text-left"
+          title={isPdf ? 'Click to preview' : 'Click to download'}
         >
           {attachment.fileName}
         </button>
-        <span className="text-[10px] text-gray-400">{formatFileSize(attachment.fileSize)}</span>
+        <span className="text-[10px] text-gray-400">
+          {formatFileSize(attachment.fileSize)}
+          {isPdf && ' · Click to preview'}
+        </span>
       </div>
       {canDelete && (
         <button

@@ -358,7 +358,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }));
   };
 
-  const handleCustomFieldChange = (fieldId: string, value: string) => {
+  const handleCustomFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       customFields: {
