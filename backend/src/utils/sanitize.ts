@@ -47,3 +47,34 @@ export function sanitizeComment(value: unknown): string {
   const stripped = validator.stripLow(str);
   return validator.escape(stripped);
 }
+
+/**
+ * Sanitize a rich-text HTML description.
+ * Allows safe formatting tags (bold, italic, lists, links, paragraphs)
+ * while stripping all dangerous content (scripts, event handlers, etc.).
+ * Used for the IT Support description field with rich-text editor.
+ */
+import sanitizeHtml from 'sanitize-html';
+
+const ALLOWED_RICH_TAGS = [
+  'b', 'i', 'strong', 'em',
+  'ul', 'ol', 'li',
+  'a', 'p', 'br',
+];
+const ALLOWED_ATTRS: Record<string, string[]> = {
+  a: ['href', 'target', 'rel'],
+};
+
+export function sanitizeRichText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  return sanitizeHtml(str, {
+    allowedTags: ALLOWED_RICH_TAGS,
+    allowedAttributes: ALLOWED_ATTRS,
+    // Force rel="noopener noreferrer" on all links to prevent tab-napping
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
+    },
+    disallowedTagsMode: 'discard',
+  });
+}

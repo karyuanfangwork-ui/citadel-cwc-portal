@@ -5,7 +5,7 @@ import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
 import { s3Service } from '../services/s3.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
-import { sanitizeString, sanitizeComment } from '../utils/sanitize';
+import { sanitizeString, sanitizeComment, sanitizeRichText } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
@@ -146,12 +146,14 @@ class RequestController {
         // An HR agent cannot see IT or Finance tickets, and vice versa.
         // However, agents CAN see tickets from other service desks that are assigned to their team
         // (e.g., a FINANCE agent processing payment on an IT ticket via CFO workflow).
+        // Agents can also see tickets where they are a participant (e.g. added to a FINANCE ticket).
         if (hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN')) {
             const agentTeam = (req.user as any)?.agentTeam;
             if (agentTeam) {
                 where.OR = [
                     { serviceDesk: { code: agentTeam } },
                     { assignedTeam: agentTeam },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             }
         }
@@ -682,7 +684,6 @@ class RequestController {
 
         // Sanitize highest-risk text fields before storing
         const summary = sanitizeString(rawSummary);
-        const description = rawDescription ? sanitizeComment(rawDescription) : undefined;
 
         // Generate reference number
         const serviceDesk = await prisma.serviceDesk.findUnique({
@@ -692,6 +693,11 @@ class RequestController {
         if (!serviceDesk) {
             throw new AppError('Service desk not found', 404);
         }
+
+        // IT Support uses rich-text editor — allow safe HTML; others stay plain text
+        const description = rawDescription
+            ? (serviceDesk.code === 'IT' ? sanitizeRichText(rawDescription) : sanitizeComment(rawDescription))
+            : undefined;
 
         // Get count for reference number
         const count = await prisma.request.count({
@@ -1497,10 +1503,11 @@ class RequestController {
         // Check permissions
         // Allow access if:
         // 1. User is the requester
-        // 2. User is ADMIN or AGENT
-        // 3. User is CEO and request is in hiring workflow or IT CEO approval
-        // 4. User is CTO/CFO and request is pending their IT approval
-        // 5. User is a designated approver on this request
+        // 2. User is ADMIN (full access)
+        // 3. User is AGENT and the ticket is within their agentTeam scope (service desk or assignedTeam)
+        // 4. User is CEO and request is in hiring workflow or IT CEO approval
+        // 5. User is CTO/CFO and request is pending their IT approval
+        // 6. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
         const isParticipant = (request as any).participants?.some((p: any) => p.userId === req.user!.id) ?? false;
         const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
@@ -1534,9 +1541,19 @@ class RequestController {
             request.assignedToId === req.user!.id
         );
 
+        // Agent team scoping: agents (without ADMIN) can only view tickets in their team's scope,
+        // matching the getAllRequests visibility logic (serviceDesk.code or assignedTeam matches agentTeam).
+        const agentTeam = (req.user as any)?.agentTeam;
+        const isAgentWithTeamScope = hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN') && agentTeam;
+        const isWithinAgentTeamScope = isAgentWithTeamScope && (
+            (request as any).serviceDesk?.code === agentTeam ||
+            (request as any).assignedTeam === agentTeam
+        );
+
         if (
             request.requesterId !== req.user!.id &&
-            !hasRole(req, 'ADMIN', 'AGENT') &&
+            !hasRole(req, 'ADMIN') &&
+            !isWithinAgentTeamScope &&
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover &&
@@ -1593,7 +1610,6 @@ class RequestController {
 
         // Sanitize highest-risk text fields
         const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
-        const description = rawDescription !== undefined ? sanitizeComment(rawDescription) : undefined;
 
         const existingRequest = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1602,6 +1618,14 @@ class RequestController {
         if (!existingRequest) {
             throw new AppError('Request not found', 404);
         }
+
+        // Determine if this request belongs to IT desk for rich-text sanitization
+        const isItDesk = existingRequest.serviceDeskId
+            ? (await prisma.serviceDesk.findUnique({ where: { id: existingRequest.serviceDeskId } }))?.code === 'IT'
+            : false;
+        const description = rawDescription !== undefined
+            ? (isItDesk ? sanitizeRichText(rawDescription) : sanitizeComment(rawDescription))
+            : undefined;
 
         // Check permissions
         if (

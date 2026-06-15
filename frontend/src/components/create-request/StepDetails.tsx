@@ -1,6 +1,7 @@
 import React from 'react';
 import apiClient from '../../services/api';
 import { type FormData, URGENCY_OPTIONS } from './useCreateRequestWizard';
+import RichTextEditor from '@/src/components/ui/RichTextEditor';
 
 interface StepDetailsProps {
   formData: FormData;
@@ -577,23 +578,12 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       {deskType === 'it' && (
         <div>
           <label htmlFor="request-description" className="block text-sm font-bold text-text-primary mb-2">Description</label>
-          <div className="border border-cwc-border rounded-cwc-md overflow-hidden focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-700 transition-all">
-            <div className="bg-surface-muted/50 border-b border-cwc-border px-4 py-2 flex gap-4">
-              <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">format_bold</button>
-              <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">format_italic</button>
-              <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">format_list_bulleted</button>
-              <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">link</button>
-            </div>
-            <textarea
-              id="request-description"
-              rows={8}
-              placeholder="Provide additional details about your request..."
-              className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-text-tertiary"
-              value={formData.description}
-              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              disabled={submitting}
-            />
-          </div>
+          <RichTextEditor
+            value={formData.description}
+            onChange={html => setFormData(prev => ({ ...prev, description: html }))}
+            placeholder="Provide additional details about your request..."
+            disabled={submitting}
+          />
         </div>
       )}
 

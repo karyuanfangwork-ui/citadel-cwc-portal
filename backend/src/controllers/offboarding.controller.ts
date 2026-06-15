@@ -90,7 +90,7 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
         const idOrRef = String(req.params.id);
         const requestId = await resolveRequestId(idOrRef);
         if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
-        const { overallStatus, currentPhase, exitInterviewScheduledDate, lastWorkingDay, ...rest } = req.body;
+        const { overallStatus, currentPhase, exitInterviewScheduledDate, lastWorkingDay, department, ...rest } = req.body;
         const user = (req as any).user;
 
         const currentRequest = await prisma.request.findUnique({ where: { id: requestId } });

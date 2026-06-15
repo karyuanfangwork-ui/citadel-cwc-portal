@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DOMPurify from 'dompurify';
 import CustomFieldsPanel from '@/src/components/request-detail/CustomFieldsPanel';
 import AssignAgentModal from '@/src/components/request-detail/AssignAgentModal';
 
@@ -248,9 +249,21 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
           <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest block mb-4">
             Description
           </span>
-          <p className="text-[#44546f] leading-relaxed text-lg">
-            {request.description || 'No detailed description provided.'}
-          </p>
+          {request.serviceDesk?.code === 'IT' && request.description ? (
+            <div
+              className="text-[#44546f] leading-relaxed text-lg tiptap-content"
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(request.description, {
+                  ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'p', 'br'],
+                  ALLOWED_ATTR: ['href', 'target', 'rel'],
+                }),
+              }}
+            />
+          ) : (
+            <p className="text-[#44546f] leading-relaxed text-lg">
+              {request.description || 'No detailed description provided.'}
+            </p>
+          )}
         </div>
 
         {/* Structured Custom Fields */}

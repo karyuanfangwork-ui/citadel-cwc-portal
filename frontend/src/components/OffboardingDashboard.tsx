@@ -66,6 +66,9 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete, onPreCon
     const [editingLastWorkingDay, setEditingLastWorkingDay] = useState(false);
     const [lastWorkingDayForm, setLastWorkingDayForm] = useState('');
     const [savingLastWorkingDay, setSavingLastWorkingDay] = useState(false);
+    const [editingField, setEditingField] = useState<string | null>(null);
+    const [fieldInput, setFieldInput] = useState<Record<string, string>>({});
+    const [savingField, setSavingField] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -229,6 +232,37 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete, onPreCon
         }
     };
 
+    const handleEditField = (field: string, currentValue: string) => {
+        setFieldInput(prev => ({ ...prev, [field]: currentValue }));
+        setEditingField(field);
+    };
+
+    const handleCancelField = () => {
+        setEditingField(null);
+        setFieldInput({});
+    };
+
+    const handleSaveField = async (field: string) => {
+        if (savingField) return;
+        const value = fieldInput[field] ?? '';
+        // Require non-empty for core fields (phone/department/reason are optional)
+        if (['employeeFirstName', 'employeeLastName', 'employeeEmail'].includes(field) && !value.trim()) return;
+        setSavingField(true);
+        try {
+            await apiClient.put(`/offboarding/requests/${requestId}/offboarding/update-status`, {
+                [field]: value.trim() || null,
+            });
+            await fetchData();
+            setEditingField(null);
+            setFieldInput({});
+            toast.success('Field Updated', `${field} has been updated successfully.`);
+        } catch (err: any) {
+            toast.error('Update Failed', err.response?.data?.message || err.message || 'Failed to update field');
+        } finally {
+            setSavingField(false);
+        }
+    };
+
     const handleUploadResignationLetter = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -329,22 +363,115 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete, onPreCon
             <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Departing Employee</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* First Name */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">person_remove</span>
-                        <div>
-                            <p className="text-sm text-gray-500">Name</p>
-                            <p className="font-medium text-gray-900">
-                                {`${offboarding.employeeFirstName} ${offboarding.employeeLastName}`.trim() || 'Not set'}
-                            </p>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">First Name</p>
+                            {editingField === 'employeeFirstName' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="text"
+                                        value={fieldInput.employeeFirstName ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, employeeFirstName: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('employeeFirstName')}
+                                        disabled={savingField || !fieldInput.employeeFirstName?.trim()}
+                                        className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{offboarding.employeeFirstName || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('employeeFirstName', offboarding.employeeFirstName || '')} className="text-gray-400 hover:text-amber-600 transition-colors" title="Edit first name">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    {/* Last Name */}
+                    <div className="flex items-start space-x-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">person_remove</span>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">Last Name</p>
+                            {editingField === 'employeeLastName' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="text"
+                                        value={fieldInput.employeeLastName ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, employeeLastName: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('employeeLastName')}
+                                        disabled={savingField || !fieldInput.employeeLastName?.trim()}
+                                        className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{offboarding.employeeLastName || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('employeeLastName', offboarding.employeeLastName || '')} className="text-gray-400 hover:text-amber-600 transition-colors" title="Edit last name">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Email */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">mail</span>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm text-gray-500">Email</p>
-                            <p className="font-medium text-gray-900">{offboarding.employeeEmail || 'Not set'}</p>
+                            {editingField === 'employeeEmail' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="email"
+                                        value={fieldInput.employeeEmail ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, employeeEmail: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('employeeEmail')}
+                                        disabled={savingField || !fieldInput.employeeEmail?.trim()}
+                                        className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{offboarding.employeeEmail || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('employeeEmail', offboarding.employeeEmail || '')} className="text-gray-400 hover:text-amber-600 transition-colors" title="Edit email">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    {/* Last Working Day (already editable, kept as-is) */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
                         <div>
@@ -395,24 +522,50 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete, onPreCon
                             )}
                         </div>
                     </div>
-                    {offboarding.department && (
-                        <div className="flex items-start space-x-3">
-                            <span className="material-symbols-outlined text-gray-400 text-xl">corporate_fare</span>
-                            <div>
-                                <p className="text-sm text-gray-500">Department</p>
-                                <p className="font-medium text-gray-900">{offboarding.department}</p>
-                            </div>
+                    {/* Department — read-only, not editable */}
+                    <div className="flex items-start space-x-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">corporate_fare</span>
+                        <div>
+                            <p className="text-sm text-gray-500">Department</p>
+                            <p className="font-medium text-gray-900">{offboarding.department || 'Not set'}</p>
                         </div>
-                    )}
-                    {offboarding.reasonForDeparture && (
-                        <div className="flex items-start space-x-3 md:col-span-2">
-                            <span className="material-symbols-outlined text-gray-400 text-xl">info</span>
-                            <div>
-                                <p className="text-sm text-gray-500">Reason for Departure</p>
-                                <p className="font-medium text-gray-900">{offboarding.reasonForDeparture}</p>
-                            </div>
+                    </div>
+                    {/* Reason for Departure */}
+                    <div className="flex items-start space-x-3 md:col-span-2">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">info</span>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">Reason for Departure</p>
+                            {editingField === 'reasonForDeparture' ? (
+                                <div className="flex items-start gap-2 mt-1">
+                                    <textarea
+                                        value={fieldInput.reasonForDeparture ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, reasonForDeparture: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-full min-h-[60px]"
+                                        disabled={savingField}
+                                        placeholder="Optional"
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('reasonForDeparture')}
+                                        disabled={savingField}
+                                        className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1 shrink-0"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50 shrink-0">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{offboarding.reasonForDeparture || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('reasonForDeparture', offboarding.reasonForDeparture || '')} className="text-gray-400 hover:text-amber-600 transition-colors" title="Edit reason for departure">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
 

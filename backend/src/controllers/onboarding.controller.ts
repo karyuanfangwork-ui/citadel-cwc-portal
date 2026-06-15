@@ -486,6 +486,124 @@ export const updateStartDate = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * PATCH /api/v1/requests/:id/onboarding/hire-info
+ * Update new hire information fields: firstName, lastName, email, phone, jobTitle, department
+ * Only ADMIN or HR AGENT can update
+ */
+export const updateHireInfo = async (req: Request, res: Response) => {
+    try {
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
+
+        const user = (req as any).user;
+        const userRoles = user?.roles || [];
+
+        // Permission check — ADMIN or HR agent only
+        const isAdmin = userRoles.includes('ADMIN');
+        const isHRAgent = userRoles.includes('AGENT');
+        let isHR = false;
+        if (isHRAgent) {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: user?.id },
+                select: { agentTeam: true },
+            });
+            isHR = dbUser?.agentTeam?.toUpperCase() === 'HR';
+        }
+
+        if (!isAdmin && !isHR) {
+            return res.status(403).json({ error: 'Only ADMIN or HR agent can update hire information' });
+        }
+
+        const onboarding = await prisma.onboardingRequest.findUnique({ where: { requestId } });
+        if (!onboarding) {
+            return res.status(404).json({ error: 'Onboarding request not found' });
+        }
+
+        // Allowed fields and validation (department is not editable)
+        const allowedFields: Record<string, { maxLength: number; type: 'string' | 'email' }> = {
+            newHireFirstName: { maxLength: 100, type: 'string' },
+            newHireLastName: { maxLength: 100, type: 'string' },
+            newHireEmail: { maxLength: 255, type: 'email' },
+            newHirePhone: { maxLength: 20, type: 'string' },
+            jobTitle: { maxLength: 200, type: 'string' },
+        };
+
+        const updates: Record<string, any> = {};
+        const changes: string[] = [];
+
+        for (const [field, config] of Object.entries(allowedFields)) {
+            if (req.body[field] === undefined) continue;
+
+            const value = String(req.body[field]).trim();
+
+            if (value.length === 0) {
+                // Phone can be cleared; other required fields cannot
+                if (field === 'newHirePhone') {
+                    updates[field] = null;
+                    changes.push(`${field} cleared`);
+                    continue;
+                }
+                return res.status(400).json({ error: `${field} cannot be empty` });
+            }
+
+            if (value.length > config.maxLength) {
+                return res.status(400).json({ error: `${field} exceeds maximum length of ${config.maxLength}` });
+            }
+
+            if (config.type === 'email') {
+                const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRe.test(value)) {
+                    return res.status(400).json({ error: `${field} is not a valid email address` });
+                }
+            }
+
+            // Track changes for audit
+            const oldValue = String((onboarding as any)[field] ?? '');
+            if (oldValue !== value) {
+                changes.push(`${field}: "${oldValue}" → "${value}"`);
+            }
+
+            updates[field] = value;
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'No valid fields provided to update' });
+        }
+
+        const updated = await prisma.onboardingRequest.update({
+            where: { requestId },
+            data: updates,
+        });
+
+        // Audit log
+        if (changes.length > 0) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId,
+                    authorId: user?.id,
+                    authorName: user ? `${user.firstName} ${user.lastName}` : 'System',
+                    authorRole: userRoles[0] || 'SYSTEM',
+                    activityType: 'SYSTEM',
+                    message: `Hire info updated: ${changes.join('; ')}`,
+                    isSystemGenerated: true,
+                },
+            });
+
+            await auditLog(req, 'UPDATE', 'onboardingRequest', onboarding.id, {
+                fields: Object.keys(updates),
+                changes,
+            }, {});
+        }
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating hire information:', error);
+        res.status(500).json({ error: 'Failed to update hire information' });
+    }
+};
+
 export const assignBuddy = async (req: Request, res: Response) => {
     try {
         const idOrRef = String(req.params.id);

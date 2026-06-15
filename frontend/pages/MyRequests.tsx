@@ -37,7 +37,7 @@ const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<'open' | 'all'>('open');
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('created');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,8 @@ const MyRequests = () => {
         limit,
       };
 
-      // Apply view mode filter: "created" = only my own, "shared" = participant only, "all" = visibility-based (no filter)
+      // Apply view mode filter: "created" = only my own, "shared" = participant only
+      // "My Requests" page is personal — only shows tickets where user is involved, NOT the agent queue
       if (viewMode === 'created') {
         apiFilters.requesterId = user?.id;
       } else if (viewMode === 'shared') {
@@ -152,7 +153,7 @@ const MyRequests = () => {
   const getViewModeLabel = () => {
     if (viewMode === 'created') return 'Created by me';
     if (viewMode === 'shared') return 'Shared with me';
-    return 'All requests';
+    return 'My requests';
   };
 
   const toggleSelect = (id: string) => {
@@ -209,12 +210,12 @@ const MyRequests = () => {
             <button
               onClick={() => {
                 setStatusFilter('open');
-                setViewMode('all');
+                setViewMode('created');
                 setPage(1);
               }}
-              aria-pressed={statusFilter === 'open' && viewMode === 'all'}
+              aria-pressed={statusFilter === 'open' && viewMode === 'created'}
               aria-label="Show open requests"
-              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'open' && viewMode === 'all'
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'open' && viewMode === 'created'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
                 }`}
@@ -225,12 +226,12 @@ const MyRequests = () => {
             <button
               onClick={() => {
                 setStatusFilter('all');
-                setViewMode('all');
+                setViewMode('created');
                 setPage(1);
               }}
-              aria-pressed={statusFilter === 'all' && viewMode === 'all'}
+              aria-pressed={statusFilter === 'all' && viewMode === 'created'}
               aria-label="Show all requests"
-              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'all' && viewMode === 'all'
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'all' && viewMode === 'created'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
                 }`}
@@ -307,15 +308,15 @@ const MyRequests = () => {
           </div>
 
           {/* Active filter indicator */}
-          {viewMode !== 'all' && (
+          {viewMode === 'shared' && (
             <div className="mb-4 flex items-center gap-2">
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-[#0052cc]/10 text-[#0052cc]">
                 <span className="material-symbols-outlined text-[14px]">
-                  {viewMode === 'created' ? 'person' : 'share'}
+                  share
                 </span>
                 {getViewModeLabel()}
                 <button
-                  onClick={() => { setViewMode('all'); setPage(1); }}
+                  onClick={() => { setViewMode('created'); setPage(1); }}
                   className="ml-1 hover:text-[#003d99]"
                   aria-label="Clear filter"
                 >

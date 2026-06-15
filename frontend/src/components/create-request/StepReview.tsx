@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { FormData, URGENCY_OPTIONS, WorkflowInfo } from './useCreateRequestWizard';
 
 interface StepReviewProps {
@@ -208,7 +209,15 @@ const StepReview: React.FC<StepReviewProps> = ({
       {deskType === 'it' && formData.description && (
         <div className="pb-6 border-b border-cwc-border">
           <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3">Description</h3>
-          <p className="text-text-secondary whitespace-pre-wrap">{formData.description}</p>
+          <div
+            className="text-text-secondary tiptap-content"
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(formData.description, {
+                ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'p', 'br'],
+                ALLOWED_ATTR: ['href', 'target', 'rel'],
+              }),
+            }}
+          />
         </div>
       )}
 
