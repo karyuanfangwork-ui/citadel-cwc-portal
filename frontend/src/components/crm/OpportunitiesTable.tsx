@@ -84,11 +84,10 @@ const TableHeader: React.FC<{
           />
         </th>
         {sortableCol('Opportunity', 'name')}
+        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Account Name</th>
         {sortableCol('Stage', 'stageId')}
-        {sortableCol('Value', 'value')}
+        {sortableCol('Amount (MYR)', 'value')}
         {sortableCol('Probability', 'probability')}
-        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact</th>
-        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] hidden xl:table-cell">Account</th>
         {sortableCol('Close Date', 'expectedCloseDate')}
         <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</th>
         <th className="px-4 py-3 sticky right-0 bg-[#f0f4f8] z-10"></th>
@@ -124,16 +123,18 @@ const OppRow: React.FC<{
       <td className="px-4 py-2.5" style={{ minWidth: 180 }}>
         <Link
           to={`/crm/opportunities/${opp.id}`}
-          className="text-sm font-bold text-[#0b1c30] hover:text-[#006a61] hover:underline transition-colors line-clamp-2"
+          className="font-semibold text-[#006a61] group-hover:underline cursor-pointer"
+          style={{ fontSize: 14, lineHeight: '20px' }}
           title={opp.name}
         >
           {opp.name}
         </Link>
-        {opp.description && (
-          <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5" title={opp.description}>
-            {opp.description}
-          </p>
-        )}
+        <span className="block text-[10px] text-[#45464d] mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>
+          {opp.id.slice(0, 8).toUpperCase()}
+        </span>
+      </td>
+      <td className="px-4 py-2.5">
+        <span className="text-sm text-[#0b1c30] line-clamp-1">{opp.account?.name || '—'}</span>
       </td>
       <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
         {opp.stage ? (
@@ -144,51 +145,25 @@ const OppRow: React.FC<{
             compact
           />
         ) : (
-          <span className="text-xs text-text-tertiary">—</span>
+          <span className="text-xs text-[#45464d]">—</span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-right">
-        <span className="text-sm font-bold text-[#006a61]">{formatCurrency(opp.value)}</span>
+      <td className="px-4 py-2.5 text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+        <span className="text-sm font-medium text-[#0b1c30]">{formatCurrency(opp.value)}</span>
       </td>
       <td className="px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-[#f0f4f8] rounded-full overflow-hidden" style={{ minWidth: 40 }}>
-            <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: opp.stage ? stageBadgeColor(opp.stage) : 'var(--color-brand-500)' }} />
+        <div className="flex flex-col items-center">
+          <div className="w-full bg-[#e5e7eb] rounded-full h-1.5 max-w-[60px]">
+            <div className="h-1.5 rounded-full" style={{ width: `${opp.probability}%`, background: opp.stage ? stageBadgeColor(opp.stage) : '#006a61' }} />
           </div>
-          <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
-          {opp.aiWinProbability != null && (() => {
-            const ws = winProbStyle(opp.aiWinProbability);
-            return (
-              <span
-                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold ml-1"
-                style={{ background: ws.bg, color: ws.text }}
-                title={`AI Win Probability: ${opp.aiWinProbability}%${opp.aiWinReason ? ' — ' + opp.aiWinReason : ''}`}
-              >
-                <span className="material-symbols-outlined text-sm">{ws.icon}</span>
-                AI {opp.aiWinProbability}%
-              </span>
-            );
-          })()}
+          <span className="text-[10px] font-bold mt-1">{opp.probability}%</span>
         </div>
       </td>
       <td className="px-4 py-2.5">
-        {contactName ? (
-          <span className="text-sm text-text-primary line-clamp-1">{contactName}</span>
-        ) : (
-          <span className="text-xs text-text-tertiary">—</span>
-        )}
-      </td>
-      <td className="px-4 py-2.5 hidden xl:table-cell">
-        <span className="text-sm text-text-secondary line-clamp-1">{opp.account?.name || '—'}</span>
-      </td>
-      <td className="px-4 py-2.5 hidden xl:table-cell">
         {opp.expectedCloseDate ? (
-          <span className="text-xs" style={{ color: closeDateOverdue ? 'var(--color-danger)' : undefined, fontWeight: closeDateOverdue ? 700 : 400 }}>
-            {closeDateOverdue && <span className="material-symbols-outlined text-xs align-middle mr-0.5">warning</span>}
-            {formatShortDate(opp.expectedCloseDate)}
-          </span>
+          <span className="text-sm text-[#45464d]">{formatShortDate(opp.expectedCloseDate)}</span>
         ) : (
-          <span className="text-xs text-text-tertiary">—</span>
+          <span className="text-xs text-[#45464d]">—</span>
         )}
       </td>
       <td className="px-4 py-2.5">
@@ -350,7 +325,7 @@ const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
   // Desktop table
   const desktopTable = (
     <div className="hidden lg:block w-full overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white">
-      <table className="w-full" style={{ minWidth: 1000 }}>
+      <table className="w-full" style={{ minWidth: 900 }}>
         <TableHeader sortConfig={sortConfig} onSort={onSort} isAllSelected={isAllSelected} onSelectAll={onSelectAll} onClearSelection={onClearSelection} oppCount={opportunities.length} />
         <tbody>
           {opportunities.map(opp => (
