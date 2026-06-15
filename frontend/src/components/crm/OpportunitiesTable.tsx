@@ -60,7 +60,7 @@ const TableHeader: React.FC<{
 }> = ({ sortConfig, onSort, isAllSelected, onSelectAll, onClearSelection, oppCount }) => {
   const sortableCol = (label: string, field: SortField) => (
     <th
-      className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-text-primary transition-colors"
+      className={`text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] cursor-pointer select-none hover:text-[#006a61] transition-colors`}
       onClick={() => onSort(field)}
       aria-sort={sortConfig?.field === field ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
@@ -72,14 +72,14 @@ const TableHeader: React.FC<{
   );
 
   return (
-    <thead className="bg-surface-muted border-b border-border">
+    <thead className="bg-[#f0f4f8] border-b border-[#e2e8f0]">
       <tr>
         <th className="px-4 py-3 w-10">
           <input
             type="checkbox"
             checked={isAllSelected && oppCount > 0}
             onChange={() => isAllSelected ? onClearSelection() : onSelectAll()}
-            className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+            className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer"
             title={isAllSelected ? 'Deselect all' : 'Select all on this page'}
           />
         </th>
@@ -87,11 +87,11 @@ const TableHeader: React.FC<{
         {sortableCol('Stage', 'stageId')}
         {sortableCol('Value', 'value')}
         {sortableCol('Probability', 'probability')}
-        <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Contact</th>
-        <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider hidden xl:table-cell">Account</th>
+        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact</th>
+        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] hidden xl:table-cell">Account</th>
         {sortableCol('Close Date', 'expectedCloseDate')}
-        <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Owner</th>
-        <th className="px-4 py-3 sticky right-0 bg-surface-muted z-10"></th>
+        <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</th>
+        <th className="px-4 py-3 sticky right-0 bg-[#f0f4f8] z-10"></th>
       </tr>
     </thead>
   );
@@ -112,19 +112,19 @@ const OppRow: React.FC<{
   const closeDateOverdue = opp.expectedCloseDate && isOverdue(opp.expectedCloseDate) && !isToday(opp.expectedCloseDate);
 
   return (
-    <tr className={`border-b border-border hover:bg-gray-50/50 transition-colors ${isSelected ? 'bg-brand-50/40' : ''}`}>
+    <tr className={`border-b border-[#e2e8f0] hover:bg-[#f0f4f8] transition-colors ${isSelected ? 'bg-[#e8f0fe]' : ''}`}>
       <td className="px-4 py-2.5 w-10">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={() => onToggleSelect(opp.id)}
-          className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+          className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer"
         />
       </td>
       <td className="px-4 py-2.5" style={{ minWidth: 180 }}>
         <Link
           to={`/crm/opportunities/${opp.id}`}
-          className="text-sm font-bold text-text-primary hover:text-brand-700 hover:underline transition-colors line-clamp-2"
+          className="text-sm font-bold text-[#0b1c30] hover:text-[#006a61] hover:underline transition-colors line-clamp-2"
           title={opp.name}
         >
           {opp.name}
@@ -148,11 +148,11 @@ const OppRow: React.FC<{
         )}
       </td>
       <td className="px-4 py-2.5 text-right">
-        <span className="text-sm font-bold text-brand-600">{formatCurrency(opp.value)}</span>
+        <span className="text-sm font-bold text-[#006a61]">{formatCurrency(opp.value)}</span>
       </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden" style={{ minWidth: 40 }}>
+          <div className="flex-1 h-1.5 bg-[#f0f4f8] rounded-full overflow-hidden" style={{ minWidth: 40 }}>
             <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: opp.stage ? stageBadgeColor(opp.stage) : 'var(--color-brand-500)' }} />
           </div>
           <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
@@ -197,8 +197,8 @@ const OppRow: React.FC<{
             {opp.owner.avatarUrl ? (
               <img src={opp.owner.avatarUrl} alt={opp.owner.firstName} className="w-6 h-6 rounded-full object-cover" />
             ) : (
-              <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
+              <div className="w-6 h-6 rounded-full bg-[#d3e4fe] flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-[#006a61]">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
               </div>
             )}
             <span className="text-xs text-text-secondary line-clamp-1">{opp.owner.firstName}</span>
@@ -215,7 +215,7 @@ const OppRow: React.FC<{
             style={{ border: 'none', background: 'none', cursor: 'pointer' }}
             title="Edit opportunity"
           >
-            <span className="material-symbols-outlined text-base text-text-secondary hover:text-brand-700">edit</span>
+            <span className="material-symbols-outlined text-base text-[#76777d] hover:text-[#006a61]">edit</span>
           </button>
           {canDelete && (
             <button
@@ -248,16 +248,16 @@ const MobileOppCard: React.FC<{
   const closeDateOverdue = opp.expectedCloseDate && isOverdue(opp.expectedCloseDate) && !isToday(opp.expectedCloseDate);
 
   return (
-    <div className={`bg-surface border rounded-xl p-4 transition-all ${isSelected ? 'border-brand-400 ring-2 ring-brand-100' : 'border-border hover:border-brand-200'}`}>
+    <div className={`bg-white border rounded-xl p-4 transition-all ${isSelected ? 'border-[#006a61] ring-2 ring-[#006a61]/10' : 'border-[#e2e8f0] hover:border-[#006a61]/30'}`}>
       {/* Row 1: checkbox + name + stage */}
       <div className="flex items-start gap-2 mb-2">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={() => onToggleSelect(opp.id)}
-          className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer mt-0.5"
+          className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer mt-0.5"
         />
-        <Link to={`/crm/opportunities/${opp.id}`} className="text-sm font-bold text-text-primary hover:text-brand-700 flex-1 line-clamp-2" title={opp.name}>
+        <Link to={`/crm/opportunities/${opp.id}`} className="text-sm font-bold text-[#0b1c30] hover:text-[#006a61] flex-1 line-clamp-2" title={opp.name}>
           {opp.name}
         </Link>
         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -278,9 +278,9 @@ const MobileOppCard: React.FC<{
       )}
       {/* Row 2: value + probability */}
       <div className="flex items-center gap-3 text-sm mb-1.5 ml-6">
-        <span className="font-bold text-brand-600">{formatCurrency(opp.value)}</span>
+        <span className="font-bold text-[#006a61]">{formatCurrency(opp.value)}</span>
         <div className="flex items-center gap-1 flex-1">
-          <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden" style={{ minWidth: 30 }}>
+          <div className="flex-1 h-1.5 bg-[#f0f4f8] rounded-full overflow-hidden" style={{ minWidth: 30 }}>
             <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: opp.stage ? stageBadgeColor(opp.stage) : 'var(--color-brand-500)' }} />
           </div>
           <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
@@ -312,11 +312,11 @@ const MobileOppCard: React.FC<{
         )}
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => onEdit(opp)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
-            <span className="material-symbols-outlined text-base text-text-secondary">edit</span>
+            <span className="material-symbols-outlined text-base text-[#76777d]">edit</span>
           </button>
           {canDelete && (
             <button onClick={() => onDelete(opp)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
-              <span className="material-symbols-outlined text-base text-text-secondary">delete</span>
+              <span className="material-symbols-outlined text-base text-[#76777d]">delete</span>
             </button>
           )}
         </div>
@@ -349,7 +349,7 @@ const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
 
   // Desktop table
   const desktopTable = (
-    <div className="hidden lg:block w-full overflow-x-auto rounded-xl border border-border bg-white">
+    <div className="hidden lg:block w-full overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white">
       <table className="w-full" style={{ minWidth: 1000 }}>
         <TableHeader sortConfig={sortConfig} onSort={onSort} isAllSelected={isAllSelected} onSelectAll={onSelectAll} onClearSelection={onClearSelection} oppCount={opportunities.length} />
         <tbody>
@@ -369,7 +369,7 @@ const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
         </tbody>
       </table>
       {opportunities.length === 0 && (
-        <div className="py-12 text-center text-text-secondary text-sm">No opportunities found</div>
+        <div className="py-12 text-center text-[#76777d] text-sm">No opportunities found</div>
       )}
     </div>
   );
@@ -391,7 +391,7 @@ const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
         />
       ))}
       {opportunities.length === 0 && (
-        <div className="py-12 text-center text-text-secondary text-sm">No opportunities found</div>
+        <div className="py-12 text-center text-[#76777d] text-sm">No opportunities found</div>
       )}
     </div>
   );
