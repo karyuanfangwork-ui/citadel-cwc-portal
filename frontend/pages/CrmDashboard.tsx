@@ -17,6 +17,8 @@ const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
   maximumFractionDigits: 1,
 }).format(value);
 
+const numFmt = (value: number) => new Intl.NumberFormat('en-MY').format(value);
+
 const TEAL = '#006a61';
 
 const DashboardInner: React.FC = () => {
@@ -58,24 +60,36 @@ const DashboardInner: React.FC = () => {
     );
   }
 
+  const delta = stats?.delta ?? { leadsDelta: 0, oppsDelta: 0, wonDelta: 0, lostDelta: 0, pipelineDelta: 0, winRateDelta: 0 };
+
   return (
     <div className="min-h-full bg-[#f8f9ff] p-6 space-y-5 max-w-screen-2xl mx-auto">
 
       {/* Header */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-[28px] font-bold leading-tight text-[#0b1c30] tracking-tight">Relationship Overview</h2>
-          <p className="text-[13px] text-[#45464d] mt-0.5">Performance summary for {quarter} · Last updated: Today, {lastUpdated}</p>
+          <h2 className="text-[28px] font-bold leading-tight text-[#0b1c30] tracking-tight">CRM Dashboard</h2>
+          <p className="text-[13px] text-[#45464d] mt-0.5">Performance overview for {quarter}</p>
         </div>
-        <label className="flex items-center gap-2 text-[13px] text-[#45464d] cursor-pointer select-none bg-white border border-[#e2e8f0] rounded-full px-4 py-1.5">
-          <input
-            type="checkbox"
-            checked={myDeals}
-            onChange={(e) => setMyDeals(e.target.checked)}
-            className="rounded border-[#e2e8f0] accent-[#006a61]"
-          />
-          My deals only
-        </label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button className="flex items-center gap-2 px-4 py-1.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-medium rounded-full hover:bg-[#f8f9ff] transition-all">
+            <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+            Last 30 Days
+          </button>
+          <button className="flex items-center gap-2 px-5 py-1.5 bg-[#006a61] text-white text-[13px] font-medium rounded-full hover:opacity-90 transition-all shadow-md">
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            Export Report
+          </button>
+          <label className="flex items-center gap-2 text-[13px] text-[#45464d] cursor-pointer select-none bg-white border border-[#e2e8f0] rounded-full px-4 py-1.5">
+            <input
+              type="checkbox"
+              checked={myDeals}
+              onChange={(e) => setMyDeals(e.target.checked)}
+              className="rounded border-[#e2e8f0] accent-[#006a61]"
+            />
+            My deals only
+          </label>
+        </div>
       </div>
 
       {/* AI Briefing */}
@@ -108,51 +122,53 @@ const DashboardInner: React.FC = () => {
       <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <CrmKpiCard
           label="New Leads"
-          value={loading ? '—' : (stats?.totalLeads ?? 0)}
+          value={loading ? '—' : numFmt(stats?.totalLeads ?? 0)}
           icon="person_add"
-          trend={stats?.totalLeads ? 'up' : 'flat'}
-          trendLabel={stats?.totalLeads ? `${stats.totalLeads} active` : undefined}
-          trendPositive
+          trend={delta.leadsDelta > 0 ? 'up' : delta.leadsDelta < 0 ? 'down' : 'flat'}
+          trendPercent={delta.leadsDelta}
+          trendPositive={delta.leadsDelta >= 0}
         />
         <CrmKpiCard
           label="Open Opps"
-          value={loading ? '—' : (stats?.totalOpportunities ?? 0)}
+          value={loading ? '—' : numFmt(stats?.totalOpportunities ?? 0)}
           icon="pending_actions"
-          trend="flat"
-          trendLabel="Stable flow"
+          trend={delta.oppsDelta > 0 ? 'up' : delta.oppsDelta < 0 ? 'down' : 'flat'}
+          trendPercent={delta.oppsDelta}
+          trendPositive={delta.oppsDelta >= 0}
         />
         <CrmKpiCard
-          label="Follow-ups Today"
-          value={loading ? '—' : (stats?.followUpDueToday ?? 0)}
-          icon="rate_review"
-          trend={stats?.followUpDueToday ? 'up' : 'flat'}
-          trendLabel={stats?.followUpDueToday ? `${stats.followUpDueToday} due` : undefined}
-          trendPositive={false}
-        />
-        <CrmKpiCard
-          label="Won This Month"
-          value={loading ? '—' : (stats?.wonDeals.count ?? 0)}
+          label="Won Opps"
+          value={loading ? '—' : numFmt(stats?.wonDeals?.count ?? 0)}
           icon="check_circle"
-          trend="up"
-          trendLabel={stats ? fmt(stats.wonDeals.value) : undefined}
-          trendPositive
+          trend={delta.wonDelta > 0 ? 'up' : delta.wonDelta < 0 ? 'down' : 'flat'}
+          trendPercent={delta.wonDelta}
+          subtitle={stats ? fmt(stats.wonDeals.value) : undefined}
+          trendPositive={delta.wonDelta >= 0}
         />
         <CrmKpiCard
-          label="Pipeline Value"
+          label="Lost Opps"
+          value={loading ? '—' : numFmt(stats?.lostDeals?.count ?? 0)}
+          icon="cancel"
+          trend={delta.lostDelta > 0 ? 'up' : delta.lostDelta < 0 ? 'down' : 'flat'}
+          trendPercent={delta.lostDelta}
+          trendPositive={delta.lostDelta <= 0}
+        />
+        <CrmKpiCard
+          label="Pipeline Val"
           value={loading ? '—' : (stats ? fmt(stats.pipelineValue) : '—')}
           icon="account_balance"
-          trend="up"
-          trendLabel={stats?.wonDeals.count ? `${stats.wonDeals.count} won` : undefined}
-          trendPositive
+          trend={delta.pipelineDelta > 0 ? 'up' : 'flat'}
+          trendPercent={delta.pipelineDelta}
+          trendPositive={delta.pipelineDelta >= 0}
           highlight
         />
         <CrmKpiCard
-          label="Win Rate"
+          label="Conv. Rate"
           value={loading ? '—' : `${stats?.winRate ?? 0}%`}
           icon="emoji_events"
-          trend={stats && stats.winRate >= 50 ? 'up' : 'down'}
-          trendLabel={stats ? `${stats.lostDeals.count} lost` : undefined}
-          trendPositive={stats ? stats.winRate >= 50 : true}
+          trend={delta.winRateDelta > 0 ? 'up' : delta.winRateDelta < 0 ? 'down' : 'flat'}
+          trendPercent={delta.winRateDelta}
+          trendPositive={delta.winRateDelta >= 0}
         />
       </section>
 
@@ -161,12 +177,18 @@ const DashboardInner: React.FC = () => {
         <div className="lg:col-span-8 bg-white border border-[#e2e8f0] rounded-xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-5">
             <div>
-              <h3 className="text-[16px] font-semibold text-[#0b1c30]">Monthly Won Deals</h3>
-              <p className="text-[12px] text-[#45464d] opacity-70 mt-0.5">Closed value trend</p>
+              <h3 className="text-[16px] font-semibold text-[#0b1c30]">Monthly Sales Trend</h3>
+              <p className="text-[12px] text-[#45464d] opacity-70 mt-0.5">Lead generation vs closed deals</p>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: TEAL }} />
-              <span className="text-[11px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Closed value</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ background: TEAL }} />
+                <span className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Revenue</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-[#adc6ff]" />
+                <span className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Leads</span>
+              </div>
             </div>
           </div>
           {loading ? (
@@ -187,7 +209,10 @@ const DashboardInner: React.FC = () => {
               ))}
             </div>
           ) : (
-            <PipelineFunnelChart items={stats?.pipelineByName ?? []} />
+            <PipelineFunnelChart
+              items={stats?.pipelineByName ?? []}
+              opportunitiesByStage={stats?.opportunitiesByStage ?? []}
+            />
           )}
         </div>
       </section>
@@ -197,7 +222,7 @@ const DashboardInner: React.FC = () => {
         {/* Upcoming Activities */}
         <div className="lg:col-span-6 bg-white border border-[#e2e8f0] rounded-xl shadow-sm flex flex-col">
           <div className="px-5 py-4 border-b border-[#e2e8f0] flex justify-between items-center">
-            <h3 className="text-[15px] font-semibold text-[#0b1c30]">Upcoming Follow-Ups</h3>
+            <h3 className="text-[15px] font-semibold text-[#0b1c30]">Upcoming Activities</h3>
             <span className="text-[13px] font-semibold cursor-pointer" style={{ color: TEAL }}>View All</span>
           </div>
           <div className="p-4 flex-1 overflow-y-auto max-h-72">
@@ -223,7 +248,12 @@ const DashboardInner: React.FC = () => {
                 {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-[#f8f9ff] rounded-lg" />)}
               </div>
             ) : (
-              <MyTasksWidget activities={stats?.recentActivities ?? []} />
+              <MyTasksWidget
+                activities={stats?.recentActivities ?? []}
+                overdueDeals={stats?.overdueDeals ?? 0}
+                staleLeads={stats?.staleLeads ?? 0}
+                followUpDueToday={stats?.followUpDueToday ?? 0}
+              />
             )}
           </div>
         </div>

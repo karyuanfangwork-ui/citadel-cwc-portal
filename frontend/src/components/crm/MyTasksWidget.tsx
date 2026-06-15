@@ -3,18 +3,29 @@ import type { CrmActivity } from '../../services/crm.service';
 
 interface Props {
   activities: CrmActivity[];
+  overdueDeals?: number;
+  staleLeads?: number;
+  followUpDueToday?: number;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  HIGH: 'bg-red-100 text-red-700',
-  MED: 'bg-gray-100 text-gray-600',
-  LOW: 'bg-blue-50 text-blue-600',
+  HIGH: 'bg-[#ffdad6]/40 text-[#ba1a1a]',
+  MEDIUM: 'bg-[#86f2e4]/30 text-[#006a61]',
+  LOW: 'bg-[#e5e7eb] text-[#64748b]',
 };
 
-const MyTasksWidget: React.FC<Props> = ({ activities }) => {
-  const tasks = activities
-    .filter((activity) => activity.activityType === 'TASK' || (activity as any).type === 'TASK')
-    .slice(0, 5);
+const TASK_ICONS: Record<string, string> = {
+  TASK: 'task_alt',
+  CALL: 'call',
+  EMAIL: 'mail',
+  MEETING: 'groups',
+  FOLLOW_UP: 'event',
+  SITE_VISIT: 'location_on',
+  NOTE: 'description',
+  WHATSAPP: 'chat',
+};
+
+const MyTasksWidget: React.FC<Props> = ({ activities, overdueDeals = 0, staleLeads = 0, followUpDueToday = 0 }) => {
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
@@ -26,40 +37,63 @@ const MyTasksWidget: React.FC<Props> = ({ activities }) => {
     });
   };
 
-  if (tasks.length === 0) {
-    return <p className="text-sm text-[var(--text-secondary,#6b7280)] text-center py-6">No tasks due</p>;
+  // Build task list: real tasks first, then synthetic alerts
+  const realTasks = activities
+    .filter((a) => a.activityType === 'TASK')
+    .slice(0, 5);
+
+  const syntheticTasks: { id: string; title: string; priority: string; icon: string; dueLabel: string }[] = [];
+  if (overdueDeals > 0) {
+    syntheticTasks.push({ id: '__overdue__', title: `Review ${overdueDeals} overdue deal${overdueDeals > 1 ? 's' : ''}`, priority: 'HIGH', icon: 'warning', dueLabel: 'Overdue' });
+  }
+  if (followUpDueToday > 0) {
+    syntheticTasks.push({ id: '__followup__', title: `${followUpDueToday} follow-up${followUpDueToday > 1 ? 's' : ''} due today`, priority: 'MEDIUM', icon: 'rate_review', dueLabel: 'Today' });
+  }
+  if (staleLeads > 0) {
+    syntheticTasks.push({ id: '__stale__', title: `${staleLeads} stale lead${staleLeads > 1 ? 's' : ''} need attention`, priority: 'LOW', icon: 'hourglass_top', dueLabel: 'Inactive 7+ days' });
+  }
+
+  const allTasks = [
+    ...realTasks.map((t) => ({
+      id: t.id,
+      title: t.subject ?? t.description ?? 'Task',
+      priority: 'MEDIUM' as string,
+      icon: TASK_ICONS[t.activityType] ?? 'task_alt',
+      dueLabel: (t as any).dueDate ?? t.scheduledAt ?? t.completedAt
+        ? new Date((t as any).dueDate ?? t.scheduledAt ?? t.completedAt!).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })
+        : '',
+    })),
+    ...syntheticTasks,
+  ].slice(0, 6);
+
+  if (allTasks.length === 0) {
+    return <p className="text-sm text-[#45464d] opacity-60 text-center py-6">No tasks due</p>;
   }
 
   return (
-    <ul className="space-y-4">
-      {tasks.map((task) => {
+    <div className="space-y-4">
+      {allTasks.map((task) => {
         const done = checked.has(task.id);
-        const dueDate = (task as any).dueDate ?? task.scheduledAt ?? task.completedAt;
         return (
-          <li key={task.id} className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={done}
-              onChange={() => toggle(task.id)}
-              className="w-5 h-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-            />
+          <div key={task.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#86f2e4]/30 text-[#006a61]">
+              <span className="material-symbols-outlined text-[18px]">{task.icon}</span>
+            </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold leading-snug ${done ? 'line-through text-[var(--text-secondary,#6b7280)]' : 'text-[var(--text-primary,#111827)]'}`}>
-                {task.subject ?? task.description ?? 'Task'}
+              <p className={`text-[14px] font-semibold leading-snug ${done ? 'line-through text-[#45464d] opacity-60' : 'text-[#0b1c30]'}`}>
+                {task.title}
               </p>
-              {dueDate && (
-                <p className="text-[11px] text-[var(--text-secondary,#6b7280)] mt-0.5">
-                  Due: {new Date(dueDate).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                </p>
+              {task.dueLabel && (
+                <p className="text-[12px] text-[#45464d] opacity-70 mt-0.5">Due: {task.dueLabel}</p>
               )}
             </div>
-            <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded uppercase flex-shrink-0 ${PRIORITY_STYLES.MED}`}>
-              Med
+            <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase flex-shrink-0 ${PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.MEDIUM}`}>
+              {task.priority === 'HIGH' ? 'HIGH' : task.priority === 'LOW' ? 'LOW' : 'MED'}
             </span>
-          </li>
+          </div>
         );
       })}
-    </ul>
+    </div>
   );
 };
 

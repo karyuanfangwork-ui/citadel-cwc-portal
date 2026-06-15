@@ -81,3 +81,7 @@ export const winProbStyle = (prob: number) =>
     : prob >= 40
     ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'trending_flat' }
     : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'trending_down' };
+
+// ── Display ID for leads (LD-XXXX format from UUID) ──────────────────────
+export const getLeadDisplayId = (id: string) =>
+  `LD-${id.slice(0, 4).toUpperCase()}`;

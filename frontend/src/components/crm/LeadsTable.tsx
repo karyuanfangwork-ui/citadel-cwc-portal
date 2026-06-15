@@ -12,6 +12,7 @@ import {
   isOverdue,
   isStale,
   scoreStyle,
+  getLeadDisplayId,
 } from './crmConstants';
 
 type SortField = 'title' | 'status' | 'aiScore' | 'ruleScore' | 'estimatedValue' | 'followUpDate' | 'createdAt';
@@ -37,12 +38,40 @@ interface LeadsTableProps {
   user: any;
 }
 
+// ── Design tokens (Kinetic Enterprise) ────────────────────────────────
+const T = {
+  teal: '#006a61',
+  tealLight: '#86f2e4',
+  tealDark: '#006f66',
+  surface: '#f8f9ff',
+  surfaceLow: '#eff4ff',
+  surfaceLowest: '#ffffff',
+  onSurface: '#0b1c30',
+  onSurfaceVar: '#45464d',
+  outline: '#e2e8f0',
+  outlineVar: '#c6c6cd',
+  border: '#e2e8f0',
+  borderSubtle: '#f1f5f9',
+  danger: '#ba1a1a',
+  dangerBg: '#ffdad6',
+} as const;
+
 // ── Sort indicator ──────────────────────────────────────────────
 const SortIcon: React.FC<{ active: boolean; direction: SortDirection | null }> = ({ active, direction }) => (
-  <span className="material-symbols-outlined text-sm ml-0.5" style={{ fontSize: 14, opacity: active ? 1 : 0.3 }}>
+  <span className="material-symbols-outlined" style={{ fontSize: 14, opacity: active ? 1 : 0.3, marginLeft: 2 }}>
     {direction === 'asc' ? 'arrow_upward' : direction === 'desc' ? 'arrow_downward' : 'unfold_more'}
   </span>
 );
+
+// ── Label-caps style header cell ─────────────────────────────────────
+const labelCaps: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase' as const,
+  lineHeight: '16px',
+  color: T.onSurfaceVar,
+};
 
 // ── Desktop table header ─────────────────────────────────────────
 const TableHeader: React.FC<{
@@ -55,7 +84,8 @@ const TableHeader: React.FC<{
 }> = ({ sortConfig, onSort, isAllSelected, onSelectAll, onClearSelection, leadCount }) => {
   const sortableCol = (label: string, field: SortField) => (
     <th
-      className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-text-primary transition-colors"
+      style={{ ...labelCaps, padding: '10px 12px', cursor: 'pointer', userSelect: 'none', textAlign: 'left' }}
+      className="hover:text-[#0b1c30] transition-colors"
       onClick={() => onSort(field)}
       aria-sort={sortConfig?.field === field ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
@@ -67,37 +97,35 @@ const TableHeader: React.FC<{
   );
 
   return (
-    <thead className="bg-surface-muted border-b border-border">
+    <thead style={{ background: T.surfaceLow, borderBottom: `1px solid ${T.outline}` }}>
       <tr>
-        <th className="px-4 py-3 w-10">
+        <th style={{ padding: '10px 12px', width: 40 }}>
           <input
             type="checkbox"
             checked={isAllSelected && leadCount > 0}
             onChange={() => isAllSelected ? onClearSelection() : onSelectAll()}
-            className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+            style={{ accentColor: T.teal, width: 16, height: 16, cursor: 'pointer' }}
             title={isAllSelected ? 'Deselect all' : 'Select all on this page'}
           />
         </th>
-        {sortableCol('Lead Title', 'title')}
+        <th style={{ ...labelCaps, padding: '10px 12px' }}>Lead ID</th>
+        {sortableCol('Lead Name', 'title')}
         {sortableCol('Status', 'status')}
         {sortableCol('Score', 'aiScore')}
-        {sortableCol('Rule', 'ruleScore')}
-        <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Contact</th>
-        {sortableCol('Value', 'estimatedValue')}
-        {sortableCol('Follow-up', 'followUpDate')}
-        <th className="px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider hidden xl:table-cell">Source</th>
-        <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Owner</th>
-        <th
-          className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-text-primary transition-colors hidden xl:table-cell"
-          onClick={() => onSort('createdAt')}
-          aria-sort={sortConfig?.field === 'createdAt' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+        <th style={{ ...labelCaps, padding: '10px 12px', cursor: 'pointer', userSelect: 'none', textAlign: 'left' }} className="hidden xl:table-cell" onClick={() => onSort('ruleScore')}
+          aria-sort={sortConfig?.field === 'ruleScore' ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
           <span className="inline-flex items-center gap-0.5">
-            Created
-            <SortIcon active={sortConfig?.field === 'createdAt'} direction={sortConfig?.field === 'createdAt' ? sortConfig.direction : null} />
+            Rule
+            <SortIcon active={sortConfig?.field === 'ruleScore'} direction={sortConfig?.field === 'ruleScore' ? sortConfig.direction : null} />
           </span>
         </th>
-        <th className="px-4 py-3 sticky right-0 bg-surface-muted z-10"></th>
+        <th style={{ ...labelCaps, padding: '10px 12px', textAlign: 'left' }}>Contact</th>
+        {sortableCol('Value', 'estimatedValue')}
+        {sortableCol('Follow-up', 'followUpDate')}
+        <th style={{ ...labelCaps, padding: '10px 12px' }} className="hidden xl:table-cell">Source</th>
+        <th style={{ ...labelCaps, padding: '10px 12px', textAlign: 'left' }}>Owner</th>
+        <th style={{ padding: '10px 12px', position: 'sticky', right: 0, background: T.surfaceLow, zIndex: 10, minWidth: 100 }} />
       </tr>
     </thead>
   );
@@ -121,37 +149,88 @@ const LeadRow: React.FC<{
   // Follow-up display
   const followUpDisplay = lead.followUpDate
     ? (isOverdue(lead.followUpDate) && !isToday(lead.followUpDate))
-      ? { text: formatShortDate(lead.followUpDate), color: 'var(--color-danger)', bold: true }
+      ? { text: formatShortDate(lead.followUpDate), color: T.danger, bold: true }
       : isToday(lead.followUpDate)
       ? { text: 'Today', color: 'var(--color-warning)', bold: true }
-      : { text: formatShortDate(lead.followUpDate), color: 'var(--color-text-secondary)', bold: false }
+      : { text: formatShortDate(lead.followUpDate), color: T.onSurfaceVar, bold: false }
     : null;
 
+  // Source sub-label for lead name cell
+  const sourceLabel = lead.source ? (SOURCE_LABELS[lead.source] || lead.source.replace(/_/g, ' ')) : null;
+
+  // Avatar initials
+  const initials = lead.title
+    ? lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : 'L';
+
   return (
-    <tr className={`border-b border-border hover:bg-gray-50/50 transition-colors ${isSelected ? 'bg-brand-50/40' : ''}`}>
-      <td className="px-4 py-2.5 w-10">
+    <tr
+      className={`group border-b transition-colors ${isSelected ? 'bg-[#e5eeff]' : ''}`}
+      style={{ borderBottomColor: T.borderSubtle }}
+      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = T.surface; }}
+      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = ''; }}
+    >
+      {/* Checkbox */}
+      <td style={{ padding: '10px 12px', width: 40 }}>
         <input
           type="checkbox"
           checked={isSelected}
           onChange={() => onToggleSelect(lead.id)}
-          className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+          style={{ accentColor: T.teal, width: 16, height: 16, cursor: 'pointer' }}
         />
       </td>
-      <td className="px-4 py-2.5" style={{ minWidth: 180 }}>
-        <Link
-          to={`/crm/leads/${lead.id}`}
-          className="text-sm font-bold text-text-primary hover:text-brand-700 hover:underline transition-colors line-clamp-2"
-          title={lead.title}
-        >
-          {lead.title}
-        </Link>
-        {lead.description && (
-          <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5" title={lead.description}>
-            {lead.description}
-          </p>
-        )}
+
+      {/* Lead ID — data-mono style */}
+      <td style={{ padding: '10px 12px', fontFamily: '"JetBrains Mono", monospace', fontSize: 13, fontWeight: 500, color: T.onSurfaceVar }}>
+        {getLeadDisplayId(lead.id)}
       </td>
-      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+
+      {/* Lead Name — sticky with avatar + source */}
+      <td
+        style={{
+          padding: '10px 12px',
+          minWidth: 180,
+          position: 'sticky',
+          left: 0,
+          zIndex: 10,
+          background: isSelected ? '#e5eeff' : T.surfaceLowest,
+          boxShadow: '1px 0 0 0 #c6c6cd',
+        }}
+        className="group-hover:!bg-[#f8f9ff]"
+      >
+        <div className="flex items-center gap-3">
+          {/* Avatar circle */}
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: T.tealLight, color: T.tealDark }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <Link
+              to={`/crm/leads/${lead.id}`}
+              className="text-sm font-bold hover:underline transition-colors line-clamp-1"
+              style={{ color: T.teal }}
+              title={lead.title}
+            >
+              {lead.title}
+            </Link>
+            <div className="flex items-center gap-2">
+              {sourceLabel && (
+                <p className="text-[11px] opacity-70 line-clamp-1" style={{ color: T.onSurfaceVar }}>
+                  {sourceLabel}
+                </p>
+              )}
+              <span className="text-[11px]" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>
+                {formatShortDate(lead.createdAt)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Status */}
+      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-1">
           <StatusDropdown currentStatus={lead.status} onChange={newStatus => onStatusChange(lead.id, newStatus)} compact />
           {badge && (
@@ -163,7 +242,9 @@ const LeadRow: React.FC<{
           )}
         </div>
       </td>
-      <td className="px-4 py-2.5">
+
+      {/* AI Score */}
+      <td style={{ padding: '10px 12px' }}>
         {lead.aiScore != null ? (() => {
           const s = scoreStyle(lead.aiScore);
           return (
@@ -174,83 +255,138 @@ const LeadRow: React.FC<{
             </span>
           );
         })() : (
-          <span className="text-xs text-text-tertiary">—</span>
+          <span className="text-xs" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
         )}
       </td>
-      <td className="px-4 py-2.5">
+
+      {/* Rule Score */}
+      <td style={{ padding: '10px 12px' }} className="hidden xl:table-cell">
         {lead.ruleScore != null ? (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: '#ede9fe', color: '#6d28d9' }}>
             <span className="material-symbols-outlined text-sm">rule</span>
             {lead.ruleScore}
           </span>
         ) : (
-          <span className="text-xs text-text-tertiary">—</span>
+          <span className="text-xs" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
         )}
       </td>
-      <td className="px-4 py-2.5">
-        <div className="text-sm text-text-primary line-clamp-1">{lead.contactName || '—'}</div>
-        {lead.companyName && (
-          <div className="text-xs text-text-tertiary line-clamp-1">{lead.companyName}</div>
+
+      {/* Contact — compact */}
+      <td style={{ padding: '10px 12px' }}>
+        {lead.contactName ? (
+          <div>
+            <div className="text-sm line-clamp-1" style={{ color: T.onSurface }}>{lead.contactName}</div>
+            {lead.companyName && (
+              <div className="text-[11px] line-clamp-1" style={{ color: T.onSurfaceVar, opacity: 0.7 }}>{lead.companyName}</div>
+            )}
+          </div>
+        ) : lead.companyName ? (
+          <div className="text-sm line-clamp-1" style={{ color: T.onSurface }}>{lead.companyName}</div>
+        ) : (
+          <span className="text-sm" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-right">
-        <span className="text-sm font-bold text-brand-600">{formatCurrency(lead.estimatedValue)}</span>
+
+      {/* Value */}
+      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+        <span className="text-sm font-bold" style={{ fontFamily: '"JetBrains Mono", monospace', color: T.teal }}>
+          {formatCurrency(lead.estimatedValue)}
+        </span>
       </td>
-      <td className="px-4 py-2.5">
+
+      {/* Follow-up */}
+      <td style={{ padding: '10px 12px' }}>
         {followUpDisplay ? (
           <span className="text-sm" style={{ color: followUpDisplay.color, fontWeight: followUpDisplay.bold ? 700 : 400 }}>
             {followUpDisplay.text}
           </span>
         ) : (
-          <span className="text-sm text-text-tertiary">—</span>
+          <span className="text-sm" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
         )}
       </td>
-      <td className="px-4 py-2.5 hidden xl:table-cell">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-          style={{
-            background: lead.source === 'WEBSITE' ? 'var(--color-it-50)' : lead.source === 'REFERRAL' ? 'var(--color-hr-50)' : 'var(--color-surface-muted)',
-            color: lead.source === 'WEBSITE' ? 'var(--color-it-500)' : lead.source === 'REFERRAL' ? 'var(--color-success)' : 'var(--color-text-secondary)',
-          }}>
-          {SOURCE_LABELS[lead.source] || lead.source.replace(/_/g, ' ')}
-        </span>
+
+      {/* Source */}
+      <td style={{ padding: '10px 12px' }} className="hidden xl:table-cell">
+        {lead.source ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+            style={{
+              background: lead.source === 'WEBSITE' ? '#dbeafe' : lead.source === 'REFERRAL' ? T.tealLight : '#f1f5f9',
+              color: lead.source === 'WEBSITE' ? '#1d4ed8' : lead.source === 'REFERRAL' ? T.tealDark : T.onSurfaceVar,
+            }}>
+            {SOURCE_LABELS[lead.source] || lead.source.replace(/_/g, ' ')}
+          </span>
+        ) : (
+          <span style={{ color: T.onSurfaceVar, opacity: 0.5 }}>—</span>
+        )}
       </td>
-      <td className="px-4 py-2.5">
+
+      {/* Owner */}
+      <td style={{ padding: '10px 12px' }}>
         {lead.owner ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {lead.owner.avatarUrl ? (
-              <img src={lead.owner.avatarUrl} alt={lead.owner.firstName} className="w-6 h-6 rounded-full object-cover" />
+              <img src={lead.owner.avatarUrl} alt={lead.owner.firstName} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
             ) : (
-              <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-brand-600">{lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}</span>
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: '#dce9ff', color: T.onSurfaceVar }}>
+                {lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}
               </div>
             )}
-            <span className="text-xs text-text-secondary line-clamp-1">{lead.owner.firstName}</span>
+            <span className="text-[13px]" style={{ color: T.onSurface }}>{lead.owner.firstName?.[0]}. {lead.owner.lastName}</span>
           </div>
         ) : (
-          <span className="text-xs text-text-tertiary">—</span>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center border border-dashed flex-shrink-0" style={{ borderColor: T.outline }}>
+              <span className="material-symbols-outlined text-[14px]" style={{ color: T.onSurfaceVar, opacity: 0.4 }}>person</span>
+            </div>
+            <span className="text-[13px] italic" style={{ color: T.onSurfaceVar, opacity: 0.5 }}>Unassigned</span>
+          </div>
         )}
       </td>
-      <td className="px-4 py-2.5 hidden xl:table-cell">
-        <span className="text-sm text-text-tertiary">{formatShortDate(lead.createdAt)}</span>
-      </td>
-      <td className="px-4 py-2.5 sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
-        <div className="flex items-center gap-1">
+
+      {/* Actions — hover-revealed */}
+      <td
+        style={{
+          padding: '10px 12px',
+          position: 'sticky',
+          right: 0,
+          zIndex: 10,
+          background: isSelected ? '#e5eeff' : T.surfaceLowest,
+          minWidth: 100,
+          textAlign: 'right',
+        }}
+        className="group-hover:!bg-[#f8f9ff]"
+      >
+        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Link
+            to={`/crm/leads/${lead.id}`}
+            className="p-1.5 rounded transition-colors"
+            style={{ color: T.onSurfaceVar }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.tealLight; (e.currentTarget as HTMLElement).style.color = T.tealDark; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
+            title="View details"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>visibility</span>
+          </Link>
           <button
             onClick={e => { e.stopPropagation(); onEdit(lead); }}
-            className="p-1 rounded hover:bg-gray-100 transition-colors"
-            style={{ border: 'none', background: 'none', cursor: 'pointer' }}
+            className="p-1.5 rounded transition-colors"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.onSurfaceVar }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.tealLight; (e.currentTarget as HTMLElement).style.color = T.tealDark; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
             title="Edit lead"
           >
-            <span className="material-symbols-outlined text-base text-text-secondary hover:text-brand-700">edit</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
           </button>
           {canDelete && (
             <button
               onClick={e => { e.stopPropagation(); onDelete(lead); }}
-              className="p-1 rounded hover:bg-red-50 transition-colors"
-              style={{ border: 'none', background: 'none', cursor: 'pointer' }}
+              className="p-1.5 rounded transition-colors"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.onSurfaceVar }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.dangerBg; (e.currentTarget as HTMLElement).style.color = T.danger; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
               title="Delete lead"
             >
-              <span className="material-symbols-outlined text-base text-text-secondary hover:text-red-600">delete</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
             </button>
           )}
         </div>
@@ -271,63 +407,94 @@ const MobileLeadRow: React.FC<{
 }> = ({ lead, isSelected, onToggleSelect, onEdit, onDelete, onStatusChange, canDelete }) => {
   const st = STATUS_STYLES[lead.status] || STATUS_STYLES.NEW;
   const followUpOverdue = lead.followUpDate && isOverdue(lead.followUpDate) && !isToday(lead.followUpDate);
+  const initials = lead.title
+    ? lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : 'L';
 
   return (
-    <div className={`bg-surface border rounded-xl p-4 transition-all ${isSelected ? 'border-brand-400 ring-2 ring-brand-100' : 'border-border hover:border-brand-200'}`}>
-      {/* Row 1: checkbox + title */}
-      <div className="flex items-start gap-2 mb-2">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelect(lead.id)}
-          className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer mt-0.5"
-        />
-        <Link to={`/crm/leads/${lead.id}`} className="text-sm font-bold text-text-primary hover:text-brand-700 flex-1 line-clamp-2" title={lead.title}>
-          {lead.title}
-        </Link>
-        {/* Description preview below title */}
-        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-          <StatusDropdown currentStatus={lead.status} onChange={newStatus => onStatusChange(lead.id, newStatus)} compact />
+    <div
+      className="bg-white border rounded-xl p-5 transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
+      style={{ borderColor: isSelected ? T.teal : T.outline }}
+    >
+      {/* Row 1: checkbox + avatar + name + status */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(lead.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 rounded cursor-pointer"
+            style={{ accentColor: T.teal }}
+          />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: st.bg, color: st.text }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>{st.icon}</span>
+            {lead.status.replace(/_/g, ' ')}
+          </span>
         </div>
+        <span className="text-[11px] opacity-60" style={{ color: T.onSurfaceVar }}>{formatShortDate(lead.createdAt)}</span>
       </div>
-      {lead.description && (
-        <p className="text-xs text-text-tertiary line-clamp-1 ml-6 mb-1" title={lead.description}>
-          {lead.description}
-        </p>
-      )}
-      {/* Row 2: value + contact */}
-      <div className="flex items-center gap-3 text-sm mb-1.5 ml-6">
-        <span className="font-bold text-brand-600">{formatCurrency(lead.estimatedValue)}</span>
-        {(lead.contactName || lead.companyName) && (
-          <span className="text-text-secondary truncate">
-            {lead.contactName}{lead.contactName && lead.companyName ? ' · ' : ''}{lead.companyName}
-          </span>
-        )}
-      </div>
-      {/* Row 3: owner + follow-up + actions */}
-      <div className="flex items-center gap-3 text-xs text-text-tertiary ml-6">
-        {lead.owner && (
-          <span className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-sm">person</span>
-            {lead.owner.firstName}
-          </span>
-        )}
-        {lead.followUpDate && (
-          <span style={{ color: followUpOverdue ? 'var(--color-danger)' : undefined, fontWeight: followUpOverdue ? 700 : 400 }}>
-            {followUpOverdue ? '🔴 ' : isToday(lead.followUpDate) ? '⚡ ' : ''}
-            {formatShortDate(lead.followUpDate)}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <button onClick={() => onEdit(lead)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px' }}>
-            <span className="material-symbols-outlined text-base text-text-secondary">edit</span>
-          </button>
-          {canDelete && (
-            <button onClick={() => onDelete(lead)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '2px' }}>
-              <span className="material-symbols-outlined text-base text-text-secondary">delete</span>
-            </button>
+
+      {/* Row 2: Avatar + Name + source */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: T.tealLight, color: T.tealDark }}>
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <h3
+            className="text-sm font-bold line-clamp-2 cursor-pointer hover:underline"
+            style={{ color: T.onSurface }}
+            onClick={() => window.location.href = `/crm/leads/${lead.id}`}
+          >
+            {lead.title}
+          </h3>
+          {lead.source && (
+            <p className="text-[11px] opacity-70" style={{ color: T.onSurfaceVar }}>
+              {SOURCE_LABELS[lead.source] || lead.source.replace(/_/g, ' ')}
+            </p>
           )}
         </div>
+      </div>
+
+      {/* Contact + Value */}
+      {(lead.contactName || lead.companyName) && (
+        <div className="text-xs mb-1" style={{ color: T.onSurfaceVar, opacity: 0.7 }}>
+          {lead.contactName && <span>{lead.contactName}</span>}
+          {lead.contactName && lead.companyName && <span> · </span>}
+          {lead.companyName && <span className="font-medium">{lead.companyName}</span>}
+        </div>
+      )}
+
+      {lead.followUpDate && (
+        <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: followUpOverdue ? T.danger : T.onSurfaceVar }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>event</span>
+          <span className={followUpOverdue ? 'font-bold' : ''}>{formatShortDate(lead.followUpDate)}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: `1px solid ${T.borderSubtle}` }}>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold" style={{ fontFamily: '"JetBrains Mono", monospace', color: T.teal }}>{formatCurrency(lead.estimatedValue)}</span>
+        </div>
+        {lead.owner ? (
+          <div className="flex items-center gap-1.5">
+            {lead.owner.avatarUrl ? (
+              <img src={lead.owner.avatarUrl} alt={lead.owner.firstName} className="w-5 h-5 rounded-full object-cover" />
+            ) : (
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: T.teal }}>
+                {lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}
+              </div>
+            )}
+            <span className="text-[11px] opacity-70" style={{ color: T.onSurfaceVar }}>{lead.owner.firstName}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center border border-dashed" style={{ borderColor: T.outline }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 12, color: T.onSurfaceVar, opacity: 0.4 }}>person</span>
+            </div>
+            <span className="text-[11px] italic opacity-50" style={{ color: T.onSurfaceVar }}>Unassigned</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -337,12 +504,12 @@ const MobileLeadRow: React.FC<{
 function getUrgencyBadgeInline(lead: CrmLead): { color: string; title: string } | null {
   if (lead.followUpDate) {
     if (isOverdue(lead.followUpDate) && !isToday(lead.followUpDate))
-      return { color: 'var(--color-danger)', title: 'Overdue' };
+      return { color: T.danger, title: 'Overdue' };
     if (isToday(lead.followUpDate))
       return { color: 'var(--color-warning)', title: 'Due Today' };
   }
   if (isStale(lead.updatedAt) && lead.status !== 'CONVERTED' && lead.status !== 'LOST')
-    return { color: 'var(--color-text-tertiary)', title: 'Stale' };
+    return { color: T.onSurfaceVar, title: 'Stale' };
   return null;
 }
 
@@ -365,10 +532,10 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
 
   // Desktop table
   const desktopTable = (
-    <div className="hidden lg:block w-full overflow-x-auto rounded-xl border border-border bg-white">
-      <table className="w-full" style={{ minWidth: 900 }}>
+    <div className="hidden lg:block w-full overflow-x-auto rounded-xl border shadow-sm" style={{ borderColor: T.outline, background: T.surfaceLowest }}>
+      <table className="w-full" style={{ minWidth: 860 }}>
         <TableHeader sortConfig={sortConfig} onSort={onSort} isAllSelected={isAllSelected} onSelectAll={onSelectAll} onClearSelection={onClearSelection} leadCount={leads.length} />
-        <tbody>
+        <tbody className="divide-y" style={{ borderColor: T.borderSubtle }}>
           {leads.map(lead => (
             <LeadRow
               key={lead.id}
@@ -384,7 +551,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
         </tbody>
       </table>
       {leads.length === 0 && (
-        <div className="py-12 text-center text-text-secondary text-sm">No leads found</div>
+        <div className="py-12 text-center text-sm" style={{ color: T.onSurfaceVar }}>No leads found</div>
       )}
     </div>
   );

@@ -197,7 +197,7 @@ export interface DashboardStats {
   followUpDueToday: number;
   staleLeads: number;
   overdueDeals: number;
-  monthlyTrend: { month: string; wonCount: number; wonValue: number }[];
+  monthlyTrend: { month: string; wonCount: number; wonValue: number; leadCount: number }[];
   pipelineByName: { name: string; value: number }[];
   upcomingFollowUps: {
     id: string;
@@ -207,6 +207,14 @@ export interface DashboardStats {
     followUpNote: string | null;
     entityType: 'lead' | 'opportunity';
   }[];
+  delta: {
+    leadsDelta: number;
+    oppsDelta: number;
+    wonDelta: number;
+    lostDelta: number;
+    pipelineDelta: number;
+    winRateDelta: number;
+  };
 }
 
 export interface TeamPerformance {

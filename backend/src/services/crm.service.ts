@@ -162,6 +162,46 @@ export async function getDashboardStats(userId?: string) {
     }),
   ]);
 
+  // B1: Previous-month counts for delta badges
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [
+    prevTotalLeads,
+    prevTotalOpportunities,
+    prevWonDeals,
+    prevLostDeals,
+    prevPipelineValue,
+  ] = await Promise.all([
+    prisma.crmLead.count({
+      where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, createdAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...ownerFilter },
+    }),
+    prisma.crmOpportunity.count({
+      where: { deletedAt: null, createdAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...ownerFilter },
+    }),
+    prisma.crmOpportunity.aggregate({
+      _count: true,
+      where: { stage: { isWonStage: true }, deletedAt: null, updatedAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...ownerFilter },
+    }),
+    prisma.crmOpportunity.aggregate({
+      _count: true,
+      where: { stage: { isLostStage: true }, deletedAt: null, updatedAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...ownerFilter },
+    }),
+    prisma.crmOpportunity.aggregate({
+      _sum: { value: true },
+      where: { stage: { isWonStage: false, isLostStage: false }, deletedAt: null, createdAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...ownerFilter },
+    }),
+  ]);
+
+  const pct = (curr: number, prev: number) => prev > 0 ? Math.round(((curr - prev) / prev) * 100) : 0;
+  const delta = {
+    leadsDelta: pct(totalLeads, prevTotalLeads),
+    oppsDelta: pct(totalOpportunities, prevTotalOpportunities),
+    wonDelta: pct(wonDeals._count, prevWonDeals._count),
+    lostDelta: pct(lostDeals._count, prevLostDeals._count),
+    pipelineDelta: pct(Number(pipelineValue._sum.value || 0), Number(prevPipelineValue._sum.value || 0)),
+    winRateDelta: 0, // computed below after winRate
+  };
+
   const pipelineByName = pipelinesWithValues.map((pipeline: any) => ({
     name: pipeline.name,
     value: pipeline.opportunities.reduce((sum: number, opportunity: any) => sum + Number(opportunity.value || 0), 0),
@@ -176,6 +216,32 @@ export async function getDashboardStats(userId?: string) {
     entityType: 'lead' as const,
   }));
 
+  // B2: Enrich monthlyTrend with leadCount per month
+  const leadCountsByMonth = await Promise.all(
+    (monthlyTrend as { month: string; wonCount: number; wonValue: number }[]).map(async (_m, i) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
+      const result = await prisma.crmLead.count({
+        where: { deletedAt: null, createdAt: { gte: start, lt: end }, ...ownerFilter },
+      });
+      return result;
+    })
+  );
+  const monthlyTrendWithLeads = (monthlyTrend as { month: string; wonCount: number; wonValue: number }[]).map((m, i) => ({
+    ...m,
+    leadCount: leadCountsByMonth[i],
+  }));
+
+  const winRate = wonDeals._count + lostDeals._count > 0
+    ? Math.round((wonDeals._count / (wonDeals._count + lostDeals._count)) * 100)
+    : 0;
+
+  // Compute winRateDelta from previous month
+  const prevWinRate = (prevWonDeals._count as number) + (prevLostDeals._count as number) > 0
+    ? Math.round(((prevWonDeals._count as number) / ((prevWonDeals._count as number) + (prevLostDeals._count as number))) * 100)
+    : 0;
+  delta.winRateDelta = prevWinRate > 0 ? winRate - prevWinRate : 0;
+
   return {
     totalAccounts,
     totalContacts,
@@ -184,9 +250,7 @@ export async function getDashboardStats(userId?: string) {
     pipelineValue: pipelineValue._sum.value || 0,
     wonDeals: { count: wonDeals._count, value: wonDeals._sum.value || 0 },
     lostDeals: { count: lostDeals._count, value: lostDeals._sum.value || 0 },
-    winRate: wonDeals._count + lostDeals._count > 0
-      ? Math.round((wonDeals._count / (wonDeals._count + lostDeals._count)) * 100)
-      : 0,
+    winRate,
     recentActivities,
     leadsByStatus,
     opportunitiesByStage,
@@ -194,9 +258,10 @@ export async function getDashboardStats(userId?: string) {
     followUpDueToday,
     staleLeads,
     overdueDeals,
-    monthlyTrend,
+    monthlyTrend: monthlyTrendWithLeads,
     pipelineByName,
     upcomingFollowUps,
+    delta,
   };
 }
 

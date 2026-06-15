@@ -1,57 +1,102 @@
 import React from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 interface TrendItem {
   month: string;
   wonCount: number;
   wonValue: number;
+  leadCount: number;
 }
 
 interface Props {
   data: TrendItem[];
 }
 
+const TEAL = '#006a61';
+const BLUE = '#adc6ff';
+
+const fmtValue = (value: number) => new Intl.NumberFormat('en-MY', {
+  style: 'currency',
+  currency: 'MYR',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(value);
+
 const MonthlyTrendChart: React.FC<Props> = ({ data }) => {
-  const maxValue = Math.max(...data.map((item) => item.wonValue), 1);
-  const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
-    style: 'currency',
-    currency: 'MYR',
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value);
+  if (!data.length) {
+    return <p className="text-xs text-[#45464d] opacity-60 text-center py-8">No trend data available</p>;
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 flex items-end gap-3 pb-2 min-h-[160px]">
-        {data.map((item) => {
-          const heightPct = Math.max(Math.round((item.wonValue / maxValue) * 100), 4);
-          const isHighest = item.wonValue === maxValue;
-          return (
-            <div
-              key={item.month}
-              className="flex-1 flex flex-col items-center justify-end group cursor-pointer"
-              title={`${fmt(item.wonValue)} • ${item.wonCount} won`}
-            >
-              <div className="relative w-full">
-                {isHighest && (
-                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[var(--text-primary,#111827)] text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    {fmt(item.wonValue)}
-                  </div>
-                )}
-                <div
-                  className={`w-full rounded-t-md transition-all duration-500 ${isHighest ? 'bg-brand-600' : 'bg-[var(--bg-subtle,#e5e7eb)] group-hover:bg-brand-200'}`}
-                  style={{ height: `${heightPct}%`, minHeight: '8px' }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex justify-between border-t border-[var(--border,#e5e7eb)] pt-2">
-        {data.map((item) => (
-          <span key={item.month} className="flex-1 text-center text-[11px] text-[var(--text-secondary,#6b7280)]">{item.month}</span>
-        ))}
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 11, fill: '#45464d' }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          yAxisId="left"
+          tick={{ fontSize: 10, fill: '#45464d' }}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v: number) => fmtValue(v)}
+          width={60}
+        />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          tick={{ fontSize: 10, fill: '#45464d' }}
+          axisLine={false}
+          tickLine={false}
+          width={40}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: '#0b1c30',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 12,
+            color: '#fff',
+          }}
+          formatter={(value: number, name: string) => {
+            if (name === 'Revenue') return fmtValue(value);
+            return `${value} leads`;
+          }}
+          labelStyle={{ color: '#86f2e4', fontWeight: 600 }}
+        />
+        <Legend
+          verticalAlign="top"
+          align="right"
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', paddingBottom: 8 }}
+        />
+        <Bar
+          yAxisId="left"
+          dataKey="wonValue"
+          name="Revenue"
+          radius={[4, 4, 0, 0]}
+          maxBarSize={32}
+        >
+          {data.map((entry, index) => (
+            <Cell
+              key={index}
+              fill={entry.wonValue === Math.max(...data.map(d => d.wonValue)) ? TEAL : '#80cbc4'}
+            />
+          ))}
+        </Bar>
+        <Bar
+          yAxisId="right"
+          dataKey="leadCount"
+          name="Leads"
+          fill={BLUE}
+          radius={[4, 4, 0, 0]}
+          maxBarSize={24}
+        />
+      </BarChart>
+    </ResponsiveContainer>
   );
 };
 

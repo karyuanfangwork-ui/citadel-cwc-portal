@@ -320,27 +320,27 @@ const CrmLeads = () => {
       <div className="min-h-full bg-[#f8f9ff]" style={{ paddingBottom: selectedIds.size > 0 ? '80px' : '32px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }} className="px-6 py-6">
 
-          {/* ── Header ── */}
-          <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
+          {/* ── Header ── Kinetic Enterprise design ── */}
+          <div className="flex justify-between items-end mb-8">
             <div>
-              <div className="flex items-center gap-1.5 text-[12px] text-[#45464d] opacity-70 mb-1">
-                <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:opacity-100">CRM</Link>
-                <span>/</span>
-                <span className="text-[#0b1c30] opacity-100 font-semibold">Leads</span>
-              </div>
-              <h1 className="text-[28px] font-bold text-[#0b1c30] tracking-tight leading-tight">
+              <nav className="flex items-center gap-2 mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>
+                <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit', opacity: 0.7 }} className="hover:opacity-100 transition-opacity">CRM</Link>
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
+                <span style={{ color: TEAL, fontWeight: 700 }}>Leads</span>
+              </nav>
+              <h1 style={{ fontSize: 36, fontWeight: 700, lineHeight: '44px', letterSpacing: '-0.02em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>
                 Leads
                 {ownerIdParam && (
                   <span className="ml-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: TEAL_LIGHT, color: TEAL }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person</span>
                     {crmUsers.find(u => u.id === ownerIdParam)?.firstName ?? 'Owner'}&apos;s leads
-                    <button onClick={() => { searchParams.delete('ownerId'); setSearchParams(searchParams); }} className="ml-0.5" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit' }}>✕</button>
+                    <button onClick={() => { searchParams.delete('ownerId'); setSearchParams(searchParams); }} className="ml-0.5" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>✕</button>
                   </span>
                 )}
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {/* View toggle */}
               <div className="flex items-center bg-white border border-[#e2e8f0] rounded-lg p-0.5">
                 <button
@@ -348,7 +348,7 @@ const CrmLeads = () => {
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'table' ? 'text-white shadow-sm' : 'text-[#45464d] hover:text-[#0b1c30]'}`}
                   style={{ border: 'none', cursor: 'pointer', background: viewMode === 'table' ? TEAL : 'none' }}
                 >
-                  <span className="material-symbols-outlined text-[15px]">table_rows</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>table_rows</span>
                   Table
                 </button>
                 <button
@@ -356,14 +356,14 @@ const CrmLeads = () => {
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'card' ? 'text-white shadow-sm' : 'text-[#45464d] hover:text-[#0b1c30]'}`}
                   style={{ border: 'none', cursor: 'pointer', background: viewMode === 'card' ? TEAL : 'none' }}
                 >
-                  <span className="material-symbols-outlined text-[15px]">grid_view</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>grid_view</span>
                   Cards
                 </button>
               </div>
 
               <button
                 onClick={() => setPrioritySort(p => !p)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-all"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all"
                 style={{
                   background: prioritySort ? '#d97706' : 'white',
                   color: prioritySort ? 'white' : '#45464d',
@@ -371,83 +371,90 @@ const CrmLeads = () => {
                   cursor: 'pointer',
                 }}
               >
-                <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_awesome</span>
                 Priority
               </button>
 
               <button
                 onClick={() => navigate('/crm/import-export')}
-                className="flex items-center gap-1.5 px-4 py-2 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-full hover:bg-[#f8f9ff] transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
                 style={{ cursor: 'pointer' }}
               >
-                <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>upload_file</span>
                 Import Leads
               </button>
 
               <button
                 onClick={() => { setShowCreate(true); setFormErrors([]); }}
-                className="flex items-center gap-1.5 px-5 py-2 text-white text-sm font-semibold rounded-full transition-all hover:opacity-90 shadow-sm"
+                className="flex items-center gap-2 px-5 py-2.5 text-white text-[13px] font-bold rounded-lg transition-all hover:opacity-90 shadow-sm"
                 style={{ background: TEAL, border: 'none', cursor: 'pointer' }}
               >
-                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>add</span>
                 Create Lead
               </button>
             </div>
           </div>
 
-          {/* ── Filter bar ── */}
-          <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <div className="relative flex-1 min-w-[220px] max-w-sm">
-              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#45464d] opacity-50 text-[18px]">search</span>
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search lead name, company or ID..."
-                className="w-full pl-10 pr-4 py-2 bg-white border border-[#e2e8f0] rounded-full text-sm text-[#0b1c30] outline-none transition-all"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              />
+          {/* ── Filter bar — Kinetic Enterprise card ── */}
+          <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm mb-6 flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[280px]">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] text-[20px]">search</span>
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search lead name, company or ID..."
+                  className="w-full pl-10 pr-4 py-2 bg-[#eff4ff] border border-[#e2e8f0] rounded-lg text-sm text-[#0b1c30] outline-none transition-all focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                  style={{ fontFamily: 'Inter, sans-serif' }}
+                />
+              </div>
             </div>
-
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-white border border-[#e2e8f0] rounded-full text-sm text-[#45464d] outline-none cursor-pointer"
-              style={{ fontFamily: 'Inter, sans-serif' }}
-            >
-              <option value="">All Statuses</option>
-              {['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'].map(s => (
-                <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
-              ))}
-            </select>
-
-            <select
-              value={ownerIdParam}
-              onChange={e => { const p = new URLSearchParams(searchParams); if (e.target.value) p.set('ownerId', e.target.value); else p.delete('ownerId'); setSearchParams(p); }}
-              className="px-4 py-2 bg-white border border-[#e2e8f0] rounded-full text-sm text-[#45464d] outline-none cursor-pointer"
-              style={{ fontFamily: 'Inter, sans-serif' }}
-            >
-              <option value="">All Owners</option>
-              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-            </select>
-
-            <select
-              value={sourceFilter}
-              onChange={e => setSourceFilter(e.target.value)}
-              className="px-4 py-2 bg-white border border-[#e2e8f0] rounded-full text-sm text-[#45464d] outline-none cursor-pointer"
-              style={{ fontFamily: 'Inter, sans-serif' }}
-            >
-              <option value="">All Sources</option>
-              {['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER'].map(s => (
-                <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-
-            <div className="ml-auto flex items-center gap-2">
-              <button className="p-2 bg-white border border-[#e2e8f0] rounded-full text-[#45464d] hover:bg-[#f8f9ff] transition-all" style={{ background: 'white', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[18px]">tune</span>
+            <div className="flex flex-col">
+              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <option value="">All Statuses</option>
+                {['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'].map(s => (
+                  <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col">
+              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Owner</label>
+              <select
+                value={ownerIdParam}
+                onChange={e => { const p = new URLSearchParams(searchParams); if (e.target.value) p.set('ownerId', e.target.value); else p.delete('ownerId'); setSearchParams(p); }}
+                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <option value="">All Owners</option>
+                {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col">
+              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Source</label>
+              <select
+                value={sourceFilter}
+                onChange={e => setSourceFilter(e.target.value)}
+                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                style={{ fontFamily: 'Inter, sans-serif' }}
+              >
+                <option value="">All Sources</option>
+                {['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER'].map(s => (
+                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end gap-2 pt-4">
+              <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
               </button>
-              <button className="p-2 bg-white border border-[#e2e8f0] rounded-full text-[#45464d] hover:bg-[#f8f9ff] transition-all" style={{ background: 'white', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined text-[18px]">download</span>
+              <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="Export">
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
               </button>
             </div>
           </div>
@@ -592,52 +599,68 @@ const CrmLeads = () => {
             )}
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-[12px] text-[#45464d] opacity-70">
-              Showing {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} leads
+          {/* Pagination — Kinetic Enterprise style */}
+          <div className="flex items-center justify-between py-4 px-6 mt-0 rounded-xl border border-[#e2e8f0] shadow-sm" style={{ background: '#eff4ff' }}>
+            <p className="text-[13px]" style={{ color: '#45464d' }}>
+              Showing <span className="font-bold" style={{ color: '#0b1c30' }}>{((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-bold" style={{ color: '#0b1c30' }}>{pagination.total}</span> leads
             </p>
             {pagination.totalPages > 1 && (
-              <div className="flex gap-1">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => pagination.page > 1 && fetchLeads(pagination.page - 1)}
+                  disabled={pagination.page <= 1}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-[#e2e8f0] hover:bg-white transition-colors disabled:opacity-50"
+                  style={{ background: 'white', cursor: pagination.page > 1 ? 'pointer' : 'default', color: '#45464d' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_left</span>
+                </button>
                 {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => i + 1).map(p => (
                   <button
                     key={p}
                     onClick={() => fetchLeads(p)}
-                    className="w-8 h-8 rounded-lg text-sm font-semibold transition-colors"
+                    className="w-8 h-8 flex items-center justify-center rounded text-xs font-bold transition-colors"
                     style={{ border: p === pagination.page ? 'none' : '1px solid #e2e8f0', cursor: 'pointer', background: p === pagination.page ? TEAL : 'white', color: p === pagination.page ? 'white' : '#45464d' }}
                   >{p}</button>
                 ))}
+                <button
+                  onClick={() => pagination.page < pagination.totalPages && fetchLeads(pagination.page + 1)}
+                  disabled={pagination.page >= pagination.totalPages}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-[#e2e8f0] hover:bg-white transition-colors disabled:opacity-50"
+                  style={{ background: 'white', cursor: pagination.page < pagination.totalPages ? 'pointer' : 'default', color: '#45464d' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
+                </button>
               </div>
             )}
           </div>
 
-          {/* ── Bottom stats bar ── */}
+          {/* ── KPI stats bar — Kinetic Enterprise ── */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3 shadow-sm">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
-                <span className="material-symbols-outlined text-[18px]" style={{ color: TEAL }}>person_add</span>
+            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 24, color: TEAL }}>person_add</span>
               </div>
               <div>
-                <p className="text-[11px] font-bold tracking-widest uppercase text-[#45464d] opacity-70">New Leads Today</p>
-                <p className="text-[22px] font-bold text-[#0b1c30] leading-tight">+{statsBar.todayLeads}</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>New Leads Today</p>
+                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>+{statsBar.todayLeads}</p>
               </div>
             </div>
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3 shadow-sm">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
-                <span className="material-symbols-outlined text-[18px]" style={{ color: TEAL }}>percent</span>
+            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 24, color: TEAL }}>percent</span>
               </div>
               <div>
-                <p className="text-[11px] font-bold tracking-widest uppercase text-[#45464d] opacity-70">Conversion Rate</p>
-                <p className="text-[22px] font-bold leading-tight" style={{ color: TEAL }}>{statsBar.convRate}%</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>Conversion Rate</p>
+                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: TEAL, fontFamily: 'Inter, sans-serif' }}>{statsBar.convRate}%</p>
               </div>
             </div>
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 flex items-center gap-3 shadow-sm">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#ffdad6' }}>
-                <span className="material-symbols-outlined text-[18px]" style={{ color: '#ba1a1a' }}>event_repeat</span>
+            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ffdad6' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#ba1a1a' }}>event_repeat</span>
               </div>
               <div>
-                <p className="text-[11px] font-bold tracking-widest uppercase text-[#45464d] opacity-70">Pending Follow-Ups</p>
-                <p className="text-[22px] font-bold text-[#0b1c30] leading-tight">{statsBar.pendingFollowUps}</p>
+                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>Pending Follow-Ups</p>
+                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>{statsBar.pendingFollowUps}</p>
               </div>
             </div>
           </div>
