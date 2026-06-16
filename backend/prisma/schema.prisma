@@ -174,7 +174,6 @@ model User {
   crmQuotas                  CrmQuota[]               @relation("CrmQuotaUser")
   crmDashboardLayouts        CrmDashboardLayout[]     @relation("UserCrmDashboardLayout")
   crmWorkflows                CrmWorkflow[]            @relation("CrmWorkflowCreator")
-  crmEmailIntegration         CrmEmailIntegration?     @relation("CrmEmailIntegrationUser")
   crmDuplicateResolutions     CrmDuplicateMatch[]       @relation("CrmDuplicateResolver")
   // Announcement Relations
   announcements             Announcement[]         @relation("AnnouncementAuthor")
@@ -1677,7 +1676,6 @@ model CrmAccount {
   @@index([name])
   @@index([industry])
   @@index([parentAccountId])
-  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailAccount")
   customFields     Json?              @map("custom_fields")
   contactAccountRoles CrmContactAccountRole[]
   @@index([tenantId])
@@ -1726,7 +1724,6 @@ model CrmContact {
   borrowerProfile BorrowerProfile?
   directors       Director[]
   shareholders    Shareholder[]
-  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailContact")
   customFields     Json?              @map("custom_fields")
   contactRoles     CrmContactAccountRole[]
 
@@ -1807,7 +1804,6 @@ model CrmLead {
   @@index([accountId])
   @@index([contactId])
   @@index([territoryId])
-  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailLead")
   customFields     Json?              @map("custom_fields")
   @@index([tenantId])
   @@map("crm_leads")
@@ -2351,81 +2347,6 @@ model CrmWorkflowExecution {
   @@index([status])
   @@index([triggerEntity, triggerEntityId])
   @@map("crm_workflow_executions")
-}
-
-// ============================================================================
-// CRM EMAIL / CALENDAR INTEGRATION
-// ============================================================================
-
-model CrmEmailIntegration {
-  id                String            @id @default(uuid()) @db.Uuid
-  userId            String            @unique @map("user_id") @db.Uuid
-  provider          String            @db.VarChar(20) // GOOGLE | OUTLOOK
-  accessToken       String            @map("access_token") @db.VarChar(500)
-  refreshToken      String            @map("refresh_token") @db.VarChar(500)
-  tokenExpiresAt    DateTime          @map("token_expires_at")
-  emailAddress      String            @map("email_address") @db.VarChar(255)
-  syncEnabled       Boolean           @default(true) @map("sync_enabled")
-  lastSyncedAt      DateTime?         @map("last_synced_at")
-  syncFrequency     String            @default("15min") @map("sync_frequency") @db.VarChar(10)
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
-
-  user              User              @relation("CrmEmailIntegrationUser", fields: [userId], references: [id])
-  syncedEmails      CrmSyncedEmail[]
-  syncedEvents      CrmSyncedEvent[]
-
-  @@map("crm_email_integrations")
-}
-
-model CrmSyncedEmail {
-  id                String            @id @default(uuid()) @db.Uuid
-  integrationId     String            @map("integration_id") @db.Uuid
-  providerMessageId String            @unique @map("provider_message_id") @db.VarChar(500)
-  threadId          String?           @map("thread_id") @db.VarChar(200)
-  from              Json              @default("{}")
-  to                Json              @default("[]")
-  cc                Json?
-  subject           String            @db.VarChar(500)
-  bodyPreview       String?           @map("body_preview") @db.Text
-  bodyHtml          String?           @map("body_html") @db.Text
-  sentAt            DateTime          @map("sent_at")
-  isFromUs          Boolean           @default(false) @map("is_from_us")
-  activityId        String?           @map("activity_id") @db.Uuid
-  matchedContactId  String?           @map("matched_contact_id") @db.Uuid
-  matchedLeadId     String?           @map("matched_lead_id") @db.Uuid
-  matchedAccountId  String?           @map("matched_account_id") @db.Uuid
-
-  integration       CrmEmailIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
-  contact           CrmContact?       @relation("CrmSyncedEmailContact", fields: [matchedContactId], references: [id])
-  lead              CrmLead?          @relation("CrmSyncedEmailLead", fields: [matchedLeadId], references: [id])
-  account          CrmAccount?       @relation("CrmSyncedEmailAccount", fields: [matchedAccountId], references: [id])
-
-  @@index([integrationId])
-  @@index([sentAt])
-  @@index([matchedContactId])
-  @@index([matchedLeadId])
-  @@index([isFromUs])
-  @@map("crm_synced_emails")
-}
-
-model CrmSyncedEvent {
-  id                String            @id @default(uuid()) @db.Uuid
-  integrationId     String            @map("integration_id") @db.Uuid
-  providerEventId   String            @unique @map("provider_event_id") @db.VarChar(500)
-  title             String            @db.VarChar(500)
-  description       String?           @db.Text
-  location          String?           @db.VarChar(500)
-  startTime         DateTime          @map("start_time")
-  endTime           DateTime          @map("end_time")
-  attendees         Json?
-  activityId        String?           @map("activity_id") @db.Uuid
-
-  integration       CrmEmailIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
-
-  @@index([integrationId])
-  @@index([startTime])
-  @@map("crm_synced_events")
 }
 
 // ============================================================================

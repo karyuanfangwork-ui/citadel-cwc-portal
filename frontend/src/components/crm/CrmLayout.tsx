@@ -21,7 +21,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin', admin: true },
   { to: '/crm/territories', label: 'Territories', icon: 'map', permission: 'crm:admin', admin: true },
   { to: '/crm/workflows', label: 'Workflows', icon: 'account_tree', permission: 'crm:admin', admin: true },
-  { to: '/crm/integrations', label: 'Integrations', icon: 'sync', permission: 'crm:read', admin: true },
   { to: '/crm/anomalies', label: 'AI Alerts', icon: 'psychology', permission: 'crm:admin', admin: true },
   { to: '/crm/custom-fields', label: 'Custom Fields', icon: 'tune', permission: 'crm:admin', admin: true },
   { to: '/crm/duplicates', label: 'Duplicates', icon: 'content_copy', permission: 'crm:admin', admin: true },

@@ -72,7 +72,6 @@ import CrmQuotaDashboard from './pages/CrmQuotaDashboard';
 import CrmWorkflows from './pages/CrmWorkflows';
 import CrmWorkflowBuilder from './pages/CrmWorkflowBuilder';
 import CrmWorkflowDetail from './pages/CrmWorkflowDetail';
-import CrmIntegrationsSettings from './pages/CrmIntegrationsSettings';
 import CrmAnomalyConfigPage from './pages/CrmAnomalyConfig';
 import CrmCustomFieldAdmin from './pages/CrmCustomFieldAdmin';
 import CrmDuplicates from './pages/CrmDuplicates';
@@ -288,7 +287,6 @@ const AppShell = () => {
                 <Route path="/crm/workflows" element={<CrmWorkflows />} />
                 <Route path="/crm/workflows/new" element={<CrmWorkflowBuilder />} />
                 <Route path="/crm/workflows/:id" element={<CrmWorkflowDetail />} />
-                <Route path="/crm/integrations" element={<CrmIntegrationsSettings />} />
                 <Route path="/crm/anomalies" element={<CrmAnomalyConfigPage />} />
                 <Route path="/crm/custom-fields" element={<CrmCustomFieldAdmin />} />
                 <Route path="/crm/duplicates" element={<CrmDuplicates />} />

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CrmKpiCard from '@/src/components/crm/CrmKpiCard';
-import HealthRing from '@/src/components/crm/HealthRing';
 import CustomerNameCell, { type Segment } from '@/src/components/crm/CustomerNameCell';
 import BulkActionBar, { type BulkAction } from '@/src/components/crm/BulkActionBar';
 import { formatCurrency } from '@/src/components/crm/crmConstants';
@@ -20,7 +19,6 @@ interface CustomerRow {
   relationshipMgr: { id: string; firstName: string; lastName: string } | null;
   opptyCount: number;
   pipelineValue: number;
-  health: number;
   lastActivity: string | null;
   nextFollowUp: { label: string; overdue: boolean };
   isActive: boolean;
@@ -341,7 +339,7 @@ const CrmCustomers: React.FC = () => {
 
         {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1400px]">
+          <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead>
               <tr className="bg-[#e5eeff] border-b border-[#e2e8f0]">
                 <th className="px-4 py-3 w-10">
@@ -358,23 +356,21 @@ const CrmCustomers: React.FC = () => {
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Relationship Mgr</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d] text-center">Oppty</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Pipeline Value</th>
-                <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d] text-center">Health</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Last Activity</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Next Follow-up</th>
-                <th className="px-6 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d] text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e2e8f0]">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-12 text-[#45464d]">
+                  <td colSpan={9} className="text-center py-12 text-[#45464d]">
                     <span className="material-symbols-outlined animate-spin text-2xl">progress_activity</span>
                     <div className="mt-2 text-sm">Loading clients...</div>
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-12 text-[#45464d]">
+                  <td colSpan={9} className="text-center py-12 text-[#45464d]">
                     <span className="material-symbols-outlined text-4xl mb-2 block">group_off</span>
                     <div className="text-sm">No clients found.</div>
                   </td>
@@ -427,9 +423,6 @@ const CrmCustomers: React.FC = () => {
                     <td className="px-4 py-4">
                       <span className="font-[JetBrains_Mono] text-sm">{compactCurrency(c.pipelineValue)}</span>
                     </td>
-                    <td className="px-4 py-4 text-center">
-                      <HealthRing score={c.health} />
-                    </td>
                     <td className="px-4 py-4 text-sm text-[#45464d]">
                       {formatLastActivity(c.lastActivity)}
                     </td>
@@ -437,33 +430,6 @@ const CrmCustomers: React.FC = () => {
                       <span className={`text-sm font-medium ${c.nextFollowUp.overdue ? 'text-[#ba1a1a] font-bold' : 'text-[#006a61]'}`}>
                         {c.nextFollowUp.label}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
-                        {c.contactInfo.phone && (
-                          <button
-                            className="p-2 hover:bg-[#dce9ff] rounded text-[#45464d] transition-colors"
-                            title="Call"
-                          >
-                            <span className="material-symbols-outlined text-lg">call</span>
-                          </button>
-                        )}
-                        {c.contactInfo.phone && (
-                          <button
-                            className="p-2 hover:bg-[#dce9ff] rounded text-[#45464d] transition-colors"
-                            title="WhatsApp"
-                          >
-                            <span className="material-symbols-outlined text-lg">chat</span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleRowClick(c)}
-                          className="flex items-center gap-1 px-3 py-1.5 border border-[#e2e8f0] hover:bg-[#0b1c30] hover:text-white rounded text-xs font-medium transition-all"
-                          title="Open 360 View"
-                        >
-                          360 View
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))

@@ -21,11 +21,9 @@ import * as importExportService from '../services/crm-import-export.service';
 import * as territoryService from '../services/crm-territory.service';
 import * as dashboardLayoutService from '../services/crm-dashboard-layout.service';
 import * as workflowService from '../services/crm-workflow.service';
-import * as emailSyncService from '../services/crm-email-sync.service';
 import * as anomalyService from '../services/crm-anomaly.service';
 import * as customFieldsService from '../services/crm-custom-fields.service';
 import * as duplicateService from '../services/crm-duplicate.service';
-import { createOAuthState, verifyOAuthState } from '../services/oauth-state.service';
 import { broadcast } from '../utils/sseClients';
 
 import prisma from '../utils/prisma';
@@ -1899,87 +1897,6 @@ class CrmController {
     res.json({ status: 'success', data: result });
   });
 
-  // ── Email/Calendar Integration ────────────────────────────────────────
-  listIntegrations = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await emailSyncService.listIntegrations(req.user!.id);
-    res.json({ status: 'success', data: result });
-  });
-
-  getGoogleAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const state = createOAuthState(req.user!.id, 'GOOGLE');
-    const url = emailSyncService.getOAuthUrl('GOOGLE', state);
-    res.json({ status: 'success', data: { url } });
-  });
-
-  getOutlookAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const state = createOAuthState(req.user!.id, 'OUTLOOK');
-    const url = emailSyncService.getOAuthUrl('OUTLOOK', state);
-    res.json({ status: 'success', data: { url } });
-  });
-
-  handleGoogleCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { code, state } = req.query;
-    const decoded = verifyOAuthState(state as string | undefined);
-    if (decoded.provider !== 'GOOGLE') throw new AppError('Invalid OAuth state', 400);
-    if (decoded.userId !== req.user!.id) throw new AppError('OAuth state does not match session user', 403);
-    await emailSyncService.handleOAuthCallback('GOOGLE', code as string, decoded.userId);
-    res.redirect('/crm/integrations?connected=google');
-  });
-
-  handleOutlookCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { code, state } = req.query;
-    const decoded = verifyOAuthState(state as string | undefined);
-    if (decoded.provider !== 'OUTLOOK') throw new AppError('Invalid OAuth state', 400);
-    if (decoded.userId !== req.user!.id) throw new AppError('OAuth state does not match session user', 403);
-    await emailSyncService.handleOAuthCallback('OUTLOOK', code as string, decoded.userId);
-    res.redirect('/crm/integrations?connected=outlook');
-  });
-
-  disconnectIntegration = asyncHandler(async (req: AuthRequest, res: Response) => {
-    await emailSyncService.disconnectIntegration(String(req.params.id), req.user!.id);
-    res.json({ status: 'success', data: { disconnected: true } });
-  });
-
-  updateSyncPreferences = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await emailSyncService.updateSyncPreferences(String(req.params.id), req.user!.id, req.body);
-    res.json({ status: 'success', data: result });
-  });
-
-  triggerSync = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const emailResult = await emailSyncService.syncEmails(String(req.params.id));
-    const calendarResult = await emailSyncService.syncCalendarEvents(String(req.params.id));
-    res.json({ status: 'success', data: { emails: emailResult, events: calendarResult } });
-  });
-
-  listSyncedEmails = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { page, limit } = parsePagination(req.query);
-    const result = await emailSyncService.listSyncedEmails(req.user!.id, {
-      contactId: req.query.contactId as string,
-      leadId: req.query.leadId as string,
-      accountId: req.query.accountId as string,
-      page,
-      limit,
-    });
-    res.json({ status: 'success', data: result });
-  });
-
-  getEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await emailSyncService.getEmail(String(req.params.id));
-    if (!result) throw new AppError('Email not found', 404);
-    res.json({ status: 'success', data: result });
-  });
-
-  sendEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const result = await emailSyncService.sendEmailFromCrm(req.user!.id, req.body);
-    res.status(201).json({ status: 'success', data: result });
-  });
-
-  listSyncedEvents = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { page, limit } = parsePagination(req.query);
-    const result = await emailSyncService.listSyncedEvents(req.user!.id, page, limit);
-    res.json({ status: 'success', data: result });
-  });
-
   // ── Anomaly Detection ────────────────────────────────────────
   getAnomalies = asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await anomalyService.detectAnomalies(req.user!.id);
@@ -2349,13 +2266,6 @@ class CrmController {
       return 'RETAIL';
     };
 
-    // Compute health score from days since last activity
-    const computeHealth = (lastActivity: Date | null): number => {
-      if (!lastActivity) return 30;
-      const daysSince = Math.floor((Date.now() - lastActivity.getTime()) / 86400000);
-      return Math.max(0, Math.min(100, 100 - daysSince * 3));
-    };
-
     // Derive next follow-up from contact followUpDate or account's latest scheduled activity
     const now = new Date();
     const formatFollowUp = (dateStr: string | null | undefined): { label: string; overdue: boolean } => {
@@ -2377,7 +2287,7 @@ class CrmController {
       contactInfo: { phone: string | null; email: string | null };
       relationshipMgr: { id: string; firstName: string; lastName: string } | null;
       opptyCount: number; pipelineValue: number;
-      health: number; lastActivity: string | null;
+      lastActivity: string | null;
       nextFollowUp: { label: string; overdue: boolean };
       isActive: boolean; createdAt: string;
     };
@@ -2399,7 +2309,6 @@ class CrmController {
         relationshipMgr: a.owner ?? null,
         opptyCount: a.opportunities?.length ?? 0,
         pipelineValue,
-        health: computeHealth(lastAct),
         lastActivity: lastAct ? lastAct.toISOString() : null,
         nextFollowUp: fu,
         isActive: a.isActive,
@@ -2424,7 +2333,6 @@ class CrmController {
         relationshipMgr: accountAny?.owner ?? null,
         opptyCount: c.opportunities?.length ?? 0,
         pipelineValue,
-        health: computeHealth(lastAct),
         lastActivity: lastAct ? lastAct.toISOString() : null,
         nextFollowUp: fu,
         isActive: c.isActive,

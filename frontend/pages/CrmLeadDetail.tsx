@@ -753,7 +753,7 @@ const CrmLeadDetail = () => {
           { key: 'overview', label: 'Overview' },
           { key: 'activities', label: 'Activities' },
           { key: 'notes', label: 'Notes & Documents' },
-          { key: 'audit', label: 'Timeline' },
+          { key: 'audit', label: 'Audit Trail' },
         ] as const).map(({ key, label }) => (
           <button
             key={key}

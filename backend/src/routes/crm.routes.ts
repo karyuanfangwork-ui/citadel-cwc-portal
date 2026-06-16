@@ -17,7 +17,6 @@ import {
   createTerritorySchema, updateTerritorySchema, addTerritoryMemberSchema,
   createQuotaSchema, updateQuotaSchema,
   createWorkflowSchema, updateWorkflowSchema,
-  updateSyncPreferencesSchema, sendEmailSchema,
   createCustomFieldSchema, updateCustomFieldSchema,
 } from '../validators/crm.validator';
 
@@ -177,21 +176,6 @@ router.put('/workflows/:id', requirePermission('crm:admin'), validate(updateWork
 router.delete('/workflows/:id', requirePermission('crm:admin'), crmController.deleteWorkflow);
 router.patch('/workflows/:id/toggle', requirePermission('crm:admin'), crmController.toggleWorkflow);
 router.get('/workflows/:id/executions', requirePermission('crm:read'), crmController.getWorkflowExecutions);
-
-// ======== EMAIL / CALENDAR INTEGRATION ========
-router.get('/integrations', requirePermission('crm:read'), crmController.listIntegrations);
-router.get('/integrations/google/auth', requirePermission('crm:read'), crmController.getGoogleAuthUrl);
-router.get('/integrations/google/callback', crmController.handleGoogleCallback);
-router.get('/integrations/outlook/auth', requirePermission('crm:read'), crmController.getOutlookAuthUrl);
-router.get('/integrations/outlook/callback', crmController.handleOutlookCallback);
-router.delete('/integrations/:id', requirePermission('crm:admin'), crmController.disconnectIntegration);
-router.patch('/integrations/:id', requirePermission('crm:admin'), validate(updateSyncPreferencesSchema), crmController.updateSyncPreferences);
-router.post('/integrations/:id/sync', requirePermission('crm:read'), crmController.triggerSync);
-
-router.get('/emails', requirePermission('crm:read'), crmController.listSyncedEmails);
-router.get('/emails/:id', requirePermission('crm:read'), crmController.getEmail);
-router.post('/emails/send', requirePermission('crm:write'), validate(sendEmailSchema), crmController.sendEmail);
-router.get('/events', requirePermission('crm:read'), crmController.listSyncedEvents);
 
 // ======== ANOMALY DETECTION ========
 router.get('/anomalies', requirePermission('crm:read'), crmController.getAnomalies);

@@ -593,20 +593,27 @@ const CrmOpportunityDetail = () => {
                       <h4 className="font-bold uppercase tracking-widest mb-6" style={{ fontSize: 11, color: TEXT_SEC }}>Pipeline Progress</h4>
                       <div className="flex items-center w-full">
                         {stages.map((s, i) => {
-                          const isPast = s.displayOrder < currentStageOrder;
                           const isCurrent = s.id === opp.stageId;
+                          const isThisLost = isCurrent && isLost;
+                          const isThisWon = isCurrent && isWon;
+                          // For lost deals, only fill up to (but not including) the lost stage
+                          const isPast = isLost
+                            ? s.displayOrder < currentStageOrder && !s.isLostStage
+                            : s.displayOrder < currentStageOrder;
+                          const barColor = isThisLost ? ERROR : (isPast || isCurrent ? TEAL : SURFACE_HIGH);
+                          const labelColor = isThisLost ? ERROR : (isPast || isCurrent ? TEAL : TEXT_MUTED);
                           return (
                             <div key={s.id} className="flex-1 group relative">
                               <div className={`h-2 ${i === 0 ? 'rounded-l-full' : ''} ${i === stages.length - 1 ? 'rounded-r-full' : ''}`}
-                                style={{ background: isPast || isCurrent ? TEAL : SURFACE_HIGH }}>
-                                {isCurrent && <div className="absolute inset-0 bg-white/30 animate-pulse" style={{ borderRadius: 'inherit' }} />}
+                                style={{ background: barColor }}>
+                                {isCurrent && !isLost && !isWon && <div className="absolute inset-0 bg-white/30 animate-pulse" style={{ borderRadius: 'inherit' }} />}
                               </div>
-                              <p className="absolute -bottom-6 left-0 font-bold" style={{ fontSize: 10, color: isPast || isCurrent ? TEAL : TEXT_MUTED }}>
+                              <p className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-bold whitespace-nowrap" style={{ fontSize: 10, color: labelColor }}>
                                 {s.name.toUpperCase()}
                               </p>
-                              {(isPast || isCurrent) && (
-                              <div className={`absolute ${isCurrent ? '-top-2 left-0 w-4 h-4 bg-white border-2 rounded-full z-10' : '-top-1 left-0 w-3 h-3 rounded-full'}`}
-                                style={isCurrent ? { borderColor: TEAL, boxShadow: `0 0 0 4px ${TEAL}20` } : { background: TEAL, boxShadow: `0 0 0 4px ${TEAL}10` }} />
+                              {isCurrent && (
+                              <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-2 rounded-full z-10"
+                                style={{ borderColor: isThisLost ? ERROR : TEAL, boxShadow: `0 0 0 4px ${isThisLost ? ERROR : TEAL}20` }} />
                               )}
                             </div>
                           );

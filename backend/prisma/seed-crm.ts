@@ -347,7 +347,6 @@ async function main() {
     
     await prisma.crmActivity.create({
       data: {
-        tenantId: DEFAULT_TENANT_ID,
         activityType,
         subject: `${activityType} - ${accountName} Follow-up #${i + 1}`,
         description: `Sample activity: Discuss project requirements and timeline`,
@@ -372,7 +371,6 @@ async function main() {
     
     await prisma.crmNote.create({
       data: {
-        tenantId: DEFAULT_TENANT_ID,
         content: `**Meeting Notes #${i + 1}**\n\n- Discussed project scope and requirements\n- Client interested in Q3 implementation\n- Budget approved, waiting for final sign-off\n- Next follow-up scheduled for next week\n\n*Key contacts: Technical team + decision makers*`,
         authorId: salesRep.id,
         accountId,
@@ -395,7 +393,6 @@ async function main() {
       const isPep = contact.riskProfile === 'HIGH';
       await prisma.crmKycRecord.create({
         data: {
-          tenantId: DEFAULT_TENANT_ID,
           contactId,
           status: 'APPROVED',
           riskLevel: contact.riskProfile || 'MEDIUM',
@@ -435,7 +432,6 @@ async function main() {
     for (const b of beneficiaries) {
       await prisma.crmBeneficiary.create({
         data: {
-          tenantId: DEFAULT_TENANT_ID,
           contactId: sunwayPrimaryId,
           firstName: b.firstName,
           lastName: b.lastName,
@@ -462,7 +458,6 @@ async function main() {
   if (sunwayAccountId && sunwayPrimaryId) {
     await prisma.crmTrustProduct.create({
       data: {
-        tenantId: DEFAULT_TENANT_ID,
         accountId: sunwayAccountId,
         contactId: sunwayPrimaryId,
         trustType: 'FAMILY_TRUST',
@@ -488,7 +483,6 @@ async function main() {
   if (maybankAccountId && maybankPrimaryId) {
     await prisma.crmTrustProduct.create({
       data: {
-        tenantId: DEFAULT_TENANT_ID,
         accountId: maybankAccountId,
         contactId: maybankPrimaryId,
         trustType: 'CORPORATE_TRUST',

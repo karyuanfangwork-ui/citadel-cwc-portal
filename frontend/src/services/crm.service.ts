@@ -1001,54 +1001,6 @@ const crmService = {
     return res.data.data as { executions: any[]; total: number };
   },
 
-  // ── Email / Calendar Integration ──────────────────────────────────
-  async listIntegrations() {
-    const res = await api.get('/crm/integrations');
-    return res.data.data;
-  },
-  async getGoogleAuthUrl() {
-    const res = await api.get('/crm/integrations/google/auth');
-    return res.data.data as { url: string };
-  },
-  async getOutlookAuthUrl() {
-    const res = await api.get('/crm/integrations/outlook/auth');
-    return res.data.data as { url: string };
-  },
-  async disconnectIntegration(id: string) {
-    const res = await api.delete(`/crm/integrations/${id}`);
-    return res.data.data;
-  },
-  async updateSyncPreferences(id: string, data: { syncEnabled?: boolean; syncFrequency?: string }) {
-    const res = await api.patch(`/crm/integrations/${id}`, data);
-    return res.data.data;
-  },
-  async triggerSync(id: string) {
-    const res = await api.post(`/crm/integrations/${id}/sync`);
-    return res.data.data;
-  },
-  async listSyncedEmails(filters?: { contactId?: string; leadId?: string; accountId?: string; page?: number; limit?: number }) {
-    const params = new URLSearchParams();
-    if (filters?.contactId) params.set('contactId', filters.contactId);
-    if (filters?.leadId) params.set('leadId', filters.leadId);
-    if (filters?.accountId) params.set('accountId', filters.accountId);
-    if (filters?.page) params.set('page', String(filters.page));
-    if (filters?.limit) params.set('limit', String(filters.limit));
-    const res = await api.get(`/crm/emails?${params.toString()}`);
-    return res.data.data as { emails: any[]; total: number; page: number; limit: number };
-  },
-  async getEmail(id: string) {
-    const res = await api.get(`/crm/emails/${id}`);
-    return res.data.data;
-  },
-  async sendEmail(data: { to: string; subject: string; body: string; cc?: string; contactId?: string; leadId?: string; accountId?: string }) {
-    const res = await api.post('/crm/emails/send', data);
-    return res.data.data;
-  },
-  async listSyncedEvents(page = 1, limit = 20) {
-    const res = await api.get(`/crm/events?page=${page}&limit=${limit}`);
-    return res.data.data as { events: any[]; total: number; page: number; limit: number };
-  },
-
   // ── Anomaly Detection ──────────────────────────────────
   async getAnomalies() {
     const res = await api.get('/crm/anomalies');

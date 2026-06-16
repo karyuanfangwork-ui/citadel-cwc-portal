@@ -67,7 +67,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
   }, [location.pathname]);
 
   return (
-    <header className={`sticky top-0 z-[65] w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 overflow-visible ${className}`}>
+    <header className={`sticky top-0 z-40 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 overflow-visible ${className}`}>
       <div className="flex items-center justify-between h-full px-4 sm:px-6 overflow-visible">
         {/* Left: hamburger (mobile) */}
         <div className="flex items-center gap-4">
@@ -100,7 +100,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
             name="q"
             type="text"
             placeholder="Search requests and articles..."
-            className="w-full pl-10 pr-4 py-1.5 bg-[#f0f2f5] border-none rounded-cwc-md text-sm focus:ring-2 focus:ring-brand-700/20 outline-none transition-all"
+            className="w-full pl-10 pr-4 py-1.5 bg-black/5 border border-cwc-border/50 rounded-cwc-md text-sm focus:ring-2 focus:ring-brand-700/20 outline-none transition-all placeholder:text-text-secondary"
           />
         </form>
 

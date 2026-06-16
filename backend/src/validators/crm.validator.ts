@@ -457,26 +457,6 @@ export const updateWorkflowSchema = z.object({
   }),
 });
 
-// ── Email/Calendar Integration Validators ──
-export const updateSyncPreferencesSchema = z.object({
-  body: z.object({
-    syncEnabled: z.boolean().optional(),
-    syncFrequency: z.enum(['15min', '30min', '1hr', 'manual']).optional(),
-  }),
-});
-
-export const sendEmailSchema = z.object({
-  body: z.object({
-    to: z.string().email(),
-    subject: z.string().min(1).max(500),
-    body: z.string().min(1),
-    cc: z.string().email().optional(),
-    contactId: z.string().uuid().optional(),
-    leadId: z.string().uuid().optional(),
-    accountId: z.string().uuid().optional(),
-  }),
-});
-
 // ── Custom Field Validators ──
 export const createCustomFieldSchema = z.object({
   body: z.object({

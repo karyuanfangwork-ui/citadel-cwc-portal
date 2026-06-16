@@ -978,11 +978,10 @@ const CrmLeads = () => {
                       )}
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Company Name *</label>
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Organization / Company</label>
                       <input
-                        required
                         type="text"
-                        placeholder="e.g. Acme FinTech Sdn Bhd"
+                        placeholder="e.g. Acme FinTech Sdn Bhd (leave blank if individual)"
                         value={form.companyName || ''}
                         onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
                         className={inputCls(formErrors.some(e => e.field === 'companyName'))}
@@ -1032,14 +1031,14 @@ const CrmLeads = () => {
                       )}
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Office Phone</label>
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Mobile Number</label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
                           <span className="material-symbols-outlined text-[18px]">phone</span>
                         </span>
                         <input
                           type="tel"
-                          placeholder="+60 3-XXXX XXXX"
+                          placeholder="+60 1X-XXX XXXX"
                           value={form.contactPhone || ''}
                           onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
                           onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
@@ -1099,7 +1098,7 @@ const CrmLeads = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Loan (MYR)</label>
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Value (MYR)</label>
                         <div className="relative">
                           <span className="absolute inset-y-0 left-3 flex items-center text-[#0b1c30] font-bold text-xs">RM</span>
                           <input
@@ -1207,8 +1206,8 @@ const CrmLeads = () => {
                       {formErrors.some(e => e.field === 'title') && <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'title')?.message}</p>}
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Company Name</label>
-                      <input type="text" value={form.companyName || ''} onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))} className={inputCls()} />
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Organization / Company</label>
+                      <input type="text" placeholder="Leave blank if individual" value={form.companyName || ''} onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))} className={inputCls()} />
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact Name</label>
@@ -1273,7 +1272,7 @@ const CrmLeads = () => {
                         </select>
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Loan (MYR)</label>
+                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Value (MYR)</label>
                         <div className="relative">
                           <span className="absolute inset-y-0 left-3 flex items-center text-[#0b1c30] font-bold text-xs">RM</span>
                           <input type="number" placeholder="0.00" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))} className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
