@@ -32,6 +32,10 @@ router.get('/dashboard/export', requirePermission('crm:read'), crmController.exp
 router.get('/search', requirePermission('crm:read'), crmController.globalSearch);
 router.get('/users', requirePermission('crm:read'), crmController.listCrmUsers);
 
+// ======== CUSTOMERS (Unified) ========
+router.get('/customers', requirePermission('crm:read'), crmController.listCustomers);
+router.get('/customers/stats', requirePermission('crm:read'), crmController.getCustomerStats);
+
 // ======== TEAM PERFORMANCE ========
 router.get('/team-performance', requirePermission('crm:admin'), crmController.getTeamPerformance);
 

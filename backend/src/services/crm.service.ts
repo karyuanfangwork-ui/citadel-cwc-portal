@@ -20,6 +20,7 @@ export async function getDashboardStats(
   const windowStart = dateFrom ?? new Date(now.getTime() - 30 * 86400_000);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const [
     totalAccounts,
@@ -31,7 +32,7 @@ export async function getDashboardStats(
     lostDeals,
     recentActivities,
     leadsByStatus,
-    opportunitiesByStage,
+    opportunitiesByStageRaw,
     followUpDueToday,
     staleLeads,
     overdueDeals,
@@ -39,6 +40,16 @@ export async function getDashboardStats(
     pipelinesWithValues,
     upcomingFollowUpsRaw,
     wonOppsForVelocity,
+    // Phase 3 additions — Sales Rep Dashboard
+    totalActiveLeads,
+    totalOpenOpps,
+    meetingsTodayCount,
+    nextMeetingRaw,
+    monthlyConversionsCount,
+    quotaTargetRaw,
+    hotLeadsRaw,
+    overdueTasksRaw,
+    inProgressTasksRaw,
   ] = await Promise.all([
     prisma.crmAccount.count({ where: { isActive: true, deletedAt: null, ...ownerFilter } }),
     prisma.crmContact.count({ where: { isActive: true, deletedAt: null } }),
@@ -183,6 +194,114 @@ export async function getDashboardStats(
       },
       take: 100,
     }),
+    // ---- Phase 3: Sales Rep Dashboard additions ----
+    // 1. Total active leads (non-windowed — all non-CONVERTED/LOST for owner)
+    prisma.crmLead.count({
+      where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, ...ownerFilter },
+    }),
+    // 2. Total open opps (non-windowed — active stages)
+    prisma.crmOpportunity.count({
+      where: { stage: { isWonStage: false, isLostStage: false }, deletedAt: null, ...ownerFilter },
+    }),
+    // 3. Meetings today count
+    prisma.crmActivity.count({
+      where: {
+        activityType: 'MEETING',
+        scheduledAt: { gte: todayStart, lt: todayEnd },
+        ...ownerFilter,
+      },
+    }),
+    // 4. Next upcoming meeting (today or future)
+    prisma.crmActivity.findFirst({
+      where: {
+        activityType: 'MEETING',
+        scheduledAt: { gte: todayStart },
+        ...ownerFilter,
+      },
+      orderBy: { scheduledAt: 'asc' },
+      select: {
+        id: true,
+        subject: true,
+        scheduledAt: true,
+        description: true,
+        account: { select: { id: true, name: true } },
+        contact: { select: { id: true, firstName: true, lastName: true } },
+        opportunity: { select: { id: true, name: true } },
+      },
+    }),
+    // 5. Monthly conversions count (leads converted this month)
+    prisma.crmLead.count({
+      where: {
+        status: 'CONVERTED',
+        convertedAt: { gte: monthStart, lt: now },
+        deletedAt: null,
+        ...ownerFilter,
+      },
+    }),
+    // 6. Current user's quota for this month
+    userId
+      ? prisma.crmQuota.findFirst({
+          where: {
+            userId,
+            periodType: 'MONTHLY',
+            period: now.toISOString().slice(0, 7), // "2026-06"
+          },
+          select: { targetAmount: true },
+        })
+      : Promise.resolve(null),
+    // 7. Hot leads — top 5 by ruleScore/aiScore
+    prisma.crmLead.findMany({
+      take: 5,
+      where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, ...ownerFilter },
+      orderBy: [{ ruleScore: 'desc' }, { aiScore: 'desc' }],
+      select: {
+        id: true,
+        title: true,
+        contactName: true,
+        estimatedValue: true,
+        ruleScore: true,
+        aiScore: true,
+        source: true,
+      },
+    }),
+    // 8. Overdue tasks (scheduledAt < now, not completed)
+    prisma.crmActivity.findMany({
+      where: {
+        activityType: 'TASK',
+        completedAt: null,
+        scheduledAt: { lt: now },
+        ...ownerFilter,
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 10,
+      select: {
+        id: true,
+        subject: true,
+        description: true,
+        scheduledAt: true,
+        lead: { select: { id: true, title: true } },
+        opportunity: { select: { id: true, name: true } },
+      },
+    }),
+    // 9. In-progress tasks (not completed, scheduled >= now or no schedule)
+    prisma.crmActivity.findMany({
+      where: {
+        activityType: 'TASK',
+        completedAt: null,
+        scheduledAt: { gte: now },
+        ...ownerFilter,
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 10,
+      select: {
+        id: true,
+        subject: true,
+        description: true,
+        scheduledAt: true,
+        lead: { select: { id: true, title: true } },
+        opportunity: { select: { id: true, name: true } },
+      },
+    }),
   ]);
 
   // B1: Previous-month counts for delta badges
@@ -274,6 +393,98 @@ export async function getDashboardStats(
     return Math.round(valid.reduce((sum, d) => sum + d, 0) / valid.length);
   })();
 
+  // ---- Phase 3: Enrich opportunitiesByStage with stage metadata ----
+  const stageIds = (opportunitiesByStageRaw as { stageId: string }[]).map((s: { stageId: string }) => s.stageId);
+  const stages = stageIds.length > 0
+    ? await prisma.crmPipelineStage.findMany({
+        where: { id: { in: stageIds } },
+        select: { id: true, name: true, displayOrder: true, probability: true, color: true, isWonStage: true, isLostStage: true },
+      })
+    : [];
+  const stageMap = new Map(stages.map(s => [s.id, s]));
+  const opportunitiesByStage = (opportunitiesByStageRaw as { stageId: string; _count: number; _sum: { value: bigint | null } }[]).map((s) => {
+    const meta = stageMap.get(s.stageId);
+    return {
+      stageId: s.stageId,
+      name: meta?.name ?? 'Unknown',
+      displayOrder: meta?.displayOrder ?? 0,
+      probability: meta?.probability ?? 0,
+      color: meta?.color ?? '#0052cc',
+      isWonStage: meta?.isWonStage ?? false,
+      isLostStage: meta?.isLostStage ?? false,
+      _count: s._count,
+      _sum: { value: Number(s._sum.value || 0) },
+    };
+  });
+
+  // ---- Phase 3: Build Sales Rep Dashboard data ----
+  // Hot leads with score and tags (tags are polymorphic CrmTagAssignment)
+  const hotLeadIds = (hotLeadsRaw as any[]).map((l: any) => l.id);
+  const hotLeadTagAssignments = hotLeadIds.length > 0
+    ? await prisma.crmTagAssignment.findMany({
+        where: { entityType: 'LEAD', entityId: { in: hotLeadIds } },
+        select: { entityId: true, tag: { select: { id: true, name: true } } },
+      })
+    : [];
+  const hotLeadTagsMap = new Map<string, string[]>();
+  for (const ta of hotLeadTagAssignments) {
+    const names = hotLeadTagsMap.get(ta.entityId) ?? [];
+    names.push(ta.tag.name);
+    hotLeadTagsMap.set(ta.entityId, names);
+  }
+  const hotLeads = (hotLeadsRaw as any[]).map((lead: any) => ({
+    id: lead.id,
+    title: lead.title,
+    contactName: lead.contactName ?? null,
+    estimatedValue: lead.estimatedValue ? Number(lead.estimatedValue) : null,
+    score: lead.ruleScore ?? lead.aiScore ?? 0,
+    source: lead.source,
+    tags: hotLeadTagsMap.get(lead.id) ?? [],
+  }));
+
+  // Meetings today
+  const nextMeeting = nextMeetingRaw
+    ? {
+        id: (nextMeetingRaw as any).id,
+        subject: (nextMeetingRaw as any).subject,
+        scheduledAt: (nextMeetingRaw as any).scheduledAt,
+        description: (nextMeetingRaw as any).description ?? null,
+        accountName: (nextMeetingRaw as any).account?.name ?? null,
+        contactName: ((nextMeetingRaw as any).contact?.firstName ?? '') + ' ' + ((nextMeetingRaw as any).contact?.lastName ?? '').trim(),
+        opportunityName: (nextMeetingRaw as any).opportunity?.name ?? null,
+      }
+    : null;
+
+  // Monthly conversions with quota percentage
+  const quotaTarget = quotaTargetRaw ? Number((quotaTargetRaw as any).targetAmount || 0) : 0;
+  const monthlyConversions = {
+    count: monthlyConversionsCount as number,
+    target: quotaTarget,
+    percentage: quotaTarget > 0 ? Math.round((monthlyConversionsCount as number) / quotaTarget * 100) : 0,
+  };
+
+  // Tasks grouped
+  const tasks = {
+    overdue: (overdueTasksRaw as any[]).map((t: any) => ({
+      id: t.id,
+      subject: t.subject,
+      description: t.description ?? null,
+      scheduledAt: t.scheduledAt,
+      leadTitle: t.lead?.title ?? null,
+      opportunityName: t.opportunity?.name ?? null,
+    })),
+    inProgress: (inProgressTasksRaw as any[]).map((t: any) => ({
+      id: t.id,
+      subject: t.subject,
+      description: t.description ?? null,
+      scheduledAt: t.scheduledAt,
+      leadTitle: t.lead?.title ?? null,
+      opportunityName: t.opportunity?.name ?? null,
+    })),
+    overdueCount: (overdueTasksRaw as any[]).length,
+    inProgressCount: (inProgressTasksRaw as any[]).length,
+  };
+
   return {
     totalAccounts,
     totalContacts,
@@ -295,6 +506,13 @@ export async function getDashboardStats(
     upcomingFollowUps,
     delta,
     avgVelocityDays,
+    // Phase 3: Sales Rep Dashboard additions
+    totalActiveLeads,
+    totalOpenOpps,
+    meetingsToday: { count: meetingsTodayCount, nextMeeting },
+    monthlyConversions,
+    hotLeads,
+    tasks,
   };
 }
 

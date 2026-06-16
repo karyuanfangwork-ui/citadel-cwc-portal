@@ -234,7 +234,7 @@ const CrmLeads = () => {
     return result;
   }, [leads, prioritySort, sortConfig]);
 
-  // Derived stats for bottom bar
+  // Derived stats for metric cards + sidebar
   const statsBar = useMemo(() => {
     const todayLeads = leads.filter(l => isToday(l.createdAt)).length;
     const pendingFollowUps = leads.filter(l => l.followUpDate && (isToday(l.followUpDate) || isOverdue(l.followUpDate))).length;
@@ -242,6 +242,26 @@ const CrmLeads = () => {
     const convRate = leads.length > 0 ? ((converted / leads.length) * 100).toFixed(1) : '0.0';
     return { todayLeads, pendingFollowUps, convRate };
   }, [leads]);
+
+  const hotLeads = useMemo(() =>
+    leads.filter(l => (l.aiScore ?? 0) >= 80 && l.status !== 'CONVERTED' && l.status !== 'LOST').slice(0, 5),
+  [leads]);
+
+  const followUpsToday = useMemo(() =>
+    leads.filter(l => l.followUpDate && isToday(l.followUpDate)),
+  [leads]);
+
+  const overdueLeads = useMemo(() =>
+    leads.filter(l => l.followUpDate && isOverdue(l.followUpDate) && !isToday(l.followUpDate)),
+  [leads]);
+
+  const convertedCount = useMemo(() =>
+    leads.filter(l => l.status === 'CONVERTED').length,
+  [leads]);
+
+  const priorityCalls = useMemo(() =>
+    leads.filter(l => l.followUpDate && (isToday(l.followUpDate) || isOverdue(l.followUpDate))).slice(0, 5),
+  [leads]);
 
   const clearFilterParam = () => {
     searchParams.delete('filter');
@@ -330,7 +350,7 @@ const CrmLeads = () => {
                 <span style={{ color: TEAL, fontWeight: 700 }}>Leads</span>
               </nav>
               <h1 style={{ fontSize: 36, fontWeight: 700, lineHeight: '44px', letterSpacing: '-0.02em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>
-                Leads
+                My Leads
                 {ownerIdParam && (
                   <span className="ml-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: TEAL_LIGHT, color: TEAL }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 12 }}>person</span>
@@ -339,9 +359,19 @@ const CrmLeads = () => {
                   </span>
                 )}
               </h1>
+              <p style={{ fontSize: 14, color: '#45464d', marginTop: 4, fontFamily: 'Inter, sans-serif' }}>Managing your lending pipeline and retail applications.</p>
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => fetchLeads(pagination.page)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>refresh</span>
+                Refresh
+              </button>
+
               {/* View toggle */}
               <div className="flex items-center bg-white border border-[#e2e8f0] rounded-lg p-0.5">
                 <button
@@ -390,88 +420,214 @@ const CrmLeads = () => {
                 className="flex items-center gap-2 px-5 py-2.5 text-white text-[13px] font-bold rounded-lg transition-all hover:opacity-90 shadow-sm"
                 style={{ background: TEAL, border: 'none', cursor: 'pointer' }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>add</span>
-                Create Lead
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>person_add</span>
+                New Lead
               </button>
             </div>
           </div>
 
-          {/* ── Filter bar — Kinetic Enterprise card ── */}
-          <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm mb-6 flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[280px]">
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] text-[20px]">search</span>
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search lead name, company or ID..."
-                  className="w-full pl-10 pr-4 py-2 bg-[#eff4ff] border border-[#e2e8f0] rounded-lg text-sm text-[#0b1c30] outline-none transition-all focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
-                  style={{ fontFamily: 'Inter, sans-serif' }}
-                />
+          {/* ── 5-Card Metrics Row ── */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <div className="bg-white p-4 border border-[#e2e8f0] rounded-lg hover:border-[#006a61] hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>My Leads</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#0b1c30', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{leads.length}</p>
+            </div>
+            <div className="bg-white p-4 border-l-4 border-l-[#ba1a1a] border-y border-r border-[#e2e8f0] rounded-lg hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#ba1a1a' }}>Hot Leads</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#ba1a1a', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{hotLeads.length}</p>
+            </div>
+            <div className="bg-white p-4 border border-[#e2e8f0] rounded-lg hover:border-[#006a61] hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>Follow Ups Today</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#0b1c30', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{followUpsToday.length}</p>
+            </div>
+            <div className="bg-[#ffdad6] p-4 border border-[#ba1a1a]/20 rounded-lg hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#93000a' }}>Overdue</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#93000a', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{overdueLeads.length}</p>
+            </div>
+            <div className="bg-[#86f2e4] p-4 border border-[#006a61]/20 rounded-lg hover:-translate-y-0.5 transition-all duration-200 cursor-default">
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#006f66' }}>Converted</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#006f66', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{convertedCount}</p>
+            </div>
+          </div>
+
+          {/* ── Two-column layout ── */}
+          <div className="flex flex-col lg:flex-row gap-4">
+
+            {/* ── Left Column: Primary View ── */}
+            <div className="flex-1 min-w-0 space-y-6">
+
+              {/* ── Filter bar — Kinetic Enterprise card ── */}
+              <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[280px]">
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] text-[20px]">search</span>
+                    <input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search lead name, company or ID..."
+                      className="w-full pl-10 pr-4 py-2 bg-[#eff4ff] border border-[#e2e8f0] rounded-lg text-sm text-[#0b1c30] outline-none transition-all focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                      style={{ fontFamily: 'Inter, sans-serif' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <option value="">All Statuses</option>
+                    {['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'].map(s => (
+                      <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Owner</label>
+                  <select
+                    value={ownerIdParam}
+                    onChange={e => { const p = new URLSearchParams(searchParams); if (e.target.value) p.set('ownerId', e.target.value); else p.delete('ownerId'); setSearchParams(p); }}
+                    className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <option value="">All Owners</option>
+                    {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Source</label>
+                  <select
+                    value={sourceFilter}
+                    onChange={e => setSourceFilter(e.target.value)}
+                    className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
+                    <option value="">All Sources</option>
+                    {['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER'].map(s => (
+                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end gap-2 pt-4">
+                  <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
+                  </button>
+                  <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="Export">
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col">
-              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Status</label>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                <option value="">All Statuses</option>
-                {['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'].map(s => (
-                  <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Owner</label>
-              <select
-                value={ownerIdParam}
-                onChange={e => { const p = new URLSearchParams(searchParams); if (e.target.value) p.set('ownerId', e.target.value); else p.delete('ownerId'); setSearchParams(p); }}
-                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                <option value="">All Owners</option>
-                {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d', marginBottom: 4, display: 'block' }}>Source</label>
-              <select
-                value={sourceFilter}
-                onChange={e => setSourceFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-lg text-sm text-[#45464d] outline-none cursor-pointer min-w-[140px] focus:ring-2 focus:ring-[#006a61]/20 focus:border-[#006a61]"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                <option value="">All Sources</option>
-                {['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER'].map(s => (
-                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end gap-2 pt-4">
-              <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
-              </button>
-              <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="Export">
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
-              </button>
-            </div>
-          </div>
 
-          {/* Active filter badge */}
-          {filterParam && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-[#e2e8f0] text-[#45464d]">
-                <span className="material-symbols-outlined text-sm">{filterParam === 'stale' ? 'hourglass_empty' : 'event_repeat'}</span>
-                {filterParam === 'followup' ? 'Follow-ups Due Today & Overdue' : 'Stale Leads (7+ days inactive)'}
-              </span>
-              <button onClick={clearFilterParam} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#45464d' }}>
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-          )}
+              {/* Active filter badge */}
+              {filterParam && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-white border border-[#e2e8f0] text-[#45464d]">
+                    <span className="material-symbols-outlined text-sm">{filterParam === 'stale' ? 'hourglass_empty' : 'event_repeat'}</span>
+                    {filterParam === 'followup' ? 'Follow-ups Due Today & Overdue' : 'Stale Leads (7+ days inactive)'}
+                  </span>
+                  <button onClick={clearFilterParam} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#45464d' }}>
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                </div>
+              )}
+
+              {/* ── HOT LEADS ── */}
+              {hotLeads.length > 0 && (
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[#ba1a1a]" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
+                      <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Hot Leads</h2>
+                    </div>
+                    <button onClick={() => { setPrioritySort(true); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: TEAL, fontWeight: 700, fontSize: 13 }} className="hover:underline">View All</button>
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                    {hotLeads.map(lead => {
+                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                      const followUpDisplay = lead.followUpDate
+                        ? isOverdue(lead.followUpDate) && !isToday(lead.followUpDate) ? { text: 'Overdue', color: '#ba1a1a' }
+                        : isToday(lead.followUpDate) ? { text: 'Call Today', color: '#ba1a1a' }
+                        : { text: formatShortDate(lead.followUpDate), color: '#45464d' }
+                        : { text: 'No follow-up set', color: '#76777d' };
+                      return (
+                        <div key={lead.id} className="min-w-[300px] bg-white border border-[#e2e8f0] rounded-lg p-5 relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-[#ba1a1a]" />
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <h3 className="font-bold text-[16px] text-[#0b1c30] line-clamp-1 cursor-pointer hover:text-[#006a61]" onClick={() => navigate(`/crm/leads/${lead.id}`)}>{lead.title}</h3>
+                              <p style={{ fontSize: 13, color: '#45464d' }}>{lead.companyName || lead.source?.replace(/_/g, ' ') || 'Lead'}</p>
+                            </div>
+                            <div className="bg-[#ffdad6] text-[#93000a] px-2 py-1 rounded font-bold" style={{ fontSize: 12, fontFamily: '"JetBrains Mono", monospace' }}>
+                              Score: {lead.aiScore}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>Amount</p>
+                              <p className="font-bold text-[#0b1c30]" style={{ fontSize: 14 }}>{formatCurrency(lead.estimatedValue)}</p>
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>Next Action</p>
+                              <p className="font-bold" style={{ color: followUpDisplay.color, fontSize: 14 }}>{followUpDisplay.text}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="flex-1 bg-[#006a61] text-white py-2 rounded font-bold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style={{ border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span> View
+                            </button>
+                            <button onClick={() => openEdit(lead)} className="w-10 bg-[#eff4ff] flex items-center justify-center rounded hover:bg-[#dce9ff] transition-colors" style={{ border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined text-[#0b1c30]" style={{ fontSize: 18 }}>edit</span>
+                            </button>
+                            <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="w-10 bg-[#eff4ff] flex items-center justify-center rounded hover:bg-[#dce9ff] transition-colors" style={{ border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined text-[#0b1c30]" style={{ fontSize: 18 }}>open_in_new</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* ── TODAY'S FOLLOW-UPS ── */}
+              {followUpsToday.length > 0 && (
+                <section className="bg-white border border-[#e2e8f0] rounded-lg overflow-hidden">
+                  <div className="p-4 border-b border-[#e2e8f0] flex justify-between items-center bg-[#eff4ff]">
+                    <h2 className="font-bold text-[16px] text-[#0b1c30]">Today's Follow Ups</h2>
+                    <span className="bg-[#006a61]/10 text-[#006a61] px-2 py-0.5 rounded" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>{followUpsToday.length} Tasks</span>
+                  </div>
+                  <div className="divide-y divide-[#e2e8f0]">
+                    {followUpsToday.slice(0, 6).map(lead => {
+                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                      return (
+                        <div key={lead.id} className="p-4 flex items-center gap-4 hover:bg-[#f8f9ff] transition-colors group">
+                          <input className="h-5 w-5 rounded border-[#e2e8f0] accent-[#006a61] cursor-pointer" type="checkbox" />
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: '#86f2e4', color: '#006f66' }}>{initials}</div>
+                          <div className="flex-1 grid grid-cols-4 items-center gap-4">
+                            <div>
+                              <p className="font-bold text-[#0b1c30] text-[14px] cursor-pointer hover:text-[#006a61]" onClick={() => navigate(`/crm/leads/${lead.id}`)}>{lead.title}</p>
+                              <p style={{ fontSize: 13, color: '#45464d' }}>{lead.companyName || lead.source?.replace(/_/g, ' ') || 'Lead'}</p>
+                            </div>
+                            <div className="text-center">
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>Follow-up</p>
+                              <p className="text-[14px] font-medium text-[#0b1c30]">Today</p>
+                            </div>
+                            <div className="text-center">
+                              <span className="bg-[#eff4ff] text-[#0b1c30] px-3 py-1 rounded-full" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', border: '1px solid #e2e8f0' }}>Follow-up Call</span>
+                            </div>
+                            <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(lead)} className="text-[#006a61] hover:underline font-bold" style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>Edit</button>
+                              <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="text-[#45464d] hover:text-[#0b1c30] material-symbols-outlined" style={{ fontSize: 18, background: 'none', border: 'none', cursor: 'pointer' }}>visibility</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
           {/* ── Table / Card view ── */}
           <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden shadow-sm mb-5">
@@ -635,36 +791,97 @@ const CrmLeads = () => {
             )}
           </div>
 
-          {/* ── KPI stats bar — Kinetic Enterprise ── */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 24, color: TEAL }}>person_add</span>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>New Leads Today</p>
-                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>+{statsBar.todayLeads}</p>
-              </div>
-            </div>
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TEAL_LIGHT }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 24, color: TEAL }}>percent</span>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>Conversion Rate</p>
-                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: TEAL, fontFamily: 'Inter, sans-serif' }}>{statsBar.convRate}%</p>
-              </div>
-            </div>
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 flex items-center gap-4 shadow-sm">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ffdad6' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#ba1a1a' }}>event_repeat</span>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#45464d', marginBottom: 2 }}>Pending Follow-Ups</p>
-                <p style={{ fontSize: 28, fontWeight: 700, lineHeight: '32px', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>{statsBar.pendingFollowUps}</p>
-              </div>
-            </div>
-          </div>
+            </div>{/* ── End Left Column ── */}
+
+            {/* ── Right Column: Daily Activities Sidebar ── */}
+            <div className="lg:w-80 flex-shrink-0 space-y-4">
+
+              {/* Upcoming Meetings (stub) */}
+              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Upcoming Meetings</h3>
+                  <span className="material-symbols-outlined text-[#45464d]" style={{ fontSize: 20 }}>calendar_month</span>
+                </div>
+                <div className="flex flex-col items-center py-6 text-center">
+                  <span className="material-symbols-outlined mb-2" style={{ fontSize: 32, color: '#d3e4fe' }}>event_available</span>
+                  <p style={{ fontSize: 13, color: '#45464d' }}>No meetings scheduled for today</p>
+                </div>
+              </section>
+
+              {/* Priority Calls */}
+              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Priority Calls</h3>
+                  <span className="bg-[#ffdad6] text-[#93000a] px-2 py-0.5 rounded font-bold" style={{ fontSize: 11 }}>{priorityCalls.length}</span>
+                </div>
+                {priorityCalls.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#76777d' }}>No priority calls today</p>
+                ) : (
+                  <div className="space-y-3">
+                    {priorityCalls.slice(0, 5).map(lead => {
+                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                      return (
+                        <div key={lead.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors cursor-pointer" onClick={() => navigate(`/crm/leads/${lead.id}`)}>
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: '#ffdad6', color: '#93000a' }}>{initials}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-[#0b1c30] text-[13px] truncate">{lead.title}</p>
+                            <p style={{ fontSize: 12, color: '#45464d' }}>{lead.companyName || lead.source?.replace(/_/g, ' ') || 'Lead'}</p>
+                          </div>
+                          <span className="material-symbols-outlined text-[#006a61]" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>phone_in_talk</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Overdue Tasks */}
+              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Overdue Tasks</h3>
+                  <span className="bg-[#ffdad6] text-[#93000a] px-2 py-0.5 rounded font-bold" style={{ fontSize: 11 }}>{overdueLeads.length}</span>
+                </div>
+                {overdueLeads.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#76777d' }}>All tasks up to date!</p>
+                ) : (
+                  <div className="space-y-3">
+                    {overdueLeads.slice(0, 5).map(lead => {
+                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                      return (
+                        <div key={lead.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors cursor-pointer" onClick={() => navigate(`/crm/leads/${lead.id}`)}>
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: '#ffdad6', color: '#93000a' }}>{initials}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-[#0b1c30] text-[13px] truncate">{lead.title}</p>
+                            <p style={{ fontSize: 12, color: '#93000a' }}>Due: {lead.followUpDate ? formatShortDate(lead.followUpDate) : 'N/A'}</p>
+                          </div>
+                          <span className="material-symbols-outlined text-[#ba1a1a]" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>warning</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Team Target */}
+              <section className="rounded-lg p-5 text-white" style={{ background: TEAL }}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'Inter, sans-serif' }}>Team Target</h3>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>target</span>
+                </div>
+                <div className="mb-3">
+                  <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'Inter, sans-serif', lineHeight: '32px' }}>
+                    {convertedCount}<span style={{ fontSize: 16, fontWeight: 400, opacity: 0.8 }}> / 20</span>
+                  </p>
+                  <p style={{ fontSize: 12, opacity: 0.8 }}>leads converted this month</p>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-2 mb-2">
+                  <div className="bg-white rounded-full h-2 transition-all duration-500" style={{ width: `${Math.min(100, (convertedCount / 20) * 100)}%` }} />
+                </div>
+                <p style={{ fontSize: 12, opacity: 0.8 }}>{Math.round((convertedCount / 20) * 100)}% of monthly target</p>
+              </section>
+
+            </div>{/* ── End Right Column ── */}
+          </div>{/* ── End Two-Column Layout ── */}
 
         </div>
       </div>

@@ -20,6 +20,8 @@ export interface CrmAccount {
   annualRevenue: number | null; ownerId: string; isActive: boolean;
   registrationNumber: string | null; taxNumber: string | null;
   bankAccount: string | null;
+  accountType?: string | null;
+  purchaseCashTrust?: boolean;
   createdAt: string; updatedAt: string;
   owner?: UserRef; contacts?: CrmContact[]; opportunities?: CrmOpportunity[];
   leads?: CrmLead[]; activities?: CrmActivity[]; notes?: CrmNote[];
@@ -193,7 +195,7 @@ export interface DashboardStats {
   pipelineValue: number; wonDeals: { count: number; value: number }; lostDeals: { count: number; value: number };
   winRate: number; recentActivities: CrmActivity[];
   leadsByStatus: { status: LeadStatus; _count: number }[];
-  opportunitiesByStage: { stageId: string; _count: number; _sum: { value: number } }[];
+  opportunitiesByStage: { stageId: string; name: string; displayOrder: number; probability: number; color: string; isWonStage: boolean; isLostStage: boolean; _count: number; _sum: { value: number } }[];
   followUpDueToday: number;
   staleLeads: number;
   overdueDeals: number;
@@ -216,6 +218,55 @@ export interface DashboardStats {
     winRateDelta: number;
   };
   avgVelocityDays: number | null;
+  // Phase 3: Sales Rep Dashboard
+  totalActiveLeads: number;
+  totalOpenOpps: number;
+  meetingsToday: {
+    count: number;
+    nextMeeting: {
+      id: string;
+      subject: string;
+      scheduledAt: string;
+      description: string | null;
+      accountName: string | null;
+      contactName: string | null;
+      opportunityName: string | null;
+    } | null;
+  };
+  monthlyConversions: {
+    count: number;
+    target: number;
+    percentage: number;
+  };
+  hotLeads: {
+    id: string;
+    title: string;
+    contactName: string | null;
+    estimatedValue: number | null;
+    score: number;
+    source: string;
+    tags: string[];
+  }[];
+  tasks: {
+    overdue: {
+      id: string;
+      subject: string;
+      description: string | null;
+      scheduledAt: string | null;
+      leadTitle: string | null;
+      opportunityName: string | null;
+    }[];
+    inProgress: {
+      id: string;
+      subject: string;
+      description: string | null;
+      scheduledAt: string | null;
+      leadTitle: string | null;
+      opportunityName: string | null;
+    }[];
+    overdueCount: number;
+    inProgressCount: number;
+  };
 }
 
 export interface TeamPerformance {
@@ -374,6 +425,16 @@ const crmService = {
     return res.data.data.account as CrmAccount;
   },
   async deleteAccount(id: string) { await api.delete(`/crm/accounts/${id}`); },
+
+  // Customers (Unified)
+  async listCustomers(params: Record<string, any> = {}) {
+    const res = await api.get('/crm/customers', { params });
+    return res.data.data as { customers: any[]; pagination: Pagination };
+  },
+  async getCustomerStats() {
+    const res = await api.get('/crm/customers/stats');
+    return res.data.data as { total: number; retail: number; sme: number; corporate: number; active: number; followUpRequired: number };
+  },
 
   // Contacts
   async listContacts(params: Record<string, any> = {}) {

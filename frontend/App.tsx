@@ -58,8 +58,7 @@ import CrmOpportunityDetail from './pages/CrmOpportunityDetail';
 import CrmLeadDetail from './pages/CrmLeadDetail';
 import CrmContactDetail from './pages/CrmContactDetail';
 import CrmDashboard from './pages/CrmDashboard';
-import CrmAccounts from './pages/CrmAccounts';
-import CrmContacts from './pages/CrmContacts';
+import CrmCustomers from './pages/CrmCustomers';
 import CrmLeads from './pages/CrmLeads';
 import CrmOpportunities from './pages/CrmOpportunities';
 
@@ -269,9 +268,10 @@ const AppShell = () => {
                 )}
               >
                 <Route path="/crm" element={<CrmDashboard />} />
-                <Route path="/crm/accounts" element={<CrmAccounts />} />
+                <Route path="/crm/customers" element={<CrmCustomers />} />
+                <Route path="/crm/accounts" element={<Navigate to="/crm/customers" replace />} />
                 <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
-                <Route path="/crm/contacts" element={<CrmContacts />} />
+                <Route path="/crm/contacts" element={<Navigate to="/crm/customers" replace />} />
                 <Route path="/crm/contacts/:id" element={<CrmContactDetail />} />
                 <Route path="/crm/leads" element={<CrmLeads />} />
                 <Route path="/crm/leads/:id" element={<CrmLeadDetail />} />

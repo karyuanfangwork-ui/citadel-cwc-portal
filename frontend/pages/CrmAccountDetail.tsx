@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmUser } from '../src/services/crm.service';
 
-import AiInsightCard from '../src/components/crm/AiInsightCard';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
@@ -14,10 +13,39 @@ import { useNextBestAction } from '../src/hooks/useCrmAi';
 import ReactMarkdown from 'react-markdown';
 import creditService from '../src/services/credit.service';
 
+// ── Customer 360 sub-components ────────────────────────────────────
+import Customer360Profile from '../src/components/crm/Customer360Profile';
+import Customer360Insights from '../src/components/crm/Customer360Insights';
+import Customer360KpiCard from '../src/components/crm/Customer360KpiCard';
+import Customer360OpportunitiesTable from '../src/components/crm/Customer360OpportunitiesTable';
+import Customer360ActivityTimeline from '../src/components/crm/Customer360ActivityTimeline';
+
+// ── Design tokens (Kinetic Enterprise) ─────────────────────────────
+const T = {
+  teal: '#006a61',
+  tealLight: '#86f2e4',
+  tealDark: '#006f66',
+  surface: '#f8f9ff',
+  surfaceLow: '#eff4ff',
+  white: '#ffffff',
+  border: '#e2e8f0',
+  borderSubtle: '#f1f5f9',
+  textPrimary: '#0b1c30',
+  textSecondary: '#45464d',
+  textMuted: '#76777d',
+  success: '#22c55e',
+  blue: '#3b82f6',
+  error: '#ba1a1a',
+  warning: '#f59e0b',
+  shadow: '0px 4px 12px rgba(15, 23, 42, 0.08)',
+} as const;
+
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const formatShortDate = (d: string) =>
+  new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 
 const SkeletonLine = ({ mb = 12 }: { mb?: number }) => (
   <div style={{ height: 18, marginBottom: mb, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
@@ -28,13 +56,42 @@ const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   WHATSAPP: 'chat', SITE_VISIT: 'location_on',
 };
 
+// ── Tab set ────────────────────────────────────────────────────────
+type TabKey = 'overview' | 'activities' | 'opportunities' | 'documents' | 'timeline';
+const TAB_LABELS: Record<TabKey, string> = {
+  overview: 'Overview',
+  activities: 'Activities',
+  opportunities: 'Opportunities',
+  documents: 'Documents',
+  timeline: 'Timeline',
+};
+const TABS: TabKey[] = ['overview', 'activities', 'opportunities', 'documents', 'timeline'];
+
+// ── Helper: compute health score ───────────────────────────────────
+function computeHealthScore(account: CrmAccount): number {
+  const activities = account.activities ?? [];
+  const lastDate = activities.length > 0
+    ? new Date(Math.max(...activities.map(a => new Date(a.createdAt).getTime())))
+    : new Date(account.updatedAt);
+  const daysSince = Math.max(0, Math.floor((Date.now() - lastDate.getTime()) / 86400000));
+  const activeOpps = (account.opportunities ?? []).filter(
+    o => o.stage && !o.stage.isWonStage && !o.stage.isLostStage
+  ).length;
+  return Math.max(0, Math.min(100, 100 - Math.min(daysSince * 2, 60) + Math.min(activeOpps * 5, 40)));
+}
+
+function computeTenure(createdAt: string): number {
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (365.25 * 86400000));
+}
+
+// ── Component ─────────────────────────────────────────────────────
 const CrmAccountDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -54,7 +111,8 @@ const CrmAccountDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -71,7 +129,7 @@ const CrmAccountDetail = () => {
   // Validation error states
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
-  // ── Next Best Action (Task 11) ─────────────────────────────────────
+  // ── Next Best Action ─────────────────────────────────────────────
   const nba = useNextBestAction();
 
   // CRM Users for owner select
@@ -82,15 +140,14 @@ const CrmAccountDetail = () => {
   // Credit tab borrower summary
   const [creditSummary, setCreditSummary] = useState<{ borrowerCount: number; loading: boolean }>({ borrowerCount: 0, loading: true });
   useEffect(() => {
-    if (activeTab !== 'credit' || !id) return;
+    if (!id) return;
     setCreditSummary(prev => ({ ...prev, loading: true }));
     creditService.listBorrowerProfiles({ accountId: id, limit: 1 })
       .then(res => setCreditSummary({ borrowerCount: res.pagination?.total ?? res.profiles?.length ?? 0, loading: false }))
       .catch(() => setCreditSummary(prev => ({ ...prev, loading: false })));
-  }, [activeTab, id]);
+  }, [id]);
   useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
   useEffect(() => { crmService.listAccounts({ limit: 500 }).then(res => setAllAccounts(res.accounts.map((a: any) => ({ id: a.id, name: a.name })))).catch(() => {}); }, []);
-
 
   const loadNotes = () => {
     if (!id) return;
@@ -117,6 +174,16 @@ const CrmAccountDetail = () => {
     if (account?.id) nba.fetch('account', account.id);
   }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close more menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ── Handlers (all preserved from original) ───────────────────────
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -203,7 +270,7 @@ const CrmAccountDetail = () => {
     try {
       setSaving(true);
       await crmService.createNote({ content: noteContent, accountId: id });
-      loadNotes(); // refresh notes list
+      loadNotes();
       setShowAddNote(false);
       setNoteContent('');
       showToast('Note added');
@@ -298,15 +365,14 @@ const CrmAccountDetail = () => {
     finally { setSaving(false); }
   };
 
+  // ── Loading / null guards ─────────────────────────────────────────
   if (loading) return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
-          <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
-          <div className="h-3 bg-gray-200 rounded w-1/2" />
-        </div>
-      ))}
+    <div className="px-4 sm:px-8 py-4 sm:py-8" style={{ maxWidth: 1400, margin: '0 auto' }}>
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-3 space-y-4">{[...Array(4)].map((_, i) => <SkeletonLine key={i} mb={16} />)}</div>
+        <div className="col-span-6 space-y-4">{[...Array(4)].map((_, i) => <SkeletonLine key={i} mb={16} />)}</div>
+        <div className="col-span-3 space-y-4">{[...Array(4)].map((_, i) => <SkeletonLine key={i} mb={16} />)}</div>
+      </div>
     </div>
   );
 
@@ -314,630 +380,515 @@ const CrmAccountDetail = () => {
 
   const stageColors: Record<string, string> = { PROSPECTING: '#6366f1', QUALIFICATION: '#f59e0b', PROPOSAL: '#3b82f6', NEGOTIATION: '#8b5cf6', CLOSED_WON: '#22c55e', CLOSED_LOST: '#ef4444' };
 
+  const healthScore = computeHealthScore(account);
+  const tenure = computeTenure(account.createdAt);
+  const activeFacilities = (account.opportunities ?? []).filter(
+    o => o.stage && !o.stage.isWonStage && !o.stage.isLostStage
+  ).length;
+
+  // Action toolbar definitions
+  const ACTION_BUTTONS = [
+    { icon: 'history_edu', label: 'Log Call', onClick: () => { setActivityForm({ activityType: 'CALL' }); setShowAddActivity(true); } },
+    { icon: 'chat', label: 'WhatsApp', onClick: () => { setActivityForm({ activityType: 'WHATSAPP' }); setShowAddActivity(true); } },
+    { icon: 'send', label: 'Send Email', onClick: () => { setActivityForm({ activityType: 'EMAIL' }); setShowAddActivity(true); } },
+    { icon: 'upload_file', label: 'Upload Document', onClick: () => { setShowAddNote(true); } },
+    { icon: 'event', label: 'Schedule Meeting', onClick: () => { setActivityForm({ activityType: 'MEETING' }); setShowAddActivity(true); } },
+  ];
+
+  // ══════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════
   return (
     <>
-      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
-        <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
-        <span>/</span>
-        <Link to="/crm/accounts" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Accounts</Link>
-        {account.parent && (
-          <>
-            <span>/</span>
-            <Link to={`/crm/accounts/${account.parent.id}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{account.parent.name}</Link>
-          </>
-        )}
-        <span>/</span>
-        <span className="font-semibold text-text-primary">{account.name}</span>
-      </div>
+      <div className="flex min-h-[calc(100vh-48px)]" style={{ maxWidth: 1680, margin: '0 auto' }}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-black text-text-primary">{account.name}</h1>
-          <p className="text-text-secondary text-sm mt-1">{account.industry || 'No industry'} · {account.city ? `${account.city}, ` : ''}{account.country || ''}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Primary actions */}
-          <button onClick={() => setShowAddActivity(true)}
-            className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">add</span> Log Activity
-          </button>
-          <button onClick={() => setShowAddNote(true)}
-            className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
-            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">sticky_note_2</span> Add Note
-          </button>
-          {/* Secondary actions */}
-          {account.website && (
-            <a href={account.website} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-              style={{ textDecoration: 'none' }}>
-              <span className="material-symbols-outlined text-base">open_in_new</span> Website
-            </a>
-          )}
-          <button onClick={openEdit}
-            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-3 py-2 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
-            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">edit</span> Edit
-          </button>
-          {/* More dropdown (contains Delete) */}
-          <div className="relative" id="more-menu-container">
-            <button onClick={() => setShowMore(prev => !prev)}
-              className="flex items-center gap-1 border border-border px-3 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
-              style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">more_vert</span> More
-            </button>
-            {showMore && (
-              <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white rounded-xl shadow-lg border border-border py-1 z-50">
-                {hasPermission(user, 'crm:delete') && (
-                  <button onClick={() => { setShowMore(false); setShowDelete(true); }}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-medium text-danger hover:bg-red-50 transition-colors"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
-                    <span className="material-symbols-outlined text-base text-danger">delete</span> Delete Account
+        {/* ── LEFT PANEL: Customer Profile ────────────────────────── */}
+        <section className="hidden lg:flex lg:w-80 shrink-0 flex-col border-r overflow-y-auto p-4 custom-scrollbar"
+          style={{ borderColor: T.border, background: T.white, position: 'sticky', top: 0, height: 'calc(100vh - 48px)' }}
+        >
+          <Customer360Profile account={account} onEdit={openEdit} />
+        </section>
+
+        {/* ── CENTER PANEL: Workspace ─────────────────────────────── */}
+        <section className="flex-1 flex flex-col min-w-0" style={{ background: T.surface }}>
+
+          {/* Glass header */}
+          <div
+            className="shrink-0 sticky top-0 z-30 border-b px-6 py-4"
+            style={{
+              backdropFilter: 'blur(8px)',
+              background: 'rgba(255, 255, 255, 0.9)',
+              borderBottomColor: T.border,
+            }}
+          >
+            <div className="flex justify-between items-end">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3 mb-1 flex-wrap">
+                  {/* Mobile: profile toggle */}
+                  <button
+                    onClick={openEdit}
+                    className="lg:hidden p-1.5 rounded-lg mr-1"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSecondary }}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">account_circle</span>
                   </button>
+                  <h1 className="text-[24px] font-semibold leading-8 truncate" style={{ color: T.textPrimary }}>
+                    {account.name}
+                  </h1>
+                  <span
+                    className="shrink-0 text-[11px] px-2 py-0.5 rounded font-bold uppercase"
+                    style={{ background: account.isActive ? `${T.success}15` : `${T.textMuted}15`, color: account.isActive ? T.success : T.textMuted }}
+                  >
+                    {account.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-[14px] flex-wrap" style={{ color: T.textMuted }}>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">star</span>
+                    Health Score: {healthScore}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">account_circle</span>
+                    RM: {account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {hasPermission(user, 'crm:write') && (
+                  <Link to={`/crm/opportunities/new?accountId=${account.id}`}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-[13px] text-white hover:opacity-90 transition-opacity"
+                    style={{ textDecoration: 'none', background: T.teal }}>
+                    <span className="material-symbols-outlined text-[18px]">add</span> Create Opportunity
+                  </Link>
                 )}
+                {/* More menu */}
+                <div ref={moreRef} className="relative">
+                  <button
+                    onClick={() => setMoreMenuOpen(prev => !prev)}
+                    className="flex items-center px-3 py-2 rounded-lg font-bold text-[13px] border hover:bg-[#f8f9ff] transition-colors"
+                    style={{ background: T.white, borderColor: T.border, color: T.textSecondary, cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">more_horiz</span>
+                  </button>
+                  {moreMenuOpen && (
+                    <div
+                      className="absolute right-0 top-full mt-1.5 w-56 p-1.5 z-50"
+                      style={{ background: T.white, borderRadius: '8px', border: `1px solid ${T.border}`, boxShadow: T.shadow }}
+                    >
+                      <button
+                        onClick={() => { setMoreMenuOpen(false); openEdit(); }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[13px] font-semibold transition-colors rounded-[6px] hover:bg-[#f1f5f9]"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSecondary, textAlign: 'left' }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span> Edit Account
+                      </button>
+                      {hasPermission(user, 'crm:delete') && (
+                        <button
+                          onClick={() => { setMoreMenuOpen(false); setShowDelete(true); }}
+                          className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[13px] font-semibold transition-colors rounded-[6px] hover:bg-red-50"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.error, textAlign: 'left' }}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">delete</span> Delete Account
+                        </button>
+                      )}
+                      {hasPermission(user, 'credit:read') && (
+                        <Link
+                          to={`/credit/borrowers?accountId=${account.id}`}
+                          onClick={() => setMoreMenuOpen(false)}
+                          className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[13px] font-semibold transition-colors rounded-[6px] hover:bg-[#f1f5f9]"
+                          style={{ textDecoration: 'none', color: T.textSecondary }}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">credit_score</span> Credit Module
+                        </Link>
+                      )}
+                      <button
+                        onClick={() => { setMoreMenuOpen(false); setActiveTab('timeline'); }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2.5 text-[13px] font-semibold transition-colors rounded-[6px] hover:bg-[#f1f5f9]"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSecondary, textAlign: 'left' }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">history</span> Audit Log
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Stat chips */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        {([
-          { label: 'Contacts', value: account._count?.contacts ?? account.contacts?.length ?? 0, icon: 'person', tab: 'contacts' as const },
-          { label: 'Deals', value: account._count?.opportunities ?? account.opportunities?.length ?? 0, icon: 'handshake', tab: 'deals' as const },
-          { label: 'Leads', value: account._count?.leads ?? account.leads?.length ?? 0, icon: 'trending_up', tab: 'overview' as const },
-          { label: 'Revenue', value: formatCurrency(account.annualRevenue), icon: 'payments', tab: 'deals' as const },
-        ] as { label: string; value: number | string; icon: string; tab: 'contacts' | 'deals' | 'overview' }[])
-          .concat(
-            account.children && account.children.length > 0
-              ? [{ label: 'Subsidiary Deals Value', value: `${account.children.length} subsidiaries`, icon: 'account_tree' as const, tab: 'overview' as const }]
-              : []
-          ).map(s => (
-          <button key={s.label} onClick={() => setActiveTab(s.tab)}
-            className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm hover:border-brand-300 hover:bg-brand-50 transition-colors cursor-pointer"
-            style={{ background: 'none', border: '1px solid var(--color-border)', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
-            <span className="font-bold text-text-primary">{s.value}</span>
-            <span className="text-text-secondary">{s.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* AI Suggested Actions */}
-      {nba.loading && !nba.data && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
-          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
-        </div>
-      )}
-      {nba.data && nba.data.actions?.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
-          {nba.data.actions.map((a, i) => {
-            // Wire action keywords to pre-filled activity modal
-            const actionText = a.action.toLowerCase();
-            let activityType: CrmActivityType | null = null;
-            if (actionText.includes('call')) activityType = 'CALL';
-            else if (actionText.includes('email') || actionText.includes('follow-up') || actionText.includes('follow up')) activityType = 'EMAIL';
-            else if (actionText.includes('meeting') || actionText.includes('schedule')) activityType = 'MEETING';
-            else if (actionText.includes('whatsapp')) activityType = 'WHATSAPP';
-            else if (actionText.includes('site visit') || actionText.includes('visit')) activityType = 'SITE_VISIT';
-            const handleClick = activityType
-              ? () => { setActivityForm({ activityType, subject: a.action }); setShowAddActivity(true); }
-              : undefined;
-            return (
-              <span key={i}
-                onClick={handleClick}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border ${handleClick ? 'cursor-pointer hover:bg-brand-50 hover:border-brand-300 transition-colors' : ''}`}
-                title={a.reason}
-                role={handleClick ? 'button' : undefined}
-                tabIndex={handleClick ? 0 : undefined}
+          {/* Action toolbar */}
+          <div
+            className="shrink-0 px-6 py-3 border-b flex gap-6 overflow-x-auto"
+            style={{ background: T.white, borderBottomColor: T.border }}
+          >
+            {ACTION_BUTTONS.map(btn => (
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                className="flex items-center gap-2 text-[14px] font-medium hover:opacity-70 transition-opacity whitespace-nowrap"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSecondary, fontFamily: 'var(--font-sans)' }}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
-                {a.action}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-border mb-6" role="tablist" aria-label="Account detail tabs">
-        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'audit'] as const).map(tab => {
-          const tabId = `tab-${tab}`;
-          const panelId = `panel-${tab}`;
-          return (
-            <button key={tab} id={tabId} role="tab" aria-selected={activeTab === tab} aria-controls={panelId}
-              onClick={() => setActiveTab(tab)}
-              onKeyDown={(e) => {
-                const tabs = ['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'audit'] as const;
-                const idx = tabs.indexOf(tab);
-                if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(tabs[(idx + 1) % tabs.length]); document.getElementById(`tab-${tabs[(idx + 1) % tabs.length]}`)?.focus(); }
-                else if (e.key === 'ArrowLeft') { e.preventDefault(); setActiveTab(tabs[(idx - 1 + tabs.length) % tabs.length]); document.getElementById(`tab-${tabs[(idx - 1 + tabs.length) % tabs.length]}`)?.focus(); }
-              }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
-              className={`px-4 py-2 text-sm border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700 font-bold' : 'border-transparent text-text-secondary font-semibold hover:text-text-primary'}`}>
-              {tab === 'credit' ? 'Credit' : tab === 'audit' ? 'Audit Log' : tab}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Overview tab */}
-      {activeTab === 'overview' && (
-        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Account Information</h3>
-            {/* Editable fields — all edits route through the Edit Account modal */}
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Name</span>
-              <span className="text-sm text-text-primary">{account.name || '—'}</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">factory</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Industry</span>
-              <span className="text-sm text-text-primary">{account.industry || '—'}</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">groups</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Company Size</span>
-              <span className="text-sm text-text-primary">{account.companySize || '—'}</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">language</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Website</span>
-              {account.website ? (
-                <a href={account.website} target="_blank" rel="noreferrer" className="text-sm text-brand-700 hover:underline">{account.website}</a>
-              ) : (
-                <span className="text-sm text-text-primary">—</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">call</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Phone</span>
-              {account.phone ? (
-                <a href={`tel:${account.phone}`} className="text-sm text-brand-700 hover:underline">{account.phone}</a>
-              ) : (
-                <span className="text-sm text-text-primary">—</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">mail</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Email</span>
-              {account.email ? (
-                <a href={`mailto:${account.email}`} className="text-sm text-brand-700 hover:underline">{account.email}</a>
-              ) : (
-                <span className="text-sm text-text-primary">—</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Annual Revenue</span>
-              <span className="text-sm text-text-primary">{formatCurrency(account.annualRevenue)}</span>
-            </div>
-            {/* Owner — display only; editable via Edit Account modal (crm:write + crm:admin) */}
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Owner</span>
-              <span className="text-sm text-text-primary">{account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—'}</span>
-            </div>
-            {/* Read-only fields */}
-            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Registration No.</span>
-              <span className="text-sm text-text-primary flex-1">{account.registrationNumber || '—'}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">receipt_long</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Tax No.</span>
-              <span className="text-sm text-text-primary flex-1">{account.taxNumber || '—'}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">account_balance</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Bank Account</span>
-              <span className="text-sm text-text-primary flex-1">{account.bankAccount || '—'}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Active</span>
-              <span className="text-sm text-text-primary flex-1">{account.isActive ? 'Yes' : 'No'}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Created</span>
-              <span className="text-sm text-text-primary flex-1">{formatDate(account.createdAt)}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 bg-bg-subtle/50 rounded px-1 opacity-80">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">update</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Updated</span>
-              <span className="text-sm text-text-primary flex-1">{formatDate(account.updatedAt)}</span>
-              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
-            </div>
+                <span className="material-symbols-outlined text-[20px]">{btn.icon}</span> {btn.label}
+              </button>
+            ))}
           </div>
-          {/* Parent & Children hierarchy card */}
-          {(account.parent || (account.children && account.children.length > 0)) && (
-            <div className="bg-bg-surface border border-border rounded-xl p-5">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Hierarchy</h3>
-              {account.parent && (
-                <div className="flex items-center gap-3 py-2 border-b border-border">
-                  <span className="material-symbols-outlined text-base text-text-secondary w-5">account_tree</span>
-                  <span className="text-xs text-text-secondary w-28 shrink-0">Parent</span>
-                  <Link to={`/crm/accounts/${account.parent.id}`} style={{ textDecoration: 'none' }} className="text-sm text-brand-700 hover:underline">{account.parent.name}</Link>
-                </div>
-              )}
-              {account.children && account.children.length > 0 && (
-                <div className="pt-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-sm text-text-secondary">family_restroom</span>
-                    <span className="text-xs font-semibold text-text-secondary">Subsidiaries ({account.children.length})</span>
-                  </div>
-                  {account.children.map(c => (
-                    <Link key={c.id} to={`/crm/accounts/${c.id}`} style={{ textDecoration: 'none' }}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-bg-subtle transition-colors group">
-                      <span className="material-symbols-outlined text-sm text-text-secondary">business</span>
-                      <span className="text-sm text-text-primary group-hover:text-brand-700">{c.name}</span>
-                      {c.industry && <span className="text-xs text-text-secondary ml-auto">{c.industry}</span>}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {/* Address card */}
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Address</h3>
-            {account.address || account.city || account.state || account.postalCode || account.country ? (
-              <div className="text-sm text-text-primary space-y-0.5">
-                {account.address && <p>{account.address}</p>}
-                <p>{[account.city, account.state, account.postalCode].filter(Boolean).join(', ')}</p>
-                {account.country && <p>{account.country}</p>}
-              </div>
-            ) : (
-              <p className="text-sm text-text-secondary italic">No address added — click Edit to add one.</p>
-            )}
-          </div>
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Description</h3>
-            {account.description ? (
-              <p className="text-sm text-text-primary leading-relaxed">{account.description}</p>
-            ) : (
-              <p className="text-sm text-text-secondary italic">No description added — click Edit to add one.</p>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Contacts tab */}
-      {activeTab === 'contacts' && (
-        <div id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-text-primary">Contacts</h3>
-            {hasPermission(user, 'crm:write') && (
-              <Link to={`/crm/contacts/new?accountId=${account.id}`}
-                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">person_add</span> Add Contact
-              </Link>
-            )}
-          </div>
-          {(account.contacts ?? []).length === 0 && <EmptyState icon="person" title="No contacts yet" description="Add contacts to this account." />}
-          {(account.contacts ?? []).map(c => (
-            <Link key={c.id} to={`/crm/contacts/${c.id}`} style={{ textDecoration: 'none' }}>
-              <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
-                <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm shrink-0">
-                  {c.firstName[0]}{c.lastName[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-text-primary text-sm">{c.firstName} {c.lastName} {c.isPrimary && <span className="ml-1 text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">Primary</span>}</p>
-                  <p className="text-xs text-text-secondary truncate">{c.jobTitle || ''}{c.jobTitle && c.email ? ' · ' : ''}{c.email ? <a href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} className="hover:underline text-brand-700">{c.email}</a> : ''}</p>
-                </div>
-                {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} className="text-xs text-brand-700 hover:underline hidden sm:block">{c.phone}</a>}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Deals tab */}
-      {activeTab === 'deals' && (
-        <div id="panel-deals" role="tabpanel" aria-labelledby="tab-deals" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-text-primary">Deals</h3>
-            {hasPermission(user, 'crm:write') && (
-              <Link to={`/crm/opportunities/new?accountId=${account.id}`}
-                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">add_business</span> Create Opportunity
-              </Link>
-            )}
-          </div>
-          {(account.opportunities ?? []).length === 0 && <EmptyState icon="handshake" title="No deals yet" description="Create opportunities for this account." />}
-          {(account.opportunities ?? []).map(o => (
-            <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
-              <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-text-primary text-sm">{o.name}</p>
-                  <p className="text-xs text-text-secondary">{o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : ''}</p>
-                </div>
-                <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: `${stageColors[o.stage?.name ?? ''] ?? '#6366f1'}20`, color: stageColors[o.stage?.name ?? ''] ?? '#6366f1' }}>
-                  {o.stage?.name ?? '—'}
-                </span>
-                <span className="text-sm font-bold text-text-primary">{formatCurrency(o.value)}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {/* Activities tab */}
-      {activeTab === 'activities' && (
-        <div id="panel-activities" role="tabpanel" aria-labelledby="tab-activities" className="space-y-3">
-          {/* Filter & Sort */}
-          <div className="flex flex-wrap items-center gap-2 justify-between">
-            <div className="flex flex-wrap gap-1.5">
-              {(['ALL', 'CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as const).map(type => (
-                <button key={type} onClick={() => setActivityFilter(type)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                    activityFilter === type
-                      ? 'bg-brand-700 text-white border-brand-700'
-                      : 'bg-bg-surface text-text-secondary border-border hover:bg-bg-subtle hover:border-brand-300'
-                  }`}
-                  style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {type === 'ALL' ? 'All' : type.replace('_', ' ')}
+          {/* Tab navigation */}
+          <div className="shrink-0 px-6 border-b" style={{ background: T.white, borderBottomColor: T.border }}>
+            <div className="flex gap-8" role="tablist" aria-label="Account detail tabs">
+              {TABS.map(tab => (
+                <button
+                  key={tab}
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  aria-controls={`panel-${tab}`}
+                  onClick={() => setActiveTab(tab)}
+                  className="py-4 text-[14px] transition-colors border-b-2 -mb-px"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                    borderBottomColor: activeTab === tab ? T.teal : 'transparent',
+                    color: activeTab === tab ? T.teal : T.textMuted,
+                    fontWeight: activeTab === tab ? 600 : 500,
+                  }}
+                >
+                  {TAB_LABELS[tab]}
                 </button>
               ))}
             </div>
-            <select value={activitySort} onChange={e => setActivitySort(e.target.value as 'newest' | 'oldest')}
-              className="border border-border rounded-lg px-2 py-1.5 text-xs font-semibold text-text-secondary bg-bg-surface"
-              style={{ fontFamily: 'var(--font-sans)' }}>
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
           </div>
-          {(() => {
-            let filtered = (account.activities ?? []).slice();
-            if (activityFilter !== 'ALL') filtered = filtered.filter(a => a.activityType === activityFilter);
-            filtered.sort((a, b) => activitySort === 'newest'
-              ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            );
-            if (filtered.length === 0) return <EmptyState icon="timeline" title={activityFilter !== 'ALL' ? `No ${activityFilter.replace('_',' ')} activities` : 'No activities yet'} description="Log activities to track interactions." />;
-            return filtered.map(a => (
-            <div key={a.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
-              <span className="material-symbols-outlined text-brand-700 mt-0.5">{ACTIVITY_ICONS[a.activityType]}</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-text-primary text-sm">{a.subject}</p>
-                {a.description && <p className="text-xs text-text-secondary mt-0.5">{a.description}</p>}
-                <p className="text-xs text-text-secondary mt-1">{a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
-                  {a.scheduledAt && <span className="ml-2 text-brand-600">Scheduled: {formatDate(a.scheduledAt)}</span>}
-                  {a.scheduledAt && !a.completedAt && new Date(a.scheduledAt) < new Date() && (
-                    <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                      <span className="material-symbols-outlined" style={{fontSize:11}}>warning</span>
-                      Overdue
-                    </span>
+
+          {/* ── Tab content ─────────────────────────────────────────── */}
+          <div className="p-6 space-y-6">
+
+            {/* Overview tab */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* KPI cards */}
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+                    <Customer360KpiCard
+                      label="Tenure"
+                      value={`${tenure} Year${tenure !== 1 ? 's' : ''}`}
+                      subtext={`Since ${formatShortDate(account.createdAt)}`}
+                      valueColor={T.teal}
+                    />
+                  </div>
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+                    <Customer360KpiCard
+                      label="Active Facilities"
+                      value={String(activeFacilities).padStart(2, '0')}
+                      subtext={(account.opportunities ?? []).filter(o => o.stage && !o.stage.isWonStage && !o.stage.isLostStage).slice(0, 2).map(o => o.name).join(', ') || 'None'}
+                    />
+                  </div>
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-4">
+                    <Customer360KpiCard
+                      label="Total Debt Service Ratio"
+                      value="N/A"
+                      subtext="Requires CTOS/CCRIS integration"
+                      valueColor={T.textMuted}
+                    />
+                  </div>
+                </div>
+
+                {/* Open Opportunities table */}
+                <Customer360OpportunitiesTable
+                  opportunities={account.opportunities ?? []}
+                  onViewAll={() => setActiveTab('opportunities')}
+                />
+
+                {/* Recent Activity timeline */}
+                <Customer360ActivityTimeline activities={account.activities ?? []} />
+
+                {/* Hierarchy info (if parent/children) */}
+                {(account.parent || (account.children && account.children.length > 0)) && (
+                  <div className="bg-white rounded-xl border shadow-sm p-5" style={{ borderColor: T.border }}>
+                    <h3 className="text-[16px] font-semibold mb-3" style={{ color: T.textPrimary }}>Account Hierarchy</h3>
+                    {account.parent && (
+                      <div className="flex items-center gap-3 py-2 border-b" style={{ borderColor: T.border }}>
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: T.textMuted }}>account_tree</span>
+                        <span className="text-[12px] font-medium shrink-0 w-20" style={{ color: T.textMuted }}>Parent</span>
+                        <Link to={`/crm/accounts/${account.parent.id}`} style={{ textDecoration: 'none', color: T.teal }} className="text-[13px] font-semibold hover:underline">
+                          {account.parent.name}
+                        </Link>
+                      </div>
+                    )}
+                    {account.children && account.children.length > 0 && (
+                      <div className="pt-2 space-y-1">
+                        <p className="text-[12px] font-semibold mb-1" style={{ color: T.textMuted }}>
+                          Subsidiaries ({account.children.length})
+                        </p>
+                        {account.children.map(c => (
+                          <Link key={c.id} to={`/crm/accounts/${c.id}`} style={{ textDecoration: 'none' }}
+                            className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-[#f8f9ff] transition-colors">
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: T.textMuted }}>business</span>
+                            <span className="text-[13px] font-medium" style={{ color: T.textPrimary }}>{c.name}</span>
+                            {c.industry && <span className="text-[11px] ml-auto" style={{ color: T.textMuted }}>{c.industry}</span>}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Description */}
+                {account.description && (
+                  <div className="bg-white rounded-xl border shadow-sm p-5" style={{ borderColor: T.border }}>
+                    <h3 className="text-[16px] font-semibold mb-2" style={{ color: T.textPrimary }}>Description</h3>
+                    <p className="text-[13px] leading-relaxed" style={{ color: T.textSecondary }}>{account.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Activities tab */}
+            {activeTab === 'activities' && (
+              <div id="panel-activities" role="tabpanel" aria-labelledby="tab-activities" className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 justify-between">
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['ALL', 'CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as const).map(type => (
+                      <button key={type} onClick={() => setActivityFilter(type)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                          activityFilter === type
+                            ? 'text-white border-transparent'
+                            : 'text-[#45464d] border-[#e2e8f0] hover:bg-[#f8f9ff]'
+                        }`}
+                        style={{
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-sans)',
+                          background: activityFilter === type ? T.teal : T.white,
+                        }}>
+                        {type === 'ALL' ? 'All' : type.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                  <select value={activitySort} onChange={e => setActivitySort(e.target.value as 'newest' | 'oldest')}
+                    className="border border-[#e2e8f0] rounded-lg px-2 py-1.5 text-xs font-semibold bg-white"
+                    style={{ fontFamily: 'var(--font-sans)', color: T.textSecondary }}>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                  </select>
+                </div>
+                {(() => {
+                  let filtered = (account.activities ?? []).slice();
+                  if (activityFilter !== 'ALL') filtered = filtered.filter(a => a.activityType === activityFilter);
+                  filtered.sort((a, b) => activitySort === 'newest'
+                    ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                  );
+                  if (filtered.length === 0) return <EmptyState icon="timeline" title={activityFilter !== 'ALL' ? `No ${activityFilter.replace('_',' ')} activities` : 'No activities yet'} description="Log activities to track interactions." />;
+                  return filtered.map(a => (
+                    <div key={a.id} className="flex gap-4 bg-white border border-[#e2e8f0] rounded-xl p-4 hover:bg-[#f8f9ff] transition-colors">
+                      <span className="material-symbols-outlined text-[18px] mt-0.5" style={{ color: T.teal }}>{ACTIVITY_ICONS[a.activityType]}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-[13px]" style={{ color: T.textPrimary }}>{a.subject}</p>
+                        {a.description && <p className="text-[12px] mt-0.5" style={{ color: T.textMuted }}>{a.description}</p>}
+                        <p className="text-[12px] mt-1" style={{ color: T.textMuted }}>
+                          {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
+                          {a.scheduledAt && <span className="ml-2" style={{ color: T.teal }}>Scheduled: {formatDate(a.scheduledAt)}</span>}
+                          {a.scheduledAt && !a.completedAt && new Date(a.scheduledAt) < new Date() && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: '#fef2f2', color: T.error }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 11 }}>warning</span> Overdue
+                            </span>
+                          )}
+                          {a.reminderSent && (
+                            <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: '#f0fdf4', color: T.success }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 10 }}>notifications_active</span> Reminded
+                            </span>
+                          )}
+                          {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
+                            <button onClick={() => handleSetReminder(a.id)}
+                              className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full hover:bg-[#ccfbf1] transition-colors"
+                              style={{ color: T.teal, border: 'none', cursor: 'pointer', background: 'none' }}
+                              title="Send a reminder for this scheduled activity"
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 10 }}>notifications</span> Set Reminder
+                            </button>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {hasPermission(user, 'crm:edit') && (
+                          <button onClick={() => openEditActivity(a)} title="Edit activity"
+                            className="p-1 rounded hover:bg-[#f1f5f9] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                            <span className="material-symbols-outlined text-[16px]" style={{ color: T.textMuted }}>edit</span>
+                          </button>
+                        )}
+                        {hasPermission(user, 'crm:delete') && (
+                          <button onClick={() => { setDeletingActivity(a); setShowDeleteActivity(true); }} title="Delete activity"
+                            className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                            <span className="material-symbols-outlined text-[16px]" style={{ color: T.error }}>delete</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ));
+                })()}
+                {hasMoreActivities && (account.activities ?? []).length > 0 && (
+                  <div className="flex justify-center mt-4">
+                    <button onClick={loadMoreActivities} disabled={loadingMoreActivities}
+                      className="flex items-center gap-2 border border-[#e2e8f0] px-6 py-2 rounded-lg text-[13px] font-semibold hover:bg-[#f1f5f9] transition-colors disabled:opacity-50"
+                      style={{ background: T.white, cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>
+                      {loadingMoreActivities ? (
+                        <><span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>Loading…</>
+                      ) : (
+                        <><span className="material-symbols-outlined text-[16px]">expand_more</span>Load More</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Opportunities tab */}
+            {activeTab === 'opportunities' && (
+              <div id="panel-opportunities" role="tabpanel" aria-labelledby="tab-opportunities" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-semibold" style={{ color: T.textPrimary }}>Opportunities</h3>
+                  {hasPermission(user, 'crm:write') && (
+                    <Link to={`/crm/opportunities/new?accountId=${account.id}`}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
+                      style={{ textDecoration: 'none', background: T.teal }}>
+                      <span className="material-symbols-outlined text-[16px]">add_business</span> Create Opportunity
+                    </Link>
                   )}
-                  {a.reminderSent && (
-                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded-full">
-                      <span className="material-symbols-outlined text-[10px]">notifications_active</span>
-                      Reminded
-                    </span>
-                  )}
-                  {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
-                    <button
-                      onClick={() => handleSetReminder(a.id)}
-                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
-                      style={{ border: 'none', cursor: 'pointer', background: 'none' }}
-                      title="Send a reminder for this scheduled activity"
-                    >
-                      <span className="material-symbols-outlined text-[10px]">notifications</span>
-                      Set Reminder
+                </div>
+                {(account.opportunities ?? []).length === 0 && <EmptyState icon="handshake" title="No deals yet" description="Create opportunities for this account." />}
+                {(account.opportunities ?? []).map(o => (
+                  <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
+                    <div className="flex items-center gap-4 bg-white border border-[#e2e8f0] rounded-xl p-4 hover:border-[#86f2e4] transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-[13px]" style={{ color: T.textPrimary }}>{o.name}</p>
+                        <p className="text-[12px]" style={{ color: T.textMuted }}>{o.owner ? `${o.owner.firstName} ${o.owner.lastName}` : ''}</p>
+                      </div>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: `${stageColors[o.stage?.name ?? ''] ?? '#6366f1'}15`, color: stageColors[o.stage?.name ?? ''] ?? '#6366f1' }}>
+                        {o.stage?.name ?? '—'}
+                      </span>
+                      <span className="font-[JetBrains_Mono] text-[13px] font-medium" style={{ color: T.textPrimary }}>{formatCurrency(o.value)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Documents tab (was Notes) */}
+            {activeTab === 'documents' && (
+              <div id="panel-documents" role="tabpanel" aria-labelledby="tab-documents" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-semibold" style={{ color: T.textPrimary }}>Documents & Notes</h3>
+                  {hasPermission(user, 'crm:write') && (
+                    <button onClick={() => setShowAddNote(true)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
+                      style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', background: T.teal }}>
+                      <span className="material-symbols-outlined text-[16px]">sticky_note_2</span> Add Note
                     </button>
                   )}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {hasPermission(user, 'crm:edit') && (
-                  <button onClick={() => openEditActivity(a)} title="Edit activity"
-                    className="p-1 rounded hover:bg-bg-subtle transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <span className="material-symbols-outlined text-text-secondary text-base">edit</span>
-                  </button>
-                )}
-                {hasPermission(user, 'crm:delete') && (
-                  <button onClick={() => { setDeletingActivity(a); setShowDeleteActivity(true); }} title="Delete activity"
-                    className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <span className="material-symbols-outlined text-danger text-base">delete</span>
-                  </button>
-                )}
-              </div>
-              <span className="text-xs text-text-secondary shrink-0">{a.activityType}</span>
-            </div>
-          ));
-          })()}
-          {hasMoreActivities && (account.activities ?? []).length > 0 && (
-            <div className="flex justify-center mt-4">
-              <button
-                onClick={loadMoreActivities}
-                disabled={loadingMoreActivities}
-                className="flex items-center gap-2 border border-border px-6 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: 'var(--bg-surface)', cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
-              >
-                {loadingMoreActivities ? (
-                  <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span>Loading…</>
-                ) : (
-                  <><span className="material-symbols-outlined text-base">expand_more</span>Load More</>
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Notes tab */}
-      {activeTab === 'notes' && (
-        <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" className="space-y-3">
-          {notesLoading ? (
-            <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
-          ) : notes.length === 0 ? (
-            <EmptyState icon="sticky_note_2" title="No notes yet" description="Add notes to keep track of important information." />
-          ) : notes.map(n => (
-            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
-                  <div className="text-sm text-text-primary leading-relaxed prose prose-sm max-w-none">
-                    <ReactMarkdown>{n.content}</ReactMarkdown>
+                </div>
+                {notesLoading ? (
+                  <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
+                ) : notes.length === 0 ? (
+                  <EmptyState icon="sticky_note_2" title="No notes yet" description="Add notes to keep track of important information." />
+                ) : notes.map(n => (
+                  <div key={n.id} className={`bg-white border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-[#e2e8f0]'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {n.isPinned && <span className="flex items-center gap-1 text-[12px] mb-2" style={{ color: '#ca8a04' }}><span className="material-symbols-outlined text-[14px]">push_pin</span>Pinned</span>}
+                        <div className="text-[13px] leading-relaxed prose prose-sm max-w-none" style={{ color: T.textPrimary }}>
+                          <ReactMarkdown>{n.content}</ReactMarkdown>
+                        </div>
+                        <p className="text-[12px] mt-2" style={{ color: T.textMuted }}>{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleTogglePinNote(n)} title={n.isPinned ? 'Unpin note' : 'Pin note'}
+                          className="p-1 rounded hover:bg-yellow-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <span className={`material-symbols-outlined text-[16px] ${n.isPinned ? 'text-yellow-500' : ''}`} style={{ color: n.isPinned ? undefined : T.textMuted }}>push_pin</span>
+                        </button>
+                        <button onClick={() => { setEditingNote(n); setEditNoteContent(n.content); }} title="Edit note"
+                          className="p-1 rounded hover:bg-[#f1f5f9] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <span className="material-symbols-outlined text-[16px]" style={{ color: T.textMuted }}>edit</span>
+                        </button>
+                        <button onClick={() => { setDeletingNote(n); setShowDeleteNote(true); }} title="Delete note"
+                          className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <span className="material-symbols-outlined text-[16px]" style={{ color: T.error }}>delete</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => handleTogglePinNote(n)} title={n.isPinned ? 'Unpin note' : 'Pin note'}
-                    className="p-1 rounded hover:bg-yellow-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <span className={`material-symbols-outlined text-base ${n.isPinned ? 'text-yellow-500' : 'text-text-secondary'}`}>push_pin</span>
-                  </button>
-                  <button onClick={() => { setEditingNote(n); setEditNoteContent(n.content); }} title="Edit note"
-                    className="p-1 rounded hover:bg-bg-subtle transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <span className="material-symbols-outlined text-base text-text-secondary">edit</span>
-                  </button>
-                  <button onClick={() => { setDeletingNote(n); setShowDeleteNote(true); }} title="Delete note"
-                    className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <span className="material-symbols-outlined text-base text-danger">delete</span>
-                  </button>
-                </div>
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
 
-      {/* Credit tab — deep link to Credit/Borrower Profiles */}
-      {activeTab === 'credit' && (
-        <div id="panel-credit" role="tabpanel" aria-labelledby="tab-credit" className="space-y-4">
-          {/* Borrower Summary */}
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Borrower Summary</h3>
-            {creditSummary.loading ? (
-              <div className="animate-pulse space-y-2">
-                <div className="h-5 bg-gray-200 rounded w-1/3" />
-                <div className="h-4 bg-gray-200 rounded w-2/3" />
-              </div>
-            ) : (
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-2xl font-black text-text-primary">{creditSummary.borrowerCount}</p>
-                  <p className="text-xs text-text-secondary">Borrower profiles</p>
-                </div>
-                <div className="flex-1" />
-                <Link to={`/credit/borrowers?accountId=${account.id}`}
-                  className="flex items-center gap-2 text-sm text-brand-700 font-bold hover:underline"
-                  style={{ textDecoration: 'none' }}>
-                  View all <span className="material-symbols-outlined text-base">arrow_forward</span>
-                </Link>
+            {/* Timeline tab (Audit Log) */}
+            {activeTab === 'timeline' && account && (
+              <div id="panel-timeline" role="tabpanel" aria-labelledby="tab-timeline">
+                <CrmAuditLog entityType="account" entityId={account.id} />
               </div>
             )}
           </div>
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Credit Module</h3>
-            <p className="text-sm text-text-secondary mb-4">View and manage borrower profiles, credit applications, and documents for this account from the Credit module.</p>
-            <div className="flex gap-3 flex-wrap">
-              <Link
-                to={`/credit/borrowers?accountId=${account.id}`}
-                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                style={{ textDecoration: 'none' }}
-              >
-                <span className="material-symbols-outlined text-base">person</span> View Borrower Profiles
-              </Link>
-              <Link
-                to="/credit/applications"
-                className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
-                style={{ textDecoration: 'none', color: 'var(--color-text-primary)' }}
-              >
-                <span className="material-symbols-outlined text-base">description</span> Credit Applications
-              </Link>
-              <Link
-                to="/credit"
-                className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
-                style={{ textDecoration: 'none', color: 'var(--color-text-primary)' }}
-              >
-                <span className="material-symbols-outlined text-base">dashboard</span> Credit Dashboard
-              </Link>
-            </div>
-          </div>
-          <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-brand-600 text-xl shrink-0 mt-0.5">info</span>
-            <div>
-              <p className="text-sm font-semibold text-brand-800">Cross-module navigation</p>
-              <p className="text-xs text-brand-700 mt-0.5">Clicking "View Borrower Profiles" will take you to the Credit module, pre-filtered to show borrower profiles linked to this account ({account.name}).</p>
-            </div>
-          </div>
-        </div>
-      )}
+        </section>
 
-      {/* Audit Log tab */}
-      {activeTab === 'audit' && account && (
-        <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit">
-          <CrmAuditLog entityType="account" entityId={account.id} />
-        </div>
-      )}
+        {/* ── RIGHT PANEL: Insights ───────────────────────────────── */}
+        <section className="hidden xl:flex xl:w-80 shrink-0 flex-col border-l overflow-y-auto p-4 custom-scrollbar"
+          style={{ borderColor: T.border, background: T.surfaceLow, position: 'sticky', top: 0, height: 'calc(100vh - 48px)' }}
+        >
+          <Customer360Insights account={account} nba={nba} />
+        </section>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          MODALS — all preserved from original, styling updated
+         ══════════════════════════════════════════════════════════════ */}
 
       {/* Add Activity modal */}
       {showAddActivity && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Log Activity</h2>
+            <h2 className="text-[18px] font-bold mb-4" style={{ color: T.textPrimary }}>Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                  <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Scheduled At</label>
                   <input type="datetime-local" value={activityForm.scheduledAt ?? ''} onChange={e => setActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Completed At</label>
+                  <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Completed At</label>
                   <input type="datetime-local" value={activityForm.completedAt ?? ''} onChange={e => setActivityForm(f => ({ ...f, completedAt: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                    className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Duration (minutes)</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Duration (minutes)</label>
                 <input type="number" min={0} value={activityForm.durationMinutes ?? ''} onChange={e => setActivityForm(f => ({ ...f, durationMinutes: e.target.value ? Number(e.target.value) : null }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-[#e2e8f0] hover:bg-[#f1f5f9] transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-4 py-2 text-[13px] font-bold rounded-lg text-white hover:opacity-90 transition-opacity"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', background: T.teal }}>
                   {saving ? 'Saving…' : 'Log Activity'}
                 </button>
               </div>
@@ -951,47 +902,47 @@ const CrmAccountDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEditActivity(false); setEditingActivity(null); setEditActivityForm({}); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Edit Activity</h2>
+            <h2 className="text-[18px] font-bold mb-4" style={{ color: T.textPrimary }}>Edit Activity</h2>
             <form onSubmit={handleEditActivity} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Type</label>
                 <select value={editActivityForm.activityType ?? 'CALL'} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Subject *</label>
                 <input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Description</label>
                 <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Scheduled At</label>
                 <input type="datetime-local" value={editActivityForm.scheduledAt ? editActivityForm.scheduledAt.slice(0, 16) : ''} onChange={e => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Completed At</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Completed At</label>
                 <input type="datetime-local" value={editActivityForm.completedAt ? editActivityForm.completedAt.slice(0, 16) : ''} onChange={e => setEditActivityForm(f => ({ ...f, completedAt: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Duration (minutes)</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Duration (minutes)</label>
                 <input type="number" min={0} value={editActivityForm.durationMinutes ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, durationMinutes: e.target.value ? Number(e.target.value) : null }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px]" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowEditActivity(false); setEditingActivity(null); setEditActivityForm({}); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-[#e2e8f0] hover:bg-[#f1f5f9] transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-4 py-2 text-[13px] font-bold rounded-lg text-white hover:opacity-90 transition-opacity"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', background: T.teal }}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
@@ -1016,20 +967,20 @@ const CrmAccountDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddNote(false); setNoteContent(''); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Add Note</h2>
+            <h2 className="text-[18px] font-bold mb-4" style={{ color: T.textPrimary }}>Add Note</h2>
             <form onSubmit={handleAddNote} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Note *</label>
                 <textarea required rows={5} value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddNote(false); setNoteContent(''); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-[#e2e8f0] hover:bg-[#f1f5f9] transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-4 py-2 text-[13px] font-bold rounded-lg text-white hover:opacity-90 transition-opacity"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', background: T.teal }}>
                   {saving ? 'Saving…' : 'Add Note'}
                 </button>
               </div>
@@ -1043,20 +994,20 @@ const CrmAccountDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Edit Note</h2>
+            <h2 className="text-[18px] font-bold mb-4" style={{ color: T.textPrimary }}>Edit Note</h2>
             <form onSubmit={handleEditNote} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Note *</label>
                 <textarea required rows={5} value={editNoteContent} onChange={e => setEditNoteContent(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                  className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-[#e2e8f0] hover:bg-[#f1f5f9] transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  className="px-4 py-2 text-[13px] font-bold rounded-lg text-white hover:opacity-90 transition-opacity"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', background: T.teal }}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
@@ -1081,135 +1032,139 @@ const CrmAccountDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle shrink-0">
-              <h2 className="text-lg font-extrabold text-text-primary">Edit Account</h2>
-              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            <div className="flex items-center justify-between p-6 border-b shrink-0" style={{ borderColor: T.borderSubtle }}>
+              <h2 className="text-[18px] font-bold" style={{ color: T.textPrimary }}>Edit Account</h2>
+              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined" style={{ color: T.textMuted }}>close</span></button>
             </div>
             <form onSubmit={handleEditSave} className="flex flex-col flex-1 min-h-0">
               <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Name *</label>
-                <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
-                {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Parent Account</label>
-                <select value={editForm.parentAccountId ?? ''} onChange={e => setEditForm(f => ({ ...f, parentAccountId: e.target.value || null }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all">
-                  <option value="">None (top-level)</option>
-                  {allAccounts.filter(a => a.id !== id).map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Registration No.</label>
-                  <input value={editForm.registrationNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, registrationNumber: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Name *</label>
+                  <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className={`w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`}
+                    style={{ borderColor: T.border }} />
+                  {formErrors.some(e => e.field === 'name') && (<p className="text-[12px] text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Tax No.</label>
-                  <input value={editForm.taxNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, taxNumber: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Industry</label>
-                  <select value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
-                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                    <option value="">Select industry</option>
-                    {['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Education', 'Construction', 'Real Estate', 'Legal', 'Conglomerate', 'Family Office', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
+                  <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Parent Account</label>
+                  <select value={editForm.parentAccountId ?? ''} onChange={e => setEditForm(f => ({ ...f, parentAccountId: e.target.value || null }))}
+                    className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all"
+                    style={{ borderColor: T.border, background: '#fff' }}>
+                    <option value="">None (top-level)</option>
+                    {allAccounts.filter(a => a.id !== id).map(a => (<option key={a.id} value={a.id}>{a.name}</option>))}
                   </select>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Registration No.</label>
+                    <input value={editForm.registrationNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, registrationNumber: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Tax No.</label>
+                    <input value={editForm.taxNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, taxNumber: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Industry</label>
+                    <select value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all"
+                      style={{ borderColor: T.border, background: '#fff' }}>
+                      <option value="">Select industry</option>
+                      {['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Education', 'Construction', 'Real Estate', 'Legal', 'Conglomerate', 'Family Office', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Company Size</label>
+                    <select value={editForm.companySize ?? ''} onChange={e => setEditForm(f => ({ ...f, companySize: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all"
+                      style={{ borderColor: T.border, background: '#fff' }}>
+                      <option value="">Select size</option>
+                      {['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Website</label>
+                    <input value={editForm.website ?? ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))}
+                      className={`w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all${formErrors.some(e => e.field === 'website') ? ' !border-red-500 focus:!ring-red-200' : ''}`}
+                      style={{ borderColor: T.border }} />
+                    {formErrors.some(e => e.field === 'website') && (<p className="text-[12px] text-red-600 mt-1">{formErrors.find(e => e.field === 'website')?.message}</p>)}
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Annual Revenue (MYR)</label>
+                    <input type="text" inputMode="numeric" placeholder="0"
+                      value={editForm.annualRevenue != null ? new Intl.NumberFormat('en-MY').format(Number(editForm.annualRevenue)) : ''}
+                      onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEditForm(f => ({ ...f, annualRevenue: raw ? raw : null as any })); }}
+                      className={`w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all${formErrors.some(e => e.field === 'annualRevenue') ? ' !border-red-500 focus:!ring-red-200' : ''}`}
+                      style={{ borderColor: T.border }} />
+                    {formErrors.some(e => e.field === 'annualRevenue') && (<p className="text-[12px] text-red-600 mt-1">{formErrors.find(e => e.field === 'annualRevenue')?.message}</p>)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Email</label>
+                    <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                      className={`w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all${formErrors.some(e => e.field === 'email') ? ' !border-red-500 focus:!ring-red-200' : ''}`}
+                      style={{ borderColor: T.border }} />
+                    {formErrors.some(e => e.field === 'email') && (<p className="text-[12px] text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Phone</label>
+                    <input value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Company Size</label>
-                  <select value={editForm.companySize ?? ''} onChange={e => setEditForm(f => ({ ...f, companySize: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
-                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                    <option value="">Select size</option>
-                    {['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Bank Account</label>
+                  <input value={editForm.bankAccount ?? ''} onChange={e => setEditForm(f => ({ ...f, bankAccount: e.target.value }))}
+                    className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Address</label>
+                    <input value={editForm.address ?? ''} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>City</label>
+                    <input value={editForm.city ?? ''} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>State</label>
+                    <input value={editForm.state ?? ''} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Postal Code</label>
+                    <input value={editForm.postalCode ?? ''} onChange={e => setEditForm(f => ({ ...f, postalCode: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Country</label>
+                    <input value={editForm.country ?? ''} onChange={e => setEditForm(f => ({ ...f, country: e.target.value }))}
+                      className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all" style={{ borderColor: T.border }} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold mb-1" style={{ color: T.textPrimary }}>Description</label>
+                  <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                    className="w-full px-4 py-2 border rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-[#86f2e4] transition-all resize-none" style={{ borderColor: T.border }} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Website</label>
-                  <input value={editForm.website ?? ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))}
-                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'website') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
-                  {formErrors.some(e => e.field === 'website') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'website')?.message}</p>)}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Annual Revenue (MYR)</label>
-                  <input type="text" inputMode="numeric" placeholder="0"
-                    value={editForm.annualRevenue != null ? new Intl.NumberFormat('en-MY').format(Number(editForm.annualRevenue)) : ''}
-                    onChange={e => {
-                      const raw = e.target.value.replace(/[^0-9]/g, '');
-                      setEditForm(f => ({ ...f, annualRevenue: raw ? raw : null as any }));
-                    }}
-                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'annualRevenue') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
-                  {formErrors.some(e => e.field === 'annualRevenue') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'annualRevenue')?.message}</p>)}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
-                  <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'email') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
-                  {formErrors.some(e => e.field === 'email') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
-                  <input value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Bank Account</label>
-                <input value={editForm.bankAccount ?? ''} onChange={e => setEditForm(f => ({ ...f, bankAccount: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Address</label>
-                  <input value={editForm.address ?? ''} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">City</label>
-                  <input value={editForm.city ?? ''} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">State</label>
-                  <input value={editForm.state ?? ''} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Postal Code</label>
-                  <input value={editForm.postalCode ?? ''} onChange={e => setEditForm(f => ({ ...f, postalCode: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Country</label>
-                  <input value={editForm.country ?? ''} onChange={e => setEditForm(f => ({ ...f, country: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
-                <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
-              </div>
-              </div>{/* end scrollable body */}
-              <div className="sticky bottom-0 bg-white border-t border-border p-4 z-10 flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <div className="sticky bottom-0 bg-white border-t p-4 z-10 flex justify-end gap-3 shrink-0" style={{ borderColor: T.border }}>
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }}
+                  className="px-5 py-2 rounded-lg text-[13px] font-bold hover:bg-[#f1f5f9] transition-colors"
+                  style={{ background: 'none', border: `1px solid ${T.border}`, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: T.textSecondary }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-5 py-2 rounded-lg text-[13px] font-bold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                  style={{ background: T.teal, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
@@ -1218,7 +1173,7 @@ const CrmAccountDetail = () => {
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
+      {/* Delete Account confirmation */}
       <ConfirmDialog
         open={showDelete}
         title="Delete Account"
@@ -1228,14 +1183,15 @@ const CrmAccountDetail = () => {
         onConfirm={handleDelete}
         onCancel={() => setShowDelete(false)}
       />
+
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold animate-[fadeInUp_.2s_ease-out]">
-          <span className="material-symbols-outlined text-base">check_circle</span>
+        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-5 py-3 rounded-xl shadow-lg text-[13px] font-semibold animate-[fadeInUp_.2s_ease-out]"
+          style={{ background: T.success, color: '#fff' }}>
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
           {toast}
         </div>
       )}
-    </div>
     </>
   );
 };
