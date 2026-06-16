@@ -1,7 +1,6 @@
 // backend/src/services/crm-duplicate.service.ts
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const MERGE_FIELD_ALLOWLIST: Record<string, Set<string>> = {
   LEAD: new Set([

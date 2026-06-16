@@ -8,7 +8,7 @@ type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'OPPORTUNITY';
 const ENTITY_LABELS: Record<EntityType, string> = {
   LEAD: 'Leads',
   CONTACT: 'Contacts',
-  ACCOUNT: 'Customers',
+  ACCOUNT: 'Clients',
   OPPORTUNITY: 'Opportunities',
 };
 

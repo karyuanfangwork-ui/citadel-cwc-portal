@@ -1,8 +1,8 @@
-import { PrismaClient, ApplicationState } from '@prisma/client';
+import { ApplicationState } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 const REJECTION_REASON_LABELS: Record<string, string> = {
   INSUFFICIENT_INCOME: 'Insufficient Income',

@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // Default widget definitions
 const WIDGET_REGISTRY = [

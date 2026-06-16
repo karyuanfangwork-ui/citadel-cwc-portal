@@ -1,12 +1,11 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler, AppError } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { sendEmail, renderTemplate } from '../services/email.service';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
  * Canonical list of every event type used by notify() calls across the codebase.

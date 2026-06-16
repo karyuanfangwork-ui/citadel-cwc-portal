@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { autoAssignRequest } from './autoAssignment.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
  * Create onboarding request from completed hiring workflow

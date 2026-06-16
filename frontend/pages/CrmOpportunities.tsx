@@ -440,6 +440,7 @@ const CrmOpportunities = () => {
         onSelectAll={selectAll}
         onClearSelection={clearSelection}
         actions={bulkActions}
+        selectedIds={Array.from(selectedIds)}
         loading={bulkProcessing}
       />
 

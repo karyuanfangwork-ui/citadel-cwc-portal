@@ -1,6 +1,6 @@
-import { PrismaClient, LeadStatus } from '@prisma/client';
+import { LeadStatus } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // ============================================================================
 // ANOMALY DETECTION SERVICE

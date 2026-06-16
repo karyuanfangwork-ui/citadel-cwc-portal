@@ -16,6 +16,7 @@ export interface User {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    tenantId?: string | null;
     outOfOffice?: boolean;
     outOfOfficeUntil?: string | null;
     outOfOfficeMessage?: string | null;
@@ -71,6 +72,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             roles: response.roles,
             permissions: response.permissions,
             agentTeam: response.agentTeam,
+            tenantId: response.tenantId,
         });
         setAccessToken(response.accessToken ?? null);
     };

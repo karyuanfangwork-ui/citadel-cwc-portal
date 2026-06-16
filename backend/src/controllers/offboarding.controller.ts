@@ -1,12 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile } from '../middleware/upload.middleware';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 import path from 'path';
 import fs from 'fs';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -1,6 +1,7 @@
 import { PrismaClient, LeadStatus, LeadSource, CrmActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // Sample Malaysian companies
 const ACCOUNTS = [
@@ -203,7 +204,7 @@ async function main() {
     const acc = ACCOUNTS[i];
     const owner = i < 2 ? salesManager : (i < 4 ? salesRep : adminUser);
     const created = await prisma.crmAccount.create({
-      data: { ...acc, ownerId: owner.id },
+      data: { ...acc, tenantId: DEFAULT_TENANT_ID, ownerId: owner.id },
     });
     accounts[acc.name] = created;
     console.log(`   ✓ ${acc.name} (Owner: ${owner.firstName})`);
@@ -221,6 +222,7 @@ async function main() {
     for (const contact of contactList) {
       const created = await prisma.crmContact.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           firstName: contact.firstName,
           lastName: contact.lastName,
           jobTitle: contact.jobTitle,
@@ -259,6 +261,7 @@ async function main() {
   } else {
     pipeline = await prisma.crmPipeline.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: 'Sales Pipeline',
         description: 'Unified sales pipeline for tracking deals from prospecting to close',
         isDefault: true,
@@ -281,6 +284,7 @@ async function main() {
     const randomAccount = accountNames[Math.floor(Math.random() * accountNames.length)];
     await prisma.crmLead.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         title: lead.title,
         status: lead.status as LeadStatus,
         source: lead.source as LeadSource,
@@ -312,6 +316,7 @@ async function main() {
     
     await prisma.crmOpportunity.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: `${lead.title} - Opportunity`,
         accountId,
         contactId: contactByEmail[lead.contactEmail] || null,
@@ -342,6 +347,7 @@ async function main() {
     
     await prisma.crmActivity.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         activityType,
         subject: `${activityType} - ${accountName} Follow-up #${i + 1}`,
         description: `Sample activity: Discuss project requirements and timeline`,
@@ -366,6 +372,7 @@ async function main() {
     
     await prisma.crmNote.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         content: `**Meeting Notes #${i + 1}**\n\n- Discussed project scope and requirements\n- Client interested in Q3 implementation\n- Budget approved, waiting for final sign-off\n- Next follow-up scheduled for next week\n\n*Key contacts: Technical team + decision makers*`,
         authorId: salesRep.id,
         accountId,
@@ -388,6 +395,7 @@ async function main() {
       const isPep = contact.riskProfile === 'HIGH';
       await prisma.crmKycRecord.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           contactId,
           status: 'APPROVED',
           riskLevel: contact.riskProfile || 'MEDIUM',
@@ -427,6 +435,7 @@ async function main() {
     for (const b of beneficiaries) {
       await prisma.crmBeneficiary.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           contactId: sunwayPrimaryId,
           firstName: b.firstName,
           lastName: b.lastName,
@@ -453,6 +462,7 @@ async function main() {
   if (sunwayAccountId && sunwayPrimaryId) {
     await prisma.crmTrustProduct.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         accountId: sunwayAccountId,
         contactId: sunwayPrimaryId,
         trustType: 'FAMILY_TRUST',
@@ -478,6 +488,7 @@ async function main() {
   if (maybankAccountId && maybankPrimaryId) {
     await prisma.crmTrustProduct.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         accountId: maybankAccountId,
         contactId: maybankPrimaryId,
         trustType: 'CORPORATE_TRUST',

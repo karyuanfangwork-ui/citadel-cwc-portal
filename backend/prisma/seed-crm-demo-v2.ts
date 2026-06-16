@@ -24,6 +24,7 @@
 import { PrismaClient, LeadStatus, LeadSource, CrmActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const DEMO_TAG = '[DEMO]';
 const DEMO_OWNER_EMAIL = 'emily.chow@citadelgroup.com.my';
@@ -296,6 +297,7 @@ async function main() {
       where: { entity_fieldKey: { entity: fd.entity, fieldKey: fd.fieldKey } },
       update: {},
       create: {
+        tenantId: DEFAULT_TENANT_ID,
         entity: fd.entity,
         fieldKey: fd.fieldKey,
         label: fd.label,
@@ -319,6 +321,7 @@ async function main() {
       where: { entityType_anomalyType: { entityType: ac.entityType, anomalyType: ac.anomalyType } },
       update: {},
       create: {
+        tenantId: DEFAULT_TENANT_ID,
         entityType: ac.entityType,
         anomalyType: ac.anomalyType,
         threshold: ac.threshold,
@@ -336,6 +339,7 @@ async function main() {
     where: { userId: owner.id },
     update: {},
     create: {
+      tenantId: DEFAULT_TENANT_ID,
       userId: owner.id,
       layout: DEFAULT_DASHBOARD_LAYOUT,
     },
@@ -348,6 +352,7 @@ async function main() {
     where: { name: `${DEMO_TAG} Klang Valley` },
     update: {},
     create: {
+      tenantId: DEFAULT_TENANT_ID,
       name: `${DEMO_TAG} Klang Valley`,
       description: 'Greater Kuala Lumpur, Selangor, and Putrajaya region',
       regions: { states: ['Wilayah Persekutuan', 'Selangor', 'Putrajaya'], countries: ['MY'] },
@@ -359,6 +364,7 @@ async function main() {
     where: { name: `${DEMO_TAG} Northern Region` },
     update: {},
     create: {
+      tenantId: DEFAULT_TENANT_ID,
       name: `${DEMO_TAG} Northern Region`,
       description: 'Penang, Kedah, Perak, and northern Malaysia',
       regions: { states: ['Pulau Pinang', 'Kedah', 'Perak'], countries: ['MY'] },
@@ -375,7 +381,7 @@ async function main() {
     await prisma.crmTerritoryMember.upsert({
       where: { territoryId_userId: { territoryId: territoryKlangValley.id, userId: salesManager.id } },
       update: {},
-      create: { territoryId: territoryKlangValley.id, userId: salesManager.id, role: 'MANAGER' },
+      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, userId: salesManager.id, role: 'MANAGER' },
     });
     membersCreated++;
   }
@@ -383,20 +389,20 @@ async function main() {
     await prisma.crmTerritoryMember.upsert({
       where: { territoryId_userId: { territoryId: territoryKlangValley.id, userId: salesRep.id } },
       update: {},
-      create: { territoryId: territoryKlangValley.id, userId: salesRep.id, role: 'MEMBER' },
+      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, userId: salesRep.id, role: 'MEMBER' },
     });
     membersCreated++;
     await prisma.crmTerritoryMember.upsert({
       where: { territoryId_userId: { territoryId: territoryNorth.id, userId: salesRep.id } },
       update: {},
-      create: { territoryId: territoryNorth.id, userId: salesRep.id, role: 'MEMBER' },
+      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryNorth.id, userId: salesRep.id, role: 'MEMBER' },
     });
     membersCreated++;
   }
   await prisma.crmTerritoryMember.upsert({
     where: { territoryId_userId: { territoryId: territoryKlangValley.id, userId: owner.id } },
     update: {},
-    create: { territoryId: territoryKlangValley.id, userId: owner.id, role: 'MEMBER' },
+    create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, userId: owner.id, role: 'MEMBER' },
   });
   membersCreated++;
   console.log(`   ✓ ${membersCreated} territory members created`);
@@ -409,17 +415,17 @@ async function main() {
 
   // Individual quota for owner
   await prisma.crmQuota.create({
-    data: { userId: owner.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 500000, currency: 'MYR' },
+    data: { tenantId: DEFAULT_TENANT_ID, userId: owner.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 500000, currency: 'MYR' },
   });
   await prisma.crmQuota.create({
-    data: { userId: owner.id, period: currentMonth, periodType: 'MONTHLY', targetAmount: 170000, currency: 'MYR' },
+    data: { tenantId: DEFAULT_TENANT_ID, userId: owner.id, period: currentMonth, periodType: 'MONTHLY', targetAmount: 170000, currency: 'MYR' },
   });
   // Territory-level quotas
   await prisma.crmQuota.create({
-    data: { territoryId: territoryKlangValley.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 800000, currency: 'MYR' },
+    data: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 800000, currency: 'MYR' },
   });
   await prisma.crmQuota.create({
-    data: { territoryId: territoryNorth.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 300000, currency: 'MYR' },
+    data: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryNorth.id, period: currentQuarter, periodType: 'QUARTERLY', targetAmount: 300000, currency: 'MYR' },
   });
   console.log('   ✓ 4 quotas created');
 
@@ -429,6 +435,7 @@ async function main() {
   for (const wf of WORKFLOWS) {
     await prisma.crmWorkflow.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: wf.name,
         description: wf.description,
         trigger: wf.trigger,
@@ -449,6 +456,7 @@ async function main() {
     const created = await prisma.crmAccount.create({
       data: {
         ...acc,
+        tenantId: DEFAULT_TENANT_ID,
         ownerId: owner.id,
         customFields: acc.accountType === 'CORPORATE'
           ? { client_tier: 'Gold', company_domicile: 'MY' }
@@ -471,6 +479,7 @@ async function main() {
     for (const contact of contactList) {
       const created = await prisma.crmContact.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           firstName: contact.firstName,
           lastName: contact.lastName,
           jobTitle: contact.jobTitle,
@@ -508,6 +517,7 @@ async function main() {
       const riskLvl = primary.riskProfile || 'MEDIUM';
       await prisma.crmKycRecord.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           contactId,
           status: 'APPROVED',
           riskLevel: riskLvl,
@@ -543,6 +553,7 @@ async function main() {
   } else {
     pipeline = await prisma.crmPipeline.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: `${DEMO_TAG} Sales Pipeline`,
         description: 'Demo pipeline for Citadel trust & estate planning AI feature walkthrough',
         isDefault: false,
@@ -590,6 +601,7 @@ async function main() {
     const randomAccountName = accountNames[i % accountNames.length] || accountNames[0];
     await prisma.crmLead.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         title: lead.title,
         status: lead.status as LeadStatus,
         source: lead.source as LeadSource,
@@ -637,6 +649,7 @@ async function main() {
 
     const createdOpp = await prisma.crmOpportunity.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: opp.name,
         accountId,
         contactId,

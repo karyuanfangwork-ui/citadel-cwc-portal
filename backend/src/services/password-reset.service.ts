@@ -1,9 +1,8 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const TOKEN_EXPIRY_MINUTES = 15;
 

@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class EntityController {
     // ── Public: active entities for dropdown ─────────────────────

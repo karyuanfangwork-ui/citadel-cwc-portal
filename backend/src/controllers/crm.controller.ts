@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
@@ -28,7 +28,7 @@ import * as duplicateService from '../services/crm-duplicate.service';
 import { createOAuthState, verifyOAuthState } from '../services/oauth-state.service';
 import { broadcast } from '../utils/sseClients';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true };
 

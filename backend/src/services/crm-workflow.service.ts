@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { EventEmitter } from 'events';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // ── Event bus for CRM operations ──
 export const workflowEventBus = new EventEmitter();

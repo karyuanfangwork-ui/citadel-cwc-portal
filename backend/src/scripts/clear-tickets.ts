@@ -15,9 +15,8 @@
 //   DRY_RUN=true docker exec citadel-cwc-portal-backend-1 node dist/scripts/clear-tickets.js
 // ═══════════════════════════════════════════════════════════════
 
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
 async function main() {

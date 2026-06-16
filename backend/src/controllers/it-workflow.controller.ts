@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { hasRole } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
@@ -21,7 +20,7 @@ function inferCategoryFromName(name: string): string {
   return 'LAPTOP';
 }
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

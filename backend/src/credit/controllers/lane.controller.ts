@@ -6,9 +6,8 @@
 
 import { Request, Response } from 'express';
 import { determineLaneWithConfig, getLaneTabs, persistLane, getRequiredApproverCount } from '../services/lane.service';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 /**
  * GET /applications/:id/lane

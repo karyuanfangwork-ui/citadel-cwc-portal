@@ -14,6 +14,7 @@ interface BulkActionBarProps {
   onSelectAll: () => void;
   onClearSelection: () => void;
   actions: BulkAction[];
+  selectedIds?: string[];
   loading?: boolean;
 }
 
@@ -23,6 +24,7 @@ const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onSelectAll,
   onClearSelection,
   actions,
+  selectedIds = [],
   loading = false,
 }) => {
   const [processing, setProcessing] = useState(false);
@@ -38,12 +40,10 @@ const BulkActionBar: React.FC<BulkActionBarProps> = ({
     await executeAction(action);
   };
 
-  const executeAction = async (action: BulkAction, ids?: string[]) => {
+  const executeAction = async (action: BulkAction) => {
     setProcessing(true);
     try {
-      // The parent page must supply IDs via the action's onClick
-      // We pass an empty array — the parent component wraps the onClick with actual selectedIds
-      await action.onClick([]);
+      await action.onClick(selectedIds);
     } finally {
       setProcessing(false);
     }
@@ -53,7 +53,7 @@ const BulkActionBar: React.FC<BulkActionBarProps> = ({
     if (!confirmAction) return;
     setProcessing(true);
     try {
-      await confirmAction.onClick([]);
+      await confirmAction.onClick(selectedIds);
     } finally {
       setProcessing(false);
       setConfirmAction(null);

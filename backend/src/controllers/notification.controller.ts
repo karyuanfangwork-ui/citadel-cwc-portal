@@ -1,10 +1,9 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { addClient, removeClient } from '../utils/sseClients';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class NotificationController {
     getNotifications = asyncHandler(async (req: AuthRequest, res: Response) => {

@@ -22,6 +22,7 @@ interface AuthUser {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    tenantId?: string | null;
 }
 
 /** P0-2: Error thrown when the backend requires a password reset */

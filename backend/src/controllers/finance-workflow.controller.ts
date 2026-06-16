@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 import path from 'path';
-import { PrismaClient, RequestStatus } from '@prisma/client';
+import { RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 import { reassignToTeam } from '../services/reassign.service';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // Group Deputy CEO approval threshold — no longer used for routing (all amounts go to GROUP_DCEO)
 // Config import removed; threshold not needed after DCEO→GROUP_DCEO merge.

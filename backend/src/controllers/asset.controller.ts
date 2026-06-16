@@ -1,10 +1,10 @@
 import { Response } from 'express';
-import { PrismaClient, AssetStatus } from '@prisma/client';
+import { AssetStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class AssetController {
     /**

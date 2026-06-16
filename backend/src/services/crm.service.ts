@@ -1,10 +1,10 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { generateWinLossDebrief } from './crm-ai.service';
 import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error.middleware';
 import { applyOwnerScope } from './crm-scope.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // ============================================================================
 // DASHBOARD STATISTICS

@@ -1,8 +1,9 @@
 import * as crypto from 'crypto';
 import prisma from '../../utils/prisma';
-import { PrismaClient } from '@prisma/client';
 
-type TransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$use' | '$transaction' | '$extends'>;
+// TransactionClient accepts both raw PrismaClient and the extended tenant-aware client.
+// Using `any` here avoids excessive stack depth when comparing Prisma's complex generic types.
+type TransactionClient = any;
 
 /**
  * Hash payload for v2 includes actorId, oldState, newState, metadata.
@@ -70,7 +71,8 @@ export class AuditChainService {
     metadata?: any,
     tx?: TransactionClient,
   ): Promise<string> {
-    const client = tx ?? prisma;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client: any = tx ?? prisma;
     const lastEvent = await client.creditAuditEvent.findFirst({
       where: { applicationId },
       orderBy: { createdAt: 'desc' },

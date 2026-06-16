@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 async function main() {
   console.log('🚩 Seeding credit feature flags...');
@@ -31,7 +32,7 @@ async function main() {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
       update: { description: flag.description, category: flag.category, enabled: flag.enabled },
-      create: flag,
+      create: { ...flag, tenantId: DEFAULT_TENANT_ID },
     });
     console.log(`  ✅ ${flag.key} (enabled: ${flag.enabled})`);
   }

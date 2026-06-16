@@ -11,6 +11,7 @@
 import { PrismaClient, LeadStatus, LeadSource, CrmActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const DEMO_OWNER_EMAIL = 'emily.chow@citadelgroup.com.my';
 const DEMO_TAG = '[DEMO]';
@@ -209,7 +210,7 @@ async function main() {
   const accounts: Record<string, { id: string }> = {};
   for (const acc of ACCOUNTS) {
     const created = await prisma.crmAccount.create({
-      data: { ...acc, ownerId: owner.id },
+      data: { ...acc, tenantId: DEFAULT_TENANT_ID, ownerId: owner.id },
     });
     accounts[acc.name] = created;
     console.log(`   ✓ ${acc.name}`);
@@ -227,6 +228,7 @@ async function main() {
     for (const contact of contactList) {
       const created = await prisma.crmContact.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           firstName: contact.firstName,
           lastName: contact.lastName,
           jobTitle: contact.jobTitle,
@@ -263,6 +265,7 @@ async function main() {
       const riskLvl = primary.riskProfile || 'MEDIUM';
       await prisma.crmKycRecord.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           contactId,
           status: 'APPROVED',
           riskLevel: riskLvl,
@@ -299,6 +302,7 @@ async function main() {
   } else {
     pipeline = await prisma.crmPipeline.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: `${DEMO_TAG} Sales Pipeline`,
         description: 'Demo pipeline for Citadel trust & estate planning AI feature walkthrough',
         isDefault: false,
@@ -344,6 +348,7 @@ async function main() {
     const randomAccountName = accountNames[i % accountNames.length] || accountNames[0];
     await prisma.crmLead.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         title: lead.title,
         status: lead.status as LeadStatus,
         source: lead.source as LeadSource,
@@ -388,6 +393,7 @@ async function main() {
 
     await prisma.crmOpportunity.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         name: opp.name,
         accountId,
         contactId,
@@ -421,6 +427,7 @@ async function main() {
 
     await prisma.crmActivity.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         activityType: act.type,
         subject: act.subject,
         description: act.description,
@@ -446,6 +453,7 @@ async function main() {
 
     await prisma.crmNote.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         content: note.content,
         authorId: owner.id,
         accountId,
@@ -474,6 +482,7 @@ async function main() {
       await prisma.crmBeneficiary.create({
         data: {
           contactId: kwokWeiMingContactId,
+          tenantId: DEFAULT_TENANT_ID,
           firstName: b.firstName,
           lastName: b.lastName,
           relationship: b.relationship,
@@ -503,6 +512,7 @@ async function main() {
       await prisma.crmBeneficiary.create({
         data: {
           contactId: syedHamidContactId,
+          tenantId: DEFAULT_TENANT_ID,
           firstName: b.firstName,
           lastName: b.lastName,
           relationship: b.relationship,
@@ -538,6 +548,7 @@ async function main() {
     for (const tp of kwokTrustProducts) {
       await prisma.crmTrustProduct.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           accountId: kwokAccountId,
           contactId: kwokWeiMingId || null,
           trustType: tp.trustType,
@@ -569,6 +580,7 @@ async function main() {
     for (const tp of syedTrustProducts) {
       await prisma.crmTrustProduct.create({
         data: {
+          tenantId: DEFAULT_TENANT_ID,
           accountId: syedAccountId,
           contactId: syedHamidContactId || null,
           trustType: tp.trustType,
@@ -595,6 +607,7 @@ async function main() {
   if (mahaniAccountId) {
     await prisma.crmTrustProduct.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         accountId: mahaniAccountId,
         contactId: contactByEmail['nurul.ain@mahaniwealth.example.my'] || null,
         trustType: 'UNIT_TRUST',

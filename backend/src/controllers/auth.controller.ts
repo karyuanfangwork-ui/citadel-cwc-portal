@@ -2,7 +2,6 @@ import { Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { permissionService } from '../services/permission.service';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -14,7 +13,7 @@ import { notify } from '../services/notification.service';
 import { validatePassword, checkPasswordBreach } from '../utils/password';
 import { createRedisClient, ensureConnected } from '../utils/redis';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 const lockoutRedis = createRedisClient({ maxRetriesPerRequest: 1 });
 
 type LockoutEntry = {
@@ -104,10 +103,12 @@ async function clearFailedLogin(email: string): Promise<void> {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function generateAccessToken(userId: string, email: string): { token: string; jti: string } {
+function generateAccessToken(userId: string, email: string, tenantId?: string): { token: string; jti: string } {
     const jti = crypto.randomUUID();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const token = jwt.sign({ userId, email, jti }, config.jwt.secret, {
+    const payload: any = { userId, email, jti };
+    if (tenantId) payload.tenantId = tenantId;
+    const token = jwt.sign(payload, config.jwt.secret, {
         expiresIn: config.jwt.expiresIn as any,
         algorithm: 'HS256',
     });
@@ -191,7 +192,7 @@ class AuthController {
             await prisma.userRole.create({ data: { userId: user.id, roleId: normalStaffRole.id } });
         }
 
-        const { token: accessToken } = generateAccessToken(user.id, user.email);
+        const { token: accessToken } = generateAccessToken(user.id, user.email, user.tenantId ?? undefined);
         const refreshToken = generateRefreshToken(user.id, user.email);
 
         await prisma.session.create({
@@ -210,7 +211,7 @@ class AuthController {
         res.status(201).json({
             status: 'success',
             data: {
-                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, agentTeam: user.agentTeam },
+                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, agentTeam: user.agentTeam, tenantId: user.tenantId },
             },
         });
     });
@@ -252,7 +253,7 @@ class AuthController {
             );
         }
 
-        const { token: accessToken } = generateAccessToken(user.id, user.email);
+        const { token: accessToken } = generateAccessToken(user.id, user.email, user.tenantId ?? undefined);
         const refreshToken = generateRefreshToken(user.id, user.email);
 
         await prisma.session.create({
@@ -280,6 +281,7 @@ class AuthController {
                     lastName: user.lastName,
                     roles: user.roles.map((ur) => ur.role.name),
                     agentTeam: user.agentTeam,
+                    tenantId: user.tenantId,
                     permissions: await permissionService.getUserPermissions(user.id),
                 },
                 accessToken, // exposed for SSE EventSource auth
@@ -313,9 +315,9 @@ class AuthController {
             throw new AppError('Refresh token is required', 401);
         }
 
-        let decoded: { userId: string; email: string };
+        let decoded: { userId: string; email: string; tenantId?: string };
         try {
-            decoded = jwt.verify(refreshToken, config.jwt.refreshSecret) as { userId: string; email: string };
+            decoded = jwt.verify(refreshToken, config.jwt.refreshSecret) as { userId: string; email: string; tenantId?: string };
         } catch {
             clearAuthCookies(res);
             throw new AppError('Invalid or expired refresh token', 401);
@@ -354,7 +356,7 @@ class AuthController {
             },
         });
 
-        const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email);
+        const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email, decoded.tenantId);
         setAuthCookies(res, newAccessToken, newRefreshToken);
 
         res.json({ status: 'success', message: 'Token refreshed' });

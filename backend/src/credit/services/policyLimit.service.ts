@@ -8,11 +8,11 @@
  * Soft warning = exceeds thresholdPct × maxValue → can submit with justification
  */
 
-import { PrismaClient, PolicyLimitType, ApplicationState } from '@prisma/client';
+import { PolicyLimitType, ApplicationState } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { toBase } from './fxRate.service';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 export interface PolicyEvaluationResult {
   blocks: PolicyBlock[];

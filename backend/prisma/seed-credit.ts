@@ -21,6 +21,7 @@
 import { PrismaClient, RiskRating } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // ---------------------------------------------------------------------------
 // Parse CLI flags
@@ -54,7 +55,7 @@ async function seedBranches() {
     await prisma.branch.upsert({
       where: { code: branch.code },
       update: { name: branch.name, region: branch.region },
-      create: branch,
+      create: { ...branch, tenantId: DEFAULT_TENANT_ID },
     });
     console.log(`  ✅ ${branch.code} — ${branch.name}`);
   }
@@ -99,7 +100,7 @@ async function seedFlags() {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
       update: { description: flag.description, category: flag.category, enabled: flag.enabled },
-      create: flag,
+      create: { ...flag, tenantId: DEFAULT_TENANT_ID },
     });
     console.log(`  ✅ ${flag.key} (enabled: ${flag.enabled})`);
   }
@@ -286,6 +287,7 @@ async function seedNotifications() {
         pushBody: tpl.pushBody ?? null,
       },
       create: {
+        tenantId: DEFAULT_TENANT_ID,
         name: tpl.name,
         eventType: tpl.eventType,
         emailSubject: tpl.emailSubject,

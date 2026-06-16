@@ -1,11 +1,11 @@
-import { PrismaClient, LeadSource } from '@prisma/client';
+import { LeadSource } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
 import { AppError } from '../middleware/error.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // ============================================================================
 // FIELD DEFINITIONS PER ENTITY

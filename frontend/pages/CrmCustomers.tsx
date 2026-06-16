@@ -46,11 +46,11 @@ interface Pagination {
 type TabKey = 'all' | 'mine' | 'active' | 'follow-up' | 'open-opp';
 
 const TAB_CONFIG: Record<TabKey, { label: string; tooltip: string }> = {
-  all: { label: 'Team Customers', tooltip: 'All customers visible to you and your team' },
-  mine: { label: 'Managed by Me', tooltip: 'Customers where you are the assigned Relationship Manager' },
-  active: { label: 'Active', tooltip: 'Customers with active status' },
+  all: { label: 'Team Clients', tooltip: 'All clients visible to you and your team' },
+  mine: { label: 'Managed by Me', tooltip: 'Clients where you are the assigned Relationship Manager' },
+  active: { label: 'Active', tooltip: 'Clients with active status' },
   'follow-up': { label: 'Overdue Follow-Ups', tooltip: 'Contacts with past-due follow-up dates' },
-  'open-opp': { label: 'Open Opportunities', tooltip: 'Customers with at least one open opportunity' },
+  'open-opp': { label: 'Open Opportunities', tooltip: 'Clients with at least one open opportunity' },
 };
 
 const PAGE_SIZE = 25;
@@ -117,7 +117,7 @@ const CrmCustomers: React.FC = () => {
       setCustomers(res.data.data.customers);
       setPagination(res.data.data.pagination);
     } catch (err) {
-      console.error('Failed to fetch customers', err);
+      console.error('Failed to fetch clients', err);
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ const CrmCustomers: React.FC = () => {
       const res = await api.get('/crm/customers/stats');
       setStats(res.data.data);
     } catch (err) {
-      console.error('Failed to fetch customer stats', err);
+      console.error('Failed to fetch client stats', err);
     }
   }, []);
 
@@ -237,10 +237,10 @@ const CrmCustomers: React.FC = () => {
             <span className="material-symbols-outlined text-lg">group</span>
             <span className="text-[11px] font-bold tracking-widest uppercase">CRM</span>
             <span className="text-[11px] text-[#45464d]/40">›</span>
-            <span className="text-[11px] font-bold tracking-widest uppercase text-[#006a61]">Customers</span>
+            <span className="text-[11px] font-bold tracking-widest uppercase text-[#006a61]">Clients</span>
           </div>
-          <h2 className="text-[36px] font-bold text-[#0b1c30] leading-tight">Customer Management</h2>
-          <p className="text-[#45464d] text-sm">Manage and maintain customer relationships.</p>
+          <h2 className="text-[36px] font-bold text-[#0b1c30] leading-tight">Client Management</h2>
+          <p className="text-[#45464d] text-sm">Manage and maintain client relationships.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -263,7 +263,7 @@ const CrmCustomers: React.FC = () => {
             className="flex items-center gap-2 px-5 py-2 bg-[#006a61] text-white hover:opacity-90 transition-opacity rounded font-medium shadow-sm"
           >
             <span className="material-symbols-outlined text-lg">add</span>
-            New Customer
+            New Client
           </button>
         </div>
       </div>
@@ -271,7 +271,7 @@ const CrmCustomers: React.FC = () => {
       {/* KPI Cards */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <CrmKpiCard label="Total Customers" value={stats.total.toLocaleString()} icon="groups" trendPercent={4} />
+          <CrmKpiCard label="Total Clients" value={stats.total.toLocaleString()} icon="groups" trendPercent={4} />
           <CrmKpiCard label="Retail" value={stats.retail.toLocaleString()} icon="person" />
           <CrmKpiCard label="SME" value={stats.sme.toLocaleString()} icon="business_center" />
           <CrmKpiCard label="Corporate" value={stats.corporate.toLocaleString()} icon="apartment" />
@@ -285,7 +285,7 @@ const CrmCustomers: React.FC = () => {
         <div className="flex items-center gap-2 text-sm text-[#45464d] bg-[#eff4ff]/60 border border-[#e2e8f0] rounded-lg px-4 py-2">
           <span className="material-symbols-outlined text-base text-[#006a61]">info</span>
           <span>
-            Showing <span className="font-semibold text-[#0b1c30]">{pagination.total.toLocaleString()}</span> of <span className="font-semibold text-[#0b1c30]">{stats?.total.toLocaleString() ?? '—'}</span> team customers filtered by <span className="font-semibold text-[#006a61]">{TAB_CONFIG[tab].label}</span>
+            Showing <span className="font-semibold text-[#0b1c30]">{pagination.total.toLocaleString()}</span> of <span className="font-semibold text-[#0b1c30]">{stats?.total.toLocaleString() ?? '—'}</span> team clients filtered by <span className="font-semibold text-[#006a61]">{TAB_CONFIG[tab].label}</span>
           </span>
         </div>
       )}
@@ -321,7 +321,7 @@ const CrmCustomers: React.FC = () => {
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#76777d] text-xl">filter_list</span>
               <input
                 className="pl-10 pr-4 py-2 border border-[#e2e8f0] bg-white rounded-lg w-72 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] text-sm outline-none"
-                placeholder="Search customer, company, or ID..."
+                placeholder="Search client, company, or ID..."
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
               />
@@ -336,6 +336,7 @@ const CrmCustomers: React.FC = () => {
           onSelectAll={toggleSelectAll}
           onClearSelection={clearSelection}
           actions={bulkActions}
+          selectedIds={Array.from(selectedIds)}
         />
 
         {/* Data Table */}
@@ -351,7 +352,7 @@ const CrmCustomers: React.FC = () => {
                     className="rounded border-[#c6c6cd]"
                   />
                 </th>
-                <th className="px-6 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Customer Name</th>
+                <th className="px-6 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Client Name</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d] text-center">Segment</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Contact Info</th>
                 <th className="px-4 py-3 text-[11px] font-bold tracking-widest uppercase text-[#45464d]">Relationship Mgr</th>
@@ -368,14 +369,14 @@ const CrmCustomers: React.FC = () => {
                 <tr>
                   <td colSpan={11} className="text-center py-12 text-[#45464d]">
                     <span className="material-symbols-outlined animate-spin text-2xl">progress_activity</span>
-                    <div className="mt-2 text-sm">Loading customers...</div>
+                    <div className="mt-2 text-sm">Loading clients...</div>
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="text-center py-12 text-[#45464d]">
                     <span className="material-symbols-outlined text-4xl mb-2 block">group_off</span>
-                    <div className="text-sm">No customers found.</div>
+                    <div className="text-sm">No clients found.</div>
                   </td>
                 </tr>
               ) : (
@@ -474,7 +475,7 @@ const CrmCustomers: React.FC = () => {
         {/* Pagination */}
         <div className="px-6 py-4 border-t border-[#e2e8f0] flex items-center justify-between bg-[#eff4ff]/30">
           <div className="text-sm text-[#45464d]">
-            Showing <span className="font-medium text-[#0b1c30]">{Math.min((page - 1) * PAGE_SIZE + 1, pagination.total)}-{Math.min(page * PAGE_SIZE, pagination.total)}</span> of <span className="font-medium text-[#0b1c30]">{pagination.total.toLocaleString()}</span> customers
+            Showing <span className="font-medium text-[#0b1c30]">{Math.min((page - 1) * PAGE_SIZE + 1, pagination.total)}-{Math.min(page * PAGE_SIZE, pagination.total)}</span> of <span className="font-medium text-[#0b1c30]">{pagination.total.toLocaleString()}</span> clients
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -512,13 +513,13 @@ const CrmCustomers: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Create Customer Modal ──────────────────────────────── */}
+      {/* ── Create Client Modal ──────────────────────────────── */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="px-6 py-4 border-b border-[#e2e8f0] flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#0b1c30]">New Customer</h3>
+              <h3 className="text-lg font-bold text-[#0b1c30]">New Client</h3>
               <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-[#eff4ff] rounded">
                 <span className="material-symbols-outlined">close</span>
               </button>

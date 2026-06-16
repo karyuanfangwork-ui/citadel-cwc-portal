@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { PrismaClient, ExecutiveRole } from '@prisma/client';
+import { ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import xlsx from 'xlsx';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
@@ -22,7 +22,7 @@ import {
   resolveEntityCode,
 } from '../utils/importStaff';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 function generateTemporaryPassword(): string {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -108,6 +108,7 @@ class UserController {
                     roles: user.roles.map((ur) => ur.role.name),
                     permissions: req.user?.permissions || [],
                     agentTeam: user.agentTeam,
+                    tenantId: user.tenantId,
                     createdAt: user.createdAt,
                 },
             },

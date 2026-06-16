@@ -823,7 +823,7 @@ const CrmContactDetail = () => {
               <>
                 {/* KPI Cards row */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Customer360KpiCard label="Customer Since" value={formatDate(contact.createdAt)} />
+                  <Customer360KpiCard label="Client Since" value={formatDate(contact.createdAt)} />
                   <Customer360KpiCard label="Active Deals" value={String((contact.opportunities ?? []).filter(o => o.stage && !o.stage.isWonStage && !o.stage.isLostStage).length)} />
                   <Customer360KpiCard label="KYC Status" value={(() => {
                     const kycStatus = (contact as any).kycStatus;

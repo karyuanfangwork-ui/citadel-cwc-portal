@@ -1,9 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import { createRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
 const redis = createRedisClient();
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const CACHE_PREFIX = 'rbac:perms:';
 const CACHE_TTL_SECONDS = 300; // 5 minutes

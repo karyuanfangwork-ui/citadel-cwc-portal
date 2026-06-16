@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class SearchController {
     globalSearch = asyncHandler(async (req: AuthRequest, res: Response) => {

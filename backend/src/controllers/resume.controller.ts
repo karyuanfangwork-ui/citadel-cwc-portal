@@ -1,12 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile, uploadMultipleFiles } from '../middleware/upload.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { hasRole } from '../middleware/auth.middleware';
 import { resolveRequestId } from '../utils/resolve';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // Shared S3-backed multer instance — used by loa.routes and approval.routes
 export const upload = {

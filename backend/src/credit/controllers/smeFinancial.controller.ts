@@ -6,9 +6,8 @@
 
 import { Request, Response } from 'express';
 import { smeFinancialService } from '../services/smeFinancial.service';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 /**
  * GET /sme/assessment/:borrowerProfileId

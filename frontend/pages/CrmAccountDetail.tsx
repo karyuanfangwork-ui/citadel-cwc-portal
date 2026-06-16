@@ -13,7 +13,7 @@ import { useNextBestAction } from '../src/hooks/useCrmAi';
 import ReactMarkdown from 'react-markdown';
 import creditService from '../src/services/credit.service';
 
-// ── Customer 360 sub-components ────────────────────────────────────
+// ── Client 360 sub-components ────────────────────────────────────
 import Customer360Profile from '../src/components/crm/Customer360Profile';
 import Customer360Insights from '../src/components/crm/Customer360Insights';
 import Customer360KpiCard from '../src/components/crm/Customer360KpiCard';
@@ -402,7 +402,7 @@ const CrmAccountDetail = () => {
     <>
       <div className="flex min-h-[calc(100vh-48px)]" style={{ maxWidth: 1680, margin: '0 auto' }}>
 
-        {/* ── LEFT PANEL: Customer Profile ────────────────────────── */}
+        {/* ── LEFT PANEL: Client Profile ────────────────────────── */}
         <section className="hidden lg:flex lg:w-80 shrink-0 flex-col border-r overflow-y-auto p-4 custom-scrollbar"
           style={{ borderColor: T.border, background: T.white, position: 'sticky', top: 0, height: 'calc(100vh - 48px)' }}
         >

@@ -42,6 +42,7 @@ import {
 } from '@prisma/client';
 import { AuditChainService } from '../src/credit/services/auditChain.service';
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 async function findExisting(model: any, where: any) {
   return model.findFirst({ where });
@@ -427,6 +428,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
     const bp = profiles[3]; // High Net Worth Individual
     const leanA = await prisma.creditApplication.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         applicationNo: 'CA-LEAN-001',
         borrowerProfileId: bp.id,
         productType: 'TERM_LOAN' as any,
@@ -435,9 +437,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         currency: 'MYR' as any,
         purpose: 'Personal term loan for home renovation and furniture purchase',
         state: 'APPROVED' as any,
-        riskRating: 'BB',
-        rmId: adminId,
-        analystId,
+        assignedRmId: adminId,
+        assignedAnalystId: analystId,
         submittedAt: new Date('2026-05-01'),
         decisionedAt: new Date('2026-05-03'),
         firstWayOut: 'SALARY',
@@ -462,6 +463,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
     const bp = profiles[0]; // SME Manufacturing Sdn Bhd
     const leanB = await prisma.creditApplication.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         applicationNo: 'CA-LEAN-002',
         borrowerProfileId: bp.id,
         productType: 'TERM_LOAN' as any,
@@ -470,9 +472,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         currency: 'MYR' as any,
         purpose: 'Working capital facility to support production line upgrade and raw material purchase',
         state: 'APPROVED' as any,
-        riskRating: 'BBB',
-        rmId: adminId,
-        analystId,
+        assignedRmId: adminId,
+        assignedAnalystId: analystId,
         submittedAt: new Date('2026-05-05'),
         decisionedAt: new Date('2026-05-12'),
         firstWayOut: 'OPERATING_CASHFLOW',
@@ -506,6 +507,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
     const bp = profiles[0]; // SME Manufacturing Sdn Bhd
     const leanC = await prisma.creditApplication.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         applicationNo: 'CA-LEAN-003',
         borrowerProfileId: bp.id,
         productType: 'PROJECT_FINANCE' as any,
@@ -514,9 +516,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         currency: 'MYR' as any,
         purpose: 'Greenfield factory Phase 3 — 30,000 sqft facility for precision aerospace components',
         state: 'COMMITTEE_REVIEW' as any,
-        riskRating: 'BB',
-        rmId: adminId,
-        analystId,
+        assignedRmId: adminId,
+        assignedAnalystId: analystId,
         submittedAt: new Date('2026-05-10'),
         firstWayOut: 'PROJECT_REVENUE',
       },

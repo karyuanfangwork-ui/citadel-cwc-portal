@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from './error.middleware';
 import { config } from '../config';
 import { tokenService } from '../services/token.service';
 import { permissionService } from '../services/permission.service';
+import { runWithTenant } from '../lib/tenant-context';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -17,6 +17,7 @@ export interface AuthRequest extends Request {
         roles: string[];
         permissions: string[];
         agentTeam?: string | null;
+        tenantId?: string;
         // P1-8 — MFA fields for requireMfa middleware
         mfaEnabled?: boolean;
         mustEnrollMfa?: boolean;
@@ -50,6 +51,7 @@ export const authenticate = async (
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            tenantId?: string;
             jti?: string;
             exp?: number;
             iat?: number;
@@ -100,6 +102,7 @@ export const authenticate = async (
             roles,
             permissions,
             agentTeam: user.agentTeam,
+            tenantId: user.tenantId ?? undefined,
             // P1-8 — MFA fields for requireMfa middleware
             mfaEnabled: user.mfaEnabled,
             mustEnrollMfa: user.mustEnrollMfa,
@@ -109,6 +112,12 @@ export const authenticate = async (
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
 
+        // Wrap the remainder of the request in tenant context so all
+        // downstream Prisma queries are automatically scoped.
+        const tenantId = user.tenantId;
+        if (tenantId) {
+            return runWithTenant(tenantId, async () => next());
+        }
         next();
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {
@@ -178,9 +187,14 @@ export const optionalAuth = async (
                 roles,
                 permissions,
                 agentTeam: user.agentTeam,
+                tenantId: user.tenantId ?? undefined,
             };
         }
 
+        // Set tenant context if user has a tenant
+        if (user?.tenantId) {
+            return runWithTenant(user.tenantId, async () => next());
+        }
         next();
     } catch {
         next();
@@ -253,6 +267,7 @@ export const sseAuth = async (
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            tenantId?: string;
             jti?: string;
             exp?: number;
             iat?: number;
@@ -303,10 +318,15 @@ export const sseAuth = async (
             roles,
             permissions,
             agentTeam: user.agentTeam,
+            tenantId: user.tenantId ?? undefined,
         };
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
 
+        // Set tenant context if user has a tenant
+        if (user.tenantId) {
+            return runWithTenant(user.tenantId, async () => next());
+        }
         next();
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {

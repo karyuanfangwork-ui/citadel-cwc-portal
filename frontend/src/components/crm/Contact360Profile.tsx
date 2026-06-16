@@ -116,7 +116,7 @@ const Contact360Profile: React.FC<Props> = ({ contact, onEdit }) => {
           {contact.department && (
             <InfoRow icon="corporate_fare" label="Department" value={contact.department} />
           )}
-          <InfoRow icon="calendar_today" label="Customer Since" value={formatDate(contact.createdAt)} />
+          <InfoRow icon="calendar_today" label="Client Since" value={formatDate(contact.createdAt)} />
           <InfoRow icon="timelapse" label="Tenure" value={tenure > 0 ? `${tenure} yr${tenure !== 1 ? 's' : ''}` : '< 1 yr'} />
           <InfoRow icon="check_circle" label="Status" value={contact.isActive !== false ? 'Active' : 'Inactive'} />
         </div>

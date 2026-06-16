@@ -143,6 +143,12 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
                           </span>
                         );
                       })()}
+                      {user.tenantId && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 bg-teal-50 text-teal-700">
+                          <span className="material-symbols-outlined text-xs">business</span>
+                          Citadel
+                        </span>
+                      )}
                       {user.outOfOffice && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
                           <span className="material-symbols-outlined text-xs">outbox</span>

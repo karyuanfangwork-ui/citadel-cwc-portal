@@ -11,6 +11,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================================
+// MULTI-TENANCY
+// ============================================================================
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(200)
+  slug      String   @unique @db.VarChar(100)
+  plan      TenantPlan @default(FREE)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  users User[]
+
+  @@map("tenants")
+}
+
+enum TenantPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
 // Executive approval tiers for high-value requests
 enum ExecutiveRole {
   CEO
@@ -53,6 +77,7 @@ enum AssetCategory {
 model User {
   id                String         @id @default(uuid()) @db.Uuid
   email             String         @unique @db.VarChar(255)
+  tenantId          String?        @map("tenant_id") @db.Uuid
   passwordHash      String         @map("password_hash") @db.VarChar(255)
   firstName         String         @map("first_name") @db.VarChar(100)
   lastName          String         @map("last_name") @db.VarChar(100)
@@ -84,6 +109,8 @@ model User {
   mfaBackupCodes     String[]       @map("mfa_backup_codes")              // Hashed backup codes
   mfaVerifiedAt      DateTime?      @map("mfa_verified_at") @db.Timestamp(6)  // Last TOTP verification timestamp
   mustEnrollMfa      Boolean        @default(false) @map("must_enroll_mfa")  // P1-8: set when user gets credit:approve/disburse
+
+  tenant            Tenant?         @relation(fields: [tenantId], references: [id])
 
   // Delegation
   delegatedTo              User?                  @relation("UserDelegate", fields: [delegatedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -223,6 +250,7 @@ model User {
   // P2-4 — Application Comments
   applicationComments       ApplicationComment[]         @relation("CommentAuthor")
 
+  @@index([tenantId])
   @@index([email])
   @@index([managerId])
   @@index([entityId])
@@ -319,6 +347,7 @@ model PasswordResetToken {
 
 model ServiceDesk {
   id          String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name        String   @unique @db.VarChar(100)
   code        String   @unique @db.VarChar(20)
   description String?  @db.Text
@@ -335,11 +364,13 @@ model ServiceDesk {
   requests   Request[]
   kbArticles KnowledgeBaseArticle[]
 
+  @@index([tenantId])
   @@map("service_desks")
 }
 
 model ServiceCategory {
   id            String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   serviceDeskId String   @map("service_desk_id") @db.Uuid
   name          String   @db.VarChar(100)
   description   String?  @db.Text
@@ -355,11 +386,13 @@ model ServiceCategory {
 
   @@unique([serviceDeskId, name])
   @@index([serviceDeskId])
+  @@index([tenantId])
   @@map("service_categories")
 }
 
 model RequestType {
   id                String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   serviceCategoryId String   @map("service_category_id") @db.Uuid
   code              String?  @unique @db.VarChar(100)
   name              String   @db.VarChar(150)
@@ -382,11 +415,13 @@ model RequestType {
 
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
+  @@index([tenantId])
   @@map("request_types")
 }
 
 model EscalationRule {
   id                      String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   requestTypeId           String   @map("request_type_id") @db.Uuid
   triggerHoursAfterBreach Int      @map("trigger_hours_after_breach")
   notifyRoles             String[] @map("notify_roles")
@@ -398,6 +433,7 @@ model EscalationRule {
   requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
 
   @@index([requestTypeId])
+  @@index([tenantId])
   @@map("escalation_rules")
 }
 
@@ -555,6 +591,7 @@ enum RequestPriority {
 
 model Request {
   id              String  @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   referenceNumber String  @unique @map("reference_number") @db.VarChar(50)
   requestTypeId   String? @map("request_type_id") @db.Uuid
   serviceDeskId   String? @map("service_desk_id") @db.Uuid
@@ -629,6 +666,7 @@ model Request {
   @@index([serviceDeskId])
   @@index([assignedToId])
   @@index([createdAt(sort: Desc)])
+  @@index([tenantId])
   @@map("requests")
 }
 
@@ -859,6 +897,7 @@ model RequestApproval {
 
 model Candidate {
   id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   requestId String   @map("request_id") @db.Uuid
   fullName  String   @map("full_name") @db.VarChar(200)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
@@ -870,6 +909,7 @@ model Candidate {
 
   @@unique([requestId, fullName], name: "unique_candidate_per_request")
   @@index([requestId])
+  @@index([tenantId])
   @@map("candidates")
 }
 
@@ -903,6 +943,7 @@ model CandidateResume {
 
 model NotificationTemplate {
   id        String @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name      String @unique @db.VarChar(100)
   eventType String @map("event_type") @db.VarChar(100)
 
@@ -916,6 +957,7 @@ model NotificationTemplate {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  @@index([tenantId])
   @@map("notification_templates")
 }
 
@@ -935,6 +977,7 @@ enum NotificationStatus {
 
 model Notification {
   id     String @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   userId String @map("user_id") @db.Uuid
 
   channel NotificationChannel
@@ -957,6 +1000,7 @@ model Notification {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([tenantId])
   @@map("notifications")
 }
 
@@ -966,6 +1010,7 @@ model Notification {
 
 model KnowledgeBaseArticle {
   id            String  @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   serviceDeskId String? @map("service_desk_id") @db.Uuid
 
   title   String  @db.VarChar(500)
@@ -996,6 +1041,7 @@ model KnowledgeBaseArticle {
   @@index([slug])
   @@index([serviceDeskId])
   @@index([isPublished, publishedAt(sort: Desc)])
+  @@index([tenantId])
   @@map("kb_articles")
 }
 
@@ -1005,6 +1051,7 @@ model KnowledgeBaseArticle {
 
 model AuditLog {
   id String @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
 
   userId    String? @map("user_id") @db.Uuid
   userEmail String? @map("user_email") @db.VarChar(255)
@@ -1027,6 +1074,7 @@ model AuditLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([resourceType, resourceId])
   @@index([createdAt(sort: Desc)])
+  @@index([tenantId])
   @@map("audit_logs")
 }
 
@@ -1135,6 +1183,7 @@ model LetterOfAcceptance {
 // Onboarding Requests
 model OnboardingRequest {
   id        String @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   requestId String @unique @map("request_id") @db.Uuid
 
   // New Hire Information
@@ -1196,6 +1245,7 @@ model OnboardingRequest {
   @@index([requestId])
   @@index([newHireId])
   @@index([startDate])
+  @@index([tenantId])
   @@map("onboarding_requests")
 }
 
@@ -1251,6 +1301,7 @@ model OnboardingTaskTemplate {
 // Offboarding Requests
 model OffboardingRequest {
   id        String @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   requestId String @unique @map("request_id") @db.Uuid
 
   // Departing Employee
@@ -1301,6 +1352,7 @@ model OffboardingRequest {
   @@index([requestId])
   @@index([employeeId])
   @@index([lastWorkingDay])
+  @@index([tenantId])
   @@map("offboarding_requests")
 }
 
@@ -1421,6 +1473,7 @@ enum EntityRoutingMode {
 
 model Entity {
   id           String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name         String   @db.VarChar(200)
   code         String   @unique @db.VarChar(50)
   description  String?  @db.Text
@@ -1436,6 +1489,7 @@ model Entity {
   requestApprovals RequestApproval[] @relation("ApprovalEntity")
 
   @@index([approverId])
+  @@index([tenantId])
   @@map("entities")
 }
 
@@ -1461,6 +1515,7 @@ model RequestTypeEntityRouting {
 
 model Asset {
   id             String        @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   assetTag       String        @unique @map("asset_tag") @db.VarChar(100)
   serialNumber   String?       @unique @map("serial_number") @db.VarChar(100)
   name           String        @db.VarChar(255)
@@ -1496,6 +1551,7 @@ model Asset {
   @@index([status])
   @@index([category])
   @@index([createdById])
+  @@index([tenantId])
   @@map("assets")
 }
 
@@ -1522,9 +1578,11 @@ model AssetAssignment {
 
 model SystemSetting {
   key       String   @id @db.VarChar(100)
+  tenantId  String?  @map("tenant_id") @db.Uuid
   value     String   @db.Text
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  @@index([tenantId])
   @@map("system_settings")
 }
 
@@ -1576,6 +1634,7 @@ enum CrmActivityType {
 // CRM Accounts — external companies/organizations
 model CrmAccount {
   id                 String    @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name               String    @db.VarChar(255)
   industry           String?   @db.VarChar(100)
   companySize        String?   @map("company_size") @db.VarChar(50)
@@ -1621,12 +1680,14 @@ model CrmAccount {
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailAccount")
   customFields     Json?              @map("custom_fields")
   contactAccountRoles CrmContactAccountRole[]
+  @@index([tenantId])
   @@map("crm_accounts")
 }
 
 // CRM Contacts — people at external accounts
 model CrmContact {
   id                String    @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   accountId         String    @map("account_id") @db.Uuid
   firstName         String    @map("first_name") @db.VarChar(100)
   lastName          String    @map("last_name") @db.VarChar(100)
@@ -1671,6 +1732,7 @@ model CrmContact {
 
   @@index([accountId])
   @@index([email])
+  @@index([tenantId])
   @@map("crm_contacts")
 }
 
@@ -1694,6 +1756,7 @@ model CrmContactAccountRole {
 // CRM Leads — pre-qualified prospects
 model CrmLead {
   id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   title     String     @db.VarChar(255)
   status    LeadStatus @default(NEW)
   source    LeadSource @default(OTHER)
@@ -1746,6 +1809,7 @@ model CrmLead {
   @@index([territoryId])
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailLead")
   customFields     Json?              @map("custom_fields")
+  @@index([tenantId])
   @@map("crm_leads")
 }
 
@@ -1829,6 +1893,7 @@ model CrmFieldChange {
 // CRM Pipelines — configurable deal pipelines
 model CrmPipeline {
   id          String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name        String   @db.VarChar(100)
   description String?  @db.Text
   isDefault   Boolean  @default(false) @map("is_default")
@@ -1839,6 +1904,7 @@ model CrmPipeline {
   stages        CrmPipelineStage[]
   opportunities CrmOpportunity[]
 
+  @@index([tenantId])
   @@map("crm_pipelines")
 }
 
@@ -1870,6 +1936,7 @@ model CrmPipelineStage {
 // CRM Opportunities — revenue-tracked deals
 model CrmOpportunity {
   id         String  @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   name       String  @db.VarChar(255)
   accountId  String  @map("account_id") @db.Uuid
   contactId  String? @map("contact_id") @db.Uuid
@@ -1914,6 +1981,7 @@ model CrmOpportunity {
   @@index([ownerId])
   @@index([expectedCloseDate])
   customFields     Json?              @map("custom_fields")
+  @@index([tenantId])
   @@map("crm_opportunities")
 }
 
@@ -2425,6 +2493,7 @@ enum AnnouncementPriority {
 
 model Announcement {
   id             String               @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   title          String               @db.VarChar(500)
   content        String               @db.Text
   excerpt        String?              @db.Text
@@ -2449,11 +2518,13 @@ model Announcement {
   @@index([category])
   @@index([isPinned])
   @@index([expiresAt])
+  @@index([tenantId])
   @@map("announcements")
 }
 
 model AnnouncementRead {
   id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
   announcementId String   @map("announcement_id") @db.Uuid
   userId         String   @map("user_id") @db.Uuid
   readAt         DateTime @default(now()) @map("read_at") @db.Timestamp(6)
@@ -2461,6 +2532,7 @@ model AnnouncementRead {
   announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
   user         User         @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@unique([announcementId, userId])
   @@index([announcementId])
   @@index([userId])
@@ -2490,6 +2562,7 @@ model RequestParticipant {
 
 model FeatureFlag {
   id          String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   key         String   @unique @db.VarChar(100)
   description String?  @db.Text
   enabled     Boolean  @default(false)
@@ -2501,6 +2574,7 @@ model FeatureFlag {
   @@index([key])
   @@index([category])
   @@index([enabled])
+  @@index([tenantId])
   @@map("feature_flags")
 }
 
@@ -3339,6 +3413,7 @@ model RelatedPartyMember {
 // ============================================================================
 model Branch {
   id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   code      String  @unique @db.VarChar(20)
   name      String  @db.VarChar(255)
   region    String? @db.VarChar(100)
@@ -3351,6 +3426,7 @@ model Branch {
   slaOverrides     CreditSlaPolicyBranchOverride[]
   users            User[]
 
+  @@index([tenantId])
   @@map("branches")
 }
 
@@ -3370,6 +3446,7 @@ model CreditSlaPolicyBranchOverride {
 
 model CreditApplication {
   id              String           @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
   applicationNo    String           @unique @map("application_no") @db.VarChar(50) // e.g. CA-2026-00001
   state           ApplicationState @default(DRAFT)
   
@@ -3508,6 +3585,7 @@ model CreditApplication {
   @@index([productType])
   @@index([submittedAt])
   @@index([branchId])
+  @@index([tenantId])
   @@map("credit_applications")
 }
 

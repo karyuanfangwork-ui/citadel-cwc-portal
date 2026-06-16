@@ -1,11 +1,10 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

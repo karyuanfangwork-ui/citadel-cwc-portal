@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient, RequestStatus } from '@prisma/client';
+import { RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
@@ -12,7 +12,7 @@ import { applyEntityRouting } from '../services/entityRouting.service';
 import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {

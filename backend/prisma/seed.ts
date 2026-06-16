@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
     SEED_NOTIFICATION_TEMPLATES,
@@ -12,8 +11,10 @@ import {
     SEED_PRODUCTION_USERS,
 } from './seed-admin-config';
 import { seedWorkflows } from './seed-workflows';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // Safety flag: Set RETAIN_ADMIN_CONFIG=true to preserve all admin console settings
 // Only re-seeds account management (users, roles, permissions)
@@ -25,6 +26,21 @@ async function main() {
         console.log('⚠️  RETAIN_ADMIN_CONFIG enabled - preserving admin console settings');
     }
 
+    // Seed default tenant (must run OUTSIDE tenant context since the tenant
+    // row itself doesn't yet exist for the extension to validate against)
+    const defaultTenant = await prisma.tenant.upsert({
+        where: { slug: 'citadel' },
+        update: {},
+        create: {
+            id: DEFAULT_TENANT_ID,
+            name: 'Citadel Group',
+            slug: 'citadel',
+            plan: 'ENTERPRISE',
+            isActive: true,
+        },
+    });
+    console.log('✅ Default tenant created:', defaultTenant.id);
+
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
         where: { code: 'IT' },
@@ -32,6 +48,7 @@ async function main() {
             ? {}
             : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
+            tenantId: defaultTenant.id,
             name: 'IT Support',
             code: 'IT',
             description: 'Technical support for hardware, software, and infrastructure',
@@ -47,6 +64,7 @@ async function main() {
             ? {}
             : { name: 'HR Services', description: 'Human resources support for employees', autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
+            tenantId: defaultTenant.id,
             name: 'HR Services',
             code: 'HR',
             description: 'Human resources support for employees',
@@ -62,6 +80,7 @@ async function main() {
             ? {}
             : { name: 'Group Finance', description: 'Financial services and expense management', autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
+            tenantId: defaultTenant.id,
             name: 'Group Finance',
             code: 'FINANCE',
             description: 'Financial services and expense management',
@@ -591,6 +610,7 @@ async function main() {
         where: { email: 'admin@test.local' },
         update: { jobTitle: 'Administrator', department: 'IT' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'admin@test.local',
             passwordHash: hashedPassword,
             firstName: 'Fang',
@@ -607,6 +627,7 @@ async function main() {
         where: { email: 'ceo@test.local' },
         update: { jobTitle: 'Chief Executive Officer', department: 'Executive', executiveRole: 'CEO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'ceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Emily',
@@ -624,6 +645,7 @@ async function main() {
         where: { email: 'cto@test.local' },
         update: { jobTitle: 'Chief Technology Officer', department: 'IT', executiveRole: 'CTO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'cto@test.local',
             passwordHash: hashedPassword,
             firstName: 'Raymond',
@@ -641,6 +663,7 @@ async function main() {
         where: { email: 'cfo@test.local' },
         update: { jobTitle: 'Chief Finance Officer', department: 'Finance', executiveRole: 'CFO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'cfo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Saravanan',
@@ -659,6 +682,7 @@ async function main() {
         where: { email: 'groupceo@test.local' },
         update: { jobTitle: 'Group Deputy Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_DCEO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'groupceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Alain',
@@ -687,6 +711,7 @@ async function main() {
             where: { email: acc.email },
             update: RETAIN_ADMIN_CONFIG ? {} : { agentTeam: acc.agentTeam, jobTitle: acc.jobTitle, department: acc.department },
             create: {
+            tenantId: defaultTenant.id,
                 email: acc.email,
                 passwordHash: agentPassword,
                 firstName: acc.firstName,
@@ -712,7 +737,7 @@ async function main() {
         const u = await prisma.user.upsert({
             where: { email: userData.email },
             update: {},
-            create: { ...userData, passwordHash: testPassword, isActive: true },
+            create: { ...userData, tenantId: DEFAULT_TENANT_ID, passwordHash: testPassword, isActive: true },
         });
         await assignRoles(u.id, [normalStaffRole.id]);
     }
@@ -733,6 +758,7 @@ async function main() {
         where: { email: 'salesmanager@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'salesmanager@test.local',
             passwordHash: testPassword,
             firstName: 'Ahmad',
@@ -749,6 +775,7 @@ async function main() {
         where: { email: 'salesrep@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'salesrep@test.local',
             passwordHash: testPassword,
             firstName: 'Nurul',
@@ -766,6 +793,7 @@ async function main() {
         where: { email: 'user@helpdesk.com' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'user@helpdesk.com',
             passwordHash: await bcrypt.hash('abc@123', 12),  // P0-6
             firstName: 'Regular',
@@ -787,6 +815,7 @@ async function main() {
         where: { email: 'credit.manager@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'credit.manager@test.local',
             passwordHash: testPassword,
             firstName: 'Sarah',
@@ -803,6 +832,7 @@ async function main() {
         where: { email: 'credit.analyst@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'credit.analyst@test.local',
             passwordHash: testPassword,
             firstName: 'Rajesh',
@@ -819,6 +849,7 @@ async function main() {
         where: { email: 'credit.senior@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'credit.senior@test.local',
             passwordHash: testPassword,
             firstName: 'Lim',
@@ -861,6 +892,7 @@ async function main() {
             where: { code: es.code },
             update: {}, // Do NOT overwrite admin-configured fields on re-seed
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: es.name,
                 code: es.code,
                 description: es.description,
@@ -937,6 +969,7 @@ async function main() {
                 // Create new user
                 await prisma.user.create({
                     data: {
+                        tenantId: defaultTenant.id,
                         email: pu.email,
                         firstName: pu.firstName,
                         lastName: pu.lastName,
@@ -1029,6 +1062,7 @@ async function main() {
                 displayOrder: category.displayOrder,
             },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: category.name,
                 description: category.description,
                 icon: category.icon,
@@ -1111,6 +1145,7 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: cat.id } },
                     code: category.requestTypeCode,
                     name: category.requestTypeName,
@@ -1197,6 +1232,7 @@ async function main() {
                 displayOrder: cat.displayOrder,
             },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: cat.name,
                 description: cat.description,
                 icon: cat.icon,
@@ -1240,6 +1276,7 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
@@ -1329,6 +1366,7 @@ async function main() {
                 isActive: (cat as any).categoryIsActive ?? true,
             },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: cat.name,
                 description: cat.description,
                 icon: cat.icon,
@@ -1371,6 +1409,7 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
@@ -1401,7 +1440,7 @@ async function main() {
             await prisma.notificationTemplate.upsert({
                 where: { name: template.name },
                 update: {},
-                create: template,
+                create: { ...template, tenantId: DEFAULT_TENANT_ID },
             });
         }
 
@@ -1560,6 +1599,7 @@ async function main() {
             if (!existing) {
                 await prisma.escalationRule.create({
                     data: {
+                        tenantId: DEFAULT_TENANT_ID,
                         requestTypeId: requestType.id,
                         triggerHoursAfterBreach: rule.triggerHoursAfterBreach,
                         notifyRoles: rule.notifyRoles,
@@ -1589,6 +1629,7 @@ async function main() {
                 where: { referenceNumber: 'HR-CONF-001' },
                 update: {},
                 create: {
+                    tenantId: DEFAULT_TENANT_ID,
                     referenceNumber: 'HR-CONF-001',
                     summary: 'Confidential HR inquiry about workplace harassment report',
                     description: 'This is a confidential HR request regarding a sensitive workplace matter. Access should be restricted to the requester, designated approvers, and authorized personnel only.',
@@ -1604,6 +1645,7 @@ async function main() {
                 where: { referenceNumber: 'HR-CONF-002' },
                 update: {},
                 create: {
+                    tenantId: DEFAULT_TENANT_ID,
                     referenceNumber: 'HR-CONF-002',
                     summary: 'Confidential disciplinary action review',
                     description: 'This is a confidential request related to a disciplinary proceeding. Only the requester and authorized HR personnel should have access.',
@@ -1829,7 +1871,7 @@ async function main() {
         await prisma.knowledgeBaseArticle.upsert({
             where: { slug: article.slug },
             update: {},
-            create: article,
+            create: { ...article, tenantId: DEFAULT_TENANT_ID },
         });
     }
     console.log(`✅ Seeded ${kbArticles.length} knowledge base articles`);
@@ -1841,6 +1883,7 @@ async function main() {
         update: {},
         create: {
             id: '00000000-0000-0000-0000-000000000001',
+            tenantId: DEFAULT_TENANT_ID,
             name: 'Sales Pipeline',
             description: 'Unified sales pipeline for tracking deals from prospecting to close',
             isDefault: true,
@@ -1947,7 +1990,7 @@ async function main() {
         await prisma.featureFlag.upsert({
             where: { key: flag.key },
             update: { description: flag.description, category: flag.category, enabled: flag.enabled },
-            create: flag,
+            create: { ...flag, tenantId: DEFAULT_TENANT_ID },
         });
     }
     console.log('✅ Feature flags seeded');

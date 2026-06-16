@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

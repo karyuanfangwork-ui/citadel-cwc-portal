@@ -1,10 +1,10 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { enqueuePdf } from '../../services/pdfJob.service';
 import { renderLooHtml, LooTemplateData } from '../templates/loo.html';
 import { AuditChainService } from './auditChain.service';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 const LOO_EXPIRY_DAYS = 14;
 
 const LOO_INCLUDE = {

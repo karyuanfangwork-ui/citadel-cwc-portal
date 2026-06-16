@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 // @desc    Get all workflow types
 // @route   GET /api/v1/admin/workflows

@@ -1,8 +1,8 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 export interface PricingWorksheetDto {
   baseRateType: 'BLR' | 'OPR' | 'FIXED' | 'SORA' | 'KLIBOR';

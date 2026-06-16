@@ -12,9 +12,9 @@
  * Thresholds are configurable via CreditPolicyLimit rows (type: LANE_THRESHOLD).
  */
 
-import { PrismaClient, ProcessingLane, BorrowerType } from '@prisma/client';
+import { ProcessingLane, BorrowerType } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 // ── Default thresholds (MYR) ──────────────────────────────────────────────────
 const PERSONAL_FAST_AMOUNT_CAP = 150_000;   // RM 150k

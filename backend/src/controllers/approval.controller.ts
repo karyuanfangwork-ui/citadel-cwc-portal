@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { PrismaClient, ApprovalStatus } from '@prisma/client';
+import { ApprovalStatus } from '@prisma/client';
 import { auditLog } from '../utils/audit';
 import { notify } from '../services/notification.service';
 import { allEntityApprovalsResolved } from '../services/entityRouting.service';
 import { reassignToTeam } from '../services/reassign.service';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

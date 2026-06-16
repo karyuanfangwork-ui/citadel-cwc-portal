@@ -5,9 +5,8 @@
  * and that credit:disburse is required for the 'disburse' transition action.
  */
 
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 // ---------------------------------------------------------------------------
 // Test: Permission definitions exist correctly

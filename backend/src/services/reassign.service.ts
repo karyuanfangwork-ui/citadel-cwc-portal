@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { notify } from '../services/notification.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
  * Reassign a request to the first active agent on the specified team.
