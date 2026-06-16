@@ -11,15 +11,16 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// ─── User IDs (from existing seed) ─────────────────────────────────────────
+// ─── User IDs (production server) ──────────────────────────────────────────
+// These IDs are environment-specific. Update when deploying to a new server.
 const USERS = {
-  admin:    'd116ac9e-80de-426f-bdc2-93dd869e51c8',  // Fang Kar Yuan (admin@test.local)
-  emily:    '4a53a6e8-18a9-4872-aef0-8fcd7f446b82',  // Emily Chow (CEO)
-  ahmad:    'dfb2a298-2ebf-4402-9b4e-9b93d6a5743f',  // Ahmad Razali (Sales Manager)
-  nurul:    'd7551123-158b-4725-8d33-87ef9e2d1e81',  // Nurul Ain (Relationship Manager)
-  sarah:    '24b675fc-b28c-456a-a16e-d3f5b2be9a31',  // Sarah Tan (Credit Manager)
-  rajesh:   'eafd3d06-f128-4291-a196-9e5ada93f0d8',  // Rajesh Kumar (Credit Analyst)
-  jane:     '4d7b0bbf-4cd3-4452-b6ba-d5e9c216249c',  // Jane Smith (Marketing Manager)
+  admin:    '3b612a93-dc95-4749-bb47-7587a09d4d55',  // Fang Kar Yuan (admin@test.local)
+  emily:    '03e2bac8-c435-40b0-bd81-cfd010c131dc',  // Emily Chow (CEO)
+  ahmad:    '3113c091-8a86-4a97-a2e8-ab44d11867e2',  // Ahmad Razali (Sales Manager)
+  nurul:    'd9a3da4c-bf9e-4e88-9967-e15bc474f7d5',  // Nurul Ain (Relationship Manager)
+  sarah:    'ead05048-1c1c-41ce-86e7-4a47737d0e6e',  // Sarah Tan (Credit Manager)
+  rajesh:   '68cbc3b0-d609-4104-b1a3-2e6728dd14fa',  // Rajesh Kumar (Credit Analyst)
+  jane:     'ec8475f9-2523-485e-bfb8-63b917a60411',  // Jane Smith (Marketing Manager)
 };
 
 const NOW = new Date();
@@ -203,8 +204,15 @@ async function main() {
   // ─── 4. Leads ─────────────────────────────────────────────────────────────
   console.log('4. Creating leads...');
 
-  const territoryKV = '409573ee-7a0d-43e2-9049-381b1af715fe'; // [DEMO] Klang Valley
-  const territoryNR = '40208a68-e0f0-4786-b7a5-616b11ebc973'; // [DEMO] Northern Region
+  // Create territories
+  const kvTerritory = await prisma.crmTerritory.create({
+    data: { name: '[DEMO] Klang Valley', description: 'Klang Valley region — Selangor, KL, Putrajaya', regions: { states: ['Selangor', 'Wilayah Persekutuan', 'Putrajaya'], countries: ['MY'] }, isActive: true, createdBy: USERS.admin },
+  });
+  const nrTerritory = await prisma.crmTerritory.create({
+    data: { name: '[DEMO] Northern Region', description: 'Northern region — Penang, Kedah, Perak', regions: { states: ['Pulau Pinang', 'Kedah', 'Perak'], countries: ['MY'] }, isActive: true, createdBy: USERS.admin },
+  });
+  const territoryKV = kvTerritory.id;
+  const territoryNR = nrTerritory.id;
 
   const leads = await Promise.all([
     // Hot leads
@@ -496,11 +504,6 @@ async function main() {
   // ─── 9. Update quotas to match pipeline ───────────────────────────────────
   console.log('9. Updating quotas for current quarter...');
 
-  // Get existing territories for quota updates
-  const existingTerritories = await prisma.crmTerritory.findMany();
-  const kvTerritory = existingTerritories.find(t => t.name.includes('Klang Valley'));
-  const nrTerritory = existingTerritories.find(t => t.name.includes('Northern'));
-
   // Update existing quotas to realistic targets
   const existingQuotas = await prisma.crmQuota.findMany();
   for (const q of existingQuotas) {
@@ -512,11 +515,11 @@ async function main() {
       await prisma.crmQuota.update({ where: { id: q.id }, data: { targetAmount: 1000000 } });
     }
     // Klang Valley territory quota
-    if (q.territoryId && kvTerritory && q.territoryId === kvTerritory.id) {
+    if (q.territoryId && q.territoryId === territoryKV) {
       await prisma.crmQuota.update({ where: { id: q.id }, data: { targetAmount: 10000000 } });
     }
     // Northern Region territory quota
-    if (q.territoryId && nrTerritory && q.territoryId === nrTerritory.id) {
+    if (q.territoryId && q.territoryId === territoryNR) {
       await prisma.crmQuota.update({ where: { id: q.id }, data: { targetAmount: 7000000 } });
     }
   }

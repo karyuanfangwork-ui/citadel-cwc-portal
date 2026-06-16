@@ -23,6 +23,9 @@ async function main() {
     'CrmAccount',
     'CrmPipelineStage',
     'CrmPipeline',
+    'CrmQuota',
+    'CrmTerritoryMember',
+    'CrmTerritory',
     'CrmAssignmentRule',
     'CrmTag',
     'CrmImportJob',
@@ -45,7 +48,8 @@ async function main() {
     'crm_lead_scoring_rules', 'crm_leads', 'crm_contact_account_roles',
     'crm_contacts', 'crm_account_requests', 'crm_beneficiaries',
     'crm_kyc_records', 'crm_accounts', 'crm_pipeline_stages',
-    'crm_pipelines', 'crm_assignment_rules', 'crm_tags',
+ 'crm_pipelines', 'crm_quotas', 'crm_territory_members', 'crm_territories',
+ 'crm_assignment_rules', 'crm_tags',
     'crm_import_jobs', 'crm_export_jobs',
   ];
 
