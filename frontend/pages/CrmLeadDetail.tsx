@@ -1492,7 +1492,7 @@ const CrmLeadDetail = () => {
                   <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Source</label>
                   <select value={editForm.source ?? 'OTHER'} onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
                     className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
-                    {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
+                    {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'].map(s => (
                       <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
                     ))}
                   </select>

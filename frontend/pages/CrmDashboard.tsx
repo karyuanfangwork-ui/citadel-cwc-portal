@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import crmService from '../src/services/crm.service';
 import type { DashboardStats } from '../src/services/crm.service';
 import { DashboardLayoutProvider, useDashboardLayout } from '../src/components/crm/DashboardLayoutProvider';
-import AiInsightCard from '../src/components/crm/AiInsightCard';
 import CrmKpiCard from '../src/components/crm/CrmKpiCard';
 import DateRangeDropdown, { type DatePreset } from '../src/components/crm/DateRangeDropdown';
+import { useAuth } from '../src/context/AuthContext';
 import { useDailyBriefing } from '../src/hooks/useCrmAi';
 
 const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
@@ -21,9 +21,6 @@ const TEAL = '#006a61';
 const TEAL_BG = '#86f2e4';
 const NAVY = '#131b2e';
 const SURFACE = '#f8f9ff';
-const CARD_BORDER = '#e2e8f0';
-const TEXT_PRIMARY = '#0b1c30';
-const TEXT_SECONDARY = '#45464d';
 
 function presetToDates(preset: DatePreset): { dateFrom: string; dateTo: string } {
   const now = new Date();
@@ -115,13 +112,16 @@ const HotLeadsSection: React.FC<{ leads: DashboardStats['hotLeads'] }> = ({ lead
       <div className="divide-y divide-[#e2e8f0]">
         {leads.map((lead) => (
           <div key={lead.id} className="px-6 py-3 flex items-center justify-between hover:bg-[#f8f9ff] transition-colors group">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[14px]" style={{ background: TEAL_BG + '33', color: TEAL }}>
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[14px] shrink-0" style={{ background: TEAL_BG + '33', color: TEAL }}>
                 {lead.contactName ? initials(lead.contactName) : initials(lead.title)}
               </div>
-              <div>
-                <p className="text-[14px] font-semibold text-[#0b1c30]">{lead.contactName ?? lead.title}</p>
-                <div className="flex items-center gap-2 mt-0.5">
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold text-[#0b1c30] truncate">{lead.contactName ?? lead.title}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  {lead.source && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#f0faf9] text-[#006a61] border border-[#86f2e4]">{lead.source}</span>
+                  )}
                   {lead.tags.map((tag) => (
                     <span key={tag} className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#dce9ff] text-[#3f465c]">{tag}</span>
                   ))}
@@ -133,7 +133,7 @@ const HotLeadsSection: React.FC<{ leads: DashboardStats['hotLeads'] }> = ({ lead
             </div>
             <div className="flex items-center gap-6">
               <div className="text-right">
-                <p className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">LendScore</p>
+                <p className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Lead Score</p>
                 <p className="text-[18px] font-semibold" style={{ color: lead.score >= 80 ? TEAL : lead.score >= 50 ? '#3f465c' : '#ba1a1a' }}>{lead.score}</p>
               </div>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -154,12 +154,18 @@ const HotLeadsSection: React.FC<{ leads: DashboardStats['hotLeads'] }> = ({ lead
 };
 
 /** Today's Follow-Ups */
-const FollowUpsWidget: React.FC<{ items: DashboardStats['upcomingFollowUps']; followUpDueToday: number }> = ({ items, followUpDueToday }) => {
-  const priorityColor = (idx: number) => {
-    if (idx === 0) return '#ba1a1a'; // high = red
-    if (idx === 1) return TEAL; // standard = teal
-    return '#45464d'; // medium = gray
+const FollowUpsWidget: React.FC<{ items: DashboardStats['upcomingFollowUps'] }> = ({ items }) => {
+  const urgency = (followUpDate: string): { label: string; color: string } => {
+    const diff = new Date(followUpDate).getTime() - Date.now();
+    const hours = diff / (1000 * 60 * 60);
+    if (hours <= 2) return { label: 'High Priority', color: '#ba1a1a' };
+    if (hours <= 8) return { label: 'Standard', color: TEAL };
+    return { label: 'Medium', color: '#45464d' };
   };
+
+  const sorted = [...items].sort((a, b) =>
+    new Date(a.followUpDate).getTime() - new Date(b.followUpDate).getTime()
+  );
 
   return (
     <section className="bg-white border border-[#e2e8f0] rounded-xl flex flex-col h-[400px]">
@@ -168,22 +174,25 @@ const FollowUpsWidget: React.FC<{ items: DashboardStats['upcomingFollowUps']; fo
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="divide-y divide-[#e2e8f0]">
-          {items.length === 0 && (
+          {sorted.length === 0 && (
             <p className="text-[13px] text-[#45464d] opacity-60 text-center py-8">No follow-ups today</p>
           )}
-          {items.map((fu, idx) => (
-            <div key={fu.id} className="px-6 py-3 flex items-start gap-4">
-              <div className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ background: priorityColor(idx) }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[#0b1c30] truncate">{fu.title}</p>
-                {fu.followUpNote && <p className="text-[11px] text-[#45464d] mt-0.5 truncate">{fu.followUpNote}</p>}
-                <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-[#45464d] uppercase">
-                  <span>{new Date(fu.followUpDate).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}</span>
-                  <span style={{ color: priorityColor(idx) }}>{idx === 0 ? 'High Priority' : idx === 1 ? 'Standard' : 'Medium'}</span>
+          {sorted.map((fu) => {
+            const { label, color } = urgency(fu.followUpDate);
+            return (
+              <div key={fu.id} className="px-6 py-3 flex items-start gap-4">
+                <div className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold text-[#0b1c30] truncate">{fu.title}</p>
+                  {fu.followUpNote && <p className="text-[11px] text-[#45464d] mt-0.5 truncate">{fu.followUpNote}</p>}
+                  <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-[#45464d] uppercase">
+                    <span>{new Date(fu.followUpDate).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}</span>
+                    <span style={{ color }}>{label}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -244,10 +253,11 @@ const PipelineWidget: React.FC<{ stages: DashboardStats['opportunitiesByStage'] 
       </div>
       <div className="flex gap-2">
         {activeStages.map((stage, idx) => {
-          const color = stageColors[idx % stageColors.length];
-          const textColor = idx >= stageColors.length - 1 ? '#fff' : TEAL;
+          const pos = idx % stageColors.length;
+          const color = stageColors[pos];
+          const textColor = pos >= stageColors.length - 1 ? '#fff' : TEAL;
           return (
-            <div key={stage.stageId} className="flex-1 h-20 rounded flex flex-col items-center justify-center border-b-4" style={{ background: color + (idx < 2 ? '4D' : idx === 2 ? '80' : 'CC'), borderBottomColor: TEAL, opacity: 0.3 + (idx * 0.2) }}>
+            <div key={stage.stageId} className="flex-1 h-20 rounded flex flex-col items-center justify-center border-b-4" style={{ background: color + (pos < 2 ? '4D' : pos === 2 ? '80' : 'CC'), borderBottomColor: TEAL, opacity: Math.min(1, 0.3 + pos * 0.2) }}>
               <p className="text-[10px] font-bold" style={{ color: textColor }}>{stage.name}</p>
               <p className="text-[13px] font-semibold" style={{ color: textColor, fontFamily: "'JetBrains Mono', monospace" }}>{stage._count} ({fmt(stage._sum.value).replace('MYR', '').trim()})</p>
             </div>
@@ -275,7 +285,7 @@ const CalendarWidget: React.FC<{ meetingsToday: DashboardStats['meetingsToday'] 
           <div className="flex gap-4">
             <div className="w-12 text-center shrink-0">
               <p className="font-bold" style={{ color: TEAL }}>{new Date(nextMeeting.scheduledAt).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}</p>
-              <p className="text-[10px] text-[#45464d] font-bold uppercase">{new Date(nextMeeting.scheduledAt).toLocaleTimeString('en-MY', { hour12: true }).split(' ')[1]}</p>
+              <p className="text-[10px] text-[#45464d] font-bold uppercase">{new Intl.DateTimeFormat('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(new Date(nextMeeting.scheduledAt)).find(p => p.type === 'dayPeriod')?.value?.toUpperCase() ?? ''}</p>
             </div>
             <div className="flex-1 p-3 bg-[#f8f9ff] rounded-lg border-l-4" style={{ borderColor: TEAL }}>
               <p className="text-[13px] font-bold text-[#0b1c30]">{nextMeeting.subject}</p>
@@ -311,7 +321,28 @@ const RecentActivityWidget: React.FC<{ activities: DashboardStats['recentActivit
 
   return (
     <section className="bg-white border border-[#e2e8f0] rounded-xl p-6">
-      <h3 className="text-[18px] font-semibold text-[#0b1c30] mb-4">Recent Activity</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[18px] font-semibold text-[#0b1c30]">Recent Activity</h3>
+        <div className="flex gap-1">
+          {(['all', 'lead', 'opportunity', 'deal'] as ActivityFilter[]).map((f) => {
+            const labels: Record<ActivityFilter, string> = { all: 'All', lead: 'Leads', opportunity: 'Opps', deal: 'Deals' };
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors ${
+                  filter === f
+                    ? 'text-white'
+                    : 'text-[#45464d] hover:bg-[#f0f4ff]'
+                }`}
+                style={filter === f ? { background: TEAL } : {}}
+              >
+                {labels[f]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-[1px] before:bg-[#e2e8f0]">
         {activities.length === 0 && (
           <p className="text-[13px] text-[#45464d] opacity-60 text-center py-4">No recent activities</p>
@@ -393,13 +424,13 @@ const DashboardInner: React.FC = () => {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const { briefing, loading: briefingLoading, error: briefingError, fetch: fetchBriefing } = useDailyBriefing();
   const { layout } = useDashboardLayout();
+  const { user } = useAuth();
+  const userName = user ? `${user.firstName} ${user.lastName}`.trim() : undefined;
 
   const isVisible = (widgetId: string): boolean => {
     const entry = layout.find(w => w.widgetId === widgetId);
     return entry ? entry.visible : true;
   };
-
-  const now = new Date();
 
   useEffect(() => {
     let cancelled = false;
@@ -439,7 +470,7 @@ const DashboardInner: React.FC = () => {
     <div className="min-h-full p-6 space-y-4 max-w-[1440px] mx-auto" style={{ background: SURFACE }}>
       {/* Welcome Header */}
       <WelcomeHeader
-        userName={undefined}
+        userName={userName}
         datePreset={datePreset}
         setDatePreset={setDatePreset}
         myDeals={myDeals}
@@ -510,7 +541,7 @@ const DashboardInner: React.FC = () => {
           {/* Follow-ups + Tasks side by side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {isVisible('upcoming_activities') && (
-              <FollowUpsWidget items={stats?.upcomingFollowUps ?? []} followUpDueToday={stats?.followUpDueToday ?? 0} />
+              <FollowUpsWidget items={stats?.upcomingFollowUps ?? []} />
             )}
             {isVisible('my_tasks') && (
               <MyTasksWidget tasks={stats?.tasks ?? { overdue: [], inProgress: [], overdueCount: 0, inProgressCount: 0 }} />

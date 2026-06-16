@@ -4,7 +4,7 @@ import { AuditLogEntry } from './auditLog.service';
 // ── CRM Types ───────────────────────────────────────────────────
 
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'UNQUALIFIED' | 'CONVERTED' | 'LOST';
-export type LeadSource = 'WEBSITE' | 'REFERRAL' | 'COLD_CALL' | 'TRADE_SHOW' | 'LINKEDIN' | 'ADVERTISEMENT' | 'PARTNER' | 'OTHER';
+export type LeadSource = 'WEBSITE' | 'REFERRAL' | 'COLD_CALL' | 'TRADE_SHOW' | 'LINKEDIN' | 'ADVERTISEMENT' | 'PARTNER' | 'WHATSAPP' | 'OTHER';
 export type OpportunityStage = 'PROSPECTING' | 'QUALIFICATION' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
 export type CrmActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | 'FOLLOW_UP' | 'WHATSAPP' | 'SITE_VISIT';
 
@@ -835,7 +835,7 @@ const crmService = {
     };
   },
   async validateImportMapping(jobId: string, columnMapping: Record<string, string>) {
-    const res = await api.post(`/crm/import/${jobId}/validate`, { columnMapping });
+    const res = await api.post(`/crm/import/${jobId}/mapping`, { columnMapping });
     return res.data.data as { valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] };
   },
   async executeImport(jobId: string) {

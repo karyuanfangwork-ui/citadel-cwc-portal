@@ -250,11 +250,11 @@ const CrmCustomers: React.FC = () => {
             <span className="material-symbols-outlined text-lg">refresh</span>
             Refresh
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-[#e2e8f0] hover:bg-[#eff4ff] transition-colors rounded text-sm font-medium">
+          <button onClick={() => navigate('/crm/import-export?entity=ACCOUNT')} className="flex items-center gap-2 px-4 py-2 border border-[#e2e8f0] hover:bg-[#eff4ff] transition-colors rounded text-sm font-medium">
             <span className="material-symbols-outlined text-lg">file_upload</span>
             Import
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-[#e2e8f0] hover:bg-[#eff4ff] transition-colors rounded text-sm font-medium">
+          <button onClick={() => navigate('/crm/import-export?entity=ACCOUNT&tab=export')} className="flex items-center gap-2 px-4 py-2 border border-[#e2e8f0] hover:bg-[#eff4ff] transition-colors rounded text-sm font-medium">
             <span className="material-symbols-outlined text-lg">file_download</span>
             Export
           </button>

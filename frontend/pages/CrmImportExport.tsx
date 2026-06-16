@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -8,14 +8,14 @@ type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'OPPORTUNITY';
 const ENTITY_LABELS: Record<EntityType, string> = {
   LEAD: 'Leads',
   CONTACT: 'Contacts',
-  ACCOUNT: 'Accounts',
+  ACCOUNT: 'Customers',
   OPPORTUNITY: 'Opportunities',
 };
 
 const ENTITY_ICONS: Record<EntityType, string> = {
   LEAD: 'lightbulb',
   CONTACT: 'person',
-  ACCOUNT: 'business',
+  ACCOUNT: 'groups',
   OPPORTUNITY: 'monetization_on',
 };
 
@@ -42,14 +42,30 @@ const STEP_ORDER: ImportStep[] = ['upload', 'mapping', 'validating', 'importing'
 
 const CrmImportExport = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Tab state ──
-  const [tab, setTab] = useState<'import' | 'export'>('import');
+  const [tab, setTab] = useState<'import' | 'export'>(() => {
+    const param = searchParams.get('tab');
+    return param === 'export' ? 'export' : 'import';
+  });
 
   // ── Import state ──
-  const [entity, setEntity] = useState<EntityType>('LEAD');
+  const [entity, setEntity] = useState<EntityType>(() => {
+    const param = searchParams.get('entity');
+    return (['LEAD','CONTACT','ACCOUNT','OPPORTUNITY'].includes(String(param)) ? param : 'LEAD') as EntityType;
+  });
+
+  // ── Sync URL params when entity or tab changes ──
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('entity', entity);
+    params.set('tab', tab);
+    navigate(`/crm/import-export?${params.toString()}`, { replace: true });
+  }, [entity, tab]);
+
   const [importStep, setImportStep] = useState<ImportStep>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -577,7 +593,7 @@ const CrmImportExport = () => {
                       {importHistory.slice(0, 10).map((job: any) => (
                         <tr key={job.id} className="border-b border-border/50 hover:bg-bg-subtle/50">
                           <td className="py-2.5 text-text-primary font-medium">{job.fileName}</td>
-                          <td className="py-2.5 text-text-secondary">{job.entity}</td>
+                          <td className="py-2.5 text-text-secondary">{ENTITY_LABELS[(job.entity as EntityType)] || job.entity}</td>
                           <td className="py-2.5">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-cwc-full text-xs font-semibold ${
                               job.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700'
@@ -681,7 +697,7 @@ const CrmImportExport = () => {
                     <tbody>
                       {exportHistory.slice(0, 10).map((job: any) => (
                         <tr key={job.id} className="border-b border-border/50 hover:bg-bg-subtle/50">
-                          <td className="py-2.5 text-text-primary font-medium">{job.entity}</td>
+                          <td className="py-2.5 text-text-primary font-medium">{ENTITY_LABELS[(job.entity as EntityType)] || job.entity}</td>
                           <td className="py-2.5 text-text-secondary">{job.format}</td>
                           <td className="py-2.5 text-text-secondary">{job.rowCount ?? '—'}</td>
                           <td className="py-2.5">

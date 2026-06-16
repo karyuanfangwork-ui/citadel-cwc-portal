@@ -1615,7 +1615,7 @@ class CrmController {
 
   // ======== IMPORT ========
   uploadImportFile = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { entity } = req.body;
+    const entity = String(req.query.entity || req.body.entity || '');
     const file = req.file as Express.Multer.File | undefined;
     if (!file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
     if (!entity || !['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(entity.toUpperCase())) {

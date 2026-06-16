@@ -93,7 +93,7 @@ export const contactFiltersSchema = paginationSchema.extend({
 
 const leadBodySchema = z.object({
   title: z.string().min(1).max(255),
-  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER']).default('OTHER'),
+  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'WHATSAPP', 'OTHER']).default('OTHER'),
   accountId: z.string().uuid().optional(),
   contactId: z.string().uuid().optional(),
   ownerId: z.string().uuid().optional(),
@@ -118,7 +118,7 @@ export const updateLeadSchema = z.object({
 
 export const leadFiltersSchema = paginationSchema.extend({
   status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
-  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER']).optional(),
+  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'WHATSAPP', 'OTHER']).optional(),
   ownerId: z.string().uuid().optional(),
   followUpDate: z.string().optional(),
 });

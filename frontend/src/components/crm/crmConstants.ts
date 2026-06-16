@@ -12,7 +12,7 @@ export const STATUS_STYLES: Record<string, { bg: string; text: string; icon: str
 
 export const ALL_STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'] as const;
 
-export const LEAD_SOURCES = ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'] as const;
+export const LEAD_SOURCES = ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'] as const;
 
 export const SOURCE_LABELS: Record<string, string> = {
   WEBSITE: 'Website',
@@ -22,6 +22,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   LINKEDIN: 'LinkedIn',
   ADVERTISEMENT: 'Ad',
   PARTNER: 'Partner',
+  WHATSAPP: 'WhatsApp',
   OTHER: 'Other',
 };
 

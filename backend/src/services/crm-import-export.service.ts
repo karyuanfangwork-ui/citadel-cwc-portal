@@ -27,7 +27,7 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'contactEmail', label: 'Contact Email', required: false, type: 'string' },
     { key: 'contactPhone', label: 'Contact Phone', required: false, type: 'string' },
     { key: 'companyName', label: 'Company Name', required: false, type: 'string' },
-    { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'], default: 'OTHER' },
+    { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'], default: 'OTHER' },
     { key: 'estimatedValue', label: 'Estimated Value', required: false, type: 'number' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
   ],
@@ -42,16 +42,23 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'nricPassport', label: 'NRIC/Passport', required: false, type: 'string' },
   ],
   ACCOUNT: [
-    { key: 'name', label: 'Account Name', required: true, type: 'string' },
+    { key: 'name', label: 'Customer Name', required: true, type: 'string' },
+    { key: 'accountType', label: 'Account Type', required: false, type: 'enum', enumValues: ['INDIVIDUAL', 'CORPORATE'], default: 'CORPORATE' },
     { key: 'industry', label: 'Industry', required: false, type: 'string' },
     { key: 'companySize', label: 'Company Size', required: false, type: 'string' },
     { key: 'website', label: 'Website', required: false, type: 'string' },
     { key: 'phone', label: 'Phone', required: false, type: 'string' },
     { key: 'email', label: 'Email', required: false, type: 'string' },
+    { key: 'address', label: 'Address', required: false, type: 'string' },
     { key: 'city', label: 'City', required: false, type: 'string' },
     { key: 'state', label: 'State', required: false, type: 'string' },
     { key: 'country', label: 'Country', required: false, type: 'string' },
+    { key: 'postalCode', label: 'Postal Code', required: false, type: 'string' },
     { key: 'annualRevenue', label: 'Annual Revenue', required: false, type: 'number' },
+    { key: 'registrationNumber', label: 'Registration Number', required: false, type: 'string' },
+    { key: 'taxNumber', label: 'Tax Number', required: false, type: 'string' },
+    { key: 'bankAccount', label: 'Bank Account', required: false, type: 'string' },
+    { key: 'description', label: 'Description', required: false, type: 'string' },
   ],
   OPPORTUNITY: [
     { key: 'name', label: 'Opportunity Name', required: true, type: 'string' },
@@ -61,6 +68,55 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'expectedCloseDate', label: 'Expected Close Date', required: false, type: 'date' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
   ],
+};
+
+// Column display-name mapping per entity for cleaner exports
+const EXPORT_COLUMN_ALIASES: Record<string, Record<string, string>> = {
+  LEAD: {
+    id: 'Lead ID', title: 'Title', status: 'Status', source: 'Source',
+    contactName: 'Contact Name', contactEmail: 'Contact Email', contactPhone: 'Contact Phone',
+    companyName: 'Company Name', estimatedValue: 'Estimated Value', description: 'Description',
+    ownerId: 'Owner ID', createdAt: 'Created At', updatedAt: 'Updated At',
+    owner_id: 'Owner ID', owner_firstName: 'Owner First Name', owner_lastName: 'Owner Last Name', owner_email: 'Owner Email',
+  },
+  CONTACT: {
+    id: 'Contact ID', firstName: 'First Name', lastName: 'Last Name',
+    email: 'Email', phone: 'Phone', mobile: 'Mobile',
+    jobTitle: 'Job Title', department: 'Department', accountId: 'Account ID',
+    isPrimary: 'Is Primary', isActive: 'Is Active',
+    createdAt: 'Created At', updatedAt: 'Updated At',
+    account_id: 'Account ID', account_firstName: 'Account Owner First Name', account_lastName: 'Account Owner Last Name',
+  },
+  ACCOUNT: {
+    id: 'Customer ID', name: 'Customer Name', accountType: 'Account Type',
+    industry: 'Industry', companySize: 'Company Size', website: 'Website',
+    phone: 'Phone', email: 'Email', address: 'Address',
+    city: 'City', state: 'State', country: 'Country', postalCode: 'Postal Code',
+    annualRevenue: 'Annual Revenue', registrationNumber: 'Registration Number',
+    taxNumber: 'Tax Number', bankAccount: 'Bank Account',
+    purchaseCashTrust: 'Purchase Cash Trust', description: 'Description',
+    isActive: 'Is Active', ownerId: 'Owner ID',
+    createdAt: 'Created At', updatedAt: 'Updated At',
+    owner_id: 'Owner ID', owner_firstName: 'Owner First Name', owner_lastName: 'Owner Last Name', owner_email: 'Owner Email',
+  },
+  OPPORTUNITY: {
+    id: 'Opportunity ID', name: 'Opportunity Name', value: 'Deal Value',
+    currency: 'Currency', probability: 'Probability (%)',
+    expectedCloseDate: 'Expected Close Date', description: 'Description',
+    accountId: 'Account ID', ownerId: 'Owner ID',
+    pipelineId: 'Pipeline ID', stageId: 'Stage ID',
+    createdAt: 'Created At', updatedAt: 'Updated At',
+    owner_id: 'Owner ID', owner_firstName: 'Owner First Name', owner_lastName: 'Owner Last Name', owner_email: 'Owner Email',
+    stage_name: 'Stage', stage_probability: 'Stage Probability',
+  },
+};
+
+// Fields to exclude from exports (internal/admin fields)
+const EXPORT_EXCLUDE_FIELDS: Record<string, string[]> = {
+  LEAD: ['deletedAt', 'lostReason', 'convertedAt', 'convertedToOppId', 'aiScore', 'aiScoreReason', 'aiScoredAt', 'ruleScore'],
+  CONTACT: ['deletedAt', 'nricPassport', 'dateOfBirth'],
+  ACCOUNT: ['deletedAt', 'parentAccountId'],
+  OPPORTUNITY: ['deletedAt', 'lostReason', 'wonAt', 'lostAt', 'aiWinProbability', 'aiWinReason', 'aiScoredAt', 'forecastCategory'],
 };
 
 const MAX_ROWS = 10000;
@@ -99,6 +155,12 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'estimatedvalue': 'estimatedValue', 'leadvalue': 'estimatedValue',
         'closingdate': 'expectedCloseDate', 'closedate': 'expectedCloseDate',
         'industrytype': 'industry', 'companysize': 'companySize', 'employees': 'companySize',
+        'accounttype': 'accountType', 'type': 'accountType', 'customertype': 'accountType',
+        'postalcode': 'postalCode', 'zipcode': 'postalCode', 'postcode': 'postalCode',
+        'regno': 'registrationNumber', 'registrationno': 'registrationNumber', 'regnumber': 'registrationNumber',
+        'taxno': 'taxNumber', 'taxid': 'taxNumber',
+        'bankacc': 'bankAccount', 'bankaccountno': 'bankAccount',
+        'addressline': 'address', 'street': 'address',
         'leadsource': 'source',
         'jobtitle': 'jobTitle', 'position': 'jobTitle', 'role': 'jobTitle',
         'nric': 'nricPassport', 'passport': 'nricPassport',
@@ -334,16 +396,23 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
         case 'ACCOUNT':
           await prisma.crmAccount.create({
             data: {
-              name: String(data.name || 'Imported Account'),
+              name: String(data.name || 'Imported Customer'),
+              accountType: (data.accountType as string) || 'CORPORATE',
               industry: data.industry ? String(data.industry) : null,
               companySize: data.companySize ? String(data.companySize) : null,
               website: data.website ? String(data.website) : null,
               phone: data.phone ? String(data.phone) : null,
               email: data.email ? String(data.email) : undefined,
+              address: data.address ? String(data.address) : null,
               city: data.city ? String(data.city) : null,
               state: data.state ? String(data.state) : null,
               country: data.country ? String(data.country) : null,
+              postalCode: data.postalCode ? String(data.postalCode) : null,
               annualRevenue: data.annualRevenue ? Number(data.annualRevenue) : undefined,
+              registrationNumber: data.registrationNumber ? String(data.registrationNumber) : null,
+              taxNumber: data.taxNumber ? String(data.taxNumber) : null,
+              bankAccount: data.bankAccount ? String(data.bankAccount) : null,
+              description: data.description ? String(data.description) : null,
               ownerId: userId,
             },
           });
@@ -509,7 +578,8 @@ async function generateExportFile(jobId: string): Promise<void> {
     fs.mkdirSync(exportDir, { recursive: true });
   }
 
-  const fileName = `${job.entity.toLowerCase()}_export_${Date.now()}.${job.format.toLowerCase()}`;
+  const entityLabel = job.entity === 'ACCOUNT' ? 'customers' : job.entity.toLowerCase();
+  const fileName = `${entityLabel}_export_${Date.now()}.${job.format.toLowerCase()}`;
   const filePath = path.join(exportDir, fileName);
 
   const escapeSpreadsheetFormula = (value: unknown): unknown => {
@@ -517,18 +587,29 @@ async function generateExportFile(jobId: string): Promise<void> {
     return /^[=+\-@]/.test(value) ? `'${value}` : value;
   };
 
-  // Flatten nested objects for export
+  // Flatten nested objects for export, apply column aliases, and exclude internal fields
+  const entityType = job.entity.toUpperCase();
+  const aliases = EXPORT_COLUMN_ALIASES[entityType] || {};
+  const excludeFields = new Set(EXPORT_EXCLUDE_FIELDS[entityType] || []);
+
   const flatData = data.map(row => {
     const flat: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {
+      // Skip internal/excluded fields
+      if (excludeFields.has(key)) continue;
       if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
         for (const [subKey, subValue] of Object.entries(value as Record<string, unknown>)) {
-          flat[`${key}_${subKey}`] = escapeSpreadsheetFormula(subValue);
+          const flatKey = `${key}_${subKey}`;
+          if (excludeFields.has(flatKey)) continue;
+          const alias = aliases[flatKey] || flatKey;
+          flat[alias] = escapeSpreadsheetFormula(subValue);
         }
       } else if (value instanceof Date) {
-        flat[key] = value.toISOString();
+        const alias = aliases[key] || key;
+        flat[alias] = value.toISOString();
       } else {
-        flat[key] = escapeSpreadsheetFormula(value);
+        const alias = aliases[key] || key;
+        flat[alias] = escapeSpreadsheetFormula(value);
       }
     }
     return flat;
