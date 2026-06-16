@@ -2391,13 +2391,13 @@ class CrmController {
       const fu = formatFollowUp(null); // accounts don't have followUpDate directly
       // Tab filters for follow-up and open-opp
       if (tab === 'follow-up') continue; // accounts don't have followUpDate
-      if (tab === 'open-opp' && (a._count?.opportunities ?? 0) === 0) continue;
+      if (tab === 'open-opp' && (a.opportunities?.length ?? 0) === 0) continue;
       customerRows.push({
         id: a.id, type: 'account', name: a.name, segment: seg,
         segmentLabel: seg === 'CORPORATE' ? 'Enterprise' : seg === 'SME' ? 'Mid-Market' : 'Premium',
         contactInfo: { phone: a.phone ?? null, email: a.email ?? null },
         relationshipMgr: a.owner ?? null,
-        opptyCount: a._count?.opportunities ?? 0,
+        opptyCount: a.opportunities?.length ?? 0,
         pipelineValue,
         health: computeHealth(lastAct),
         lastActivity: lastAct ? lastAct.toISOString() : null,
@@ -2413,12 +2413,7 @@ class CrmController {
       const seg = accountAny ? deriveSegment(accountAny) : 'RETAIL';
       const lastAct = c.activities?.[0]?.createdAt ?? null;
       const fu = formatFollowUp(c.followUpDate ? c.followUpDate.toISOString() : null);
-      if (tab === 'follow-up' && !c.followUpDate) continue;
-      if (tab === 'follow-up' && new Date(c.followUpDate!) > now) {
-        // only contacts with overdue follow-up
-        if (!c.followUpDate || new Date(c.followUpDate!) >= now) continue;
-      }
-      if (tab === 'follow-up' && c.followUpDate && new Date(c.followUpDate!) >= now) continue;
+      if (tab === 'follow-up' && (!c.followUpDate || new Date(c.followUpDate!) >= now)) continue;
       if (tab === 'open-opp' && (c.opportunities?.length ?? 0) === 0) continue;
       customerRows.push({
         id: c.id, type: 'contact',

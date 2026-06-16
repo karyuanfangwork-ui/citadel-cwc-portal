@@ -125,7 +125,7 @@ const CrmTeamDashboard = () => {
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
         <div className="relative z-10">
-          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM Dashboard</div>
+          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM › <span className="text-white/90">Dashboard</span></div>
           <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">
             Team Performance <span className="text-white/65 font-normal">Overview</span>
           </h1>

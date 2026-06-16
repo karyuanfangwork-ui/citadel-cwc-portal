@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import crmService, { ScoringRule } from '../src/services/crm.service';
 
 const OPERATORS: ScoringRule['operator'][] = ['equals', 'contains', 'gt', 'lt', 'starts_with', 'not_empty'];
@@ -67,6 +68,11 @@ export default function CrmLeadScoringAdmin() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase text-text-secondary mb-1">
+            <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-[#006a61] transition-colors">CRM</Link>
+            <span className="text-text-secondary/40">›</span>
+            <span className="font-bold text-[#006a61]">Scoring</span>
+          </div>
           <h2 className="text-xl font-black text-text-primary">Lead Scoring Rules</h2>
           <p className="text-sm text-text-secondary mt-1">{rules.length} rules · {totalPoints} max points from active rules</p>
         </div>

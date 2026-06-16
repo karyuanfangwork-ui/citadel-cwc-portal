@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -91,6 +91,11 @@ const CrmWorkflows: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
+            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase text-gray-500 mb-1">
+              <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-[#006a61] transition-colors">CRM</Link>
+              <span className="text-gray-400">›</span>
+              <span className="font-bold text-[#006a61]">Workflows</span>
+            </div>
             <h1 className="text-2xl font-bold text-gray-900">Workflow Automation</h1>
             <p className="text-sm text-gray-500 mt-1">Define trigger rules and automated actions for your CRM</p>
           </div>

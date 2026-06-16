@@ -45,12 +45,12 @@ interface Pagination {
 
 type TabKey = 'all' | 'mine' | 'active' | 'follow-up' | 'open-opp';
 
-const TAB_LABELS: Record<TabKey, string> = {
-  all: 'All Customers',
-  mine: 'My Customers',
-  active: 'Active',
-  'follow-up': 'Follow-Up Required',
-  'open-opp': 'Open Opportunities',
+const TAB_CONFIG: Record<TabKey, { label: string; tooltip: string }> = {
+  all: { label: 'Team Customers', tooltip: 'All customers visible to you and your team' },
+  mine: { label: 'Managed by Me', tooltip: 'Customers where you are the assigned Relationship Manager' },
+  active: { label: 'Active', tooltip: 'Customers with active status' },
+  'follow-up': { label: 'Overdue Follow-Ups', tooltip: 'Contacts with past-due follow-up dates' },
+  'open-opp': { label: 'Open Opportunities', tooltip: 'Customers with at least one open opportunity' },
 };
 
 const PAGE_SIZE = 25;
@@ -235,7 +235,9 @@ const CrmCustomers: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-[#45464d] mb-1">
             <span className="material-symbols-outlined text-lg">group</span>
-            <span className="text-[11px] font-bold tracking-widest uppercase">CRM Module</span>
+            <span className="text-[11px] font-bold tracking-widest uppercase">CRM</span>
+            <span className="text-[11px] text-[#45464d]/40">›</span>
+            <span className="text-[11px] font-bold tracking-widest uppercase text-[#006a61]">Customers</span>
           </div>
           <h2 className="text-[36px] font-bold text-[#0b1c30] leading-tight">Customer Management</h2>
           <p className="text-[#45464d] text-sm">Manage and maintain customer relationships.</p>
@@ -274,7 +276,17 @@ const CrmCustomers: React.FC = () => {
           <CrmKpiCard label="SME" value={stats.sme.toLocaleString()} icon="business_center" />
           <CrmKpiCard label="Corporate" value={stats.corporate.toLocaleString()} icon="apartment" />
           <CrmKpiCard label="Active" value={stats.active.toLocaleString()} icon="check_circle" />
-          <CrmKpiCard label="Follow-up Req." value={stats.followUpRequired.toLocaleString()} icon="notification_important" highlight />
+          <CrmKpiCard label="Overdue Follow-ups" value={stats.followUpRequired.toLocaleString()} icon="notification_important" highlight />
+        </div>
+      )}
+
+      {/* Tab scope context */}
+      {tab !== 'all' && (
+        <div className="flex items-center gap-2 text-sm text-[#45464d] bg-[#eff4ff]/60 border border-[#e2e8f0] rounded-lg px-4 py-2">
+          <span className="material-symbols-outlined text-base text-[#006a61]">info</span>
+          <span>
+            Showing <span className="font-semibold text-[#0b1c30]">{pagination.total.toLocaleString()}</span> of <span className="font-semibold text-[#0b1c30]">{stats?.total.toLocaleString() ?? '—'}</span> team customers filtered by <span className="font-semibold text-[#006a61]">{TAB_CONFIG[tab].label}</span>
+          </span>
         </div>
       )}
 
@@ -283,10 +295,11 @@ const CrmCustomers: React.FC = () => {
         {/* Tabs + Search */}
         <div className="px-6 py-3 border-b border-[#e2e8f0] flex flex-col lg:flex-row justify-between gap-4 bg-[#eff4ff]/50">
           <div className="flex items-center gap-6 overflow-x-auto">
-            {(Object.keys(TAB_LABELS) as TabKey[]).map(key => (
+            {(Object.keys(TAB_CONFIG) as TabKey[]).map(key => (
               <button
                 key={key}
                 onClick={() => { setTab(key); setPage(1); }}
+                title={TAB_CONFIG[key].tooltip}
                 className={`px-1 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   tab === key
                     ? 'text-[#006a61] font-bold'
@@ -294,7 +307,7 @@ const CrmCustomers: React.FC = () => {
                 }`}
                 style={tab === key ? { boxShadow: 'inset 0 -2px 0 0 #006a61' } : undefined}
               >
-                {TAB_LABELS[key]}
+                {TAB_CONFIG[key].label}
                 {key === 'follow-up' && stats?.followUpRequired ? (
                   <span className="ml-2 bg-[#ba1a1a] text-white text-[10px] px-1.5 py-0.5 rounded-full">
                     {stats.followUpRequired}

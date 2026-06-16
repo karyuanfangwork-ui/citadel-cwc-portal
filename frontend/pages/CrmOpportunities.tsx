@@ -291,9 +291,10 @@ const CrmOpportunities = () => {
       <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-[#76777d] mb-1">
+          <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase text-[#45464d] mb-1">
             <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-[#006a61] transition-colors">CRM</Link>
-            <span>/</span><span className="font-semibold text-[#0b1c30]">Opportunities</span>
+            <span className="text-[#45464d]/40">›</span>
+            <span className="font-bold text-[#006a61]">Opportunities</span>
           </div>
           <h1 className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>
             Opportunity Pipeline

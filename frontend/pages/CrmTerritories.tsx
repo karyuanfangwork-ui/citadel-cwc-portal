@@ -160,10 +160,10 @@ const CrmTerritories = () => {
     <>
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
-          <Link to="/crm" className="hover:text-brand-700 transition-colors" style={{ textDecoration: 'none', color: 'inherit' }}>CRM</Link>
-          <span>/</span>
-          <span className="font-semibold text-text-primary">Territories</span>
+        <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase text-[#45464d] mb-1">
+          <Link to="/crm" className="hover:text-[#006a61] transition-colors" style={{ textDecoration: 'none', color: 'inherit' }}>CRM</Link>
+          <span className="text-[#45464d]/40">›</span>
+          <span className="font-bold text-[#006a61]">Territories</span>
         </div>
 
         {/* Header */}

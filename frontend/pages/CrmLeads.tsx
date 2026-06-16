@@ -344,10 +344,10 @@ const CrmLeads = () => {
           {/* ── Header ── Kinetic Enterprise design ── */}
           <div className="flex justify-between items-end mb-8">
             <div>
-              <nav className="flex items-center gap-2 mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>
-                <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit', opacity: 0.7 }} className="hover:opacity-100 transition-opacity">CRM</Link>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
-                <span style={{ color: TEAL, fontWeight: 700 }}>Leads</span>
+              <nav className="flex items-center gap-2 mb-2" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>
+                <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-[#006a61] transition-colors">CRM</Link>
+                <span style={{ color: '#45464d', opacity: 0.4 }}>›</span>
+                <span style={{ color: '#006a61', fontWeight: 700 }}>Leads</span>
               </nav>
               <h1 style={{ fontSize: 36, fontWeight: 700, lineHeight: '44px', letterSpacing: '-0.02em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>
                 My Leads

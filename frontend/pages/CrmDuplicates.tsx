@@ -1,5 +1,6 @@
 // frontend/pages/CrmDuplicates.tsx
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import crmService, { CrmDuplicateMatch } from '../src/services/crm.service';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 
@@ -116,6 +117,11 @@ export default function CrmDuplicates() {
       <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
+            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest uppercase text-text-secondary mb-1">
+              <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-[#006a61] transition-colors">CRM</Link>
+              <span className="text-text-secondary/40">›</span>
+              <span className="font-bold text-[#006a61]">Duplicates</span>
+            </div>
             <h1 className="text-2xl font-bold text-text-primary">Duplicate Records</h1>
             <p className="text-sm text-text-secondary mt-1">Review and merge detected duplicate leads and contacts</p>
           </div>
