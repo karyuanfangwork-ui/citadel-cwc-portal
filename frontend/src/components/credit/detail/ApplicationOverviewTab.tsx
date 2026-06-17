@@ -1,25 +1,46 @@
 /**
- * ApplicationOverviewTab — 6-section overview dashboard for the credit application detail page.
+ * ApplicationOverviewTab — Enterprise-grade overview dashboard for the credit
+ * application detail page (Application 360 Workspace).
  *
- * Sections: Borrower Profile, Documents, Tasks, Workflow, Communications, Timeline.
+ * Sections:
+ *   1. Executive Summary — Top KPI cards (borrowed from ApplicationKpiRow)
+ *   2. Application Journey — Horizontal workflow stepper
+ *   3. Credit Risk Snapshot — 4+1 risk metric cards
+ *   4. Financial Trend Analysis — Mini bar charts from financial statements
+ *   5. Approval Workflow — Connected approval matrix nodes
+ *   6. Recent Activities — Enhanced activity feed with avatars and icons
+ *   7. Borrower Profile (existing)
+ *   8. Documents (existing)
+ *   9. Tasks / Next Actions (existing)
+ *  10. Health Summary (existing 3-bar)
+ *
  * Uses Financial Core design tokens (--cr-*).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import creditService, {
   CreditApplication,
   CreditFacility,
   CreditAuditEvent,
   ApplicationTransition,
   ApplicationState,
+  CreditApproval,
+  FinancialStatement,
+  ApprovalDecision,
 } from '../../../services/credit.service';
 import {
   DetailTab,
+  DetailTab360,
   formatCurrency,
   PRODUCT_LABELS,
   STEPPER_STAGES,
   TAB_GROUPS,
+  BorrowerSegment,
+  SEGMENT_LABELS,
+  JOURNEY_STAGES,
 } from '../../../../pages/credit/creditUtils';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
+import ApplicationKpiRow from './ApplicationKpiRow';
+import ApplicationJourneyStepper from './ApplicationJourneyStepper';
 
 // ── Readiness field → human-readable label mapping ──────────────────────
 
@@ -100,6 +121,24 @@ const STAGE_TO_TAB: Record<string, DetailTab> = {
   active: 'approvals',
 };
 
+// ── Approval decision display helpers ────────────────────────────────────
+
+const DECISION_STYLES: Record<string, { bg: string; color: string; icon: string; label: string }> = {
+  APPROVED: { bg: '#f0fdf4', color: '#16a34a', icon: 'check_circle', label: 'Approved' },
+  REJECTED: { bg: '#fef2f2', color: '#dc2626', icon: 'cancel', label: 'Rejected' },
+  PENDING: { bg: '#fffbeb', color: '#d97706', icon: 'schedule', label: 'Pending' },
+  CONCURRED: { bg: '#eff6ff', color: '#2563eb', icon: 'thumb_up', label: 'Concurred' },
+};
+
+const AUTHORITY_LABELS: Record<string, string> = {
+  RM: 'Relationship Manager',
+  ANALYST: 'Credit Analyst',
+  MANAGER: 'Credit Manager',
+  HEAD_OF_CREDIT: 'Head of Credit',
+  COMMITTEE: 'Credit Committee',
+  COMMITTEE_CHAIR: 'Committee Chair',
+};
+
 // ── Types ──────────────────────────────────────────────────────────────
 
 type DocStatus = 'UPLOADED' | 'MISSING' | 'PENDING';
@@ -146,6 +185,10 @@ interface ApplicationOverviewTabProps {
   progressPct: number;
   documentReadinessPct: number;
   workflowVelocityPct: number;
+  /** Current journey stage index (mapped from app state) */
+  currentJourneyIndex?: number;
+  /** Segment for KPI row traffic-light gating */
+  segment?: BorrowerSegment;
 }
 
 // ── Reusable sub-components ────────────────────────────────────────────
@@ -221,7 +264,469 @@ const StatusPill: React.FC<{
   </span>
 );
 
-// ── Section 1: Borrower Profile ────────────────────────────────────────
+// ── Mini Bar Chart for Financial Trends ─────────────────────────────────
+
+const MiniBarChart: React.FC<{
+  label: string;
+  data: { year: string; value: number }[];
+  color: string;
+  currency: string;
+}> = ({ label, data, color, currency }) => {
+  if (!data || data.length === 0) return null;
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span
+        className="font-bold uppercase"
+        style={{ fontSize: 11, color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: '0.08em' }}
+      >
+        {label}
+      </span>
+      <div className="flex items-end gap-2" style={{ height: 72 }}>
+        {data.map((d, i) => {
+          const pct = maxVal > 0 ? (d.value / maxVal) * 100 : 0;
+          return (
+            <div key={i} className="flex flex-col items-center gap-1 flex-1">
+              <span style={{ fontSize: 10, fontFamily: 'var(--cr-font-display)', fontWeight: 600, color: 'var(--cr-on-surface)' }}>
+                {d.value >= 1_000_000 ? `${(d.value / 1_000_000).toFixed(1)}M` : d.value >= 1_000 ? `${(d.value / 1_000).toFixed(0)}K` : `${d.value}`}
+              </span>
+              <div
+                style={{
+                  width: '100%',
+                  minWidth: 16,
+                  height: `${Math.max(pct, 8)}%`,
+                  backgroundColor: color,
+                  borderRadius: '2px 2px 0 0',
+                  transition: 'height 0.3s ease',
+                }}
+              />
+              <span style={{ fontSize: 9, color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-body)' }}>
+                {d.year}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── Section 1: Executive Summary KPI Row ─────────────────────────────────
+// (Delegates to ApplicationKpiRow component — rendered inline)
+
+// ── Section 2: Application Journey Stepper ──────────────────────────────
+// (Delegates to ApplicationJourneyStepper component — rendered inline)
+
+// ── Section 3: Credit Risk Snapshot ──────────────────────────────────────
+
+const RiskSnapshotSection: React.FC<{
+  app: CreditApplication;
+  onNavigate: (tab: DetailTab) => void;
+}> = ({ app, onNavigate }) => {
+  const bp = app.borrowerProfile;
+  const _app = app as any;
+
+  // Derive risk metrics
+  const riskGrade = app.riskRating || bp?.creditRiskRating || null;
+  const dscr = _app.dscr ?? null;
+  const debtToEquity = _app.debtToEquity ?? null;
+  const collateralCoverage = _app.collateralCoverage ?? null;
+  const internalRating = _app.internalRating ?? null;
+
+  const riskColor = (() => {
+    if (!riskGrade) return 'var(--cr-outline)';
+    if (['AAA', 'AA', 'A'].includes(riskGrade)) return '#16a34a';
+    if (['BBB', 'BB'].includes(riskGrade)) return '#d97706';
+    return '#dc2626';
+  })();
+
+  const dscrColor = (() => {
+    if (dscr == null) return 'var(--cr-outline)';
+    if (dscr >= 1.5) return '#16a34a';
+    if (dscr >= 1.25) return '#d97706';
+    return '#dc2626';
+  })();
+
+  const deColor = (() => {
+    if (debtToEquity == null) return 'var(--cr-outline)';
+    if (debtToEquity <= 1) return '#16a34a';
+    if (debtToEquity <= 2) return '#d97706';
+    return '#dc2626';
+  })();
+
+  const ccColor = (() => {
+    if (collateralCoverage == null) return 'var(--cr-outline)';
+    if (collateralCoverage >= 150) return '#16a34a';
+    if (collateralCoverage >= 100) return '#d97706';
+    return '#dc2626';
+  })();
+
+  type RiskCardProps = { label: string; value: string; sublabel?: string; color: string };
+  const RiskCard: React.FC<RiskCardProps> = ({ label, value, sublabel, color }) => (
+    <div
+      className="flex flex-col gap-1 p-3 rounded"
+      style={{
+        backgroundColor: 'var(--cr-surface-container-lowest)',
+        border: '1px solid var(--cr-outline-variant)',
+        borderRadius: 'var(--cr-radius)',
+      }}
+    >
+      <span
+        className="font-bold uppercase"
+        style={{ fontSize: 10, color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: '0.1em' }}
+      >
+        {label}
+      </span>
+      <span className="font-bold" style={{ fontSize: 24, color, fontFamily: 'var(--cr-font-display)', lineHeight: 1.2 }}>
+        {value}
+      </span>
+      {sublabel && (
+        <span style={{ fontSize: 11, color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-body)' }}>
+          {sublabel}
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <SectionCard icon="shield" title="Credit Risk Snapshot" onGoTo={() => onNavigate('risk-score')} goToLabel="Go to Risk →">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <RiskCard label="Risk Grade" value={riskGrade || 'NR'} sublabel={riskGrade ? 'External rating' : 'Not rated'} color={riskColor} />
+        <RiskCard label="DSCR" value={dscr != null ? `${dscr}x` : '—'} sublabel={dscr != null ? (dscr >= 1.5 ? 'Healthy' : dscr >= 1.25 ? 'Adequate' : 'Below threshold') : undefined} color={dscrColor} />
+        <RiskCard label="Debt-to-Equity" value={debtToEquity != null ? `${debtToEquity}x` : '—'} sublabel={debtToEquity != null ? (debtToEquity <= 1 ? 'Low leverage' : debtToEquity <= 2 ? 'Moderate' : 'High leverage') : undefined} color={deColor} />
+        <RiskCard label="Collateral Coverage" value={collateralCoverage != null ? `${collateralCoverage}%` : '—'} sublabel={collateralCoverage != null ? (collateralCoverage >= 150 ? 'Well covered' : collateralCoverage >= 100 ? 'Adequate' : 'Under-collateralised') : undefined} color={ccColor} />
+        <RiskCard label="Internal Rating" value={internalRating || '—'} sublabel={internalRating ? 'Internal assessment' : 'Pending'} color={internalRating ? '#2563eb' : 'var(--cr-outline)'} />
+      </div>
+    </SectionCard>
+  );
+};
+
+// ── Section 4: Financial Trend Analysis ──────────────────────────────────
+
+const FinancialTrendSection: React.FC<{
+  app: CreditApplication;
+}> = ({ app }) => {
+  const [financials, setFinancials] = useState<FinancialStatement[]>([]);
+
+  useEffect(() => {
+    if (!app.borrowerProfileId) return;
+    let mounted = true;
+    creditService.listFinancialStatements(app.borrowerProfileId)
+      .then(data => { if (mounted) setFinancials(data); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [app.borrowerProfileId]);
+
+  // Extract revenue/profit/EBITDA/cashflow trends from financial statements
+  const trends = useMemo(() => {
+    if (!financials.length) return null;
+
+    // Get PL statements sorted by fiscalYearEnd
+    const plStmts = financials
+      .filter(s => s.statementType === 'PL')
+      .sort((a, b) => a.fiscalYearEnd.localeCompare(b.fiscalYearEnd));
+
+    // Get CF statements
+    const cfStmts = financials
+      .filter(s => s.statementType === 'CF')
+      .sort((a, b) => a.fiscalYearEnd.localeCompare(b.fiscalYearEnd));
+
+    const extractLineValue = (items: any[], key: string): number | null => {
+      const item = items?.find((li: any) => li.lineKey === key || li.lineKey?.toLowerCase().includes(key.toLowerCase()));
+      return item ? Number(item.amount) || null : null;
+    };
+
+    const revenueData: { year: string; value: number }[] = [];
+    const profitData: { year: string; value: number }[] = [];
+    const ebitdaData: { year: string; value: number }[] = [];
+
+    for (const stmt of plStmts) {
+      const year = stmt.fiscalYearEnd?.slice(0, 4) || '';
+      if (!year) continue;
+      const items = stmt.lineItems || [];
+      const revenue = extractLineValue(items, 'revenue') ?? extractLineValue(items, 'totalRevenue');
+      const profit = extractLineValue(items, 'netProfit') ?? extractLineValue(items, 'netIncome');
+      const ebitda = extractLineValue(items, 'ebitda');
+      if (revenue != null) revenueData.push({ year, value: revenue });
+      if (profit != null) profitData.push({ year, value: profit });
+      if (ebitda != null) ebitdaData.push({ year, value: ebitda });
+    }
+
+    const cashflowData: { year: string; value: number }[] = [];
+    for (const stmt of cfStmts) {
+      const year = stmt.fiscalYearEnd?.slice(0, 4) || '';
+      if (!year) continue;
+      const items = stmt.lineItems || [];
+      const opCash = extractLineValue(items, 'operatingCashFlow') ?? extractLineValue(items, 'netCashFromOperating');
+      if (opCash != null) cashflowData.push({ year, value: opCash });
+    }
+
+    return { revenueData, profitData, ebitdaData, cashflowData };
+  }, [financials]);
+
+  if (!trends || (
+    trends.revenueData.length === 0 &&
+    trends.profitData.length === 0 &&
+    trends.ebitdaData.length === 0 &&
+    trends.cashflowData.length === 0
+  )) {
+    return (
+      <SectionCard icon="trending_up" title="Financial Trend Analysis" onGoTo={() => {}} goToLabel="">
+        <div className="text-center py-6">
+          <span className="material-symbols-outlined text-3xl mb-2 block" style={{ color: 'var(--cr-outline)' }}>
+            bar_chart
+          </span>
+          <p className="text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>
+            Financial statements not yet uploaded. Upload data in the Financial Profile tab.
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard icon="trending_up" title="Financial Trend Analysis">
+      <div className="grid grid-cols-2 gap-6">
+        <MiniBarChart label="Revenue Trend" data={trends.revenueData} color="#2563eb" currency={app.currency} />
+        <MiniBarChart label="Net Profit Trend" data={trends.profitData} color="#16a34a" currency={app.currency} />
+        <MiniBarChart label="EBITDA Trend" data={trends.ebitdaData} color="#7c3aed" currency={app.currency} />
+        <MiniBarChart label="Cash Flow Trend" data={trends.cashflowData} color="#d97706" currency={app.currency} />
+      </div>
+    </SectionCard>
+  );
+};
+
+// ── Section 5: Approval Workflow ────────────────────────────────────────
+
+const ApprovalWorkflowSection: React.FC<{
+  app: CreditApplication;
+  onNavigate: (tab: DetailTab) => void;
+}> = ({ app, onNavigate }) => {
+  const [approvals, setApprovals] = useState<CreditApproval[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    creditService.listApprovals(app.id)
+      .then(data => { if (mounted) setApprovals(data); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [app.id]);
+
+  // Define the standard approval chain (authoritative levels)
+  const approvalChain = useMemo(() => {
+    const levels = [
+      { authorityLevel: 'RM', label: 'Relationship Manager', icon: 'person' },
+      { authorityLevel: 'ANALYST', label: 'Credit Analyst', icon: 'analytics' },
+      { authorityLevel: 'MANAGER', label: 'Credit Manager', icon: 'supervisor_account' },
+      { authorityLevel: 'HEAD_OF_CREDIT', label: 'Head of Credit', icon: 'verified_user' },
+      { authorityLevel: 'COMMITTEE', label: 'Credit Committee', icon: 'groups' },
+    ];
+
+    return levels.map(level => {
+      const matchingApproval = approvals.find(a =>
+        a.authorityLevel === level.authorityLevel ||
+        a.authorityLevel?.toUpperCase() === level.authorityLevel
+      );
+      return {
+        ...level,
+        approval: matchingApproval,
+        status: matchingApproval?.decision || 'PENDING' as ApprovalDecision,
+      };
+    });
+  }, [approvals]);
+
+  const getDecisionStyle = (status: string) => {
+    if (status === 'APPROVED' || status === 'CONCURRED') return DECISION_STYLES.APPROVED;
+    if (status === 'REJECTED') return DECISION_STYLES.REJECTED;
+    return DECISION_STYLES.PENDING;
+  };
+
+  return (
+    <SectionCard icon="how_to_reg" title="Approval Workflow" onGoTo={() => onNavigate('approvals')} goToLabel="Go to Approvals →">
+      <div className="flex flex-col gap-0">
+        {approvalChain.map((level, idx) => {
+          const style = getDecisionStyle(level.status);
+          const approverName = level.approval?.approver
+            ? `${level.approval.approver.firstName} ${level.approval.approver.lastName}`
+            : null;
+          const decidedAt = level.approval?.decidedAt;
+
+          return (
+            <div key={level.authorityLevel}>
+              <div className="flex items-center gap-3 py-2">
+                {/* Node circle */}
+                <div className="relative flex flex-col items-center">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: style.bg, border: `2px solid ${style.color}` }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]" style={{ color: style.color }}>
+                      {level.approval ? style.icon : level.icon}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--cr-on-surface)', fontFamily: 'var(--cr-font-display)' }}>
+                        {level.label}
+                      </span>
+                      <span
+                        className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                        style={{ backgroundColor: style.bg, color: style.color }}
+                      >
+                        {style.label}
+                      </span>
+                    </div>
+                    {approverName && (
+                      <span className="text-xs" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-body)' }}>
+                        {approverName}
+                      </span>
+                    )}
+                  </div>
+                  {decidedAt && (
+                    <span className="text-[11px]" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-body)' }}>
+                      {new Date(decidedAt).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Connector line */}
+              {idx < approvalChain.length - 1 && (
+                <div className="ml-[17px] w-0.5 h-3" style={{ backgroundColor: 'var(--cr-outline-variant)' }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </SectionCard>
+  );
+};
+
+// ── Section 6: Recent Activities (Enhanced) ─────────────────────────────
+
+const ACTIVITY_ICON_MAP: Record<string, string> = {
+  STATE_TRANSITION: 'swap_horiz',
+  DOCUMENT_UPLOADED: 'upload_file',
+  DOCUMENT_VERIFIED: 'verified',
+  COMMENT_ADDED: 'chat_bubble',
+  SCORE_UPDATED: 'assessment',
+  APPROVAL_DECISION: 'how_to_reg',
+  APPLICATION_CREATED: 'note_add',
+  APPLICATION_SUBMITTED: 'send',
+  ASSIGNMENT_CHANGED: 'person_add',
+};
+
+const ACTIVITY_LABEL_MAP: Record<string, string> = {
+  STATE_TRANSITION: 'State changed',
+  DOCUMENT_UPLOADED: 'Document uploaded',
+  DOCUMENT_VERIFIED: 'Document verified',
+  COMMENT_ADDED: 'Comment added',
+  SCORE_UPDATED: 'Risk score updated',
+  APPROVAL_DECISION: 'Approval decision',
+  APPLICATION_CREATED: 'Application created',
+  APPLICATION_SUBMITTED: 'Application submitted',
+  ASSIGNMENT_CHANGED: 'Assignment changed',
+};
+
+const SEVERITY_ICON_MAP: Record<string, { icon: string; color: string }> = {
+  error: { icon: 'error', color: '#dc2626' },
+  warning: { icon: 'warning', color: '#d97706' },
+  info: { icon: 'info', color: '#2563eb' },
+};
+
+const RecentActivitiesSection: React.FC<{
+  applicationId: string;
+  formatTimeAgo: (date: Date) => string;
+  onNavigate: (tab: DetailTab) => void;
+}> = ({ applicationId, formatTimeAgo, onNavigate }) => {
+  const [events, setEvents] = useState<CreditAuditEvent[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    creditService.getApplicationAudit(applicationId)
+      .then(data => { if (mounted) setEvents(data.slice(0, 8)); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [applicationId]);
+
+  if (events.length === 0) {
+    return (
+      <SectionCard icon="history" title="Recent Activities" onGoTo={() => onNavigate('audit')} goToLabel="Go to Audit Trail →">
+        <div className="text-center py-3">
+          <span className="material-symbols-outlined text-2xl mb-1 block" style={{ color: 'var(--cr-outline)' }}>
+            event_note
+          </span>
+          <p className="text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>No recent activity</p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard icon="history" title="Recent Activities" onGoTo={() => onNavigate('audit')} goToLabel="Go to Audit Trail →">
+      <div className="flex flex-col gap-0">
+        {events.map((event, idx) => {
+          const icon = ACTIVITY_ICON_MAP[event.eventType] || 'circle';
+          const label = ACTIVITY_LABEL_MAP[event.eventType] || event.action || event.eventType;
+          const actor = event.actor ? `${event.actor.firstName} ${event.actor.lastName}` : 'System';
+          const initials = actor.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+          const timeAgo = event.createdAt ? formatTimeAgo(new Date(event.createdAt)) : '';
+          const isLatest = idx === 0;
+
+          return (
+            <div key={event.id} className="flex items-start gap-3 relative">
+              {/* Timeline connector + avatar */}
+              <div className="flex flex-col items-center shrink-0">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+                  style={{
+                    backgroundColor: isLatest ? 'var(--cr-primary-container)' : 'var(--cr-surface-container-high)',
+                    color: isLatest ? 'var(--cr-on-primary-container)' : 'var(--cr-on-surface-variant)',
+                  }}
+                >
+                  {event.actor ? initials : (
+                    <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                  )}
+                </div>
+                {idx < events.length - 1 && (
+                  <div className="w-0.5 h-6" style={{ backgroundColor: 'var(--cr-outline-variant)' }} />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 pb-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>
+                    {label}
+                  </span>
+                  {event.newState && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--cr-secondary-container)', color: 'var(--cr-on-secondary-container)' }}>
+                      {event.newState.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium" style={{ color: 'var(--cr-on-surface-variant)' }}>
+                    {actor}
+                  </span>
+                  <span className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>•</span>
+                  <span className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>{timeAgo}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </SectionCard>
+  );
+};
+
+// ── Section 7: Borrower Profile ─────────────────────────────────────────
 
 const BorrowerProfileSection: React.FC<{
   app: CreditApplication;
@@ -322,7 +827,7 @@ const BorrowerProfileSection: React.FC<{
   );
 };
 
-// ── Section 2: Documents ───────────────────────────────────────────────
+// ── Section 8: Documents ────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<DocStatus, { bg: string; text: string; border: string; icon: string }> = {
   UPLOADED: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0', icon: 'check_circle' },
@@ -468,7 +973,7 @@ const DocumentsSection: React.FC<{
   );
 };
 
-// ── Section 3: Tasks (Next Actions) ────────────────────────────────────
+// ── Section 9: Tasks (Next Actions) ────────────────────────────────────
 
 const urgencyConfig: Record<string, { color: string; bg: string; icon: string; label: string }> = {
   urgent: { color: '#dc2626', bg: '#fef2f2', icon: 'priority_high', label: 'Urgent' },
@@ -574,318 +1079,6 @@ const TasksSection: React.FC<{
   );
 };
 
-// ── Section 4: Workflow (Pipeline Stepper) ──────────────────────────────
-
-const WorkflowSection: React.FC<{
-  currentState: ApplicationState;
-  phaseCompletion: Record<string, string>;
-  slaDaysLeft: number | null;
-  onNavigate: (tab: DetailTab) => void;
-}> = ({ currentState, phaseCompletion, slaDaysLeft, onNavigate }) => {
-  const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
-
-  return (
-    <SectionCard icon="account_tree" title="Workflow">
-      <div className="flex flex-col gap-2">
-        {STEPPER_STAGES.map((stage, idx) => {
-          const isComplete = idx < currentStageIdx;
-          const isCurrent = idx === currentStageIdx;
-          const isFuture = idx > currentStageIdx;
-          const phaseStatus = phaseCompletion[stage.key];
-          const isOptional = phaseStatus === 'optional';
-
-          // Color coding
-          let circleBg: string, circleColor: string, icon: string, labelColor: string;
-          if (isComplete) {
-            circleBg = '#16a34a';
-            circleColor = '#fff';
-            icon = 'check';
-            labelColor = 'var(--cr-on-surface)';
-          } else if (isCurrent) {
-            circleBg = 'var(--cr-primary)';
-            circleColor = 'var(--cr-on-primary)';
-            icon = 'hourglass_top';
-            labelColor = 'var(--cr-on-surface)';
-          } else {
-            circleBg = 'var(--cr-surface-container-high)';
-            circleColor = 'var(--cr-outline)';
-            icon = `${idx + 1}`;
-            labelColor = 'var(--cr-outline)';
-          }
-
-          const navTab = STAGE_TO_TAB[stage.key];
-          const isClickable = isComplete || isCurrent;
-
-          return (
-            <div
-              key={stage.key}
-              className="flex items-start gap-3 py-1.5"
-            >
-              {/* Circle + connector */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: circleBg, color: circleColor }}
-                >
-                  {typeof icon === 'number' ? (
-                    <span className="text-xs font-bold">{icon}</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                  )}
-                </div>
-                {idx < STEPPER_STAGES.length - 1 && (
-                  <div className="w-0.5 h-3" style={{ backgroundColor: isComplete ? '#16a34a' : 'var(--cr-outline-variant)' }} />
-                )}
-              </div>
-
-              {/* Content */}
-              <div
-                className="flex-1 flex items-center justify-between cursor-pointer"
-                onClick={() => isClickable && navTab && onNavigate(navTab)}
-                style={{ opacity: isFuture && !isOptional ? 0.5 : 1 }}
-              >
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold" style={{ color: labelColor, fontFamily: 'var(--cr-font-display)' }}>
-                      {stage.label}
-                    </span>
-                    {isOptional && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--cr-surface-container-high)', color: 'var(--cr-outline)' }}>
-                        Optional
-                      </span>
-                    )}
-                    {isCurrent && slaDaysLeft !== null && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                        style={{
-                          backgroundColor: slaDaysLeft <= 2 ? '#fef2f2' : slaDaysLeft <= 5 ? '#fffbeb' : '#f0fdf4',
-                          color: slaDaysLeft <= 2 ? '#dc2626' : slaDaysLeft <= 5 ? '#d97706' : '#16a34a',
-                        }}
-                      >
-                        {slaDaysLeft <= 0 ? 'Overdue' : `${slaDaysLeft}d left`}
-                      </span>
-                    )}
-                  </div>
-                  {/* Show phase completion status for current */}
-                  {isCurrent && phaseStatus && (
-                    <span className="text-[11px]" style={{ color: 'var(--cr-on-surface-variant)' }}>
-                      {phaseStatus === 'complete' ? 'Complete' : phaseStatus === 'incomplete' ? 'In progress' : 'Optional'}
-                    </span>
-                  )}
-                </div>
-                {isClickable && navTab && (
-                  <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--cr-primary)' }}>
-                    north_east
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </SectionCard>
-  );
-};
-
-// ── Section 5: Communications ───────────────────────────────────────────
-
-const CommunicationsSection: React.FC<{
-  commentPreviews: CommentPreview[];
-  onAddNote: (text: string) => void;
-  onOpenComments: () => void;
-}> = ({ commentPreviews, onAddNote, onOpenComments }) => {
-  const [noteText, setNoteText] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (noteText.trim()) {
-      onAddNote(noteText.trim());
-      setNoteText('');
-    }
-  };
-
-  return (
-    <SectionCard icon="forum" title="Communications" onGoTo={onOpenComments} goToLabel="Go to Comments →">
-      <div className="flex flex-col gap-3">
-        {commentPreviews.length === 0 ? (
-          <div className="text-center py-3">
-            <span className="material-symbols-outlined text-2xl mb-1 block" style={{ color: 'var(--cr-outline)' }}>
-              chat_bubble_outline
-            </span>
-            <p className="text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>No comments yet</p>
-          </div>
-        ) : (
-          commentPreviews.slice(0, 3).map(comment => (
-            <div
-              key={comment.id}
-              className="flex gap-2.5 p-2 rounded cursor-pointer transition-colors"
-              style={{ backgroundColor: 'transparent' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-high)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              onClick={onOpenComments}
-            >
-              <div
-                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs"
-                style={{ backgroundColor: 'var(--cr-primary-container)', color: 'var(--cr-on-primary-container)' }}
-              >
-                {comment.author.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold truncate" style={{ color: 'var(--cr-on-surface)' }}>
-                    {comment.author}
-                  </span>
-                  <span className="text-[11px] shrink-0" style={{ color: 'var(--cr-outline)' }}>
-                    {comment.timeAgo}
-                  </span>
-                </div>
-                <p className="text-xs truncate" style={{ color: 'var(--cr-on-surface-variant)' }}>
-                  {comment.content}
-                </p>
-              </div>
-            </div>
-          ))
-        )}
-
-        {/* Add note input */}
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={noteText}
-            onChange={e => setNoteText(e.target.value)}
-            placeholder="Add a note…"
-            className="flex-1 text-sm px-3 py-2 rounded"
-            style={{
-              backgroundColor: 'var(--cr-surface-container-high)',
-              border: '1px solid var(--cr-outline-variant)',
-              color: 'var(--cr-on-surface)',
-              outline: 'none',
-              fontFamily: 'var(--cr-font-body)',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!noteText.trim()}
-            className="px-3 py-2 rounded text-xs font-bold"
-            style={{
-              backgroundColor: noteText.trim() ? 'var(--cr-primary)' : 'var(--cr-surface-container-high)',
-              color: noteText.trim() ? 'var(--cr-on-primary)' : 'var(--cr-outline)',
-              border: 'none',
-              cursor: noteText.trim() ? 'pointer' : 'default',
-            }}
-          >
-            Send
-          </button>
-        </form>
-      </div>
-    </SectionCard>
-  );
-};
-
-// ── Section 6: Timeline ─────────────────────────────────────────────────
-
-const TimelineSection: React.FC<{
-  applicationId: string;
-  currentState: ApplicationState;
-  formatTimeAgo: (date: Date) => string;
-  onNavigate: (tab: DetailTab) => void;
-}> = ({ applicationId, currentState, formatTimeAgo, onNavigate }) => {
-  const [events, setEvents] = useState<CreditAuditEvent[]>([]);
-
-  useEffect(() => {
-    let mounted = true;
-    creditService.getApplicationAudit(applicationId)
-      .then(data => {
-        if (mounted) setEvents(data.slice(0, 5));
-      })
-      .catch(() => {});
-    return () => { mounted = false; };
-  }, [applicationId]);
-
-  const eventTypeIcon: Record<string, string> = {
-    STATE_TRANSITION: 'swap_horiz',
-    DOCUMENT_UPLOADED: 'upload_file',
-    DOCUMENT_VERIFIED: 'verified',
-    COMMENT_ADDED: 'chat_bubble',
-    SCORE_UPDATED: 'assessment',
-    APPROVAL_DECISION: 'how_to_reg',
-  };
-
-  const eventTypeLabel: Record<string, string> = {
-    STATE_TRANSITION: 'State changed',
-    DOCUMENT_UPLOADED: 'Document uploaded',
-    DOCUMENT_VERIFIED: 'Document verified',
-    COMMENT_ADDED: 'Comment added',
-    SCORE_UPDATED: 'Score updated',
-    APPROVAL_DECISION: 'Approval decision',
-  };
-
-  if (events.length === 0) {
-    return (
-      <SectionCard icon="history" title="Timeline" onGoTo={() => onNavigate('audit')} goToLabel="Go to Audit Trail →">
-        <div className="text-center py-3">
-          <span className="material-symbols-outlined text-2xl mb-1 block" style={{ color: 'var(--cr-outline)' }}>
-            event_note
-          </span>
-          <p className="text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>No recent activity</p>
-        </div>
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard icon="history" title="Timeline" onGoTo={() => onNavigate('audit')} goToLabel="Go to Audit Trail →">
-      <div className="flex flex-col gap-0">
-        {events.map((event, idx) => {
-          const icon = eventTypeIcon[event.eventType] || 'circle';
-          const label = eventTypeLabel[event.eventType] || event.action || event.eventType;
-          const actor = event.actor ? `${event.actor.firstName} ${event.actor.lastName}` : 'System';
-          const timeAgo = event.createdAt ? formatTimeAgo(new Date(event.createdAt)) : '';
-
-          return (
-            <div key={event.id} className="flex items-start gap-3 relative">
-              {/* Dot + connector */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                  style={{
-                    backgroundColor: idx === 0 ? 'var(--cr-primary-container)' : 'var(--cr-surface-container-high)',
-                    color: idx === 0 ? 'var(--cr-on-primary-container)' : 'var(--cr-outline)',
-                  }}
-                >
-                  <span className="material-symbols-outlined text-[14px]">{icon}</span>
-                </div>
-                {idx < events.length - 1 && (
-                  <div className="w-0.5 h-4" style={{ backgroundColor: 'var(--cr-outline-variant)' }} />
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 pb-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>
-                    {label}
-                  </span>
-                  {event.newState && (
-                    <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--cr-secondary-container)', color: 'var(--cr-on-secondary-container)' }}>
-                      {event.newState.replace(/_/g, ' ')}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>{actor}</span>
-                  <span className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>•</span>
-                  <span className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>{timeAgo}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </SectionCard>
-  );
-};
-
 // ── Main Component ──────────────────────────────────────────────────────
 
 const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
@@ -910,11 +1103,72 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
   progressPct,
   documentReadinessPct,
   workflowVelocityPct,
+  currentJourneyIndex,
+  segment,
 }) => {
+  // Determine borrower segment from borrowerProfile
+  const borrowerSegment: BorrowerSegment = segment || (
+    app.borrowerProfile?.borrowerType === 'INDIVIDUAL' ? 'retail'
+    : app.borrowerProfile?.borrowerType === 'CORPORATE' ? 'corporate'
+    : 'sme'
+  );
+
+  // Journey stage index — compute from currentState if not provided
+  const journeyIndex = currentJourneyIndex ?? (() => {
+    const stateToJourney: Record<string, number> = {
+      DRAFT: 0, KYC_REVIEW: 1, PENDING: 1, SUBMITTED: 2, DOCUMENT_COLLECTION: 3,
+      FINANCIAL_ASSESSMENT: 4, CREDIT_ASSESSMENT: 5, APPROVAL: 6, APPROVED: 7,
+      OFFER: 7, LEGAL_DOCUMENTATION: 8, DISBURSED: 9, ACTIVE: 9,
+      REJECTED: 5, WITHDRAWN: 0, RETURNED_TO_DRAFT: 0, CLOSED: 9,
+    };
+    return stateToJourney[currentState] ?? 2;
+  })();
+
   return (
-    <div className="p-6">
-      {/* Health Summary Bar */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+    <div className="p-6 flex flex-col gap-6">
+      {/* ── Section 1: Executive Summary KPI Row ── */}
+      <div>
+        <ApplicationKpiRow app={app} segment={borrowerSegment} />
+      </div>
+
+      {/* ── Section 2: Application Journey Stepper ── */}
+      <div>
+        <ApplicationJourneyStepper
+          currentStageIndex={journeyIndex}
+          onStageClick={(stage) => {
+            const tab = stage.targetTab as DetailTab360;
+            onNavigate(tab as DetailTab);
+          }}
+        />
+      </div>
+
+      {/* ── Section 3: Credit Risk Snapshot ── */}
+      <RiskSnapshotSection app={app} onNavigate={onNavigate} />
+
+      {/* ── Section 4: Financial Trend Analysis ── */}
+      <FinancialTrendSection app={app} />
+
+      {/* ── Section 5: Approval Workflow ── */}
+      <ApprovalWorkflowSection app={app} onNavigate={onNavigate} />
+
+      {/* ── Section 6: Recent Activities ── */}
+      <RecentActivitiesSection
+        applicationId={app.id}
+        formatTimeAgo={formatTimeAgo}
+        onNavigate={onNavigate}
+      />
+
+      {/* ── Two-column layout for lower sections ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── Section 7: Borrower Profile ── */}
+        <BorrowerProfileSection app={app} onNavigate={onNavigate} />
+
+        {/* ── Section 8: Documents ── */}
+        <DocumentsSection readiness={readiness} documentReadinessPct={documentReadinessPct} onNavigate={onNavigate} />
+      </div>
+
+      {/* ── Health Summary Bar ── */}
+      <div className="grid grid-cols-3 gap-4">
         <div className="flex flex-col gap-1 p-3 rounded" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
           <span className="text-[11px] font-bold uppercase" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: 'var(--cr-tracking-label)' }}>
             Completion
@@ -954,40 +1208,6 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 6-section grid: 2 columns on lg+, 1 on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <BorrowerProfileSection app={app} onNavigate={onNavigate} />
-        <DocumentsSection readiness={readiness} documentReadinessPct={documentReadinessPct} onNavigate={onNavigate} />
-        <TasksSection
-          app={app}
-          readiness={readiness}
-          nextTab={nextTab}
-          nextGroupLabel={nextGroupLabel}
-          nextTabLabel={nextTabLabel}
-          assigneeName={assigneeName}
-          dueDate={dueDate}
-          urgency={urgency}
-          onNavigate={onNavigate}
-        />
-        <WorkflowSection
-          currentState={currentState}
-          phaseCompletion={phaseCompletion}
-          slaDaysLeft={slaDaysLeft}
-          onNavigate={onNavigate}
-        />
-        <CommunicationsSection
-          commentPreviews={commentPreviews}
-          onAddNote={onAddNote}
-          onOpenComments={onOpenComments}
-        />
-        <TimelineSection
-          applicationId={app.id}
-          currentState={currentState}
-          formatTimeAgo={formatTimeAgo}
-          onNavigate={onNavigate}
-        />
       </div>
     </div>
   );

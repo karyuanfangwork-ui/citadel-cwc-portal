@@ -1049,6 +1049,12 @@ const creditService = {
     return res.data.data.party as CreditApplicationParty;
   },
 
+  // Financial Statements
+  async listFinancialStatements(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/financials`);
+    return (res.data.data.statements || res.data.data || []) as FinancialStatement[];
+  },
+
   // Approvals
   async listApprovals(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/approvals`);
