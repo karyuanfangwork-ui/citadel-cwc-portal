@@ -79,6 +79,7 @@ import CrmLeadScoringAdmin from './pages/CrmLeadScoringAdmin';
 import CrmAssignmentRulesAdmin from './pages/CrmAssignmentRulesAdmin';
 import CrmLayout from './src/components/crm/CrmLayout';
 import CreditDashboard from './pages/credit/CreditDashboard';
+import CreditLayout from './src/components/CreditLayout';
 import CreditReports from './pages/credit/CreditReports';
 import GroupExposurePage from './pages/credit/GroupExposurePage';
 import BorrowerProfileList from './pages/BorrowerProfileList';
@@ -293,24 +294,26 @@ const AppShell = () => {
                 <Route path="/crm/lead-scoring" element={<CrmLeadScoringAdmin />} />
                 <Route path="/crm/assignment-rules" element={<CrmAssignmentRulesAdmin />} />
               </Route>
-              {/* Credit Module routes */}
-              <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditDashboard /></ProtectedRoute>} />
-              <Route path="/credit/borrowers" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileList /></ProtectedRoute>} />
-              <Route path="/credit/borrowers/:id" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileDetail /></ProtectedRoute>} />
-              <Route path="/credit/applications" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationList /></ProtectedRoute>} />
-              <Route path="/credit/applications/:id" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationDetail /></ProtectedRoute>} />
-              <Route path="/credit/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MyApprovals /></ProtectedRoute>} />
-              <Route path="/credit/financials" element={<ProtectedRoute requirePermission="credit:read"><FinancialSpreading /></ProtectedRoute>} />
-              <Route path="/credit/analysis" element={<ProtectedRoute requirePermission="credit:read"><FinancialAnalysis /></ProtectedRoute>} />
-              <Route path="/credit/scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
-              <Route path="/credit/committee" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetings /></ProtectedRoute>} />
-              <Route path="/credit/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetingDetail /></ProtectedRoute>} />
-              <Route path="/credit/m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />
-              <Route path="/credit/m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
-              <Route path="/credit/m/applications/:id" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationMobileSummary /></ProtectedRoute>} />
-              <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
-              <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
-              <Route path="/credit/group-exposure" element={<ProtectedRoute requirePermission="credit:read"><GroupExposurePage /></ProtectedRoute>} />
+              {/* Credit Module routes — wrapped in CreditLayout for top nav + content */}
+              <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditLayout /></ProtectedRoute>}>
+                <Route index element={<CreditDashboard />} />
+                <Route path="borrowers" element={<BorrowerProfileList />} />
+                <Route path="borrowers/:id" element={<BorrowerProfileDetail />} />
+                <Route path="applications" element={<CreditApplicationList />} />
+                <Route path="applications/:id" element={<CreditApplicationDetail />} />
+                <Route path="approvals" element={<ProtectedRoute requirePermission="credit:approve"><MyApprovals /></ProtectedRoute>} />
+                <Route path="financials" element={<FinancialSpreading />} />
+                <Route path="analysis" element={<FinancialAnalysis />} />
+                <Route path="scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
+                <Route path="committee" element={<CommitteeMeetings />} />
+                <Route path="committee/:meetingId" element={<CommitteeMeetingDetail />} />
+                <Route path="m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />
+                <Route path="m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
+                <Route path="m/applications/:id" element={<CreditApplicationMobileSummary />} />
+                <Route path="collateral" element={<CollateralManagement />} />
+                <Route path="reports" element={<CreditReports />} />
+                <Route path="group-exposure" element={<GroupExposurePage />} />
+              </Route>
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AdminSettings /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/admin/audit" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AuditTrail /></ErrorBoundary></ProtectedRoute>} />

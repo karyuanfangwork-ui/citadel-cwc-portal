@@ -7,7 +7,6 @@ import {
   DecisionType, VoteChoice, Pagination,
 } from '../src/services/credit.service';
 import { adminService } from '../src/services/admin.service';
-import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import StateBadge from '../src/components/ui/StateBadge';
@@ -394,7 +393,6 @@ const CommitteeMeetings: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: '3rem' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

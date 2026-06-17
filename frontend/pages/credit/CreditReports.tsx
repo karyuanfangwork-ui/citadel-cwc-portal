@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { reportsApi, branchApi, Branch, PipelineReport, ExposureReport, TurnaroundReport } from '../../src/services/credit.service';
-import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
 import RiskBadge from '../../src/components/ui/RiskBadge';
@@ -524,7 +523,6 @@ const CreditReports: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4 mb-6">

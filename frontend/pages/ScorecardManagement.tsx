@@ -4,7 +4,6 @@ import {
   scorecardApi, CreditScorecard, CreditScorecardVersion, ScorecardFactor,
   CreditProductType,
 } from '../src/services/credit.service';
-import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
@@ -142,7 +141,6 @@ const ScorecardManagement: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: '2rem' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

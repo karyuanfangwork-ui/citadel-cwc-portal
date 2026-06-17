@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, branchApi, Branch, ExposureSummary, SlaBreachItem, MyWorkDashboard } from '../../src/services/credit.service';
-import CreditNav from '../../src/components/CreditNav';
 import SlaBreachWidget from '../../src/components/credit/SlaBreachWidget';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
@@ -151,10 +150,13 @@ const CreditDashboard: React.FC = () => {
     setError(null);
 
     if (activeTab === 'myWork') {
-      dashboardApi.getMyWork(branchFilter ? { branchId: branchFilter } : undefined)
-        .then((res: any) => {
-          const payload = res.data?.data ?? res.data ?? res;
-          setMyWork(payload);
+      Promise.all([
+        dashboardApi.getMyWork(branchFilter ? { branchId: branchFilter } : undefined),
+        dashboardApi.getPipelineDashboard(branchFilter ? { branchId: branchFilter } : undefined),
+      ])
+        .then(([workRes, pipeRes]: any[]) => {
+          setMyWork(workRes.data?.data ?? workRes.data ?? workRes);
+          setPipeline(pipeRes.data?.data ?? pipeRes.data ?? pipeRes);
         })
         .catch((err: any) => {
           console.error(err);
@@ -214,11 +216,10 @@ const CreditDashboard: React.FC = () => {
   ];
 
   return (
-    <>
-      <CreditNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', paddingBottom: 'var(--space-16, 64px)' }}>
+      <div className="px-4 sm:px-8 py-4 sm:py-8">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <h1 className="text-2xl font-black text-text-primary">Credit Dashboard</h1>
+          <h1 style={{ fontFamily: 'var(--cr-font-display, Geist, sans-serif)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--cr-on-surface, #191c1e)' }}>Credit Dashboard</h1>
           <div className="flex items-center gap-3 flex-wrap">
             {/* §3.1 — Branch filter */}
             {branches.length > 0 && (
@@ -233,7 +234,8 @@ const CreditDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/credit/applications/new')}
-              className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors cursor-pointer border-none"
+              className="flex items-center gap-1.5 text-white font-semibold px-4 py-2 text-sm transition-opacity cursor-pointer border-none"
+              style={{ fontFamily: 'var(--cr-font-display, Geist, sans-serif)', background: 'var(--cr-secondary, #0051d5)', borderRadius: 'var(--cr-rounded, 0.25rem)' }}
             >
               <span className="material-symbols-outlined text-base">add_circle</span>
               New Application
@@ -242,18 +244,24 @@ const CreditDashboard: React.FC = () => {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-surface-muted rounded-xl p-1 mb-6 overflow-x-auto" role="tablist">
+        <div className="flex gap-1 p-1 mb-6 overflow-x-auto" role="tablist" style={{ background: 'var(--cr-surface-container, #eceef0)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)' }}>
           {tabs.map(tab => (
             <button
               key={tab.key}
               role="tab"
               aria-selected={activeTab === tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold whitespace-nowrap transition-all border-none cursor-pointer ${
                 activeTab === tab.key
-                  ? 'bg-bg-surface text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
+                  ? 'shadow-sm'
+                  : 'hover:opacity-80'
               }`}
+              style={{
+                fontFamily: 'var(--cr-font-display, Geist, sans-serif)',
+                borderRadius: 'var(--cr-rounded, 0.25rem)',
+                background: activeTab === tab.key ? 'var(--cr-surface-container-lowest, #ffffff)' : 'transparent',
+                color: activeTab === tab.key ? 'var(--cr-on-surface, #191c1e)' : 'var(--cr-on-surface-variant, #45464d)',
+              }}
             >
               <span className="material-symbols-outlined text-base">{tab.icon}</span>
               {tab.label}
@@ -265,7 +273,7 @@ const CreditDashboard: React.FC = () => {
         {loading && <p className="text-sm text-text-secondary">Loading...</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!loading && !error && activeTab === 'myWork' && myWork && (
-          <MyWorkSection data={myWork} setActiveTab={setActiveTab} />
+          <MyWorkSection data={myWork} pipeline={pipeline} setActiveTab={setActiveTab} />
         )}
         {!loading && !error && activeTab === 'pipeline' && pipeline && (
           <PipelineSection data={pipeline} />
@@ -280,7 +288,7 @@ const CreditDashboard: React.FC = () => {
           <CalendarSection data={calendar} />
         )}
       </div>
-    </>
+    </div>
   );
 };
 
@@ -288,74 +296,159 @@ const CreditDashboard: React.FC = () => {
 // My Work Section
 // ---------------------------------------------------------------------------
 
-const MyWorkSection: React.FC<{ data: MyWorkDashboard; setActiveTab: (tab: TabKey) => void }> = ({ data, setActiveTab }) => {
+// Returns inline style for a status pill based on application state
+function getStatusPillStyle(state: string): React.CSSProperties {
+  const assessmentGroup = ['KYC_REVIEW', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'];
+  const pendingGroup = ['OFFER', 'SUBMITTED'];
+  const committeeGroup = ['COMMITTEE_REVIEW', 'APPROVED', 'ACCEPTED'];
+  const alertGroup = ['KYC_REJECTED', 'REJECTED', 'WITHDRAWN'];
+
+  if (assessmentGroup.includes(state))
+    return { background: 'var(--cr-secondary-fixed, #dbe1ff)', color: 'var(--cr-on-secondary-fixed-variant, #003ea8)' };
+  if (pendingGroup.includes(state))
+    return { background: '#fef3c7', color: '#92400e' };
+  if (committeeGroup.includes(state))
+    return { background: '#e8f5e9', color: '#1b5e20' };
+  if (alertGroup.includes(state))
+    return { background: 'var(--cr-error-container, #ffdad6)', color: 'var(--cr-on-error-container, #93000a)' };
+  return { background: 'var(--cr-surface-container, #eceef0)', color: 'var(--cr-on-surface-variant, #45464d)' };
+}
+
+function getRiskGradeStyle(grade: string | null): { barColor: string; labelColor: string; barWidth: string } {
+  if (!grade) return { barColor: 'var(--cr-outline-variant)', labelColor: 'var(--cr-on-surface-variant)', barWidth: '0%' };
+  const highRisk = ['CCC', 'CC', 'C', 'D'];
+  const medRisk = ['BB', 'B', 'BBB'];
+  if (highRisk.includes(grade)) return { barColor: 'var(--cr-error, #ba1a1a)', labelColor: 'var(--cr-error, #ba1a1a)', barWidth: '85%' };
+  if (medRisk.includes(grade)) return { barColor: '#d97706', labelColor: '#d97706', barWidth: '55%' };
+  return { barColor: '#16a34a', labelColor: '#16a34a', barWidth: '30%' };
+}
+
+const MyWorkSection: React.FC<{ data: MyWorkDashboard; pipeline: PipelineDashboard | null; setActiveTab: (tab: TabKey) => void }> = ({ data, pipeline, setActiveTab }) => {
+  // Derive pipeline KPIs — sum states for "In Assessment"
+  const assessmentStates = ['CREDIT_ASSESSMENT', 'UNDERWRITING', 'KYC_REVIEW', 'KYC_APPROVED'];
+  const inAssessmentCount = pipeline
+    ? pipeline.states
+        .filter(s => assessmentStates.includes(s.state))
+        .reduce((sum, s) => sum + s.count, 0)
+    : null;
+  const totalActive = pipeline?.totalApplications ?? null;
+  const allSlaBreaches = pipeline?.slaBreachCount ?? null;
+
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <button type="button" onClick={() => setActiveTab('approval')} className="bg-amber-50 border border-amber-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer text-left w-full">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-2xl text-amber-600">approval</span>
-            <div>
-              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Pending Approvals</p>
-              <p className="text-2xl font-black text-amber-700">{data.myApprovalCount}</p>
-            </div>
-          </div>
-        </button>
-        <button type="button" onClick={() => setActiveTab('myWork')} className="bg-blue-50 border border-blue-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer text-left w-full">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-2xl text-blue-600">assignment_ind</span>
-            <div>
-              <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">My Cases</p>
-              <p className="text-2xl font-black text-blue-700">{data.myAssignedCount}</p>
-            </div>
-          </div>
-        </button>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-2xl text-red-600">schedule</span>
-            <div>
-              <p className="text-xs font-bold text-red-800 uppercase tracking-wider">SLA Breaches</p>
-              <p className="text-2xl font-black text-red-700">{data.mySlaBreaches}</p>
-            </div>
-          </div>
+      {/* 6-KPI Summary Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* My Cases */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>My Cases</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.myAssignedCount}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Assigned to me</p>
+        </div>
+
+        {/* Pending Approval — blue left border */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-secondary, #0051d5)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>Pending Approval</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-secondary, #0051d5)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.myApprovalCount}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Awaiting decision</p>
+        </div>
+
+        {/* SLA Breaches (mine) — red left border */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-error, #ba1a1a)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>My SLA Breaches</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-error, #ba1a1a)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.mySlaBreaches}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-error, #ba1a1a)', marginTop: 4 }}>Overdue</p>
+        </div>
+
+        {/* In Assessment — derived from pipeline */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>In Assessment</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{inAssessmentCount ?? '—'}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Pipeline stage</p>
+        </div>
+
+        {/* Total Active */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>Total Active</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{totalActive ?? '—'}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>All applications</p>
+        </div>
+
+        {/* All SLA Breaches — red left border */}
+        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-error, #ba1a1a)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>All SLA Breaches</p>
+          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-error, #ba1a1a)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{allSlaBreaches ?? '—'}</p>
+          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Active breaches</p>
         </div>
       </div>
 
       {/* Recent Assigned Cases */}
       {data.recentAssigned.length > 0 && (
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">My Recent Cases</h3>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>My Recent Cases</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">App No</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Borrower</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">State</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product</th>
-                  <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Updated</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>App No</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Borrower</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Status</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Product</th>
+                  <th className="text-right px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Amount (RM)</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Risk Grade</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>SLA</th>
+                  <th className="text-right px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Updated</th>
                   <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {data.recentAssigned.map(item => (
                   <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                    <td className="px-2 py-2 font-semibold text-text-primary">{item.applicationNo || '—'}</td>
-                    <td className="px-2 py-2 text-text-secondary">{item.borrowerName}</td>
-                    <td className="px-2 py-2">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700">
+                    <td className="px-2 py-2.5">
+                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-secondary)', letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.applicationNo || '—'}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5" style={{ fontWeight: 600, fontSize: 13, color: 'var(--cr-on-surface)' }}>{item.borrowerName}</td>
+                    <td className="px-2 py-2.5">
+                      <span style={{ ...getStatusPillStyle(item.state), fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', display: 'inline-block' }}>
                         {STATE_LABELS[item.state] ?? item.state}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-text-secondary">{item.productType || '—'}</td>
-                    <td className="px-2 py-2 text-right text-xs text-text-secondary">
+                    <td className="px-2 py-2.5" style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>{item.productType || '—'}</td>
+                    {/* Amount */}
+                    <td className="px-2 py-2.5 text-right">
+                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.requestedAmount != null
+                          ? new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(item.requestedAmount)
+                          : '—'}
+                      </span>
+                    </td>
+                    {/* Risk Grade */}
+                    <td className="px-2 py-2.5">
+                      {item.riskGrade ? (() => {
+                        const { barColor, labelColor, barWidth } = getRiskGradeStyle(item.riskGrade);
+                        return (
+                          <div>
+                            <div style={{ width: 56, height: 5, background: 'var(--cr-surface-container-highest, #e2e2e9)', borderRadius: 9999, overflow: 'hidden', marginBottom: 3 }}>
+                              <div style={{ height: '100%', width: barWidth, background: barColor, borderRadius: 9999 }} />
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{item.riskGrade}</span>
+                          </div>
+                        );
+                      })() : <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>—</span>}
+                    </td>
+                    {/* SLA */}
+                    <td className="px-2 py-2.5">
+                      {item.slaStatus === 'OVERDUE'
+                        ? <span style={{ background: 'var(--cr-error-container, #ffdad6)', color: 'var(--cr-on-error-container, #93000a)', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'inline-block' }}>OVERDUE</span>
+                        : <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>On Track</span>
+                      }
+                    </td>
+                    <td className="px-2 py-2.5 text-right" style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>
                       {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
                     </td>
-                    <td className="px-2 py-2 text-right">
-                      <Link to={`/credit/applications/${item.id}`} className="text-brand-700 text-xs font-bold hover:underline">
-                        View
-                      </Link>
+                    <td className="px-2 py-2.5 text-right">
+                      <Link to={`/credit/applications/${item.id}`} style={{ color: 'var(--cr-secondary)', fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>→</Link>
                     </td>
                   </tr>
                 ))}
@@ -367,34 +460,36 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard; setActiveTab: (tab: TabKe
 
       {/* Recent Approvals */}
       {data.recentApprovals.length > 0 && (
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Pending Approvals</h3>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Pending Approvals</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">App No</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Borrower</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">State</th>
-                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>App No</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Borrower</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Status</th>
+                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Product</th>
                   <th className="px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {data.recentApprovals.map(item => (
                   <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                    <td className="px-2 py-2 font-semibold text-text-primary">{item.applicationNo || '—'}</td>
-                    <td className="px-2 py-2 text-text-secondary">{item.borrowerName}</td>
-                    <td className="px-2 py-2">
-                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700">
+                    <td className="px-2 py-2.5">
+                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-secondary)', letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                        {item.applicationNo || '—'}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5" style={{ fontWeight: 600, fontSize: 13, color: 'var(--cr-on-surface)' }}>{item.borrowerName}</td>
+                    <td className="px-2 py-2.5">
+                      <span style={{ ...getStatusPillStyle(item.state), fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', display: 'inline-block' }}>
                         {STATE_LABELS[item.state] ?? item.state}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-text-secondary">{item.productType || '—'}</td>
-                    <td className="px-2 py-2 text-right">
-                      <Link to={`/credit/applications/${item.id}`} className="text-brand-700 text-xs font-bold hover:underline">
-                        View
-                      </Link>
+                    <td className="px-2 py-2.5" style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>{item.productType || '—'}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      <Link to={`/credit/applications/${item.id}`} style={{ color: 'var(--cr-secondary)', fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>→</Link>
                     </td>
                   </tr>
                 ))}
@@ -415,9 +510,9 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard; setActiveTab: (tab: TabKe
 
       {/* Empty state */}
       {data.myApprovalCount === 0 && data.myAssignedCount === 0 && data.mySlaBreaches === 0 && (
-        <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-text-secondary mb-2">check_circle</span>
-          <p className="text-sm text-text-secondary">No pending work items. You're all caught up!</p>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
+          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>check_circle</span>
+          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No pending work items. You're all caught up!</p>
         </div>
       )}
     </div>
@@ -428,21 +523,23 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard; setActiveTab: (tab: TabKe
 // Pipeline Section
 // ---------------------------------------------------------------------------
 
-const PipelineSection: React.FC<{ data: PipelineDashboard }> = ({ data }) => {
-  const maxCount = Math.max(...data.states.map(s => s.count), 1);
+// Maps display stage labels to the raw `state` values that belong to each
+const PIPELINE_STAGE_GROUPS: { label: string; states: string[] }[] = [
+  { label: 'New',         states: ['DRAFT', 'SUBMITTED'] },
+  { label: 'Assessment',  states: ['KYC_REVIEW', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'] },
+  { label: 'Approval',    states: ['COMMITTEE_REVIEW'] },
+  { label: 'Offer Letter', states: ['OFFER', 'ACCEPTED'] },
+  { label: 'Disbursement', states: ['DISBURSED'] },
+  { label: 'Completed',   states: ['ACTIVE', 'CLOSED'] },
+];
 
+const PipelineSection: React.FC<{ data: PipelineDashboard }> = ({ data }) => {
   return (
     <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Total Applications</p>
-          <p className="text-2xl font-black text-text-primary">{data.totalApplications}</p>
-        </div>
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Active States</p>
-          <p className="text-2xl font-black text-text-primary">{data.states.filter(s => s.count > 0).length}</p>
-        </div>
+      {/* Active States summary — Total Applications removed (duplicated in My Work KPI row as "Total Active") */}
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Active States</p>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.states.filter(s => s.count > 0).length}</p>
       </div>
 
       {/* SLA Breach Widget */}
@@ -452,28 +549,46 @@ const PipelineSection: React.FC<{ data: PipelineDashboard }> = ({ data }) => {
         filterMode="all"
       />
 
-      {/* Bar chart */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Applications by State</h3>
-        <div className="space-y-2">
-          {data.states
-            .filter(s => s.count > 0)
-            .sort((a, b) => b.count - a.count)
-            .map(s => (
-              <div key={s.state} className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-text-secondary w-36 truncate" title={STATE_LABELS[s.state] ?? s.state}>
-                  {STATE_LABELS[s.state] ?? s.state}
-                </span>
-                <div className="flex-1 h-6 bg-surface-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-brand-700 rounded-full transition-all"
-                    style={{ width: `${(s.count / maxCount) * 100}%` }}
-                  />
+      {/* Horizontal chevron pipeline */}
+      <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 20 }}>
+        <h3 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 16 }}>Application Pipeline</h3>
+        <div className="flex items-stretch gap-0 overflow-x-auto cr-scroll">
+          {PIPELINE_STAGE_GROUPS.map((group, idx) => {
+            const count = data.states
+              .filter(s => group.states.includes(s.state))
+              .reduce((sum, s) => sum + s.count, 0);
+            const maxCount = Math.max(
+              ...PIPELINE_STAGE_GROUPS.map(g =>
+                data.states.filter(s => g.states.includes(s.state)).reduce((sum, s) => sum + s.count, 0)
+              ),
+              1
+            );
+            const barWidth = `${Math.max((count / maxCount) * 100, 4)}%`;
+            const isCompleted = group.label === 'Completed';
+            const isLast = idx === PIPELINE_STAGE_GROUPS.length - 1;
+
+            return (
+              <React.Fragment key={group.label}>
+                <div style={{ flex: '1 1 0', minWidth: 90, padding: '12px 10px', background: 'var(--cr-surface-container-low)', borderRadius: 'var(--cr-radius, 0.25rem)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>{group.label}</p>
+                  {/* Progress bar */}
+                  <div style={{ height: 4, background: 'var(--cr-surface-container-highest, #e2e2e9)', borderRadius: 9999, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: barWidth,
+                      background: isCompleted ? 'var(--cr-secondary-fixed-dim, #5e6070)' : 'var(--cr-secondary, #0051d5)',
+                      borderRadius: 9999,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                  <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 22, fontWeight: 700, color: isCompleted ? 'var(--cr-on-surface-variant)' : 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{count}</p>
                 </div>
-                <span className="text-sm font-bold text-text-primary w-8 text-right">{s.count}</span>
-                <span className="text-xs text-text-secondary w-20 text-right">{s.avgDaysInState}d avg</span>
-              </div>
-            ))}
+                {!isLast && (
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px', color: 'var(--cr-outline-variant)', fontSize: 18, flexShrink: 0 }}>›</div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -489,27 +604,27 @@ const ApprovalInboxSection: React.FC<{ data: ApprovalInbox }> = ({ data }) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Pending Approvals</p>
-        <p className="text-2xl font-black text-text-primary">{data.totalPending}</p>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Pending Approvals</p>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.totalPending}</p>
       </div>
 
       {allItems.length === 0 ? (
-        <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-text-secondary mb-2">check_circle</span>
-          <p className="text-sm text-text-secondary">No pending approvals.</p>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
+          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>check_circle</span>
+          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No pending approvals.</p>
         </div>
       ) : (
-        <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', overflow: 'hidden' }}>
+          <table className="w-full text-sm" style={{ fontFamily: 'var(--cr-font-body, Inter, sans-serif)' }}>
             <thead>
-              <tr className="border-b border-border bg-surface-muted">
-                <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Urgency</th>
-                <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Borrower</th>
-                <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Product</th>
-                <th className="text-right px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Amount</th>
-                <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">State</th>
-                <th className="text-right px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Waiting</th>
+              <tr style={{ borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)', background: 'var(--cr-surface-container, #eceef0)' }}>
+                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Urgency</th>
+                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '00.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Borrower</th>
+                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Product</th>
+                <th className="text-right px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Amount</th>
+                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>State</th>
+                <th className="text-right px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Waiting</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -564,18 +679,18 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
   return (
     <div className="space-y-6">
       {/* Total portfolio */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Total Portfolio Exposure</p>
-        <p className="text-2xl font-black text-text-primary">{formatCurrency(summary?.totalPortfolioExposure ?? data.totalPortfolio)}</p>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Total Portfolio Exposure</p>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(summary?.totalPortfolioExposure ?? data.totalPortfolio)}</p>
       </div>
 
       {/* §2.6 — Exposure Limit Alerts */}
       {summary && (summary.approachingLimit.length > 0 || summary.breachedLimit.length > 0) && (
         <div className="space-y-3">
           {summary.breachedLimit.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-red-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-red-600">error</span>
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+              <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#991b1b', marginBottom: 12 }} className="flex items-center gap-2">
+                <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>error</span>
                 Limit Breached ({summary.breachedLimit.length})
               </h3>
               <div className="space-y-2">
@@ -593,9 +708,9 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
             </div>
           )}
           {summary.approachingLimit.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-600">warning</span>
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+              <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#92400e', marginBottom: 12 }} className="flex items-center gap-2">
+                <span className="material-symbols-outlined" style={{ color: '#d97706' }}>warning</span>
                 Approaching Limit ({summary.approachingLimit.length})
               </h3>
               <div className="space-y-2">
@@ -616,8 +731,8 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
       )}
 
       {/* Top borrowers */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Top Borrowers by Exposure</h3>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Top Borrowers by Exposure</h3>
         <div className="space-y-2">
           {data.topBorrowers.length === 0 && (
             <p className="text-sm text-text-secondary">No exposure data available.</p>
@@ -641,8 +756,8 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
       </div>
 
       {/* Sector breakdown */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Sector Breakdown</h3>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Sector Breakdown</h3>
         {data.sectorBreakdown.length === 0 ? (
           <p className="text-sm text-text-secondary">No sector data available.</p>
         ) : (
@@ -668,8 +783,8 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
       </div>
 
       {/* Rating distribution */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Rating Distribution</h3>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Rating Distribution</h3>
         {data.ratingDistribution.length === 0 ? (
           <p className="text-sm text-text-secondary">No rating data available.</p>
         ) : (
@@ -706,8 +821,8 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
 
       {/* §2.6 — Product Type Breakdown */}
       {summary && Object.keys(summary.byProductType).length > 0 && (
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Exposure by Product Type</h3>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Exposure by Product Type</h3>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -739,22 +854,22 @@ const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSum
 const CalendarSection: React.FC<{ data: CommitteeCalendar }> = ({ data }) => {
   return (
     <div className="space-y-6">
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Upcoming Meetings</p>
-        <p className="text-2xl font-black text-text-primary">{data.totalUpcoming}</p>
+      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Upcoming Meetings</p>
+        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.totalUpcoming}</p>
       </div>
 
       {data.meetings.length === 0 ? (
-        <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-text-secondary mb-2">event_busy</span>
-          <p className="text-sm text-text-secondary">No upcoming committee meetings.</p>
+        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
+          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>event_busy</span>
+          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No upcoming committee meetings.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {data.meetings.map(m => (
-            <div key={m.meetingId} className="bg-bg-surface border border-border rounded-xl p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-brand-700/10 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-brand-700">calendar_month</span>
+            <div key={m.meetingId} style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 16 }} className="flex items-center gap-4">
+              <div className="w-12 h-12 flex items-center justify-center flex-shrink-0" style={{ borderRadius: 'var(--cr-rounded, 0.25rem)', background: 'var(--cr-secondary-fixed, #dbe1ff)' }}>
+                <span className="material-symbols-outlined" style={{ color: 'var(--cr-secondary, #0051d5)' }}>calendar_month</span>
               </div>
               <div className="flex-1 min-w-0">
                 <Link to={`/credit/committee`} className="text-sm font-bold text-text-primary hover:text-brand-700">

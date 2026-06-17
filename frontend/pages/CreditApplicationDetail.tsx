@@ -3,7 +3,6 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import creditService, {
   CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi,
 } from '../src/services/credit.service';
-import CreditNav from '../src/components/CreditNav';
 import UserAssignChip from '../src/components/credit/UserAssignChip';
 import S7ProcessBanner from '../src/components/credit/S7ProcessBanner';
 import { useAuth } from '../src/context/AuthContext';
@@ -377,7 +376,6 @@ const isIdPlaceholder = id === 'new';
   if (isIdPlaceholder) {
     return (
       <>
-        <CreditNav />
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }} className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">New Credit Application</h2>
           <p className="text-gray-600 mb-6">
@@ -398,7 +396,6 @@ const isIdPlaceholder = id === 'new';
 
   if (loading) return (
     <>
-      <CreditNav />
       <div aria-busy="true" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
         {[...Array(6)].map((_, i) => (
           <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
@@ -509,7 +506,6 @@ const isIdPlaceholder = id === 'new';
       <a href="#credit-detail-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-3 focus:py-1 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm focus:font-bold">
         Skip to content
       </a>
-      <CreditNav />
       <div id="credit-detail-content" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* P2-4: Score outdated banner */}
         <ScoreOutdatedBanner applicationId={app.id} className="mb-4" />

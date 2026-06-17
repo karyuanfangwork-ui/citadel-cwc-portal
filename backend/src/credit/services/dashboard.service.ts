@@ -39,6 +39,11 @@ export interface MyWorkItem {
   borrowerName: string;
   productType: string;
   updatedAt: string;
+  // Phase 2 additions
+  requestedAmount: number | null;
+  riskGrade: string | null;
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+  entityType: string | null;
 }
 
 export interface MyWorkDashboardResult {
@@ -337,10 +342,13 @@ class DashboardService {
       state: true,
       productType: true,
       updatedAt: true,
+      requestedAmount: true,
       borrowerProfile: {
         select: {
           id: true,
           name: true,
+          borrowerType: true,
+          creditRiskRating: true,
           account: { select: { name: true } },
           contact: { select: { firstName: true, lastName: true } },
         },
@@ -381,12 +389,19 @@ class DashboardService {
       },
     });
 
+    const breachedAppIds = new Set(myBreaches.map(b => b.application.id));
+
     const toMyWorkItem = (app: any): MyWorkItem => {
       const bp = app.borrowerProfile;
       const borrowerName = bp?.account?.name
         ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
         ?? bp?.name
         ?? 'Unknown';
+
+      const slaStatus: 'OK' | 'WARNING' | 'OVERDUE' = breachedAppIds.has(app.id)
+        ? 'OVERDUE'
+        : 'OK';
+
       return {
         id: app.id,
         applicationNo: app.applicationNo ?? '',
@@ -394,6 +409,10 @@ class DashboardService {
         borrowerName,
         productType: app.productType ?? '',
         updatedAt: app.updatedAt.toISOString(),
+        requestedAmount: app.requestedAmount != null ? Number(app.requestedAmount) : null,
+        riskGrade: bp?.creditRiskRating ?? null,
+        slaStatus,
+        entityType: bp?.borrowerType ?? null,
       };
     };
 

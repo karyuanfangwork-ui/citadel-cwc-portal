@@ -5,6 +5,8 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 import { logger } from '../../utils/logger';
 import { AuditChainService } from '../services/auditChain.service';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * SOD (Segregation of Duties) constraints for credit module.
  *
@@ -55,6 +57,10 @@ export function enforceCreditSOD() {
 
       if (!userId || !applicationId) {
         return next();
+      }
+
+      if (!UUID_RE.test(applicationId)) {
+        return next(new AppError('Invalid application id — must be a UUID', 400));
       }
 
       const isAdmin = userRoles.some(r => ADMIN_BYPASS_ROLES.includes(r));

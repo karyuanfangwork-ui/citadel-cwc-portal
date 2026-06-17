@@ -6,7 +6,6 @@ import {
 } from '../src/services/credit.service';
 import creditService from '../src/services/credit.service';
 import apiClient from '../src/services/api';
-import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
@@ -288,7 +287,6 @@ const CollateralManagement: React.FC = () => {
   if (!applicationId) {
     return (
       <>
-        <CreditNav />
         <div className="px-4 sm:px-8 py-8">
           <div className="text-center py-12 text-text-secondary bg-bg-surface border border-border rounded-xl">
             <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">lock</span>
@@ -304,7 +302,6 @@ const CollateralManagement: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: '3rem' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

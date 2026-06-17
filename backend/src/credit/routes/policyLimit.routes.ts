@@ -7,6 +7,7 @@
 import { Router, Response } from 'express';
 import { authenticate, requirePermission, AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { validateUUID } from '../../middleware/uuidValidate.middleware';
 import { z } from 'zod';
 import { policyLimitService } from '../services/policyLimit.service';
 import { asyncHandler, AppError } from '../../middleware/error.middleware';
@@ -63,6 +64,7 @@ router.get(
 router.get(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await policyLimitService.getLimit(req.params.id as string);
     res.json(result);
@@ -97,6 +99,7 @@ router.post(
 router.patch(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   validate(updateLimitSchema),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await policyLimitService.updateLimit(req.params.id as string, req.body);
@@ -112,6 +115,7 @@ router.patch(
 router.delete(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await policyLimitService.deleteLimit(req.params.id as string);
     res.status(204).send();
@@ -129,6 +133,7 @@ router.delete(
 router.get(
   '/evaluate/:applicationId',
   requirePermission('credit:read'),
+  validateUUID('applicationId'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await policyLimitService.evaluatePolicy(req.params.applicationId as string);
     res.json(result);

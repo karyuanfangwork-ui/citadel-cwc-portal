@@ -2,6 +2,7 @@
 @import "./src/styles/tokens.css";
 @import "./src/styles/editor.css";
 @import "./src/styles/credit-tables.css";
+@import "./src/styles/credit-tokens.css";
 
 @theme {
   /* ── BRAND ── */

@@ -4,7 +4,6 @@ import creditService, {
   financialApi, trendApi, FinancialStatement, FinancialLineItem, FinancialStatus,
   FinancialStatementType, FinancialPeriod, CurrencyCode, FinancialRatio, TrendItem,
 } from '../src/services/credit.service';
-import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { useToast } from '../src/context/ToastContext';
@@ -369,7 +368,6 @@ const FinancialSpreading: React.FC = () => {
   if (borrowerProfileId && borrowerType === 'INDIVIDUAL') {
     return (
       <>
-        <CreditNav />
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '4rem 2rem' }}>
           <div className="text-center py-16">
             <span className="material-symbols-outlined text-6xl block mb-4" style={{ color: 'var(--color-brand-300)' }}>person_off</span>
@@ -390,7 +388,6 @@ const FinancialSpreading: React.FC = () => {
   if (!borrowerProfileId) {
     return (
       <>
-        <CreditNav />
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '4rem 2rem' }}>
           <div className="text-center py-16">
             <span className="material-symbols-outlined text-6xl block mb-4" style={{ color: 'var(--color-brand-300)' }}>table_chart</span>
@@ -410,7 +407,6 @@ const FinancialSpreading: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: '2rem' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

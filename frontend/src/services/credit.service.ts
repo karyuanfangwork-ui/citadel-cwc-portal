@@ -1881,6 +1881,11 @@ export interface MyWorkItem {
   borrowerName: string;
   productType: string;
   updatedAt: string;
+  // Phase 2 additions
+  requestedAmount: number | null;
+  riskGrade: string | null;
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+  entityType: string | null;
 }
 
 export interface MyWorkDashboard {

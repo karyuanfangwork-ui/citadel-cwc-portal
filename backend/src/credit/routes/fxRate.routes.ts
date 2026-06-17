@@ -8,6 +8,7 @@
 import { Router, Response } from 'express';
 import { authenticate, requirePermission, AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { validateUUID } from '../../middleware/uuidValidate.middleware';
 import { z } from 'zod';
 import { createFxRate, listFxRates } from '../services/fxRate.service';
 import prisma from '../../utils/prisma';
@@ -72,6 +73,7 @@ router.get(
 router.get(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const fxRate = await prisma.creditFxRate.findUnique({
@@ -95,6 +97,7 @@ router.get(
 router.delete(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const fxRate = await prisma.creditFxRate.findUnique({

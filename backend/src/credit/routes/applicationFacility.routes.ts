@@ -115,12 +115,14 @@ router.post(
 router.get(
   '/fac/:id',
   requirePermission('credit:read'),
+  validateUUID('id'),
   requireFacilityAccess,
   applicationFacilityController.getOne,
 );
 router.get(
   '/facilities/:id',
   requirePermission('credit:read'),
+  validateUUID('id'),
   requireFacilityAccess,
   applicationFacilityController.getOne,
 );
@@ -133,6 +135,7 @@ router.get(
 router.patch(
   '/fac/:id',
   requirePermission('credit:write'),
+  validateUUID('id'),
   requireFacilityAccess,
   validate(updateApplicationFacilitySchema),
   applicationFacilityController.update,
@@ -140,6 +143,7 @@ router.patch(
 router.patch(
   '/facilities/:id',
   requirePermission('credit:write'),
+  validateUUID('id'),
   requireFacilityAccess,
   validate(updateApplicationFacilitySchema),
   applicationFacilityController.update,
@@ -153,12 +157,14 @@ router.patch(
 router.delete(
   '/fac/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   requireFacilityAccess,
   applicationFacilityController.delete,
 );
 router.delete(
   '/facilities/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   requireFacilityAccess,
   applicationFacilityController.delete,
 );

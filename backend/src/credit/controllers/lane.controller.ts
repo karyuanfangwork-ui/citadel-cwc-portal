@@ -9,13 +9,26 @@ import { determineLaneWithConfig, getLaneTabs, persistLane, getRequiredApproverC
 
 import prisma from '../../utils/prisma';
 
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function validateUuidParam(req: Request, res: Response): string | null {
+  const raw = req.params.id;
+  const id = Array.isArray(raw) ? raw[0] : raw;
+  if (!id || !UUID_RE.test(id)) {
+    res.status(400).json({ status: 'error', message: 'Invalid application id — must be a UUID' });
+    return null;
+  }
+  return id;
+}
+
 /**
  * GET /applications/:id/lane
  * Returns the current lane for an application, re-evaluating if needed.
  * Uses DB-configurable thresholds via determineLaneWithConfig().
  */
 export const getApplicationLane = async (req: Request, res: Response) => {
-  const id = req.params.id as string;
+  const id = validateUuidParam(req, res);
+  if (!id) return;
   const app = await prisma.creditApplication.findUnique({
     where: { id },
     include: {
@@ -53,7 +66,8 @@ export const getApplicationLane = async (req: Request, res: Response) => {
  * Re-evaluate and persist the lane for an application.
  */
 export const reEvaluateLane = async (req: Request, res: Response) => {
-  const id = req.params.id as string;
+  const id = validateUuidParam(req, res);
+  if (!id) return;
 
   try {
     const determination = await persistLane(id);
@@ -79,7 +93,8 @@ export const reEvaluateLane = async (req: Request, res: Response) => {
  * Returns the tab list for an application filtered by lane + feature flags.
  */
 export const getApplicationTabs = async (req: Request, res: Response) => {
-  const id = req.params.id as string;
+  const id = validateUuidParam(req, res);
+  if (!id) return;
   const app = await prisma.creditApplication.findUnique({
     where: { id },
     include: {

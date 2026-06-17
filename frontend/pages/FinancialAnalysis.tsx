@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import creditService, { BorrowerProfile, trendApi, RatioCategory, TrendItem, TrendDataPoint } from '../src/services/credit.service';
-import CreditNav from '../src/components/CreditNav';
 
 const CATEGORY_ORDER: RatioCategory[] = ['PROFITABILITY', 'LEVERAGE', 'LIQUIDITY', 'COVERAGE', 'ACTIVITY'];
 const CATEGORY_LABELS: Record<RatioCategory, string> = {
@@ -88,7 +87,6 @@ const FinancialAnalysis: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: '2rem' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
-import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import StateBadge from '../src/components/ui/StateBadge';
@@ -159,14 +158,11 @@ const BorrowerProfileDetail: React.FC = () => {
   }, [activeTab, id]);
 
   if (loading) return (
-    <>
-      <CreditNav />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem' }}>
-        {[...Array(4)].map((_, i) => (
-          <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
-        ))}
-      </div>
-    </>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem' }}>
+      {[...Array(4)].map((_, i) => (
+        <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+      ))}
+    </div>
   );
 
   if (!profile) return null;
@@ -177,7 +173,6 @@ const BorrowerProfileDetail: React.FC = () => {
 
   return (
     <>
-      <CreditNav />
       <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
