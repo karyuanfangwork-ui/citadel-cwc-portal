@@ -353,7 +353,7 @@ const AppShell = () => {
 export default function App() {
   return (
     <BrowserRouter>
-      <Sentry.ErrorBoundary fallback={<div>Something went wrong. Please refresh the page.</div>}>
+      <Sentry.ErrorBoundary fallback={<div>Something went wrong. Please refresh the page.</div>} onError={(error, errorInfo) => { console.error('=== ERROR BOUNDARY ===', error, errorInfo); }}>
         <ThemeProvider>
           <AuthProvider>
             <ToastProvider>

@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
-  CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi,
+  CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi, commentApi,
 } from '../src/services/credit.service';
-import UserAssignChip from '../src/components/credit/UserAssignChip';
-import S7ProcessBanner from '../src/components/credit/S7ProcessBanner';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
@@ -15,122 +13,97 @@ import { useCreditFeatureFlags } from '../src/hooks/useCreditFeatureFlags';
 import { useApplicationLane } from '../src/hooks/useApplicationLane';
 import ReadinessChecklistModal from '../src/components/credit/ReadinessChecklistModal';
 
-// ── New 7-Section Tabs ───────────────────────────────────
-import LoanRequestTab from './credit/tabs/LoanRequestTab';
-import BorrowerProfileTab from './credit/tabs/BorrowerProfileTab';
-import FinancialsTab from './credit/tabs/FinancialsTab';
-import RiskScoreTab from './credit/tabs/RiskScoreTab';
-import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
-import CreditChecksTab from './credit/tabs/CreditChecksTab';
-import CreditChecksRiskTab from './credit/tabs/CreditChecksRiskTab';
-import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
-import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
-import CollateralTab from './credit/tabs/CollateralTab';
-import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
-import GuarantorFinancialAssessmentTab from './credit/tabs/GuarantorFinancialAssessmentTab';
-import StateBadge from '../src/components/credit/StateBadge';
-import ApprovalsTab from './credit/tabs/ApprovalsTab';
-import SignoffTab from './credit/tabs/SignoffTab';
-import ConditionsTab from './credit/tabs/ConditionsTab';
-import DisbursementTab from './credit/tabs/DisbursementTab';
-import SummaryTab from './credit/tabs/SummaryTab';
+// ── Application 360 Workspace Components ──
+import ApplicationWorkspaceHeader from '../src/components/credit/detail/ApplicationWorkspaceHeader';
+import ApplicationHorizontalTabs from '../src/components/credit/detail/ApplicationHorizontalTabs';
+import ApplicationKpiRow from '../src/components/credit/detail/ApplicationKpiRow';
+import ApplicationJourneyStepper from '../src/components/credit/detail/ApplicationJourneyStepper';
+import ApplicationSectionIndex from '../src/components/credit/detail/ApplicationSectionIndex';
+import ApplicationStatusWidget from '../src/components/credit/detail/ApplicationStatusWidget';
+import ApplicationSlaWidget from '../src/components/credit/detail/ApplicationSlaWidget';
+import ApplicationTeamWidget from '../src/components/credit/detail/ApplicationTeamWidget';
+import ApplicationPendingTasks from '../src/components/credit/detail/ApplicationPendingTasks';
+import ApplicationCustomerInsights from '../src/components/credit/detail/ApplicationCustomerInsights';
+import ApplicationNotesWidget from '../src/components/credit/detail/ApplicationNotesWidget';
+
+// ── Legacy panels (still used for mobile / fallback) ──
+import ApplicationAlertsPanel, { AlertItem } from '../src/components/credit/detail/ApplicationAlertsPanel';
+
+// ── 7-Section Tabs (used directly by renderTab or PersonalFastView) ──
 import DocumentsTab from './credit/tabs/DocumentsTab';
-import AuditTab from './credit/tabs/AuditTab';
-import PartiesTab from './credit/tabs/PartiesTab';
+import ApplicationOverviewTab from '../src/components/credit/detail/ApplicationOverviewTab';
 
-// ── Legacy tabs (bank-grade, behind feature flags) ──
-import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
-import ProfitabilityWalletTab from './credit/tabs/ProfitabilityWalletTab';
-import CounterpartiesTab from './credit/tabs/CounterpartiesTab';
-import AccountConductTab from './credit/tabs/AccountConductTab';
-import ForwardLookingRiskTab from './credit/tabs/ForwardLookingRiskTab';
-import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
-import FacilitiesTab from './credit/tabs/FacilitiesTab';
-import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
-import SmeFinancialsTab from './credit/tabs/SmeFinancialsTab';
+// ── 360 Merged Tab Components ──
+import TimelineAuditTab from './credit/tabs/TimelineAuditTab';
+import CustomerProfileTab from './credit/tabs/CustomerProfileTab';
+import ApplicationDetailsTab from './credit/tabs/ApplicationDetailsTab';
+import ApprovalsTab360 from './credit/tabs/ApprovalsTab360';
+import ConditionsOfferTab from './credit/tabs/ConditionsOfferTab';
+import CollateralGuaranteesTab from './credit/tabs/CollateralGuaranteesTab';
+import FinancialProfileTab from './credit/tabs/FinancialProfileTab';
+import RiskAssessmentTab from './credit/tabs/RiskAssessmentTab';
 
-// ── AI Insights panels (A4/A5/A6/A13/A15) ──
-import { AiDuplicateAlert, AiRedFlagPanel, AiNarrativePanel, AiCompliancePanel, AiAutoExceptionPanel } from '../src/components/credit-ai';
-
-// ── P2-4: Collaboration & Performance ──
-import ApplicationComments from '../src/components/credit/ApplicationComments';
 import ScoreOutdatedBanner from '../src/components/credit/ScoreOutdatedBanner';
-import BulkDocumentUpload from '../src/components/credit/BulkDocumentUpload';
 import BorrowerSummaryCard, { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
-
 import {
-  formatCurrency,
   STATE_COLORS,
   STATE_LABELS,
-  STATE_ICONS,
-  STEPPER_STAGES,
-  PRODUCT_LABELS,
   SECURED_PRODUCTS,
   DetailTab,
   TabGroup,
-  TAB_GROUPS,
-  ALL_TABS,
   getPhaseCompletion,
   getIncompletePhaseCount,
   getNextIncompleteTab,
   getVisibleTabGroups,
   TAB_TO_PHASE_MAP,
   FATCA_CRS_FLAG,
-  LANE_LABELS,
-  LANE_DESCRIPTIONS,
   ProcessingLane as ProcessingLaneType,
+  getBorrowerSegment,
+  getJourneyStage,
+  // ── Application 360 Tab System ──
+  DetailTab360,
+  TAB_GROUPS_360,
+  ALL_TABS_360,
+  TAB_TO_TAB360,
 } from './credit/creditUtils';
 import RejectionBanner from './credit/RejectionBanner';
-import ApplicationTimeline from '../src/components/credit/ApplicationTimeline';
 import PersonalFastView from './credit/PersonalFastView';
 
-// §3.5b — Application progress ring (required-section completion)
-const ProgressRing: React.FC<{ pct: number; color: string; size?: number }> = ({ pct, color, size = 40 }) => {
-  const stroke = 4;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (pct / 100) * circumference;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }} title={`${pct}% of required sections complete`}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb" strokeWidth={stroke} fill="none" />
-        <circle
-          cx={size / 2} cy={size / 2} r={radius}
-          stroke={color} strokeWidth={stroke} fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold" style={{ color }}>
-        {pct}%
-      </span>
-    </div>
-  );
+// Maps phaseCompletion keys to the 360 tab IDs used in the section index
+const PHASE_TO_SECTION_TAB_360: Record<string, DetailTab360> = {
+  s1: 'application-details',
+  s2: 'customer-profile',
+  s3: 'financial-profile',
+  s4: 'risk-assessment',
+  s5: 'risk-assessment',
+  s6: 'collateral-guarantees',
+  s7: 'approvals',
+  meta: 'documents',
 };
+
+// Section index uses 360 tab IDs
+const SECTION_INDEX_TABS_360: DetailTab360[] = [
+  'overview', 'customer-profile', 'application-details', 'financial-profile',
+  'risk-assessment', 'collateral-guarantees', 'documents', 'approvals', 'conditions-offer', 'timeline-audit',
+];
+
+type SectionStatus = 'complete' | 'in-progress' | 'pending' | 'exception';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // §3.4 — Tab state persisted in URL search params (survives navigation away/back)
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
   const { isDirty, setDirty, confirmTabSwitch, DirtyGuardDialog } = useDirtyFormGuard();
 
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // P2-1: Feature flags from backend (controls bank-grade tab visibility)
   const { flags: featureFlags, isFeatureEnabled } = useCreditFeatureFlags();
-
-  // P2-2: Processing lane (determines tab set and approval depth)
   const { lane, reason: laneReason } = useApplicationLane(id);
 
-  // P2-1: Redirect ?mode=wizard to classic view (Wizard mode removed)
-  // This runs once on mount if the URL has ?mode=wizard
   useEffect(() => {
     if (searchParams.get('mode') === 'wizard') {
       const clean = new URLSearchParams(searchParams);
@@ -142,35 +115,41 @@ const CreditApplicationDetail: React.FC = () => {
 
   const isNewApplication = searchParams.get('new') === '1';
 
-  const getDefaultTab = (state: string): DetailTab => {
-    // Later-stage applications default to S7 (Decision)
+  const getDefaultTab360 = (state: string): DetailTab360 => {
     if (['COMMITTEE_REVIEW', 'REFERRED_BACK', 'ACCEPTED', 'REJECTED'].includes(state)) return 'approvals';
-    return 'loan-request';
+    return 'overview';
   };
 
-  const activeTab = (searchParams.get('tab') as DetailTab) || (app ? getDefaultTab(app.state || app.status || 'DRAFT') : 'loan-request');
-  const setActiveTab = useCallback((tab: DetailTab) => {
+  // Resolve activeTab: support both old DetailTab URLs and new DetailTab360 URLs
+  // If URL has a legacy tab param, redirect to the 360 equivalent
+  const rawTab = searchParams.get('tab') || '';
+  const activeTab: DetailTab360 = (() => {
+    if (!rawTab) return app ? getDefaultTab360(app.state || app.status || 'DRAFT') : 'overview';
+    // Check if it's a 360 tab ID directly
+    if (ALL_TABS_360.includes(rawTab as DetailTab360)) return rawTab as DetailTab360;
+    // Map legacy tab ID to 360 equivalent
+    if (rawTab in TAB_TO_TAB360) return TAB_TO_TAB360[rawTab as DetailTab];
+    return 'overview';
+  })();
+
+  const setActiveTab = useCallback((tab: DetailTab360) => {
     setSearchParams(prev => {
       prev.set('tab', tab);
       return prev;
     }, { replace: true });
   }, [setSearchParams]);
 
-  // P2-1: Advanced Memo is now driven by feature flags instead of a separate toggle.
-  // The credit:advanced_memo flag gates the advanced tab groups.
   const advancedMemo = isFeatureEnabled('credit:advanced_memo');
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(isNewApplication);
 
-  // State-dependent tab visibility — computed after currentState
-  // (visibleTabGroups is set in useEffect below after app loads)
   const [visibleTabGroups, setVisibleTabGroups] = useState<TabGroup[]>([]);
   const visibleTabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id));
 
-  // Guarded tab switch — prompts if there are unsaved changes
-  const handleTabChange = useCallback((tab: DetailTab) => {
+  const handleTabChange = useCallback((tab: DetailTab360) => {
     if (isDirty && !confirmTabSwitch()) return;
     setActiveTab(tab);
   }, [isDirty, confirmTabSwitch, setActiveTab]);
+
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [readiness, setReadiness] = useState<{
@@ -199,8 +178,8 @@ const CreditApplicationDetail: React.FC = () => {
   const canApprove = hasPermission(user, 'credit:approve');
   const canAdmin = hasPermission(user, 'credit:admin');
 
-const IS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const isIdPlaceholder = id === 'new';
+  const IS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isIdPlaceholder = id === 'new';
 
   const fetchApp = useCallback(async () => {
     if (!id || !IS_UUID.test(id)) return;
@@ -235,21 +214,18 @@ const isIdPlaceholder = id === 'new';
 
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
-  useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]); // Load facilities on mount for section completion
+  useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]);
 
-  // When id is a placeholder like "new", skip server fetches and clear loading state
   useEffect(() => {
     if (isIdPlaceholder) setLoading(false);
   }, [isIdPlaceholder]);
 
-  // Recalculate visible tab groups when app state or feature flags change
   useEffect(() => {
     if (!app) return;
     const st = (app.state || app.status) as ApplicationState;
     setVisibleTabGroups(getVisibleTabGroups(advancedMemo, app.borrowerProfile?.borrowerType ?? null, st, featureFlags, lane as ProcessingLaneType | null));
   }, [app, advancedMemo, featureFlags, lane]);
 
-  // Fetch sign-offs for committee review gate
   useEffect(() => {
     if (!id || !app) return;
     const st = (app.state || app.status) as ApplicationState;
@@ -258,43 +234,37 @@ const isIdPlaceholder = id === 'new';
     creditService.listApprovals(id).then(setApprovals).catch(() => {});
   }, [id, app]);
 
-  // Derive sign-off completion status
   const REQUIRED_SIGNOFF_ROLES = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[];
   const allSigned = REQUIRED_SIGNOFF_ROLES.every(
     (role) => signoffs.some((s) => s.role === role && s.signedAt),
   );
 
-  // Fetch readiness check when application is in DRAFT state
   useEffect(() => {
     if (!id || !app) return;
     if ((app.state || app.status) !== 'DRAFT') return;
     setReadinessLoading(true);
     creditService.checkReadiness(id)
       .then(r => setReadiness(r))
-      .catch(() => { /* non-critical — panel stays hidden */ })
+      .catch(() => { /* non-critical */ })
       .finally(() => setReadinessLoading(false));
   }, [id, app]);
 
-  // §1.3 — Fetch e-sign readiness when application is in OFFER state
   useEffect(() => {
     if (!id || !app) return;
     if ((app.state || app.status) !== 'OFFER') return;
     setEsignLoading(true);
     creditService.checkEsignReadiness(id)
       .then(r => setEsignReady(r))
-      .catch(() => { /* non-critical — panel stays hidden */ })
+      .catch(() => { /* non-critical */ })
       .finally(() => setEsignLoading(false));
   }, [id, app]);
 
-  // Auto-focus cancel button when dialog opens
   useEffect(() => {
     if (showTransitionDialog && transitionDialogCancelRef.current) {
       transitionDialogCancelRef.current.focus();
     }
   }, [showTransitionDialog]);
 
-  // §T9 — Completion status callback (must be before early returns — Rules of Hooks)
-  // Reads phaseCompletion via ref so hook identity is stable while data stays current.
   const phaseCompletionRef = useRef<Record<string, string>>({});
   const getCompletionStatus = useCallback((tabId: DetailTab): 'complete' | 'partial' | 'empty' => {
     const phaseKey = TAB_TO_PHASE_MAP[tabId];
@@ -304,6 +274,39 @@ const isIdPlaceholder = id === 'new';
     if (status === 'incomplete') return 'partial';
     return 'empty';
   }, []);
+
+  const [commentPreviews, setCommentPreviews] = useState<Array<{ id: string; author: string; content: string; timeAgo: string }>>([]);
+
+  const formatTimeAgo = useCallback((date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }, []);
+
+  useEffect(() => {
+    if (!app) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await commentApi.list(app.id, 1);
+        if (cancelled) return;
+        setCommentPreviews(
+          (result.comments || []).slice(0, 3).map((c: any) => ({
+            id: c.id,
+            author: c.authorName || c.authorId || 'Unknown',
+            content: c.content?.slice(0, 120) || '',
+            timeAgo: c.createdAt ? formatTimeAgo(new Date(c.createdAt)) : '',
+          }))
+        );
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [app?.id, formatTimeAgo]);
 
   const handleTransition = async (action: string) => {
     if (!id) return;
@@ -319,11 +322,9 @@ const isIdPlaceholder = id === 'new';
       setTransitionReason('');
       setReasonError(false);
       setShowTransitionDialog(null);
-      // Return focus to trigger button
       transitionTriggerRef.current?.focus();
       fetchApp();
       fetchTransitions();
-      // Re-check readiness if we returned to DRAFT (e.g. after KYC rejection)
       setReadiness(null);
       setEsignReady(null);
     } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to transition application')); }
@@ -347,61 +348,73 @@ const isIdPlaceholder = id === 'new';
     }
   };
 
-  const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab) => {
-    const idx = visibleTabs.indexOf(tab);
+  const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab360) => {
+    const visible360Tabs = TAB_GROUPS_360.flatMap(g => g.tabs.map(t => t.id as DetailTab360));
+    const idx = visible360Tabs.indexOf(tab);
     if (idx === -1) return;
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      const next = visibleTabs[(idx + 1) % visibleTabs.length];
+      const next = visible360Tabs[(idx + 1) % visible360Tabs.length];
       handleTabChange(next);
       document.getElementById(`tab-${next}`)?.focus();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      const prev = visibleTabs[(idx - 1 + visibleTabs.length) % visibleTabs.length];
+      const prev = visible360Tabs[(idx - 1 + visible360Tabs.length) % visible360Tabs.length];
       handleTabChange(prev);
       document.getElementById(`tab-${prev}`)?.focus();
     } else if (e.key === 'Home') {
       e.preventDefault();
-      handleTabChange(visibleTabs[0]);
-      document.getElementById(`tab-${visibleTabs[0]}`)?.focus();
+      handleTabChange(visible360Tabs[0]);
+      document.getElementById(`tab-${visible360Tabs[0]}`)?.focus();
     } else if (e.key === 'End') {
       e.preventDefault();
-      handleTabChange(visibleTabs[visibleTabs.length - 1]);
-      document.getElementById(`tab-${visibleTabs[visibleTabs.length - 1]}`)?.focus();
+      handleTabChange(visible360Tabs[visible360Tabs.length - 1]);
+      document.getElementById(`tab-${visible360Tabs[visible360Tabs.length - 1]}`)?.focus();
     }
   };
 
-  // When id is "new" (placeholder), show a redirect to the creation flow
-  // This handles /credit/applications/new which is not a valid UUID
+  // ── Handle note submission from NotesWidget ──
+  const handleAddNote = useCallback(async (text: string) => {
+    if (!app) return;
+    try {
+      await commentApi.create(app.id, { content: text });
+      // Refresh comment previews
+      const result = await commentApi.list(app.id, 1);
+      setCommentPreviews(
+        (result.comments || []).slice(0, 3).map((c: any) => ({
+          id: c.id,
+          author: c.authorName || c.authorId || 'Unknown',
+          content: c.content?.slice(0, 120) || '',
+          timeAgo: c.createdAt ? formatTimeAgo(new Date(c.createdAt)) : '',
+        }))
+      );
+    } catch { /* best-effort */ }
+  }, [app?.id, formatTimeAgo]);
+
+  // ── Early returns ──
   if (isIdPlaceholder) {
     return (
-      <>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }} className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">New Credit Application</h2>
-          <p className="text-gray-600 mb-6">
-            You&#39;ll be redirected to the application list to create a new application.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate('/credit/applications')}
-            className="inline-flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-5 py-2.5 text-sm transition-colors cursor-pointer border-none"
-          >
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            Go to Applications
-          </button>
-        </div>
-      </>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }} className="text-center">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">New Credit Application</h2>
+        <p className="text-gray-600 mb-6">You&#39;ll be redirected to the application list to create a new application.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/credit/applications')}
+          className="inline-flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-5 py-2.5 text-sm transition-colors cursor-pointer border-none"
+        >
+          <span className="material-symbols-outlined text-base">arrow_back</span>
+          Go to Applications
+        </button>
+      </div>
     );
   }
 
   if (loading) return (
-    <>
-      <div aria-busy="true" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-        {[...Array(6)].map((_, i) => (
-          <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
-        ))}
-      </div>
-    </>
+    <div aria-busy="true" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
+      {[...Array(6)].map((_, i) => (
+        <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+      ))}
+    </div>
   );
 
   if (!app) return null;
@@ -428,983 +441,550 @@ const isIdPlaceholder = id === 'new';
     bureauChecklist: (app as any).bureauChecklist ?? null,
     isSecured: ((app as any).collateralItems?.length ?? 0) > 0 || SECURED_PRODUCTS.includes(app.productType as string),
   });
-  phaseCompletionRef.current = phaseCompletion; // keep ref in sync for getCompletionStatus
+  phaseCompletionRef.current = phaseCompletion;
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
-  // §3.5b — Application progress ring (required sections only; 'optional' excluded)
+
   const requiredPhases = Object.values(phaseCompletion).filter(s => s !== 'optional');
   const completedPhases = requiredPhases.filter(s => s === 'complete').length;
   const progressPct = requiredPhases.length > 0 ? Math.round((completedPhases / requiredPhases.length) * 100) : 0;
   const progressColor = progressPct > 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626';
 
-  // Stepper logic
-  const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
-  const isPastStage = (idx: number) => idx < currentStageIdx;
-  const isCurrentStage = (idx: number) => idx === currentStageIdx;
+  // ── Application 360 derived data ──
+  const segment = getBorrowerSegment(app.borrowerProfile?.borrowerType);
+  const journeyStageIndex = getJourneyStage(currentState);
 
-  // ── Render tab by ID (7-section + advanced) ───────────────────
-  const renderTab = (tabId: DetailTab): React.ReactNode => {
+  // SLA days remaining
+  const slaDaysLeft = (() => {
+    if (!app?.createdAt) return null;
+    const created = new Date(app.createdAt);
+    const slaTarget = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000);
+    return Math.ceil((slaTarget.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  })();
+
+  // Critical alerts (kept for mobile fallback)
+  const criticalAlerts: AlertItem[] = (() => {
+    const alerts: AlertItem[] = [];
+    if (readiness?.errors) {
+      readiness.errors.forEach((e, i) => {
+        alerts.push({
+          id: `readiness-${i}`,
+          severity: 'error',
+          icon: 'notification_important',
+          title: e.message.slice(0, 60),
+          description: e.field || '',
+          action: { label: 'Fix now', tab: 'loan-request' },
+        });
+      });
+    }
+    if (slaDaysLeft !== null && slaDaysLeft <= 2) {
+      alerts.push({
+        id: 'sla-overdue',
+        severity: slaDaysLeft <= 0 ? 'error' : 'warning',
+        icon: 'event_busy',
+        title: slaDaysLeft <= 0 ? 'SLA Overdue' : 'SLA Expiring Soon',
+        description: slaDaysLeft <= 0 ? 'Application is past SLA target' : `Only ${slaDaysLeft} day${slaDaysLeft !== 1 ? 's' : ''} remaining`,
+        action: { label: 'View details', tab: 'approvals' },
+      });
+    }
+    if (incompleteCount > 0 && currentState === 'DRAFT') {
+      alerts.push({
+        id: 'incomplete-sections',
+        severity: 'warning',
+        icon: 'assignment_late',
+        title: `${incompleteCount} section${incompleteCount !== 1 ? 's' : ''} incomplete`,
+        description: 'Complete all sections before submitting',
+      });
+    }
+    return alerts;
+  })();
+
+  // Next incomplete tab
+  const nextIncompleteTab = getNextIncompleteTab(phaseCompletion, currentState);
+  const nextIncompleteGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === nextIncompleteTab));
+  const nextIncompleteTabLabel = nextIncompleteGroup?.tabs.find(t => t.id === nextIncompleteTab)?.label || '';
+  const nextIncompleteGroupLabel = nextIncompleteGroup?.label || '';
+
+  // ── Section statuses for ApplicationSectionIndex (360 tab IDs) ──
+  const sectionStatuses: Record<string, SectionStatus> = {};
+  for (const tabId of SECTION_INDEX_TABS_360) {
+    if (tabId === 'overview') {
+      sectionStatuses[tabId] = progressPct === 100 ? 'complete' : progressPct > 0 ? 'in-progress' : 'pending';
+    } else if (tabId === 'conditions-offer') {
+      sectionStatuses[tabId] = currentState === 'APPROVED' || currentState === 'OFFER' || currentState === 'ACCEPTED' ? 'in-progress' : 'pending';
+    } else if (tabId === 'timeline-audit') {
+      sectionStatuses[tabId] = 'pending'; // audit is always informational
+    } else {
+      // Map 360 tabId back to phase key
+      const phaseKey = Object.entries(PHASE_TO_SECTION_TAB_360).find(([, v]) => v === tabId)?.[0];
+      if (phaseKey) {
+        const s = phaseCompletion[phaseKey];
+        if (s === 'complete') sectionStatuses[tabId] = 'complete';
+        else if (s === 'incomplete') sectionStatuses[tabId] = 'in-progress';
+        else sectionStatuses[tabId] = s === 'optional' ? 'complete' : 'pending';
+      } else {
+        sectionStatuses[tabId] = 'pending';
+      }
+    }
+  }
+
+  // Next required action text for StatusWidget
+  const nextRequiredAction = (() => {
+    if (nextIncompleteTab && nextIncompleteTabLabel) return `Complete: ${nextIncompleteTabLabel}`;
+    if (currentState === 'DRAFT') return 'Complete all sections to submit';
+    return null;
+  })();
+
+  // ── Render tab by 360 ID ──────────────────────────────────
+  // Each 360 tab now renders its merged component directly.
+  const renderTab = (tabId: DetailTab360): React.ReactNode => {
     switch (tabId) {
-      // S1 — Loan Request
-      case 'loan-request': return <LoanRequestTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
-
-      // S2 — Borrower Profile
-      case 'borrower-profile': return <BorrowerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />;
-      case 'parties': return <PartiesTab app={app!} borrowerType={app?.borrowerProfile?.borrowerType} />;
-
-      // S3 — Financials
-      case 'financials': return <FinancialsTab application={app!} />;
-
-      // S4 — Risk Score
-      case 'risk-score': return <RiskScoreTab application={app!} onUpdated={setApp} onRefresh={fetchApp} />;
-      case 'payment-capability': return <PaymentCapabilityTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-
-      // P2-3 — SME Simplified Financials
-      case 'sme-financials': return <SmeFinancialsTab application={app!} />;
-
-      // S5 — Bureau & Compliance (consolidated accordion)
-      case 'credit-checks-risk': return <CreditChecksRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      // S5 — Legacy sub-tab redirects → consolidated tab
-      case 'credit-checks':
-      case 'industry':
-      case 'risk':
-      case 'ai-insights': return <CreditChecksRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-
-      // S6 — Collateral & Guarantees
-      case 'collateral': return <CollateralTab />;
-      case 'security': return <SecurityGuaranteesTab application={app!} onUpdated={setApp} />;
-      case 'guarantor-assessment': return <GuarantorFinancialAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-
-      // S7 — Decision
-      case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
-      case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
-      case 'conditions': return <ConditionsTab />;
-      case 'disbursement': return <DisbursementTab application={app!} onUpdated={(updated) => setApp(updated)} />;
-      case 'summary': return <SummaryTab app={app!} facilities={facilities} onRefresh={fetchApp} />;
-
-      // META — Operations
+      case 'overview': return (
+        <ApplicationOverviewTab
+          app={app!}
+          facilities={facilities}
+          readiness={readiness}
+          slaDaysLeft={slaDaysLeft}
+          formatTimeAgo={formatTimeAgo}
+          onNavigate={(tab) => { const t360 = (TAB_TO_TAB360[tab as DetailTab] ?? tab) as DetailTab360; handleTabChange(t360); }}
+          transitions={transitions}
+          currentState={currentState}
+          phaseCompletion={phaseCompletion}
+          commentPreviews={commentPreviews}
+          onAddNote={() => handleTabChange('timeline-audit')}
+          onOpenComments={() => handleTabChange('timeline-audit')}
+          nextTab={nextIncompleteTab}
+          nextGroupLabel={nextIncompleteGroupLabel}
+          nextTabLabel={nextIncompleteTabLabel}
+          assigneeName={app!.rm?.firstName ? `${app!.rm.firstName} ${app!.rm.lastName}` : app!.analyst?.firstName ? `${app!.analyst.firstName} ${app!.analyst.lastName}` : undefined}
+          urgency={(() => {
+            if (slaDaysLeft !== null && slaDaysLeft <= 2) return 'urgent' as const;
+            if (slaDaysLeft !== null && slaDaysLeft <= 5) return 'warning' as const;
+            return 'normal' as const;
+          })()}
+          progressPct={progressPct}
+          documentReadinessPct={(() => {
+            if (readiness) {
+              const total = readiness.errors.length + readiness.warnings.length + (readiness.satisfied?.length ?? 0);
+              if (total === 0) return 100;
+              return Math.round(((readiness.satisfied?.length ?? 0) / total) * 100);
+            }
+            const docCount = (app as any).documents?.length ?? 0;
+            return docCount > 0 ? Math.min(100, 50 + docCount * 10) : 30;
+          })()}
+          workflowVelocityPct={(() => {
+            if (!app.createdAt) return 50;
+            const created = new Date(app.createdAt);
+            const elapsedDays = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
+            const slaDays = 14;
+            if (elapsedDays > slaDays) return Math.max(10, 100 - Math.round(((elapsedDays - slaDays) / slaDays) * 50));
+            return Math.round(100 - (elapsedDays / slaDays) * 100);
+          })()}
+        />
+      );
+      case 'customer-profile': return <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />;
+      case 'application-details': return <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />;
+      case 'financial-profile': return <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'risk-assessment': return <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />;
+      case 'collateral-guarantees': return <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
       case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
-      // P2-4: Comments thread per application
-      case 'comments': return <ApplicationComments applicationId={app!.id} />;
-      case 'audit': return <AuditTab />;
-
-      // Bank-only tabs (P2-1: gated by feature flags — only rendered if tab is in visibleTabs)
-      case 'risk-rating': return isFeatureEnabled('credit:ecl') ? <RiskRatingEclTab application={app!} onDirtyChange={setDirty} /> : null;
-      case 'profitability': return isFeatureEnabled('credit:profitability') ? <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
-      case 'counterparties': return isFeatureEnabled('credit:counterparties') ? <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
-      case 'conduct': return isFeatureEnabled('credit:account_conduct') ? <AccountConductTab application={app!} onUpdated={setApp} /> : null;
-      case 'forward-looking-risk': return isFeatureEnabled('credit:esg') ? <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
-      case 'header': return advancedMemo ? <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} /> : null;
-      case 'facilities': return advancedMemo ? <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} /> : null;
-
+      case 'approvals': return <ApprovalsTab360 app={app!} onRefresh={fetchApp} onUpdated={setApp} />;
+      case 'conditions-offer': return <ConditionsOfferTab app={app!} facilities={facilities} onRefresh={fetchApp} onUpdated={(updated) => setApp(updated)} />;
+      case 'timeline-audit': return <TimelineAuditTab applicationId={app!.id} />;
       default: return null;
     }
   };
 
+  // ── Notes for ApplicationNotesWidget ──
+  const notesForWidget = commentPreviews.map(c => ({
+    id: c.id,
+    author: c.author,
+    text: c.content,
+    createdAt: new Date().toISOString(), // approximate — real timestamp comes from API
+  }));
+
   return (
     <>
-      {/* §3.7 — Skip-to-content link for keyboard users */}
       <a href="#credit-detail-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-3 focus:py-1 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm focus:font-bold">
         Skip to content
       </a>
-      <div id="credit-detail-content" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-        {/* P2-4: Score outdated banner */}
-        <ScoreOutdatedBanner applicationId={app.id} className="mb-4" />
 
-        {/* Breadcrumb */}
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-          <div className="flex items-center gap-2 text-sm text-text-secondary">
-            <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
-            <span>/</span>
-            <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
-            <span>/</span>
-            <span className="font-semibold text-text-primary">{getBorrowerDisplayName(app.borrowerProfile) || app.id.slice(0, 8)}</span>
-            {/* P2-2: Processing lane badge */}
-            {lane && lane !== 'CORPORATE' && (
-              <span
-                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                  lane === 'PERSONAL_FAST' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                }`}
-                title={laneReason || LANE_DESCRIPTIONS[lane as ProcessingLaneType]}
-              >
-                {LANE_LABELS[lane as ProcessingLaneType] || lane}
-              </span>
-            )}
-          </div>
-        </div>
+      {/* ── Application 360 Workspace — 3-column layout ── */}
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden credit-module">
 
-        {/* Header — sticky on scroll */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-border/50 -mx-4 sm:-mx-8 px-4 sm:px-8 py-3 mb-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <ProgressRing pct={progressPct} color={progressColor} />
-                <span className="text-[11px] text-text-secondary leading-tight">
-                  {completedPhases}/{requiredPhases.length}<br />complete
-                </span>
-              </div>
-              <div>
-                <h1 className="text-lg font-black text-text-primary leading-tight">
-                  {getBorrowerDisplayName(app.borrowerProfile) || 'Application'}
-                </h1>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <StateBadge state={currentState} size="md" />
-                  {app.riskRating && (
-                    <span className="flex items-center gap-1 text-[10px] font-semibold text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded-full border border-border" title="Risk rating">
-                      <span className="material-symbols-outlined text-[12px]">speed</span>
-                      {app.riskRating}
-                    </span>
-                  )}
-                  {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
-                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-                      Pending approval
-                    </span>
-                  )}
-                  {currentState === 'REFERRED_BACK' && (
-                    <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-300">
-                      Referred Back
-                    </span>
-                  )}
-                  <span className="text-sm text-text-secondary">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName}</span>
-                  {incompleteCount > 0 && (
-                    <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">warning</span>
-                      {incompleteCount} section{incompleteCount !== 1 ? 's' : ''} incomplete
-                    </span>
-                  )}
-                  {incompleteCount === 0 && (
-                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                      All sections complete
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* §6.1 — Clone / Renew buttons */}
-              {['APPROVED', 'ACTIVE', 'CLOSED', 'REJECTED'].includes(currentState) && hasPermission(user, 'credit:create') && (
-                <>
-                  <button
-                    onClick={async () => {
-                      if (!app) return;
-                      try {
-                        const newId = await creditService.cloneApplication(app.id);
-                        toast.success('Application cloned successfully');
-                        navigate(`/credit/applications/${newId}?new=1`);
-                      } catch (e) {
-                        toast.error(friendlyMessage(e, 'Failed to clone application'));
-                      }
-                    }}
-                    className="flex items-center gap-1 text-sm text-gray-700 border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span className="material-symbols-outlined text-base">content_copy</span> Clone
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!app) return;
-                      try {
-                        const newId = await creditService.cloneApplication(app.id, { asRenewal: true });
-                        toast.success('Renewal application created');
-                        navigate(`/credit/applications/${newId}?new=1`);
-                      } catch (e) {
-                        toast.error(friendlyMessage(e, 'Failed to create renewal'));
-                      }
-                    }}
-                    className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span className="material-symbols-outlined text-base">autorenew</span> Renew
-                  </button>
-                </>
-              )}
-              {app.borrowerProfile && (
-                <Link to={`/credit/borrowers/${app.borrowerProfileId}`}
-                  className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-                  style={{ textDecoration: 'none' }}>
-                  <span className="material-symbols-outlined text-base">person</span> Borrower
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* §2.7 — Rejection Banner */}
-        <RejectionBanner
-          applicationId={app.id}
-          state={currentState}
-          rejectionReasonCode={(app as any).rejectionReasonCode}
-          rejectionReason={app.rejectionReason}
-          applicationNo={app.applicationNo ?? undefined}
+        {/* ── Left Sidebar: Section Index (240px) ── */}
+        <ApplicationSectionIndex
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          sectionStatuses={sectionStatuses}
         />
 
-        {/* §3.5d — Application Timeline */}
-        <ApplicationTimeline applicationId={app.id} currentState={currentState} />
+        {/* ── Center Column: Workspace ── */}
+        <main className="flex-1 overflow-y-auto cr-scroll" style={{ backgroundColor: 'var(--cr-surface-bright, #fff)' }}>
+          {/* Sticky Header (56px) */}
+          <ApplicationWorkspaceHeader
+            app={app}
+            currentState={currentState}
+            transitions={transitions}
+            canWrite={canWrite}
+            canAdmin={canAdmin}
+            allSigned={allSigned}
+            signoffs={signoffs}
+            esignReady={esignReady}
+            segment={segment}
+            onShowTransitionDialog={(action) => {
+              const t = transitions.find(tr => tr.action === action);
+              const isSubmitAction = currentState === 'DRAFT' || currentState === 'REFERRED_BACK' || action === 'submit_to_committee';
+              if (isSubmitAction && incompleteCount > 0) {
+                pendingTransitionRef.current = action;
+                setReadinessModalOpen(true);
+                return;
+              }
+              setShowTransitionDialog(action);
+            }}
+            onExportCaMemo={handleDownloadCaMemo}
+          />
 
-        {/* Stepper */}
-        <div className="bg-bg-surface border border-border rounded-xl p-5 mb-6">
-          <div className="flex items-center justify-between">
-            {STEPPER_STAGES.map((stage, idx) => (
-              <React.Fragment key={stage.key}>
-                <div className="flex flex-col items-center" style={{ minWidth: 80 }}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mb-1.5 ${
-                    isCurrentStage(idx) ? 'bg-brand-700 text-white ring-4 ring-brand-100' :
-                    isPastStage(idx) ? 'bg-green-500 text-white' :
-                    'bg-gray-200 text-gray-400'
-                  }`}>
-                    {isPastStage(idx) ? <span className="material-symbols-outlined text-base">check</span> : idx + 1}
-                  </div>
-                  <span className={`text-xs font-bold text-center ${isCurrentStage(idx) ? 'text-brand-700' : isPastStage(idx) ? 'text-green-600' : 'text-text-secondary'}`}>
-                    {stage.label}
-                  </span>
-                </div>
-                {idx < STEPPER_STAGES.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-1 mt-[-16px] ${isPastStage(idx + 1) || isCurrentStage(idx + 1) ? 'bg-green-400' : 'bg-gray-200'}`} style={{ minWidth: 20 }} />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
+          {/* P2-4: Score outdated banner */}
+          <ScoreOutdatedBanner applicationId={app.id} />
 
-        {/* Key Info Chips — read-only facts vs. editable assignments are visually distinguished */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="flex flex-wrap gap-3">
-            {[
-              { label: 'Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
-              { label: 'Tenor', value: app.requestedTenor != null ? `${app.requestedTenor} mo` : '—', icon: 'schedule' },
-              ...(['APPROVED', 'ACCEPTED', 'OFFER', 'ACTIVE', 'DISBURSED', 'CLOSED'].includes(app.state) && facilities.some(f => f.approvedAmount != null)
-                ? [{ label: 'Approved', value: formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency), icon: 'check_circle' }]
-                : []),
-            ].map(s => (
-              <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
-                <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
-                <span className="font-bold text-text-primary">{s.value}</span>
-                <span className="text-text-secondary">{s.label}</span>
-              </div>
-            ))}
+          {/* §2.7 — Rejection Banner */}
+          <RejectionBanner
+            applicationId={app.id}
+            state={currentState}
+            rejectionReasonCode={(app as any).rejectionReasonCode}
+            rejectionReason={app.rejectionReason}
+            applicationNo={app.applicationNo ?? undefined}
+          />
+
+          {/* ── KPI Row (8 cards) ── */}
+          <div style={{ padding: '16px 24px 0' }}>
+            <ApplicationKpiRow app={app} segment={segment} />
           </div>
-          <div className="w-px self-stretch bg-border hidden sm:block" />
-          <div className="flex flex-wrap gap-3">
-            <UserAssignChip
-              label="RM"
-              value={app.rm ?? null}
-              applicationId={app.id}
-              field="assignedRmId"
-              roleFilters={['CREDIT_RM', 'CREDIT_MANAGER', 'ADMIN']}
-              disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
-              onUpdated={setApp}
-            />
-            <UserAssignChip
-              label="Analyst"
-              value={app.analyst ?? null}
-              applicationId={app.id}
-              field="assignedAnalystId"
-              roleFilters={['CREDIT_ANALYST', 'CREDIT_MANAGER', 'ADMIN']}
-              disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
-              onUpdated={setApp}
+
+          {/* ── Journey Stepper (11 stages) ── */}
+          <div style={{ padding: '12px 24px 0' }}>
+            <ApplicationJourneyStepper
+              currentStageIndex={journeyStageIndex}
+              onStageClick={(stage) => handleTabChange(stage.targetTab)}
             />
           </div>
-        </div>
 
-        {/* Onboarding banner — shown once for newly created applications */}
-        {showOnboardingBanner && currentState === 'DRAFT' && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-indigo-500 text-xl mt-0.5">info</span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-indigo-800 mb-1">Application created — complete all 7 sections to submit</p>
-              <p className="text-xs text-indigo-700">
-                Start with <strong>S1 Loan Request</strong> (already pre-filled), then work through S2–S7.
-                When all sections are green, use <strong>Submit for KYC Review</strong> below.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowOnboardingBanner(false)}
-              aria-label="Dismiss"
-              className="text-indigo-400 hover:text-indigo-600 transition-colors"
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
-          </div>
-        )}
+          {/* ── Horizontal Tabs ── */}
+          {lane !== 'PERSONAL_FAST' && (
+            <ApplicationHorizontalTabs
+              visibleTabGroups={TAB_GROUPS_360}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              phaseCompletion={phaseCompletion}
+              documentCount={(app as any).documents?.length}
+            />
+          )}
 
-        {/* Status explanation banner — ACTIVE / CLOSED context */}
-        {currentState === 'ACTIVE' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-blue-800 mb-1">This loan is currently active</p>
-              <p className="text-xs text-blue-700">
-                The borrower has received funds and the facility is in use. The bank is actively exposed.
-                Close this application only when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
-                Closing is irreversible and will stop all monitoring.
-              </p>
-            </div>
-          </div>
-        )}
-        {currentState === 'CLOSED' && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-gray-500 text-xl mt-0.5">lock</span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-gray-800 mb-1">This loan has been closed</p>
-              <p className="text-xs text-gray-600">
-                The loan lifecycle is complete. No further actions can be taken on this application.
-                {app.closedAt && <> Closed on <strong>{new Date(app.closedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>.</>}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Readiness pre-flight panel — DRAFT only */}
-        {currentState === 'DRAFT' && (readiness || readinessLoading) && (
-          <div className="bg-bg-surface border border-border rounded-xl p-4 mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-base text-text-secondary">checklist</span>
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Submission Readiness</h3>
-              {readinessLoading && <span className="text-xs text-text-secondary ml-auto">Checking…</span>}
-              {!readinessLoading && readiness && (
-                <span className={`text-xs font-bold ml-auto px-2 py-0.5 rounded-full ${readiness.ready ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {readiness.ready ? 'Ready to submit' : `${readiness.errors.length} issue${readiness.errors.length !== 1 ? 's' : ''} blocking`}
-                </span>
-              )}
-            </div>
-            {readiness && (
-              <ul className="space-y-1.5">
-                {readiness.errors.map((e, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-red-700">
-                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">cancel</span>
-                    {e.message}
-                  </li>
-                ))}
-                {readiness.warnings.map((w, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-amber-700">
-                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">warning</span>
-                    {w.message}
-                  </li>
-                ))}
-                {readiness.satisfied?.map((s, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-blue-700">
-                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">verified</span>
-                    {s.message}
-                  </li>
-                ))}
-                {readiness.ready && readiness.warnings.length === 0 && (readiness.satisfied?.length ?? 0) === 0 && (
-                  <li className="flex items-center gap-2 text-xs text-green-700">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    All checks passed — application is ready to submit.
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* CA Memo Export */}
-        <div className="flex justify-end mb-2">
-          <button
-            onClick={handleDownloadCaMemo}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-base">description</span>
-            Export CA Memo
-          </button>
-        </div>
-
-        {/* Transition Action Buttons */}
-        {transitions.length > 0 && canWrite && (
-          <div className="bg-bg-surface border border-border rounded-xl p-4 mb-6">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Available Actions</h3>
-
-            {/* §1.1c — Sign-off gate warning banner (CREDIT_ASSESSMENT only) */}
-            {currentState === 'CREDIT_ASSESSMENT' && !allSigned && (
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0">warning</span>
-                <div>
-                  <p className="text-xs font-bold text-amber-800">CA Memo sign-off must be completed before submitting to committee</p>
-                  {/* §1.1d — Sign-off status checkmarks */}
-                  <div className="flex gap-3 mt-1.5">
-                    {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
-                      const isSigned = signoffs.some(s => s.role === role && s.signedAt);
-                      const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
-                      return (
-                        <span key={role} className={`text-xs font-semibold flex items-center gap-1 ${isSigned ? 'text-green-700' : 'text-amber-700'}`}>
-                          <span className="material-symbols-outlined text-sm">{isSigned ? 'check_circle' : 'cancel'}</span>
-                          {isSigned ? '✓' : '✗'} {label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* §1.3 — E-sign gate banner (OFFER state only) */}
-            {currentState === 'OFFER' && esignReady && !esignReady.ready && (
-              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0">lock</span>
-                <div>
-                  <p className="text-xs font-bold text-amber-800">Signed Letter of Offer required before acceptance</p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    To accept this offer, upload the signed Letter of Offer as a <strong>Letter of Offer</strong> document and have it verified by a credit officer.
+          {/* ── Tab Content ── */}
+          <div className="p-6">
+            {showOnboardingBanner && currentState === 'DRAFT' && (
+              <div className="mb-4 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-blue-800 mb-1">Application created — complete all 7 sections to submit</p>
+                  <p className="text-xs text-blue-700">
+                    Start with <strong>S1 Loan Request</strong> (already pre-filled), then work through S2–S7.
+                    When all sections are green, use <strong>Submit for KYC Review</strong> in the header.
                   </p>
-                  <button
-                    onClick={() => setActiveTab('documents')}
-                    className="mt-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-sm">upload_file</span>
-                    Go to Documents tab to upload
-                  </button>
+                </div>
+                <button
+                  onClick={() => setShowOnboardingBanner(false)}
+                  aria-label="Dismiss"
+                  className="text-blue-400 hover:text-blue-600 transition-colors"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            )}
+
+            {currentState === 'ACTIVE' && (
+              <div className="mb-4 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-blue-800 mb-1">This loan is currently active</p>
+                  <p className="text-xs text-blue-700">
+                    The borrower has received funds and the facility is in use. Close this application only when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
+                  </p>
                 </div>
               </div>
             )}
-            {currentState === 'OFFER' && esignReady && esignReady.ready && (
-              <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
-                <span className="material-symbols-outlined text-green-600 text-base mt-0.5 shrink-0">verified</span>
-                <div>
-                  <p className="text-xs font-bold text-green-800">Signed Letter of Offer verified</p>
-                  {esignReady.signedLoo && (
-                    <p className="text-xs text-green-700 mt-0.5">
-                      Document: {esignReady.signedLoo.fileName} — ready to accept offer.
-                    </p>
+            {currentState === 'CLOSED' && (
+              <div className="mb-4 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                <span className="material-symbols-outlined text-gray-500 text-xl mt-0.5">lock</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-gray-800 mb-1">This loan has been closed</p>
+                  <p className="text-xs text-gray-600">
+                    The loan lifecycle is complete. No further actions can be taken on this application.
+                    {app.closedAt && <> Closed on <strong>{new Date(app.closedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>.</>}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {currentState === 'DRAFT' && (readiness || readinessLoading) && (
+              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-base" style={{ color: 'var(--cr-outline)' }}>checklist</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Submission Readiness</h3>
+                  {readinessLoading && <span className="text-xs ml-auto" style={{ color: 'var(--cr-outline)' }}>Checking…</span>}
+                  {!readinessLoading && readiness && (
+                    <span className={`text-xs font-bold ml-auto px-2 py-0.5 rounded-full ${readiness.ready ? 'text-green-700 bg-green-50 border border-green-200' : 'text-red-700 bg-red-50 border border-red-200'}`}>
+                      {readiness.ready ? 'Ready to submit' : `${readiness.errors.length} issue${readiness.errors.length !== 1 ? 's' : ''} blocking`}
+                    </span>
                   )}
                 </div>
+                {readiness && (
+                  <ul className="space-y-1.5">
+                    {readiness.errors.map((e, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-red-700">
+                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">cancel</span>
+                        {e.message}
+                      </li>
+                    ))}
+                    {readiness.warnings.map((w, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-amber-700">
+                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">warning</span>
+                        {w.message}
+                      </li>
+                    ))}
+                    {readiness.satisfied?.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-blue-700">
+                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">verified</span>
+                        {s.message}
+                      </li>
+                    ))}
+                    {readiness.ready && readiness.warnings.length === 0 && (readiness.satisfied?.length ?? 0) === 0 && (
+                      <li className="flex items-center gap-2 text-xs text-green-700">
+                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                        All checks passed — application is ready to submit.
+                      </li>
+                    )}
+                  </ul>
+                )}
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
-              {transitions.map(t => {
-                const isReject = t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED' || t.toState === 'WITHDRAWN';
-                const isApprove = t.toState === 'APPROVED' || t.toState === 'KYC_APPROVED' || t.toState === 'ACCEPTED';
-                const isTerminal = t.toState === 'CLOSED' || t.toState === 'WITHDRAWN' || t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED';
-                const isSignoffBlocked = t.action === 'submit_to_committee' && !allSigned;
-                const isEsignBlocked = t.action === 'accept_offer' && esignReady !== null && !esignReady.ready;
-                const isAdminAction = t.action === 'close';
-                const isAdminBlocked = isAdminAction && !canAdmin;
-                // §3.1 — Submission readiness check: show readiness modal if sections are incomplete
-                const isSubmitAction = currentState === 'DRAFT' || currentState === 'REFERRED_BACK' || t.action === 'submit_to_committee';
-                const handleTransitionClick = () => {
-                  if (isSignoffBlocked || isEsignBlocked || isAdminBlocked) return;
-                  if (isSubmitAction && incompleteCount > 0) {
-                    pendingTransitionRef.current = t.action;
-                    setReadinessModalOpen(true);
-                    return;
-                  }
-                  setShowTransitionDialog(t.action);
-                };
-                return (
-                  <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }}
-                    onClick={handleTransitionClick}
-                    disabled={isSignoffBlocked || isEsignBlocked || isAdminBlocked}
-                    title={isSignoffBlocked ? 'Blocked: Complete all CA Memo sign-offs (Prepared By, Reviewed By, Concurred By) first' :
-                      isEsignBlocked ? 'Blocked: Upload and verify a signed Letter of Offer before accepting the offer.' :
-                      isAdminBlocked ? 'Admin permission required: Only credit administrators can close a loan' :
-                      t.toState === 'CLOSED' ? 'Irreversible: This will permanently close the loan and stop all monitoring.' : undefined}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                      isSignoffBlocked || isEsignBlocked || isAdminBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
-                      t.toState === 'CLOSED' ? 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100' :
-                      isReject ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' :
-                      isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
-                      'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
-                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked || isEsignBlocked || isAdminBlocked ? 'not-allowed' : 'pointer' }}>
-                    <span className="material-symbols-outlined text-base">{
-                      t.toState === 'CLOSED' ? 'lock' :
-                      isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'
-                    }</span>
-                    {t.label || t.action.replace(/_/g, ' ')}
-                    <span className="text-xs opacity-70 ml-1">→ {STATE_LABELS[t.toState] || t.toState}</span>
-                  </button>
-                );
-              })}
+            {/* P2-2: Personal Fast — single scrollable view */}
+            {lane === 'PERSONAL_FAST' ? (
+              <PersonalFastView
+                app={app}
+                lane={lane}
+                laneReason={laneReason}
+                onUpdated={(updated) => setApp(updated)}
+                onDirtyChange={setDirty}
+                onRefresh={fetchApp}
+                setApp={setApp}
+                canApprove={canApprove}
+                isFeatureEnabled={isFeatureEnabled}
+                signoffs={signoffs}
+                allSigned={allSigned}
+                approvals={approvals}
+                onNavigate={(tab) => handleTabChange(tab as DetailTab360)}
+              />
+            ) : (
+            <div id="credit-detail-content">
+              {renderTab(activeTab)}
             </div>
-
-            {/* §1.1d — Sign-off checkmarks beside buttons when in CREDIT_ASSESSMENT */}
-            {currentState === 'CREDIT_ASSESSMENT' && allSigned && transitions.some(t => t.action === 'submit_to_committee') && (
-              <div className="mt-2 flex gap-3">
-                {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
-                  const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
-                  return (
-                    <span key={role} className="text-xs font-semibold text-green-700 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">check_circle</span>
-                      ✓ {label}
-                    </span>
-                  );
-                })}
-              </div>
             )}
           </div>
+        </main>
+
+        {/* ── Right Sidebar: 6 Application 360 Widgets ── */}
+        <aside
+          className="hidden xl:flex flex-col w-80 shrink-0 overflow-y-auto cr-scroll"
+          style={{
+            backgroundColor: 'var(--cr-surface-container-lowest)',
+            borderLeft: '1px solid var(--cr-outline-variant)',
+          }}
+        >
+          <ApplicationStatusWidget
+            currentState={currentState}
+            nextRequiredAction={nextRequiredAction}
+          />
+
+          <ApplicationSlaWidget
+            slaDaysLeft={slaDaysLeft}
+            createdAt={app.createdAt ?? null}
+          />
+
+          <ApplicationTeamWidget
+            app={app}
+            onAssign={(field: string) => {
+              // Navigate to borrower-profile tab for assignment changes
+              handleTabChange('customer-profile');
+            }}
+          />
+
+          <ApplicationPendingTasks
+            app={app}
+            onNavigate={(targetTab) => handleTabChange(targetTab as DetailTab360)}
+          />
+
+          <ApplicationCustomerInsights
+            app={app}
+            segment={segment}
+          />
+
+          <ApplicationNotesWidget
+            notes={notesForWidget}
+            onAddNote={handleAddNote}
+            onViewAll={() => handleTabChange('timeline-audit')}
+          />
+        </aside>
+      </div>
+
+      {/* ── Mobile bottom panels (shown below content on small screens) ── */}
+      <div className="lg:hidden p-4 space-y-4" style={{ backgroundColor: 'var(--cr-surface-bright, #fff)' }}>
+        <ApplicationStatusWidget
+          currentState={currentState}
+          nextRequiredAction={nextRequiredAction}
+        />
+        <ApplicationSlaWidget
+          slaDaysLeft={slaDaysLeft}
+          createdAt={app.createdAt ?? null}
+        />
+        {criticalAlerts.length > 0 && (
+          <ApplicationAlertsPanel
+            alerts={criticalAlerts}
+            onNavigate={(tab) => handleTabChange(tab as DetailTab360)}
+          />
         )}
+      </div>
 
-        {/* Mobile sticky nav bar — visible only on small screens */}
-        {(() => {
-          const activeGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === activeTab));
-          const activeTabDef = activeGroup?.tabs.find(t => t.id === activeTab);
-          const groupStatus = activeGroup ? phaseCompletion[activeGroup.id] : 'optional';
-          return (
-            <div className="md:hidden sticky top-0 z-40 bg-white border border-border rounded-xl shadow-sm mb-4 overflow-hidden">
-              <button
-                onClick={() => setShowMobileNav(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left"
-                aria-expanded={showMobileNav}
-                aria-controls="mobile-nav-drawer"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`material-symbols-outlined text-[18px] shrink-0 ${groupStatus === 'complete' ? 'text-green-500' : groupStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
-                    {groupStatus === 'complete' ? 'check_circle' : groupStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-black text-text-secondary uppercase tracking-wider truncate">{activeGroup?.label}</div>
-                    <div className="text-sm font-bold text-text-primary truncate">{activeTabDef?.label}</div>
-                  </div>
-                </div>
-                <span className={`material-symbols-outlined text-xl text-text-secondary transition-transform ${showMobileNav ? 'rotate-180' : ''}`}>expand_more</span>
-              </button>
+      {/* ── Transition Dialog ── */}
+      {showTransitionDialog && (() => {
+        const t = transitions.find(tr => tr.action === showTransitionDialog);
+        const isReject = t?.toState === 'REJECTED' || t?.toState === 'KYC_REJECTED' || t?.toState === 'WITHDRAWN';
+        const label = t?.label || showTransitionDialog.replace(/_/g, ' ');
+        return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => { setShowTransitionDialog(null); transitionTriggerRef.current?.focus(); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transition-dialog-title"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => { if (e.key === 'Escape') { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); } }}>
+            <h2 id="transition-dialog-title" className="text-lg font-black text-text-primary mb-2">
+              {showTransitionDialog === 'close' ? 'Close This Loan?' : 'Confirm Action'}
+            </h2>
+            <p className="text-sm text-text-secondary mb-4">
+              {showTransitionDialog === 'close' ? (
+                <>You are about to permanently close this loan application. This <strong>cannot be undone</strong>.</>
+              ) : (
+                <>
+                  Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
+                  {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
+                </>
+              )}
+            </p>
 
-              {showMobileNav && (
-                <div id="mobile-nav-drawer" className="border-t border-border max-h-[60vh] overflow-y-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-                  {visibleTabGroups.map((group) => {
-                    const gStatus = phaseCompletion[group.id];
+            {showTransitionDialog === 'submit_to_committee' && (
+              <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">CA Memo Sign-off Status</p>
+                <div className="space-y-1.5">
+                  {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
+                    const roleLabel = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
+                    const s = signoffs.find(sf => sf.role === role);
+                    const signed = !!s?.signedAt;
                     return (
-                      <div key={group.id}>
-                        <div className="relative px-3 py-2 bg-gray-50 border-b border-border">
-                          <span className="block text-[10px] font-bold text-text-secondary uppercase tracking-wide pr-6 leading-normal">{group.label}</span>
-                          <span className={`material-symbols-outlined text-[14px] absolute right-2.5 top-1/2 -translate-y-1/2 ${gStatus === 'complete' ? 'text-green-500' : gStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
-                            {gStatus === 'complete' ? 'check_circle' : gStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
+                      <div key={role} className="flex items-center gap-2 text-xs">
+                        <span className={`material-symbols-outlined text-sm ${signed ? 'text-green-600' : 'text-gray-300'}`}>
+                          {signed ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                        <span className={signed ? 'text-gray-700 font-medium' : 'text-gray-400'}>
+                          {roleLabel}
+                        </span>
+                        {signed && s && (
+                          <span className="text-gray-400">
+                            — {s.signedBy ? `${s.signedBy.firstName} ${s.signedBy.lastName}` : 'Signed'}
                           </span>
-                        </div>
-                        {group.tabs.map((tab) => {
-                          const isActive = activeTab === tab.id;
-                          return (
-                            <button key={tab.id}
-                              onClick={() => { handleTabChange(tab.id); setShowMobileNav(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                              className={`w-full text-left px-6 py-2.5 text-sm font-semibold flex items-center justify-between ${isActive ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary'}`}
-                              style={{ background: isActive ? 'var(--brand-50)' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', borderLeft: isActive ? '3px solid var(--brand-700)' : '3px solid transparent' }}
-                            >
-                              {tab.label}
-                              {isActive && <span className="material-symbols-outlined text-[16px]">chevron_right</span>}
-                            </button>
-                          );
-                        })}
+                        )}
+                        {!signed && (
+                          <span className="text-gray-400 italic">(pending)</span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
+                {!allSigned && (
+                  <p className="mt-2 text-xs text-red-600 font-medium">
+                    All sign-offs must be complete before submitting to Committee Review.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {showTransitionDialog === 'close' && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">This action is irreversible</p>
+                <p className="text-xs text-amber-700 mb-2">Closing this loan will:</p>
+                <ul className="space-y-1 text-xs text-amber-800">
+                  <li className="flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                    Mark the loan lifecycle as complete
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                    Remove this facility from active exposure tracking
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                    Stop all monitoring (collateral, insurance, covenants)
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                    Set the application to read-only — no further actions possible
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                    Record the closure date (today)
+                  </li>
+                </ul>
+                <p className="mt-2 text-xs text-amber-700">
+                  Only close when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
+                </p>
+              </div>
+            )}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-text-secondary mb-1">
+                Reason {t?.requiresComment ? <span className="text-red-500">*</span> : <span className="text-text-tertiary">(optional)</span>}
+              </label>
+              <textarea rows={2} value={transitionReason} onChange={e => { setTransitionReason(e.target.value); setReasonError(false); }}
+                placeholder={t?.requiresComment
+                  ? (showTransitionDialog === 'close' ? 'e.g. Fully repaid, Written off, Early settlement...' : 'A reason is required for this action...')
+                  : 'Add a reason or note...'}
+                className={`w-full border rounded-lg px-3 py-2 text-sm resize-none ${t?.requiresComment && !transitionReason.trim() ? 'border-red-300' : 'border-border'}`} style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              {t?.requiresComment && reasonError && !transitionReason.trim() && (
+                <p className="text-xs text-red-600 mt-1 font-medium">Reason is required for this action</p>
               )}
             </div>
-          );
-        })()}
-
-        {/* P2-2: Personal Fast — single scrollable view (no sidebar tabs) */}
-        {lane === 'PERSONAL_FAST' ? (
-          <PersonalFastView
-            app={app}
-            lane={lane}
-            laneReason={laneReason}
-            onUpdated={(updated) => setApp(updated)}
-            onDirtyChange={setDirty}
-            onRefresh={fetchApp}
-            setApp={setApp}
-            canApprove={canApprove}
-            isFeatureEnabled={isFeatureEnabled}
-            signoffs={signoffs}
-            allSigned={allSigned}
-            approvals={approvals}
-            onNavigate={(tab) => handleTabChange(tab as DetailTab)}
-          />
-        ) : (
-        <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
-          {/* Sidebar Tabs — desktop only */}
-          <nav aria-label="Application sections" className="hidden md:flex md:w-72 shrink-0 flex-col sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4 bg-bg-surface border border-border rounded-xl shadow-sm" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
-            {visibleTabGroups.map((group, groupIdx) => {
-              const groupStatus = phaseCompletion[group.id];
-              const isGroupComplete = groupStatus === 'complete';
-              const isOptional = groupStatus === 'optional';
-              // Show section label (S1, S2, etc.) or "ADV" for bank-only
-              const sectionMatch = /^s(\d+)$/.exec(group.id);
-              const sectionLabel = sectionMatch ? `S${sectionMatch[1]}` : group.advancedOnly ? 'ADV' : null;
-              const dotClass = isGroupComplete ? 'bg-green-500' : isOptional ? 'bg-gray-300' : 'bg-amber-500';
-              const dotTitle = isGroupComplete ? 'Complete' : isOptional ? 'Optional' : 'Incomplete';
-              return (
-                <div key={group.id} className={groupIdx === 0 ? 'pt-2' : 'pt-3'}>
-                  <div className="flex items-center gap-2 px-3 py-1.5">
-                    {sectionLabel && (
-                      <span className="text-[10px] font-semibold text-text-tertiary bg-gray-100 border border-border rounded px-1.5 py-0.5 shrink-0">{sectionLabel}</span>
-                    )}
-                    <span className="text-[11px] font-semibold text-text-tertiary uppercase truncate min-w-0 flex-1" title={group.label}>{group.label}</span>
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} title={dotTitle} aria-label={dotTitle} />
-                  </div>
-                  <div className="flex flex-col" role="tablist" aria-label={group.label}>
-                    {group.tabs.map((tab) => {
-                      const isActive = activeTab === tab.id;
-                      return (
-                        <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-                          role="tab"
-                          aria-selected={isActive}
-                          aria-controls={`panel-${tab.id}`}
-                          id={`tab-${tab.id}`}
-                          tabIndex={isActive ? 0 : -1}
-                          onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
-                          title={tab.label}
-                          className={`relative text-left pl-6 pr-3 py-1.5 text-sm transition-colors flex items-center min-w-0 ${
-                            isActive
-                              ? 'bg-brand-50 text-brand-700 font-semibold'
-                              : 'text-text-primary font-medium hover:bg-gray-50'
-                          }`}
-                          style={{ cursor: 'pointer', outline: 'none', border: 'none', background: isActive ? 'var(--brand-50)' : 'transparent' }}>
-                          {isActive && <span aria-hidden="true" className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-brand-700" />}
-                          <span className="truncate min-w-0">{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </nav>
-
-          {/* Main Content Area */}
-          <div className="flex-1 min-w-0 bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
-            <div className="p-6 flex-1">
-
-        {/* S1 — Loan Request */}
-        {activeTab === 'loan-request' && (
-          <div role="tabpanel" id="panel-loan-request" aria-labelledby="tab-loan-request" tabIndex={0}>
-            <LoanRequestTab application={app} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* S2 — Borrower Profile */}
-        {activeTab === 'borrower-profile' && (
-          <div role="tabpanel" id="panel-borrower-profile" aria-labelledby="tab-borrower-profile" tabIndex={0}>
-            <BorrowerProfileTab application={app} />
-          </div>
-        )}
-
-        {/* S2 — Parties (Directors & UBOs) */}
-        {activeTab === 'parties' && (
-          <div role="tabpanel" id="panel-parties" aria-labelledby="tab-parties" tabIndex={0}>
-            <PartiesTab app={app} />
-          </div>
-        )}
-
-        {/* S3 — Financials */}
-        {activeTab === 'financials' && (
-          <div role="tabpanel" id="panel-financials" aria-labelledby="tab-financials" tabIndex={0}>
-            <FinancialsTab application={app} />
-          </div>
-        )}
-
-        {/* S4 — Risk Score */}
-        {activeTab === 'risk-score' && (
-          <div role="tabpanel" id="panel-risk-score" aria-labelledby="tab-risk-score" tabIndex={0}>
-            <RiskScoreTab application={app} onUpdated={setApp} onRefresh={fetchApp} />
-          </div>
-        )}
-
-        {/* S4 — Payment Capability */}
-        {activeTab === 'payment-capability' && (
-          <div role="tabpanel" id="panel-payment-capability" aria-labelledby="tab-payment-capability" tabIndex={0}>
-            <PaymentCapabilityTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* P2-3 — SME Simplified Financials */}
-        {activeTab === 'sme-financials' && (
-          <div role="tabpanel" id="panel-sme-financials" aria-labelledby="tab-sme-financials" tabIndex={0}>
-            <SmeFinancialsTab application={app} />
-          </div>
-        )}
-
-        {/* S5 — Credit Checks & Risk (consolidated accordion) */}
-        {(activeTab === 'credit-checks-risk' || activeTab === 'credit-checks' || activeTab === 'industry' || activeTab === 'risk' || activeTab === 'ai-insights') && (
-          <div role="tabpanel" id="panel-credit-checks-risk" aria-labelledby="tab-credit-checks-risk" tabIndex={0}>
-            <CreditChecksRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* S6 — Collateral */}
-        {activeTab === 'collateral' && (
-          <div role="tabpanel" id="panel-collateral" aria-labelledby="tab-collateral" tabIndex={0}>
-            <CollateralTab />
-          </div>
-        )}
-
-        {/* S6 — Security & Guarantees */}
-        {activeTab === 'security' && (
-          <div role="tabpanel" id="panel-security" aria-labelledby="tab-security" tabIndex={0}>
-            <SecurityGuaranteesTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* S7 — Guarantor Financial Assessment */}
-        {activeTab === 'guarantor-assessment' && (
-          <div role="tabpanel" id="panel-guarantor-assessment" aria-labelledby="tab-guarantor-assessment" tabIndex={0}>
-            <GuarantorFinancialAssessmentTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* S7 — Decision Process Banner */}
-        {['signoff', 'approvals', 'guarantor-assessment', 'conditions', 'summary'].includes(activeTab) && (
-          <S7ProcessBanner
-            app={app}
-            signoffs={signoffs}
-            allSigned={allSigned}
-            approvals={approvals}
-            onNavigate={(tab) => handleTabChange(tab as DetailTab)}
-          />
-        )}
-
-        {/* S7 — Approval Chain */}
-        {activeTab === 'approvals' && (
-          <div role="tabpanel" id="panel-approvals" aria-labelledby="tab-approvals" tabIndex={0}>
-            <ApprovalsTab app={app} onRefresh={fetchApp} />
-          </div>
-        )}
-
-        {/* S7 — Sign-off */}
-        {activeTab === 'signoff' && (
-          <div role="tabpanel" id="panel-signoff" aria-labelledby="tab-signoff" tabIndex={0}>
-            <SignoffTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* S7 — Conditions */}
-        {activeTab === 'conditions' && (
-          <div role="tabpanel" id="panel-conditions" aria-labelledby="tab-conditions" tabIndex={0}>
-            <ConditionsTab />
-          </div>
-        )}
-
-        {/* S7 — Summary */}
-        {activeTab === 'summary' && (
-          <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
-            <SummaryTab app={app} facilities={facilities} onRefresh={fetchApp} />
-          </div>
-        )}
-
-        {/* META — Documents */}
-        {activeTab === 'documents' && (
-          <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
-            <DocumentsTab app={app} canApprove={canApprove} />
-          </div>
-        )}
-
-        {/* P2-4: Comments thread */}
-        {activeTab === 'comments' && (
-          <div role="tabpanel" id="panel-comments" aria-labelledby="tab-comments" tabIndex={0}>
-            <ApplicationComments applicationId={app.id} />
-          </div>
-        )}
-
-        {/* META — Audit Trail */}
-        {activeTab === 'audit' && (
-          <div role="tabpanel" id="panel-audit" aria-labelledby="tab-audit" tabIndex={0}>
-            <AuditTab />
-          </div>
-        )}
-
-        {/* ── Bank-only tabs (rendered when advancedMemo is true) ── */}
-
-        {activeTab === 'risk-rating' && (
-          <div role="tabpanel" id="panel-risk-rating" aria-labelledby="tab-risk-rating" tabIndex={0}>
-            <RiskRatingEclTab application={app} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {activeTab === 'profitability' && (
-          <div role="tabpanel" id="panel-profitability" aria-labelledby="tab-profitability" tabIndex={0}>
-            <ProfitabilityWalletTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {activeTab === 'counterparties' && (
-          <div role="tabpanel" id="panel-counterparties" aria-labelledby="tab-counterparties" tabIndex={0}>
-            <CounterpartiesTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {activeTab === 'conduct' && (
-          <div role="tabpanel" id="panel-conduct" aria-labelledby="tab-conduct" tabIndex={0}>
-            <AccountConductTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {activeTab === 'forward-looking-risk' && (
-          <div role="tabpanel" id="panel-forward-looking-risk" aria-labelledby="tab-forward-looking-risk" tabIndex={0}>
-            <ForwardLookingRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {activeTab === 'header' && (
-          <div role="tabpanel" id="panel-header" aria-labelledby="tab-header" tabIndex={0}>
-            <HeaderBackgroundTab application={app} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {activeTab === 'facilities' && (
-          <div role="tabpanel" id="panel-facilities" aria-labelledby="tab-facilities" tabIndex={0}>
-            <RequestsFacilitiesTab application={app} onDirtyChange={setDirty} />
-          </div>
-        )}
-
+            <div className="flex justify-end gap-3">
+              <button ref={transitionDialogCancelRef} onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+              <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim()) || (showTransitionDialog === 'submit_to_committee' && !allSigned)}
+                className={`px-4 py-2 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 ${
+                  showTransitionDialog === 'close' ? 'bg-amber-600 hover:bg-amber-700' :
+                  isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-700 hover:bg-brand-800'
+                }`}
+                title={showTransitionDialog === 'submit_to_committee' && !allSigned ? 'Complete all CA Memo sign-offs first' : undefined}
+                style={{ border: 'none', cursor: showTransitionDialog === 'submit_to_committee' && !allSigned ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}>
+                {transitioning ? 'Processing...' : showTransitionDialog === 'close' ? 'Close Loan →' : label}
+              </button>
             </div>
           </div>
         </div>
-        )}
+        );
+      })()}
 
-        {/* Floating Action Button — jump to next incomplete section */}
-        {(() => {
-          const nextTab = getNextIncompleteTab(phaseCompletion, currentState);
-          if (!nextTab || nextTab === activeTab) return null;
-          const nextGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === nextTab));
-          return (
-            <div className="fixed bottom-8 right-8 z-50">
-              <button
-                onClick={() => {
-                  handleTabChange(nextTab);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 text-white px-5 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
-                style={{ cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)' }}
-                aria-label={`Go to next incomplete section: ${nextGroup?.label}`}
-              >
-                <span className="font-bold text-sm hidden sm:inline">Next Incomplete Section</span>
-                <span className="material-symbols-outlined text-xl">arrow_forward</span>
-              </button>
-            </div>
-          );
-        })()}
-
-        {/* Transition Dialog */}
-        {showTransitionDialog && (() => {
-          const t = transitions.find(tr => tr.action === showTransitionDialog);
-          const isReject = t?.toState === 'REJECTED' || t?.toState === 'KYC_REJECTED' || t?.toState === 'WITHDRAWN';
-          const label = t?.label || showTransitionDialog.replace(/_/g, ' ');
-          return (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => { setShowTransitionDialog(null); transitionTriggerRef.current?.focus(); }}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="transition-dialog-title"
-              onClick={e => e.stopPropagation()}
-              onKeyDown={e => { if (e.key === 'Escape') { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); } }}>
-              <h2 id="transition-dialog-title" className="text-lg font-black text-text-primary mb-2">
-                {showTransitionDialog === 'close' ? 'Close This Loan?' : 'Confirm Action'}
-              </h2>
-              <p className="text-sm text-text-secondary mb-4">
-                {showTransitionDialog === 'close' ? (
-                  <>You are about to permanently close this loan application. This <strong>cannot be undone</strong>.</>
-                ) : (
-                  <>
-                    Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
-                    {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
-                  </>
-                )}
-              </p>
-
-              {/* §4 — Sign-off status in transition dialog */}
-              {showTransitionDialog === 'submit_to_committee' && (
-                <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">CA Memo Sign-off Status</p>
-                  <div className="space-y-1.5">
-                    {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
-                      const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
-                      const s = signoffs.find(sf => sf.role === role);
-                      const signed = !!s?.signedAt;
-                      return (
-                        <div key={role} className="flex items-center gap-2 text-xs">
-                          <span className={`material-symbols-outlined text-sm ${signed ? 'text-green-600' : 'text-gray-300'}`}>
-                            {signed ? 'check_circle' : 'radio_button_unchecked'}
-                          </span>
-                          <span className={signed ? 'text-gray-700 font-medium' : 'text-gray-400'}>
-                            {label}
-                          </span>
-                          {signed && s && (
-                            <span className="text-gray-400">
-                              — {s.signedBy ? `${s.signedBy.firstName} ${s.signedBy.lastName}` : 'Signed'}
-                            </span>
-                          )}
-                          {!signed && (
-                            <span className="text-gray-400 italic">(pending)</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {!allSigned && (
-                    <p className="mt-2 text-xs text-red-600 font-medium">
-                      ⛔ All sign-offs must be complete before submitting to Committee Review.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Close-action impact summary */}
-              {showTransitionDialog === 'close' && (
-                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">This action is irreversible</p>
-                  <p className="text-xs text-amber-700 mb-2">Closing this loan will:</p>
-                  <ul className="space-y-1 text-xs text-amber-800">
-                    <li className="flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
-                      Mark the loan lifecycle as complete
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
-                      Remove this facility from active exposure tracking
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
-                      Stop all monitoring (collateral, insurance, covenants)
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
-                      Set the application to read-only — no further actions possible
-                    </li>
-                    <li className="flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
-                      Record the closure date (today)
-                    </li>
-                  </ul>
-                  <p className="mt-2 text-xs text-amber-700">
-                    Only close when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
-                  </p>
-                </div>
-              )}
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-text-secondary mb-1">
-                  Reason {t?.requiresComment ? <span className="text-red-500">* (required)</span> : <span className="text-text-tertiary">(optional)</span>}
-                </label>
-                <textarea rows={2} value={transitionReason} onChange={e => { setTransitionReason(e.target.value); setReasonError(false); }}
-                  placeholder={t?.requiresComment
-                    ? (showTransitionDialog === 'close' ? 'e.g. Fully repaid, Written off, Early settlement...' : 'A reason is required for this action...')
-                    : 'Add a reason or note...'}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm resize-none ${t?.requiresComment && !transitionReason.trim() ? 'border-red-300' : 'border-border'}`} style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-                {t?.requiresComment && reasonError && !transitionReason.trim() && (
-                  <p className="text-xs text-red-600 mt-1 font-medium">Reason is required for this action</p>
-                )}
-              </div>
-              <div className="flex justify-end gap-3">
-                <button ref={transitionDialogCancelRef} onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim()) || (showTransitionDialog === 'submit_to_committee' && !allSigned)}
-                  className={`px-4 py-2 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 ${
-                    showTransitionDialog === 'close' ? 'bg-amber-600 hover:bg-amber-700' :
-                    isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-700 hover:bg-brand-800'
-                  }`}
-                  title={showTransitionDialog === 'submit_to_committee' && !allSigned ? 'Complete all CA Memo sign-offs first' : undefined}
-                  style={{ border: 'none', cursor: showTransitionDialog === 'submit_to_committee' && !allSigned ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {transitioning ? 'Processing...' : showTransitionDialog === 'close' ? 'Close Loan →' : label}
-                </button>
-              </div>
-            </div>
-          </div>
-          );
-        })()}
-      </div>
-      {/* §3.1 — Readiness Checklist Modal */}
+      {/* Readiness Checklist Modal */}
       <ReadinessChecklistModal
         open={readinessModalOpen}
         onClose={() => { setReadinessModalOpen(false); pendingTransitionRef.current = null; }}
@@ -1418,7 +998,7 @@ const isIdPlaceholder = id === 'new';
           }
         }}
         onNavigateToSection={(tabId) => {
-          handleTabChange(tabId as DetailTab);
+          handleTabChange(tabId as DetailTab360);
         }}
       />
       {DirtyGuardDialog}

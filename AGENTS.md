@@ -70,75 +70,76 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 <claude-mem-context>
 # Memory Context
 
-# [citadel-cwc-portal] recent context, 2026-06-14 11:55pm GMT+8
+# [citadel-cwc-portal] recent context, 2026-06-17 7:52pm GMT+8
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (16,016t read) | 582,140t work | 97% savings
+Stats: 50 obs (17,535t read) | 316,456t work | 94% savings
 
-### Jun 14, 2026
-1975 9:39a 🔵 CRM Remediation Plan: All 9 phases confirmed implemented in crm.controller.ts
-1976 9:40a 🔵 CRM Remediation Plan: Implementation Status Cross-Check
-1977 9:42a 🔵 crm-scope.service.ts: Owner scoping architecture fully mapped
-1978 9:43a 🔵 crm.controller.ts: Team-scoped RBAC authorization model in opportunities endpoint
-1979 9:44a 🔵 crm-scope.service.test.ts: Authorization model test coverage and deduplication logic
-1980 9:45a 🔴 applyOwnerScope: AND-composition fix to prevent OR-clause conflict with search filters
-1981 3:46p ⚖️ CRM Dashboard Redesign: HTML Mockup Assessment Commissioned
-1982 3:47p ⚖️ CRM Dashboard Redesign: HTML mockup assessment requested
-1983 " ⚖️ CRM Dashboard Redesign: HTML Mockup Assessment Requested
-1984 3:49p 🔵 CrmDashboard.tsx and CrmNav.tsx: Full architecture confirmed
-1985 3:50p 🔵 getDashboardStats backend: 13-query parallel fetch confirmed
-1986 3:54p ✅ CRM Dashboard Redesign Implementation Plan created
-1987 4:44p 🔵 Codex suggestion engine requested hyperpersonalized tasks for citadel-cwc-portal
-1988 4:45p 🔵 Codex hyperpersonalized suggestion generation for citadel-cwc-portal
-1989 " 🔵 CrmDashboard.tsx: widget visibility architecture and Task 10 AI Daily Briefing wiring confirmed
-1990 6:11p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
-1991 6:13p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
-1992 " 🔵 CrmDashboard.tsx: Full widget inventory and render order confirmed
-1993 " 🔵 docs/plans/crm/code.html: New CRM dashboard design mockup identified
-1994 6:14p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
-1995 6:16p 🔵 CRM Dashboard redesign implementation plan exported to docs
-1996 6:17p ✅ CRM Dashboard Redesign Plan Created
-1997 " 🔵 CRM Dashboard Redesign Plan: Full Architecture Mapped
-S526 CRM Dashboard Redesign: Nav/Sidebar Layout Conflict Identified (Jun 14 at 6:17 PM)
-1998 6:21p 🔵 CRM Dashboard Redesign: 13-Task Plan Structure Fully Mapped
-1999 6:22p 🔵 backend/src/lib/prisma.ts does not exist at expected path
-2000 " 🔵 crm.service.ts instantiates PrismaClient locally — no shared prisma singleton
-2001 " 🟣 crm-dashboard-stats.test.ts created with corrected @prisma/client mock
-2002 6:23p 🟣 getDashboardStats extended with monthlyTrend, pipelineByName, upcomingFollowUps
-2003 " 🔵 Backend test suite pre-existing failures: DB unreachable + Redis mock issue
-2004 6:24p 🔵 App.tsx CRM route structure and AuthContext/permissions API confirmed for CrmLayout integration
-2005 8:43p 🔵 CRM Dashboard Redesign: Nav Bar Conflicts with Sidebar
-2006 8:44p ⚖️ CRM Dashboard Redesign: Nav/Sidebar Conflict — Refinement Plan Requested
-2007 " 🔵 CRM Dashboard Redesign: Nav/Sidebar Layout Conflict Identified
-S527 CrmLayout.tsx: Vertical sidebar replaced with horizontal top sub-nav (Jun 14 at 8:44 PM)
-2008 8:46p 🔄 CrmLayout.tsx: Vertical sidebar replaced with horizontal top sub-nav
-S528 CrmLayout.tsx: CRM nav bar has 17 items causing overflow (Jun 14 at 8:46 PM)
-2009 8:50p 🔵 CrmLayout.tsx: CRM nav bar has 17 items causing overflow
-S529 CRM Dashboard Design System: "Kinetic Enterprise" spec mapped (Jun 14 at 8:50 PM)
-2010 9:24p 🔵 CRM Dashboard Design System: "Kinetic Enterprise" spec mapped
-S530 CrmDashboard.tsx: Full redesign to match new teal design system (Jun 14 at 9:24 PM)
-2011 9:26p 🔵 CrmDashboard.tsx: Current architecture mapped before redesign
-2012 " 🟣 CrmKpiCard.tsx: Redesigned to match new CRM dashboard design
-2013 9:27p 🟣 CrmDashboard.tsx: Full redesign to match new teal design system
-S531 CRM Leads screen: design assets and current implementation mapped (Jun 14 at 9:27 PM)
-2014 9:32p 🔵 CRM Leads screen: design assets and current implementation mapped
-S532 CrmLeads.tsx: Full UI redesign with teal brand colors, stats bar, and consolidated filter bar (Jun 14 at 9:32 PM)
-2015 9:33p 🔵 CrmLeads.tsx: Full architecture mapped — table/card views, bulk actions, AI scoring, urgency badges
-2016 9:36p 🟣 CrmLeads.tsx: Full UI redesign with teal brand colors, stats bar, and consolidated filter bar
-S533 CrmLeads.tsx: Duplicate "border" key in inline style object causes Vite warning (Jun 14 at 9:36 PM)
-2017 9:38p 🔵 CrmLeads.tsx: Duplicate "border" key in inline style object causes Vite warning
-S534 Stitch screen fetch: "Lead 360 View - Kinetic Refined" design for CRM Lead Detail page redesign (Jun 14 at 9:38 PM)
-2018 9:59p 🔵 Stitch Screen: "Lead 360 View - Kinetic Refined" design retrieved
-2019 " 🔵 CRM Lead 360 View design spec content: "Tan Boon Wah" sample persona
-2020 10:02p ⚖️ CRM Lead Detail Layout: Redesign Action Plan Commissioned
-2021 10:08p 🟣 CrmLeadDetail.tsx: Kinetic Enterprise "Lead 360 View" Redesign Plan Exported
-S535 CrmLeadDetail.tsx: Kinetic Enterprise "Lead 360 View" Redesign Plan Exported (Jun 14 at 10:08 PM)
-2023 10:12p 🟣 CrmLeadDetail header redesign test suite created
-2024 10:13p ✅ CrmLeadDetail test file relocated to canonical src/__tests__ directory
-2025 10:14p 🟣 CrmLeadDetail: Two-panel layout shell + header redesign with Actions dropdown implemented
+### Jun 16, 2026
+2080 12:35p 🔵 CrmDashboard "My Deals Only" filter: live feature, not dead code
+2082 12:39p 🔴 CrmDashboard Hot Leads Card: Blank Space and LendScore Layout Fixed
+2083 12:55p 🔵 CRM Lead Score: ruleScore ?? aiScore fallback chain
+2084 12:57p ✅ CrmDashboard: "LendScore" label renamed to "Lead Score"
+2085 5:02p 🔵 Multi-tenancy implementation started: new files untracked, 60+ backend/frontend files modified uncommitted
+2086 10:53p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
+2088 " 🔵 CRIT-1: OAuth Tokens Stored Plaintext — Full Attack Surface Mapped
+2089 10:54p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
+2091 " 🔵 CRIT-1 OAuth Token Plaintext Storage: Full Codebase Audit Complete
+2092 10:58p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
+2093 11:01p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
+2094 11:14p 🔵 Pipeline progress UI bug investigation: no dedicated PipelineProgress component found
+2095 " 🔵 Progress pipeline UI not correctly reflecting Qualification stage
+S551 CrmOpportunityDetail: Pipeline progress bar now correctly renders "Closed Lost" state in red (Jun 16 at 11:14 PM)
+2096 11:16p 🔵 CRM Opportunity Detail: Pipeline progress bar uses displayOrder and stage flags for rendering
+2097 11:17p 🔴 CrmOpportunityDetail: Pipeline progress bar now correctly renders "Closed Lost" state in red
+S552 Credit Dashboard Redesign: HTML Mockup Study Commissioned (Jun 16 at 11:17 PM)
+2098 11:19p 🔵 CRM "Create New Lead" modal header render issue investigated
+2099 11:21p 🔵 CRM "Create New Lead" modal was redesigned — top header rendering issue traced
+2100 11:23p 🔵 CrmLayout.tsx: z-index and sticky/fixed layers mapped for search bar blend issue
+2101 " 🔵 TopBar.tsx search bar uses hardcoded bg-[#f0f2f5] — won't blend with translucent header
+2102 11:24p 🔴 TopBar.tsx: z-index reduced from z-[65] to z-40 to fix search bar blending
+### Jun 17, 2026
+2103 10:33a ⚖️ Credit Dashboard Redesign: HTML Mockup Study Commissioned
+2104 10:34a ⚖️ Credit Dashboard Redesign: HTML Mockup Study Commissioned
+S553 CWC Navigation: Option B chosen — shared sidebar approach (Jun 17 at 10:34 AM)
+2105 10:37a ⚖️ CWC Navigation: Option B chosen — shared sidebar approach
+S554 Credit Officer Dashboard Redesign — architecture option recommendation (Option C: phased delivery) (Jun 17 at 10:37 AM)
+S556 Credit Officer Dashboard: Work Queue Table — Option B selected (visual upgrade only) (Jun 17 at 10:42 AM)
+2106 10:44a 🔵 credit.service.ts: MyWorkDashboard and MyWorkItem interfaces located
+2107 10:47a ⚖️ Credit Officer Dashboard: Work Queue Table — Option B selected (visual upgrade only)
+S557 Credit Officer Dashboard Redesign — Full Design Spec Created (Jun 17 at 10:47 AM)
+2109 10:50a 🔵 citadel-cwc-portal dev2.0 branch: recent commits focused on CRM module and multi-tenancy
+2110 " ⚖️ Credit Officer Dashboard Redesign — Full Design Spec Created
+S559 Codex hyperpersonalized suggestions for citadel-cwc-portal — Jun 17 afternoon scan (Jun 17 at 10:50 AM)
+2111 10:51a 🔵 Credit Module Design System Tokens: Full CSS Variable Map
+2112 " 🔵 CreditApplication Prisma Schema: Full Field Map Around Core and CA Memo Sections
+2113 11:06a 🔵 Credit module redesign: large uncommitted working tree on dev2.0
+2114 11:11a 🟣 Full Multi-Tenancy Isolation Implemented Across citadel-cwc-portal
+2116 11:12a 🔵 Tenant Isolation Implementation: AsyncLocalStorage + Prisma Extension Pattern
+2118 11:15a 🔵 Playwright Tests Require Running Dev Server at localhost:5173
+2119 11:16a ✅ Credit Dashboard E2E Verification Script Created
+2121 11:18a 🔵 Credit Dashboard: 2 Tabs Confirmed, Chevron and Arrow Links Missing
+2122 11:19a 🔵 Backend CORS Hardcoded to Port 5173, Frontend Runs on 5174
+2123 11:20a 🔵 Frontend Dev Server Also Running on Port 5173
+2125 1:17p 🟣 Credit officer dashboard Phase 1 shipped: KPI cards + enhanced work queue
+2126 " 🔴 CRIT-1 and CRIT-2 security fixes landed: OAuth token encryption and tenant isolation enforced
+2127 4:18p 🔵 citadel-cwc-portal dev2.0 branch: credit redesign phases 1-3 shipped, CRM and multi-tenancy complete
+2128 4:44p 🟣 Credit officer dashboard Phase 2: backend endpoints shipped, frontend still on mock data
+2129 4:45p 🔵 CRIT-1 and CRIT-2 implementation plans: full architecture mapped and ready to execute
+2130 4:46p 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints identified as top priority
+2131 " 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints identified as top priority
+2132 4:47p 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints are the top actionable candidate
+S561 Application 360 Workspace: Existing Credit Module Architecture Mapped (Jun 17 at 4:47 PM)
+2133 6:17p ⚖️ Application 360 Universal LOS Workspace — Design Commissioned
+2135 " 🔵 Application 360 Workspace: Existing Credit Module Architecture Mapped
+S562 Universal Application 360 Workspace — Enterprise LOS redesign delivery strategy decision (phased vs full vs tabs) (Jun 17 at 6:17 PM)
+2136 6:53p ⚖️ Universal Application 360 Workspace — Full Design Spec Written
+S563 Universal Application 360 Workspace — Full Design Spec Written (Jun 17 at 6:53 PM)
+2137 6:54p 🔵 CreditApplicationDetail.tsx: Full architecture and state management mapped
+2138 6:56p 🔵 creditUtils.ts: Complete TAB_GROUPS and DetailTab type structure mapped
 
-Access 582k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 316k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

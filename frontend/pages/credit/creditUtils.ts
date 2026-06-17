@@ -80,6 +80,85 @@ export const STEPPER_STAGES: { key: string; label: string; states: ApplicationSt
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
 ];
 
+// ── Application 360: Borrower Segment Detection ──────────────────────
+
+export type BorrowerSegment = 'retail' | 'sme' | 'corporate';
+
+export const SEGMENT_LABELS: Record<BorrowerSegment, string> = {
+  retail: 'Retail',
+  sme: 'SME',
+  corporate: 'Corporate',
+};
+
+export const SEGMENT_COLORS: Record<BorrowerSegment, { bg: string; text: string }> = {
+  retail: { bg: '#dbeafe', text: '#1e40af' },
+  sme: { bg: '#fef3c7', text: '#92400e' },
+  corporate: { bg: '#ede9fe', text: '#5b21b6' },
+};
+
+/**
+ * Infers the borrower segment from borrowerType.
+ * INDIVIDUAL / JOINT → retail, SOLE_PROPRIETOR → sme, CORPORATE → corporate.
+ * No new schema field is required.
+ */
+export function getBorrowerSegment(borrowerType: string | null | undefined): BorrowerSegment {
+  if (borrowerType === 'CORPORATE') return 'corporate';
+  if (borrowerType === 'SOLE_PROPRIETOR') return 'sme';
+  return 'retail'; // INDIVIDUAL, JOINT, null → retail
+}
+
+// ── Application 360: 11-Stage Journey Stepper ────────────────────────
+
+export interface JourneyStage {
+  key: string;
+  label: string;
+  index: number;
+  targetTab: DetailTab360; // which 360 tab clicking this stage navigates to
+}
+
+export const JOURNEY_STAGES: JourneyStage[] = [
+  { key: 'lead', label: 'Lead', index: 0, targetTab: 'overview' },
+  { key: 'onboarding', label: 'Onboarding', index: 1, targetTab: 'customer-profile' },
+  { key: 'application', label: 'Application', index: 2, targetTab: 'application-details' },
+  { key: 'documents', label: 'Documents', index: 3, targetTab: 'documents' },
+  { key: 'financial', label: 'Financial', index: 4, targetTab: 'financial-profile' },
+  { key: 'credit', label: 'Credit', index: 5, targetTab: 'risk-assessment' },
+  { key: 'approval', label: 'Approval', index: 6, targetTab: 'approvals' },
+  { key: 'offer', label: 'Offer', index: 7, targetTab: 'conditions-offer' },
+  { key: 'legal', label: 'Legal', index: 8, targetTab: 'documents' },
+  { key: 'disbursement', label: 'Disbursement', index: 9, targetTab: 'conditions-offer' },
+  { key: 'post', label: 'Post', index: 10, targetTab: 'timeline-audit' },
+];
+
+/**
+ * Maps ApplicationState to the 11-stage journey index.
+ * Pure frontend mapping — no backend state changes needed.
+ */
+export function getJourneyStage(state: string | null | undefined): number {
+  if (!state) return 0;
+  const s = state as ApplicationState;
+  switch (s) {
+    case 'DRAFT': return 2;
+    case 'SUBMITTED':
+    case 'KYC_REVIEW': return 1;
+    case 'KYC_APPROVED': return 3;
+    case 'KYC_REJECTED': return 1;
+    case 'UNDERWRITING': return 4;
+    case 'CREDIT_ASSESSMENT': return 5;
+    case 'REFERRED_BACK': return 2;
+    case 'COMMITTEE_REVIEW': return 6;
+    case 'APPROVED': return 7;
+    case 'REJECTED': return 6;
+    case 'OFFER': return 7;
+    case 'ACCEPTED': return 8;
+    case 'DISBURSED': return 9;
+    case 'ACTIVE': return 10;
+    case 'CLOSED': return 10;
+    case 'WITHDRAWN': return 2;
+    default: return 0;
+  }
+}
+
 /** Product types hidden from frontend dropdowns (bank-grade). */
 export const HIDDEN_PRODUCT_TYPES: string[] = ['SYNDICATED', 'PROJECT_FINANCE'];
 
@@ -155,6 +234,8 @@ export const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB
 // `credit:advanced_memo` feature flag (Wave E).
 
 export type DetailTab =
+  // Overview — summary dashboard
+  | 'overview'
   // S1 — Loan Request
   | 'loan-request'
   // S2 — Borrower Profile
@@ -215,6 +296,11 @@ export interface TabGroup {
 }
 
 export const TAB_GROUPS: TabGroup[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    tabs: [{ id: 'overview', label: 'Overview' }],
+  },
   {
     id: 's1',
     label: 'S1 · Loan Request',
@@ -331,6 +417,135 @@ export const TAB_GROUPS: TabGroup[] = [
 
 export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.id));
 
+// ── Application 360 Tab Type ──
+// New 10-tab system replacing the legacy 30+ DetailTab values.
+// During Pass 2, DetailTab360 coexists with DetailTab.
+// After Pass 2 finalization (Step 2.11), DetailTab will be removed.
+
+export type DetailTab360 =
+  | 'overview'
+  | 'customer-profile'
+  | 'application-details'
+  | 'financial-profile'
+  | 'risk-assessment'
+  | 'collateral-guarantees'
+  | 'documents'
+  | 'approvals'
+  | 'conditions-offer'
+  | 'timeline-audit';
+
+export const TAB_GROUPS_360: TabGroup[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    tabs: [{ id: 'overview' as DetailTab360 as unknown as DetailTab, label: 'Overview' }],
+  },
+  {
+    id: 'customer-profile',
+    label: 'Customer Profile',
+    tabs: [{ id: 'customer-profile' as DetailTab360 as unknown as DetailTab, label: 'Customer Profile' }],
+  },
+  {
+    id: 'application-details',
+    label: 'Application Details',
+    tabs: [{ id: 'application-details' as DetailTab360 as unknown as DetailTab, label: 'Application Details' }],
+  },
+  {
+    id: 'financial-profile',
+    label: 'Financial Profile',
+    tabs: [{ id: 'financial-profile' as DetailTab360 as unknown as DetailTab, label: 'Financial Profile' }],
+  },
+  {
+    id: 'risk-assessment',
+    label: 'Risk Assessment',
+    tabs: [{ id: 'risk-assessment' as DetailTab360 as unknown as DetailTab, label: 'Risk Assessment' }],
+  },
+  {
+    id: 'collateral-guarantees',
+    label: 'Collateral & Guarantees',
+    tabs: [{ id: 'collateral-guarantees' as DetailTab360 as unknown as DetailTab, label: 'Collateral & Guarantees' }],
+  },
+  {
+    id: 'documents',
+    label: 'Documents',
+    tabs: [{ id: 'documents' as DetailTab360 as unknown as DetailTab, label: 'Documents' }],
+  },
+  {
+    id: 'approvals',
+    label: 'Approvals',
+    tabs: [{ id: 'approvals' as DetailTab360 as unknown as DetailTab, label: 'Approvals' }],
+  },
+  {
+    id: 'conditions-offer',
+    label: 'Conditions & Offer',
+    tabs: [{ id: 'conditions-offer' as DetailTab360 as unknown as DetailTab, label: 'Conditions & Offer' }],
+  },
+  {
+    id: 'timeline-audit',
+    label: 'Timeline & Audit',
+    tabs: [{ id: 'timeline-audit' as DetailTab360 as unknown as DetailTab, label: 'Timeline & Audit' }],
+  },
+];
+
+export const ALL_TABS_360: DetailTab360[] = TAB_GROUPS_360.flatMap(g => g.tabs.map(t => t.id as DetailTab360));
+
+/**
+ * Mapping from legacy DetailTab to new DetailTab360.
+ * During Pass 2, old tab IDs redirect to their new home.
+ * After Pass 2, this mapping is removed and only DetailTab360 is used.
+ */
+export const TAB_TO_TAB360: Record<DetailTab, DetailTab360> = {
+  'overview': 'overview',
+  'loan-request': 'application-details',
+  'borrower-profile': 'customer-profile',
+  'parties': 'customer-profile',
+  'financials': 'financial-profile',
+  'risk-score': 'risk-assessment',
+  'payment-capability': 'financial-profile',
+  'sme-financials': 'financial-profile',
+  'credit-checks-risk': 'risk-assessment',
+  'credit-checks': 'risk-assessment',
+  'industry': 'risk-assessment',
+  'risk': 'risk-assessment',
+  'collateral': 'collateral-guarantees',
+  'security': 'collateral-guarantees',
+  'approvals': 'approvals',
+  'signoff': 'approvals',
+  'guarantor-assessment': 'collateral-guarantees',
+  'conditions': 'conditions-offer',
+  'summary': 'conditions-offer',
+  'documents': 'documents',
+  'comments': 'timeline-audit',
+  'audit': 'timeline-audit',
+  'disbursement': 'conditions-offer',
+  'risk-rating': 'risk-assessment',
+  'profitability': 'risk-assessment',
+  'counterparties': 'risk-assessment',
+  'conduct': 'risk-assessment',
+  'forward-looking-risk': 'risk-assessment',
+  'facilities': 'application-details',
+  'header': 'application-details',
+  'ai-insights': 'risk-assessment',
+};
+
+/**
+ * Mapping from new DetailTab360 to the primary legacy DetailTab for rendering.
+ * During Pass 2, new tab IDs map to old tab content.
+ * As each new tab component is built, it replaces the legacy redirect.
+ */
+export const TAB360_TO_LEGACY: Record<DetailTab360, DetailTab> = {
+  'overview': 'overview',
+  'customer-profile': 'borrower-profile',
+  'application-details': 'loan-request',
+  'financial-profile': 'financials',
+  'risk-assessment': 'risk-score',
+  'collateral-guarantees': 'collateral',
+  'documents': 'documents',
+  'approvals': 'approvals',
+  'conditions-offer': 'conditions',
+  'timeline-audit': 'audit',
+};
+
 /**
  * P2-1: Feature-flag key mapping for bank-grade tabs.
  * Each tab/group ID maps to the feature flag that gates its visibility.
@@ -412,7 +627,7 @@ export function isTabVisibleForLane(tabId: DetailTab, lane: ProcessingLane): boo
 export function getLaneTabIds(lane: ProcessingLane): DetailTab[] {
   // Start with core tabs (visible in all lanes)
   const coreTabs: DetailTab[] = [
-    'loan-request', 'borrower-profile', 'financials', 'credit-checks-risk', 'signoff', 'documents', 'comments',
+    'overview', 'loan-request', 'borrower-profile', 'financials', 'credit-checks-risk', 'signoff', 'documents', 'comments',
   ];
 
   const smeTabs: DetailTab[] = [

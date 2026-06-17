@@ -4,31 +4,36 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import EmptyState from '../../../src/components/EmptyState';
 import BulkDocumentUpload from '../../../src/components/credit/BulkDocumentUpload';
+import { getBorrowerSegment, SEGMENT_LABELS, SEGMENT_COLORS, BorrowerSegment } from '../creditUtils';
 
-const ALL_DOC_CLASSES: { value: string; label: string; borrowerTypes?: string[] }[] = [
-  { value: 'NRIC_PASSPORT', label: 'NRIC / Passport', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'] },
-  { value: 'PAYSLIP', label: 'Payslip (latest 3 months)', borrowerTypes: ['INDIVIDUAL'] },
-  { value: 'BANK_STATEMENT', label: 'Bank Statement', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'] },
-  { value: 'SSM_CERT', label: 'SSM Certificate', borrowerTypes: ['CORPORATE', 'SOLE_PROPRIETOR'] },
-  { value: 'AUDITED_FINANCIALS', label: 'Audited Financials', borrowerTypes: ['CORPORATE', 'JOINT'] },
-  { value: 'MOA_AOA', label: 'Memorandum & Articles (MOA/AOA)', borrowerTypes: ['CORPORATE'] },
-  { value: 'JV_AGREEMENT', label: 'JV Agreement', borrowerTypes: ['JOINT'] },
-  { value: 'MEMORANDUM_ARTICLES', label: 'Memorandum & Articles' },
-  { value: 'MANAGEMENT_ACCOUNTS', label: 'Management Accounts' },
-  { value: 'TAX_RETURN', label: 'Tax Return' },
-  { value: 'BUSINESS_PLAN', label: 'Business Plan' },
-  { value: 'VALUATION_REPORT', label: 'Valuation Report' },
-  { value: 'INSURANCE_CERT', label: 'Insurance Certificate' },
-  { value: 'BOARD_RESOLUTION', label: 'Board Resolution' },
-  { value: 'GUARANTEE_LETTER', label: 'Guarantee Letter' },
+const ALL_DOC_CLASSES: { value: string; label: string; borrowerTypes?: string[]; segments?: BorrowerSegment[] }[] = [
+  { value: 'NRIC_PASSPORT', label: 'NRIC / Passport', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'], segments: ['retail', 'sme'] },
+  { value: 'PAYSLIP', label: 'Payslip (latest 3 months)', borrowerTypes: ['INDIVIDUAL'], segments: ['retail'] },
+  { value: 'BANK_STATEMENT', label: 'Bank Statement', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'], segments: ['retail', 'sme'] },
+  { value: 'SSM_CERT', label: 'SSM Certificate', borrowerTypes: ['CORPORATE', 'SOLE_PROPRIETOR'], segments: ['sme', 'corporate'] },
+  { value: 'AUDITED_FINANCIALS', label: 'Audited Financials', borrowerTypes: ['CORPORATE', 'JOINT'], segments: ['sme', 'corporate'] },
+  { value: 'MOA_AOA', label: 'Memorandum & Articles (MOA/AOA)', borrowerTypes: ['CORPORATE'], segments: ['corporate'] },
+  { value: 'JV_AGREEMENT', label: 'JV Agreement', borrowerTypes: ['JOINT'], segments: ['corporate'] },
+  { value: 'MEMORANDUM_ARTICLES', label: 'Memorandum & Articles', segments: ['corporate'] },
+  { value: 'MANAGEMENT_ACCOUNTS', label: 'Management Accounts', segments: ['sme', 'corporate'] },
+  { value: 'TAX_RETURN', label: 'Tax Return', segments: ['retail', 'sme', 'corporate'] },
+  { value: 'BUSINESS_PLAN', label: 'Business Plan', segments: ['sme', 'corporate'] },
+  { value: 'VALUATION_REPORT', label: 'Valuation Report', segments: ['retail', 'sme', 'corporate'] },
+  { value: 'INSURANCE_CERT', label: 'Insurance Certificate', segments: ['retail', 'sme', 'corporate'] },
+  { value: 'BOARD_RESOLUTION', label: 'Board Resolution', segments: ['corporate'] },
+  { value: 'GUARANTEE_LETTER', label: 'Guarantee Letter', segments: ['retail', 'sme', 'corporate'] },
   { value: 'OTHER', label: 'Other' },
 ];
 
-function getDocClasses(borrowerType?: string) {
-  if (!borrowerType) return ALL_DOC_CLASSES;
-  return ALL_DOC_CLASSES.filter(
-    (d) => !d.borrowerTypes || d.borrowerTypes.includes(borrowerType),
-  );
+function getDocClasses(borrowerType?: string, segment?: BorrowerSegment) {
+  let filtered = ALL_DOC_CLASSES;
+  if (borrowerType) {
+    filtered = filtered.filter((d) => !d.borrowerTypes || d.borrowerTypes.includes(borrowerType));
+  }
+  if (segment) {
+    filtered = filtered.filter((d) => !d.segments || d.segments.includes(segment));
+  }
+  return filtered;
 }
 
 const REQUIRED_BY_TYPE: Record<string, string[]> = {
@@ -143,7 +148,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   };
 
   const borrowerType = app.borrowerProfile?.borrowerType;
-  const docClasses = getDocClasses(borrowerType);
+  const segment = getBorrowerSegment(borrowerType);
+  const docClasses = getDocClasses(borrowerType, segment);
   const requiredClasses = REQUIRED_BY_TYPE[borrowerType ?? ''] ?? REQUIRED_BY_TYPE['CORPORATE'];
   const uploadedClasses = new Set(docs.map(d => (d as any).classification));
   const nricFromProfile = !!((app.borrowerProfile as any)?.contact?.nricPassport);
@@ -152,6 +158,27 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
 
   return (
     <div className="space-y-6">
+      {/* Segment badge */}
+      {segment && (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
+            style={{
+              background: SEGMENT_COLORS[segment].bg,
+              color: SEGMENT_COLORS[segment].text,
+              border: `1px solid ${SEGMENT_COLORS[segment].text}30`,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+              {segment === 'retail' ? 'person' : segment === 'sme' ? 'store' : 'business'}
+            </span>
+            {SEGMENT_LABELS[segment]} Segment
+          </span>
+          <span className="text-xs text-gray-500">
+            {docClasses.length} document types applicable
+          </span>
+        </div>
+      )}
       {/* Required docs status */}
       {effectiveMissing.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
