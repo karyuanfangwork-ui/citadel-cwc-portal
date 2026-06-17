@@ -620,6 +620,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* ── Center Column: Workspace ── */}
         <main className="flex-1 overflow-y-auto cr-scroll" style={{ backgroundColor: 'var(--cr-surface-bright, #fff)' }}>
+          <div className="mx-auto max-w-[1680px]">
           {/* Sticky Header (56px) */}
           <ApplicationWorkspaceHeader
             app={app}
@@ -793,6 +794,7 @@ const CreditApplicationDetail: React.FC = () => {
             </div>
             )}
           </div>
+          </div>{/* /max-w container */}
         </main>
 
         {/* ── Right Sidebar: 6 Application 360 Widgets ── */}
