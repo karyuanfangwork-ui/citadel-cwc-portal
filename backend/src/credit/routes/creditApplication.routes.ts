@@ -67,6 +67,19 @@ router.get(
 );
 
 /**
+ * GET /applications/summary
+ * Summary statistics for the applications list page (total, active, myAssigned, pipeline, exposure, overdueSla)
+ * §2.4 — Respects RM scope from middleware
+ * Requires: credit:read
+ */
+router.get(
+  '/summary',
+  requirePermission('credit:read'),
+  applyRmScope(),
+  creditApplicationController.getSummary,
+);
+
+/**
  * GET /applications/:id
  * Get a single credit application
  * §2.4 — applyRmScope() attaches scope info for audit logging on non-admin reads

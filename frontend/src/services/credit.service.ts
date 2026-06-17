@@ -518,6 +518,15 @@ export interface Pagination {
   totalPages: number;
 }
 
+export interface ApplicationSummary {
+  total: number;
+  active: number;
+  myAssigned: number;
+  pipeline: { key: string; count: number }[];
+  totalExposure: number;
+  overdueSla: number;
+}
+
 // ── Sprint 3: Financial Spreading Types ───────────────────────
 
 export interface FinancialStatement {
@@ -804,6 +813,12 @@ const creditService = {
     const data = res.data.data as { applications: CreditApplication[]; pagination: Pagination };
     data.applications = data.applications.map(normalizeApplication);
     return data;
+  },
+
+  /** §Phase2 — Summary stats for the applications list page */
+  async getApplicationSummary() {
+    const res = await apiClient.get('/credit/applications/summary');
+    return res.data.data as ApplicationSummary;
   },
 
   async getApplication(id: string) {

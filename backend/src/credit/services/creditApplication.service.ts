@@ -513,10 +513,12 @@ class CreditApplicationService {
               id: true,
               borrowerType: true,
               name: true,
+              creditRiskRating: true,
               account: { select: { id: true, name: true } },
               contact: { select: { id: true, firstName: true, lastName: true } },
             },
           },
+          branch: { select: { id: true, code: true, name: true } },
           assignedRm: { select: { id: true, firstName: true, lastName: true } },
           assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
         },
@@ -538,7 +540,7 @@ class CreditApplicationService {
 
     const applicationsWithBreach = applications.map(app => ({
       ...app,
-      _slaBreached: breachedAppIds.has(app.id),
+      hasOpenSlaBreach: breachedAppIds.has(app.id),
     }));
 
     return {
@@ -549,6 +551,98 @@ class CreditApplicationService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  /**
+   * Get summary statistics for the applications list page.
+   * Returns total, active, myAssigned, pipeline counts by grouped stage,
+   * total exposure sum, and SLA breach count — all respecting RM scope.
+   */
+  async getApplicationSummary(rmScopeFilter?: Prisma.CreditApplicationWhereInput, userId?: string) {
+    const baseWhere: Prisma.CreditApplicationWhereInput = { deletedAt: null };
+    const scopedWhere = rmScopeFilter
+      ? { ...baseWhere, AND: [rmScopeFilter] }
+      : baseWhere;
+
+    const [total, activeResult, myAssignedResult, pipelineResult, exposureResult, overdueSlaCount] =
+      await Promise.all([
+        // Total applications
+        prisma.creditApplication.count({ where: scopedWhere }),
+
+        // Active (non-terminal) applications
+        prisma.creditApplication.count({
+          where: {
+            ...scopedWhere,
+            state: { notIn: ['REJECTED', 'CLOSED', 'WITHDRAWN'] as ApplicationState[] },
+          },
+        }),
+
+        // My assigned (RM or analyst)
+        userId
+          ? prisma.creditApplication.count({
+              where: {
+                ...scopedWhere,
+                OR: [
+                  { assignedRmId: userId },
+                  { assignedAnalystId: userId },
+                ],
+              },
+            })
+          : Promise.resolve(0),
+
+        // Pipeline counts by grouped stage
+        prisma.creditApplication.groupBy({
+          by: ['state'],
+          where: scopedWhere,
+          _count: { state: true },
+        }),
+
+        // Total exposure (sum of requestedAmount)
+        prisma.creditApplication.aggregate({
+          where: scopedWhere,
+          _sum: { requestedAmount: true },
+        }),
+
+        // Overdue SLA breach count (scoped)
+        prisma.creditSlaBreach.count({
+          where: {
+            resolvedAt: null,
+            application: scopedWhere,
+          },
+        }),
+      ]);
+
+    // Map raw pipeline state counts into grouped stages matching the frontend KANBAN_COLUMNS
+    const stateCountMap = new Map<string, number>();
+    for (const row of pipelineResult) {
+      stateCountMap.set(row.state, row._count.state);
+    }
+
+    const PIPELINE_GROUPS: Record<string, ApplicationState[]> = {
+      lead: ['DRAFT'],
+      onboarding: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'],
+      assessment: ['UNDERWRITING', 'CREDIT_ASSESSMENT'],
+      approval: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'],
+      offer: ['OFFER', 'ACCEPTED'],
+      disbursement: ['DISBURSED'],
+      completed: ['ACTIVE', 'CLOSED', 'WITHDRAWN'],
+    };
+
+    const pipeline = Object.entries(PIPELINE_GROUPS).map(([key, states]) => ({
+      key,
+      count: states.reduce((sum, s) => sum + (stateCountMap.get(s) ?? 0), 0),
+    }));
+
+    return {
+      total,
+      active: activeResult,
+      myAssigned: myAssignedResult,
+      pipeline,
+      totalExposure: exposureResult._sum.requestedAmount
+        ? Number(exposureResult._sum.requestedAmount)
+        : 0,
+      overdueSla: overdueSlaCount,
     };
   }
 

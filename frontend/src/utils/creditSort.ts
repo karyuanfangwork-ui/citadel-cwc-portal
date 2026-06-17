@@ -1,7 +1,7 @@
 // frontend/src/utils/creditSort.ts
 import type { CreditApplication, ApplicationState } from '../services/credit.service';
 
-export type SortColumn = 'amount' | 'sla';
+export type SortColumn = 'amount' | 'sla' | 'state';
 export type SortDir = 'asc' | 'desc';
 
 // Mirrors getSLAInfo logic — returns remaining days (negative = overdue, null = no SLA)
@@ -26,6 +26,13 @@ export function sortApplications(
   sorted.sort((a, b) => {
     if (column === 'amount') {
       const diff = (a.requestedAmount ?? 0) - (b.requestedAmount ?? 0);
+      return dir === 'asc' ? diff : -diff;
+    }
+
+    if (column === 'state') {
+      const aState = (a.state || a.status) as string;
+      const bState = (b.state || b.status) as string;
+      const diff = aState.localeCompare(bState);
       return dir === 'asc' ? diff : -diff;
     }
 

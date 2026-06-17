@@ -22,7 +22,9 @@ class CreditApplicationController {
     const limit = parseInt(req.query.limit as string, 10) || 20;
     const state = req.query.state as string | undefined;
     const states = req.query.states
-      ? (req.query.states as string).split(',').filter(Boolean)
+      ? Array.isArray(req.query.states)
+        ? (req.query.states as string[]).filter(Boolean)
+        : (req.query.states as string).split(',').filter(Boolean)
       : undefined;
     const productType = req.query.productType as string | undefined;
     const borrowerProfileId = req.query.borrowerProfileId as string | undefined;
@@ -57,6 +59,23 @@ class CreditApplicationController {
     });
 
     res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /applications/summary — Summary stats for the applications list page
+   * Returns total, active, myAssigned, pipeline counts, exposure, overdueSla
+   * §2.4 — Respects RM scope from middleware
+   */
+  getSummary = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
+    const userId = req.user?.id;
+
+    const summary = await creditApplicationService.getApplicationSummary(
+      rmScopeFilter,
+      userId,
+    );
+
+    res.json({ status: 'success', data: summary });
   });
 
   /**
