@@ -29,18 +29,14 @@ import creditService, {
 } from '../../../services/credit.service';
 import {
   DetailTab,
-  DetailTab360,
   formatCurrency,
   PRODUCT_LABELS,
   STEPPER_STAGES,
   TAB_GROUPS,
   BorrowerSegment,
   SEGMENT_LABELS,
-  JOURNEY_STAGES,
 } from '../../../../pages/credit/creditUtils';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
-import ApplicationKpiRow from './ApplicationKpiRow';
-import ApplicationJourneyStepper from './ApplicationJourneyStepper';
 
 // ── Readiness field → human-readable label mapping ──────────────────────
 
@@ -312,13 +308,7 @@ const MiniBarChart: React.FC<{
   );
 };
 
-// ── Section 1: Executive Summary KPI Row ─────────────────────────────────
-// (Delegates to ApplicationKpiRow component — rendered inline)
-
-// ── Section 2: Application Journey Stepper ──────────────────────────────
-// (Delegates to ApplicationJourneyStepper component — rendered inline)
-
-// ── Section 3: Credit Risk Snapshot ──────────────────────────────────────
+// ── Section 1: Credit Risk Snapshot ──────────────────────────────────────
 
 const RiskSnapshotSection: React.FC<{
   app: CreditApplication;
@@ -402,7 +392,7 @@ const RiskSnapshotSection: React.FC<{
   );
 };
 
-// ── Section 4: Financial Trend Analysis ──────────────────────────────────
+// ── Section 2: Financial Trend Analysis ──────────────────────────────────
 
 const FinancialTrendSection: React.FC<{
   app: CreditApplication;
@@ -497,7 +487,7 @@ const FinancialTrendSection: React.FC<{
   );
 };
 
-// ── Section 5: Approval Workflow ────────────────────────────────────────
+// ── Section 3: Approval Workflow ────────────────────────────────────────
 
 const ApprovalWorkflowSection: React.FC<{
   app: CreditApplication;
@@ -607,7 +597,7 @@ const ApprovalWorkflowSection: React.FC<{
   );
 };
 
-// ── Section 6: Recent Activities (Enhanced) ─────────────────────────────
+// ── Section 4: Recent Activities (Enhanced) ─────────────────────────────
 
 const ACTIVITY_ICON_MAP: Record<string, string> = {
   STATE_TRANSITION: 'swap_horiz',
@@ -726,7 +716,7 @@ const RecentActivitiesSection: React.FC<{
   );
 };
 
-// ── Section 7: Borrower Profile ─────────────────────────────────────────
+// ── Section 5: Borrower Profile ─────────────────────────────────────────
 
 const BorrowerProfileSection: React.FC<{
   app: CreditApplication;
@@ -827,7 +817,7 @@ const BorrowerProfileSection: React.FC<{
   );
 };
 
-// ── Section 8: Documents ────────────────────────────────────────────────
+// ── Section 6: Documents ────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<DocStatus, { bg: string; text: string; border: string; icon: string }> = {
   UPLOADED: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0', icon: 'check_circle' },
@@ -973,7 +963,7 @@ const DocumentsSection: React.FC<{
   );
 };
 
-// ── Section 9: Tasks (Next Actions) ────────────────────────────────────
+// ── Section 7: Tasks (Next Actions) ────────────────────────────────────
 
 const urgencyConfig: Record<string, { color: string; bg: string; icon: string; label: string }> = {
   urgent: { color: '#dc2626', bg: '#fef2f2', icon: 'priority_high', label: 'Urgent' },
@@ -1106,52 +1096,18 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
   currentJourneyIndex,
   segment,
 }) => {
-  // Determine borrower segment from borrowerProfile
-  const borrowerSegment: BorrowerSegment = segment || (
-    app.borrowerProfile?.borrowerType === 'INDIVIDUAL' ? 'retail'
-    : app.borrowerProfile?.borrowerType === 'CORPORATE' ? 'corporate'
-    : 'sme'
-  );
-
-  // Journey stage index — compute from currentState if not provided
-  const journeyIndex = currentJourneyIndex ?? (() => {
-    const stateToJourney: Record<string, number> = {
-      DRAFT: 0, KYC_REVIEW: 1, PENDING: 1, SUBMITTED: 2, DOCUMENT_COLLECTION: 3,
-      FINANCIAL_ASSESSMENT: 4, CREDIT_ASSESSMENT: 5, APPROVAL: 6, APPROVED: 7,
-      OFFER: 7, LEGAL_DOCUMENTATION: 8, DISBURSED: 9, ACTIVE: 9,
-      REJECTED: 5, WITHDRAWN: 0, RETURNED_TO_DRAFT: 0, CLOSED: 9,
-    };
-    return stateToJourney[currentState] ?? 2;
-  })();
-
   return (
     <div className="p-6 flex flex-col gap-6">
-      {/* ── Section 1: Executive Summary KPI Row ── */}
-      <div>
-        <ApplicationKpiRow app={app} segment={borrowerSegment} />
-      </div>
-
-      {/* ── Section 2: Application Journey Stepper ── */}
-      <div>
-        <ApplicationJourneyStepper
-          currentStageIndex={journeyIndex}
-          onStageClick={(stage) => {
-            const tab = stage.targetTab as DetailTab360;
-            onNavigate(tab as DetailTab);
-          }}
-        />
-      </div>
-
-      {/* ── Section 3: Credit Risk Snapshot ── */}
+      {/* ── Section 1: Credit Risk Snapshot ── */}
       <RiskSnapshotSection app={app} onNavigate={onNavigate} />
 
-      {/* ── Section 4: Financial Trend Analysis ── */}
+      {/* ── Section 2: Financial Trend Analysis ── */}
       <FinancialTrendSection app={app} />
 
-      {/* ── Section 5: Approval Workflow ── */}
+      {/* ── Section 3: Approval Workflow ── */}
       <ApprovalWorkflowSection app={app} onNavigate={onNavigate} />
 
-      {/* ── Section 6: Recent Activities ── */}
+      {/* ── Section 4: Recent Activities ── */}
       <RecentActivitiesSection
         applicationId={app.id}
         formatTimeAgo={formatTimeAgo}
@@ -1160,10 +1116,10 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
 
       {/* ── Two-column layout for lower sections ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* ── Section 7: Borrower Profile ── */}
+        {/* ── Section 5: Borrower Profile ── */}
         <BorrowerProfileSection app={app} onNavigate={onNavigate} />
 
-        {/* ── Section 8: Documents ── */}
+        {/* ── Section 6: Documents ── */}
         <DocumentsSection readiness={readiness} documentReadinessPct={documentReadinessPct} onNavigate={onNavigate} />
       </div>
 
