@@ -33,6 +33,11 @@ export type CreditEventType =
   | 'credit_application_rejected'
   | 'credit_approval_requested'
   | 'credit_application_withdrawn'
+  | 'credit_compliance_hold_placed'
+  | 'credit_compliance_hold_cleared'
+  | 'credit_signoff_requested'
+  | 'credit_condition_due'
+  | 'credit_sla_breach'
   | 'disbursement_requested'
   | 'disbursement_approved'
   | 'disbursement_completed';

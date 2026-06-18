@@ -169,6 +169,22 @@ class ApprovalActionService {
       );
     }
 
+    // Sprint 3 — Conflict of Interest: approver cannot be a signoff user
+    // (prepared-by, reviewed-by, or concurred-by) on the same application.
+    const signoffs = await prisma.applicationSignoff.findMany({
+      where: { applicationId },
+      select: { signedById: true, role: true },
+    });
+    const approverSignoff = signoffs.find((s) => s.signedById === actorId);
+    if (approverSignoff) {
+      throw Object.assign(
+        new Error(
+          `Conflict of Interest: You cannot approve this application because you are the ${approverSignoff.role.replace(/_/g, ' ')} signatory. The preparer/reviewer cannot also be the final approver.`,
+        ),
+        { statusCode: 403 },
+      );
+    }
+
     // 3. Lookup authority from approval matrix
     // §F2 — Use canonical exposure computation instead of stale BorrowerProfile.totalExposure
     const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
@@ -496,8 +512,9 @@ class ApprovalActionService {
         select: { assignedRmId: true },
       });
       if (application?.assignedRmId) {
+        const rmId = await this.resolveDelegation(application.assignedRmId);
         await this.notifyNextApprover(
-          application.assignedRmId,
+          rmId,
           applicationId,
           applicationNo,
           nextLevel,
@@ -550,14 +567,62 @@ class ApprovalActionService {
 
     // Notify all next-level approvers
     for (const approver of nextApprovers) {
+      // Sprint 3 — Delegation: if approver is out of office and delegation is
+      // enabled, route to their delegated user instead.
+      const targetUserId = await this.resolveDelegation(approver.id);
       await this.notifyNextApprover(
-        approver.id,
+        targetUserId,
         applicationId,
         applicationNo,
         nextLevel,
         levelNames[nextLevel] ?? `Level ${nextLevel}`,
       );
     }
+  }
+
+  /**
+   * Sprint 3 — Resolve delegation: if a user is out of office and has
+   * delegation enabled, return their delegatedToId. Otherwise return userId.
+   * Also checks outOfOfficeUntil hasn't expired.
+   */
+  private async resolveDelegation(userId: string): Promise<string> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        outOfOffice: true,
+        outOfOfficeUntil: true,
+        delegationEnabled: true,
+        delegatedToId: true,
+      },
+    });
+
+    if (!user) return userId;
+
+    // Check if out of office is active (not expired)
+    const now = new Date();
+    const isOutOfOffice = user.outOfOffice && (
+      !user.outOfOfficeUntil || user.outOfOfficeUntil > now
+    );
+
+    if (isOutOfOffice && user.delegationEnabled && user.delegatedToId) {
+      logger.info(
+        `[Delegation] User ${userId} is out of office — routing to delegate ${user.delegatedToId}`,
+      );
+      // Log audit event for delegation routing
+      await AuditChainService.appendEvent(
+        '',  // applicationId not available here — logged in caller context
+        'DELEGATION_ROUTED',
+        userId,
+        'delegation_route',
+        'OUT_OF_OFFICE',
+        'DELEGATED',
+        { delegatedToId: user.delegatedToId, outOfOfficeUntil: user.outOfOfficeUntil },
+      ).catch(() => {}); // non-blocking
+      return user.delegatedToId;
+    }
+
+    return userId;
   }
 
   /**

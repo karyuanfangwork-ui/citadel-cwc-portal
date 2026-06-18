@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
 import RiskScoreTab from './RiskScoreTab';
 import IndustryOutlookTab from './IndustryOutlookTab';
@@ -17,14 +17,59 @@ interface RiskAssessmentTabProps {
   isFeatureEnabled: (flag: string) => boolean;
 }
 
-const sectionHeaderStyle: React.CSSProperties = {
-  fontFamily: 'var(--cr-font-display)',
-  fontSize: 15,
-  fontWeight: 700,
-  color: 'var(--cr-on-surface, #0f172a)',
-  borderBottom: '1px solid var(--cr-outline-variant, #e2e8f0)',
-  paddingBottom: 8,
-  marginBottom: 16,
+// ── Collapsible Section ──────────────────────────────────────────
+
+interface SectionProps {
+  id: string;
+  label: string;
+  icon: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+const CollapsibleSection: React.FC<SectionProps> = ({ id, label, icon, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section id={id}>
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        style={{
+          fontFamily: 'var(--cr-font-display)',
+          fontSize: 15,
+          fontWeight: 700,
+          color: 'var(--cr-on-surface, #0f172a)',
+          borderBottom: '1px solid var(--cr-outline-variant, #e2e8f0)',
+          paddingBottom: 8,
+          marginBottom: 16,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+          {icon}
+        </span>
+        {label}
+        <span
+          className="material-symbols-outlined"
+          style={{
+            marginLeft: 'auto',
+            fontSize: 20,
+            color: 'var(--cr-outline)',
+            transition: 'transform 0.2s',
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+          }}
+        >
+          expand_more
+        </span>
+      </button>
+      {open && <div style={{ marginBottom: 8 }}>{children}</div>}
+    </section>
+  );
 };
 
 const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({
@@ -36,94 +81,46 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({
 }) => {
   return (
     <div className="space-y-8">
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            score
-          </span>
-          Risk Score
-        </h3>
+      <CollapsibleSection id="risk-score" label="Risk Score" icon="score" defaultOpen>
         <RiskScoreTab application={application} onUpdated={onUpdated} onRefresh={onRefresh} />
-      </section>
+      </CollapsibleSection>
 
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            travel_explore
-          </span>
-          Industry / Conduct Risk
-        </h3>
+      <CollapsibleSection id="risk-industry" label="Industry / Conduct Risk" icon="travel_explore">
         <IndustryOutlookTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
-      </section>
+      </CollapsibleSection>
 
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            health_and_safety
-          </span>
-          Risk Mitigants
-        </h3>
+      <CollapsibleSection id="risk-mitigants" label="Risk Mitigants" icon="health_and_safety">
         <RiskMitigatorsTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
-      </section>
+      </CollapsibleSection>
 
       {isFeatureEnabled('credit:ecl') && (
-        <section>
-          <h3 style={sectionHeaderStyle}>
-            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-              monitoring
-            </span>
-            Risk Rating &amp; ECL
-          </h3>
+        <CollapsibleSection id="risk-ecl" label="Risk Rating & ECL" icon="monitoring">
           <RiskRatingEclTab application={application} onDirtyChange={onDirtyChange} />
-        </section>
+        </CollapsibleSection>
       )}
 
       {isFeatureEnabled('credit:profitability') && (
-        <section>
-          <h3 style={sectionHeaderStyle}>
-            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-              account_balance
-            </span>
-            Profitability &amp; Wallet
-          </h3>
+        <CollapsibleSection id="risk-profitability" label="Profitability & Wallet" icon="account_balance">
           <ProfitabilityWalletTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
-        </section>
+        </CollapsibleSection>
       )}
 
       {isFeatureEnabled('credit:counterparties') && (
-        <section>
-          <h3 style={sectionHeaderStyle}>
-            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-              people
-            </span>
-            Counterparties
-          </h3>
+        <CollapsibleSection id="risk-counterparties" label="Counterparties" icon="people">
           <CounterpartiesTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
-        </section>
+        </CollapsibleSection>
       )}
 
       {isFeatureEnabled('credit:account_conduct') && (
-        <section>
-          <h3 style={sectionHeaderStyle}>
-            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-              receipt
-            </span>
-            Account Conduct
-          </h3>
+        <CollapsibleSection id="risk-conduct" label="Account Conduct" icon="receipt">
           <AccountConductTab application={application} onUpdated={onUpdated} />
-        </section>
+        </CollapsibleSection>
       )}
 
       {isFeatureEnabled('credit:esg') && (
-        <section>
-          <h3 style={sectionHeaderStyle}>
-            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-              eco
-            </span>
-            Forward-Looking Risk
-          </h3>
+        <CollapsibleSection id="risk-forward" label="Forward-Looking Risk" icon="eco">
           <ForwardLookingRiskTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
-        </section>
+        </CollapsibleSection>
       )}
     </div>
   );

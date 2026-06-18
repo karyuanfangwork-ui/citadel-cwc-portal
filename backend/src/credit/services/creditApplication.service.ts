@@ -1402,6 +1402,17 @@ class CreditApplicationService {
             ...(reason ? { rejectionReason: reason } : {}),
           },
         );
+
+        // Sprint 4 — Dispatch webhook event to external subscribers
+        const { webhookService } = await import('./webhook.service');
+        await webhookService.dispatchEvent(notificationEventType, {
+          eventType: notificationEventType,
+          applicationId: id,
+          applicationNo: application.applicationNo ?? undefined,
+          borrowerName,
+          state: transition.to as string,
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (err) {
       // Notification failures must never block the business flow
@@ -1493,6 +1504,10 @@ class CreditApplicationService {
         return 'credit_approval_requested';
       case 'withdraw':
         return 'credit_application_withdrawn';
+      case 'place_compliance_hold':
+        return 'credit_compliance_hold_placed';
+      case 'clear_compliance_hold':
+        return 'credit_compliance_hold_cleared';
       default:
         return undefined;
     }

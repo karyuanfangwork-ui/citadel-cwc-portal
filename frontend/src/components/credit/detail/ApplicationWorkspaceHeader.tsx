@@ -24,6 +24,7 @@ interface ApplicationWorkspaceHeaderProps {
   segment: BorrowerSegment;
   onShowTransitionDialog: (action: string) => void;
   onExportCaMemo: () => void;
+  onExportSummaryPdf?: () => void;
 }
 
 const ApplicationWorkspaceHeader: React.FC<ApplicationWorkspaceHeaderProps> = ({
@@ -38,6 +39,7 @@ const ApplicationWorkspaceHeader: React.FC<ApplicationWorkspaceHeaderProps> = ({
   segment,
   onShowTransitionDialog,
   onExportCaMemo,
+  onExportSummaryPdf,
 }) => {
   // Categorize transitions for the action bar
   const positiveTransitions = transitions.filter(t =>
@@ -249,6 +251,26 @@ const ApplicationWorkspaceHeader: React.FC<ApplicationWorkspaceHeaderProps> = ({
         >
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>description</span>
         </button>
+        {onExportSummaryPdf && (
+          <button
+            onClick={onExportSummaryPdf}
+            title="Export Application Summary PDF"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 'var(--cr-radius)',
+              border: '1px solid var(--cr-outline-variant)',
+              backgroundColor: 'transparent',
+              color: 'var(--cr-on-surface-variant)',
+              cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>picture_as_pdf</span>
+          </button>
+        )}
       </div>
     </div>
   );

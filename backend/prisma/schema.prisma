@@ -5326,3 +5326,62 @@ model ApplicationComment {
   @@index([authorId])
   @@map("application_comments")
 }
+
+// ============================================================================
+// Sprint 4 — Webhook / Event Subscription System
+// ============================================================================
+
+model WebhookSubscription {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String?  @map("tenant_id") @db.Uuid
+
+  name            String   @db.VarChar(255)
+  url             String   @db.VarChar(1000)
+  secret          String?  @db.VarChar(255) // HMAC signing secret
+
+  // Comma-separated list of event types to subscribe to
+  // e.g. "credit_application_submitted,credit_application_approved"
+  events          String[] @default([])
+
+  isActive        Boolean  @default(true) @map("is_active")
+
+  // Retry config
+  maxRetries      Int      @default(3) @map("max_retries")
+  retryDelaySec   Int      @default(60) @map("retry_delay_sec")
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  deliveries      WebhookDelivery[]
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id              String   @id @default(uuid()) @db.Uuid
+  subscriptionId  String   @map("subscription_id") @db.Uuid
+
+  eventType       String   @map("event_type") @db.VarChar(100)
+  payload         Json
+
+  // Delivery status
+  status          String   @default("PENDING") @db.VarChar(20) // PENDING, DELIVERED, FAILED, RETRY
+  attemptCount    Int      @default(0) @map("attempt_count")
+  responseCode    Int?     @map("response_code")
+  responseBody    String?  @map("response_body") @db.Text
+  error           String?  @db.Text
+
+  deliveredAt     DateTime? @map("delivered_at") @db.Timestamp(6)
+  nextRetryAt     DateTime? @map("next_retry_at") @db.Timestamp(6)
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  subscription    WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
+}

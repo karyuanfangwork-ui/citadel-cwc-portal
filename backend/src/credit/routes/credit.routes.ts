@@ -15,6 +15,7 @@ import branchRoutes from './branch.routes';
 
 // Sprint 2 — Applications + Approvals
 import approvalRoutes from './approval.routes';
+import webhookRoutes from './webhook.routes';
 import applicationRoutes from './creditApplication.routes';
 import applicationFacilityRoutes from './applicationFacility.routes';
 import applicationPartyRoutes from './applicationParty.routes';
@@ -212,6 +213,9 @@ router.use('/applications', sensitivityScenarioRoutes);
 
 // Approval
 router.use(approvalRoutes);
+
+// Sprint 4 — Webhook subscriptions
+router.use('/webhooks', webhookRoutes);
 
 // Sprint 3 — Financial routes
 router.use('/borrowers', financialRoutes);

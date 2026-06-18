@@ -4,6 +4,9 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 import { approvalMatrixService } from '../services/approvalMatrix.service';
 import { approvalActionService } from '../services/approvalAction.service';
 import { requireUser } from '../utils/requireUser';
+import prisma from '../../utils/prisma';
+import { computeBorrowerExposure } from '../services/exposureCompute.service';
+import { formatCurrency } from '../utils/formatCurrency';
 
 class ApprovalController {
   // ===========================================================================
@@ -101,8 +104,76 @@ class ApprovalController {
   });
 
   // ===========================================================================
-  // Approval Actions
+  // Approval Actions (on applications)
   // ===========================================================================
+
+  /**
+   * GET /applications/:id/approval-matrix-applicability
+   * Resolve which approval matrix row applies to the application,
+   * including the matched matrix name, authority level, required approver count,
+   * exposure used, risk rating used, and current approval count progress.
+   */
+  getApprovalMatrixApplicability = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const applicationId = String(req.params.id);
+
+    const application = await prisma.creditApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        requestedAmount: true,
+        branchId: true,
+        lane: true,
+        borrowerProfileId: true,
+        borrowerProfile: { select: { creditRiskRating: true } },
+        decisions: {
+          where: { decisionType: 'APPROVE' },
+          select: { decisionById: true, authorityLevel: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!application) {
+      throw new AppError('Application not found', 404);
+    }
+
+    const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
+    const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
+    const totalExposure = formatCurrency(liveExposure || application.requestedAmount) ?? 0;
+
+    const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
+      totalExposure,
+      borrowerRating ?? 'NR',
+      application.branchId,
+      application.lane,
+    );
+
+    const distinctApproverIds = new Set(application.decisions.map((d) => d.decisionById));
+    const approvalsCollected = distinctApproverIds.size;
+    const requiredApproverCount = authorityResult?.requiredApproverCount ?? 1;
+
+    res.json({
+      status: 'success',
+      data: {
+        matrixMatched: !!authorityResult,
+        matrixName: authorityResult?.matrixName ?? null,
+        matrixId: authorityResult?.matrixId ?? null,
+        authorityLevel: authorityResult?.authorityLevel ?? null,
+        requiredApproverCount,
+        approvalsCollected,
+        isComplete: approvalsCollected >= requiredApproverCount,
+        exposureUsed: totalExposure,
+        riskRatingUsed: borrowerRating,
+        branchId: application.branchId,
+        lane: application.lane,
+        approvers: application.decisions.map((d) => ({
+          decisionById: d.decisionById,
+          authorityLevel: d.authorityLevel,
+          createdAt: d.createdAt,
+        })),
+      },
+    });
+  });
 
   /**
    * POST /applications/:id/approvals — Submit an approval action

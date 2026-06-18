@@ -25,6 +25,7 @@ import ApplicationTeamWidget from '../src/components/credit/detail/ApplicationTe
 import ApplicationPendingTasks from '../src/components/credit/detail/ApplicationPendingTasks';
 import ApplicationCustomerInsights from '../src/components/credit/detail/ApplicationCustomerInsights';
 import ApplicationNotesWidget from '../src/components/credit/detail/ApplicationNotesWidget';
+import SectionCompletionHeader, { CompletionStatus } from '../src/components/credit/detail/SectionCompletionHeader';
 
 // ── Legacy panels (still used for mobile / fallback) ──
 import ApplicationAlertsPanel, { AlertItem } from '../src/components/credit/detail/ApplicationAlertsPanel';
@@ -351,6 +352,31 @@ const CreditApplicationDetail: React.FC = () => {
     }
   };
 
+  // Sprint 4 — Application Summary PDF export (via approval pack endpoint)
+  const handleDownloadSummaryPdf = async () => {
+    if (!app) return;
+    try {
+      const { enqueueAndWaitForPdf } = await import('../src/services/pdfJob.service');
+      const url = await enqueueAndWaitForPdf(
+        (async () => {
+          const res = await import('../src/services/api').then(m => m.default.get(
+            `/credit/applications/${app.id}/approval-pack?format=pdf`,
+          ));
+          return { jobId: res.data.data.jobId as string };
+        })(),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Application-Summary-${app.applicationNo || app.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Application Summary PDF downloaded');
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to export application summary'));
+    }
+  };
+
   const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab360) => {
     const visible360Tabs = TAB_GROUPS_360.flatMap(g => g.tabs.map(t => t.id as DetailTab360));
     const idx = visible360Tabs.indexOf(tab);
@@ -542,6 +568,25 @@ const CreditApplicationDetail: React.FC = () => {
 
   // ── Render tab by 360 ID ──────────────────────────────────
   // Each 360 tab now renders its merged component directly.
+  // Sprint 4: SectionCompletionHeader wraps each tab to show completion status.
+  const renderTabWithHeader = (tabId: DetailTab360, phaseKey: string, title: string, content: React.ReactNode): React.ReactNode => {
+    const phaseStatus = phaseCompletion[phaseKey] as CompletionStatus | undefined;
+    if (!phaseStatus || tabId === 'overview' || tabId === 'timeline-audit' || tabId === 'disbursement') {
+      return content;
+    }
+    const blockers = (readiness?.errors ?? []).map(e => `${e.field}: ${e.message}`);
+    return (
+      <>
+        <SectionCompletionHeader
+          title={title}
+          status={phaseStatus}
+          blockers={phaseStatus === 'blocked' || phaseStatus === 'incomplete' ? blockers.slice(0, 3) : []}
+        />
+        {content}
+      </>
+    );
+  };
+
   const renderTab = (tabId: DetailTab360): React.ReactNode => {
     switch (tabId) {
       case 'overview': return (
@@ -587,14 +632,14 @@ const CreditApplicationDetail: React.FC = () => {
           })()}
         />
       );
-      case 'customer-profile': return <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />;
-      case 'application-details': return <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />;
-      case 'financial-profile': return <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'credit-bureau': return <CreditBureauComplianceTab application={app!} onUpdated={setApp} />;
-      case 'risk-assessment': return <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />;
-      case 'collateral-guarantees': return <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
-      case 'approvals': return <ApprovalsTab360 app={app!} onRefresh={fetchApp} onUpdated={setApp} />;
+      case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />);
+      case 'application-details': return renderTabWithHeader('application-details', 's1', 'Application Details', <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />);
+      case 'financial-profile': return renderTabWithHeader('financial-profile', 's3', 'Financial Profile', <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
+      case 'credit-bureau': return renderTabWithHeader('credit-bureau', 's5', 'Credit Bureau & Compliance', <CreditBureauComplianceTab application={app!} onUpdated={setApp} />);
+      case 'risk-assessment': return renderTabWithHeader('risk-assessment', 's4', 'Risk Assessment', <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />);
+      case 'collateral-guarantees': return renderTabWithHeader('collateral-guarantees', 's6', 'Collateral & Guarantees', <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
+      case 'documents': return renderTabWithHeader('documents', 'meta', 'Documents', <DocumentsTab app={app!} canApprove={canApprove} />);
+      case 'approvals': return renderTabWithHeader('approvals', 's7', 'Approvals', <ApprovalsTab360 app={app!} onRefresh={fetchApp} onUpdated={setApp} />);
       case 'conditions-offer': return <ConditionsOfferTab app={app!} facilities={facilities} onRefresh={fetchApp} onUpdated={(updated) => setApp(updated)} />;
       case 'disbursement': return <DisbursementTab application={app!} onUpdated={(updated) => setApp(updated)} />;
       case 'timeline-audit': return <TimelineAuditTab applicationId={app!.id} />;
@@ -651,6 +696,7 @@ const CreditApplicationDetail: React.FC = () => {
               setShowTransitionDialog(action);
             }}
             onExportCaMemo={handleDownloadCaMemo}
+            onExportSummaryPdf={handleDownloadSummaryPdf}
           />
 
           {/* P2-4: Score outdated banner */}

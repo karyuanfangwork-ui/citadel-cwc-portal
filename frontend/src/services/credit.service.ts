@@ -1074,6 +1074,25 @@ const creditService = {
     return res.data.data.approval as CreditApproval;
   },
 
+  // Sprint 3 — Approval matrix applicability
+  async getApprovalMatrixApplicability(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/approval-matrix-applicability`);
+    return res.data.data as {
+      matrixMatched: boolean;
+      matrixName: string | null;
+      matrixId: string | null;
+      authorityLevel: string | null;
+      requiredApproverCount: number;
+      approvalsCollected: number;
+      isComplete: boolean;
+      exposureUsed: number;
+      riskRatingUsed: string;
+      branchId: string | null;
+      lane: string | null;
+      approvers: { decisionById: string; authorityLevel: string | null; createdAt: string }[];
+    };
+  },
+
   // §2.7 — Rejection reason codes
   async listRejectionReasonCodes() {
     const res = await apiClient.get('/credit/applications/rejection-reasons');

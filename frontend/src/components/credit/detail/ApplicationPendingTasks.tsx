@@ -101,7 +101,7 @@ const ApplicationPendingTasks: React.FC<ApplicationPendingTasksProps> = ({
     }
 
     // 3. Credit assessment
-    if (!app.riskRating) {
+    if (!app.riskRating && !(app as any).scoreRunCount) {
       result.push({
         id: 'risk-score',
         label: 'Run credit assessment',
@@ -159,11 +159,57 @@ const ApplicationPendingTasks: React.FC<ApplicationPendingTasksProps> = ({
       });
     }
 
+    // 8. Sprint 2/3 — Compliance hold
+    if (st === 'COMPLIANCE_HOLD') {
+      result.push({
+        id: 'compliance-hold',
+        label: 'Clear compliance hold — AML/PEP/sanctions review required',
+        status: 'blocked',
+        targetTab: 'credit-checks-risk',
+      });
+    }
+
+    // 9. Sprint 2/3 — Condition fulfilment pending
+    if (st === 'CONDITION_FULFILMENT') {
+      result.push({
+        id: 'cp-fulfilment',
+        label: 'Fulfil or waive precedent conditions before making offer',
+        status: 'blocked',
+        targetTab: 'conditions',
+      });
+    }
+
+    // 10. Sprint 2/3 — Missing documents (for committee submission stage)
+    if (stateGTE(st as ApplicationState, 'CREDIT_ASSESSMENT') && !stateGTE(st as ApplicationState, 'COMMITTEE_REVIEW')) {
+      const docs = (app as any).documents ?? [];
+      const hasUnverified = docs.some((d: any) =>
+        d.verificationStatus && d.verificationStatus !== 'VERIFIED' && d.verificationStatus !== 'REJECTED'
+      );
+      if (hasUnverified) {
+        result.push({
+          id: 'documents-verify',
+          label: 'Verify pending documents before committee submission',
+          status: 'overdue',
+          targetTab: 'documents',
+        });
+      }
+    }
+
+    // 11. Sprint 2/3 — Committee approval pending
+    if (st === 'COMMITTEE_REVIEW' && !app.decisionedAt) {
+      result.push({
+        id: 'committee-approval',
+        label: 'Awaiting committee approval decision',
+        status: 'pending',
+        targetTab: 'approvals',
+      });
+    }
+
     // Sort: blocked → overdue → pending
     result.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
-    // Show at most 5
-    return result.slice(0, 5);
+    // Show at most 7
+    return result.slice(0, 7);
   }, [app]);
 
   const count = tasks.length;

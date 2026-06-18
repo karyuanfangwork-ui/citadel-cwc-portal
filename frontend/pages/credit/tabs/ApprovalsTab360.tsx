@@ -2,6 +2,7 @@ import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
 import ApprovalsTab from './ApprovalsTab';
 import SignoffTab from './SignoffTab';
+import ApprovalMatrixApplicabilityPanel from '../../../src/components/credit/ApprovalMatrixApplicabilityPanel';
 
 interface ApprovalsTab360Props {
   app: CreditApplication;
@@ -22,6 +23,16 @@ const sectionHeaderStyle: React.CSSProperties = {
 const ApprovalsTab360: React.FC<ApprovalsTab360Props> = ({ app, onRefresh, onUpdated }) => {
   return (
     <div className="space-y-8">
+      <section>
+        <h3 style={sectionHeaderStyle}>
+          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+            rule
+          </span>
+          Approval Matrix
+        </h3>
+        <ApprovalMatrixApplicabilityPanel applicationId={app.id} />
+      </section>
+
       <section>
         <h3 style={sectionHeaderStyle}>
           <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>

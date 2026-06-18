@@ -91,6 +91,17 @@ router.delete(
 // ============================================================================
 
 /**
+ * GET /applications/:id/approval-matrix-applicability
+ * Get which approval matrix row applies to the application
+ * Requires: credit:read
+ */
+router.get(
+  '/applications/:id/approval-matrix-applicability',
+  requirePermission('credit:read'),
+  approvalController.getApprovalMatrixApplicability,
+);
+
+/**
  * POST /applications/:id/approvals
  * Submit an approval action (APPROVE, REJECT, RETURN, ESCALATE)
  * Requires: credit:approve + SOD enforcement
