@@ -144,11 +144,15 @@ export interface BorrowerProfile {
   employer: string | null;
   annualIncome: number | string | null;
   netWorth: number | string | null;
+  // P2-2/P2-3: SME-specific fields
+  annualTurnover?: number | string | null;
+  yearsTrading?: number | null;
+  sicCode?: string | null;
   isActive: boolean;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  account?: { id: string; name: string } | null;
+  account?: { id: string; name: string; industry?: string | null; companySize?: string | null; annualRevenue?: number | string | null; registrationNumber?: string | null; taxNumber?: string | null; accountType?: string | null; parentAccountId?: string | null; description?: string | null; address?: string | null; city?: string | null; state?: string | null; country?: string | null } | null;
   contact?: { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; mobile: string | null; jobTitle: string | null; dateOfBirth: string | null; nricPassport: string | null } | null;
   directors?: Director[];
   shareholders?: Shareholder[];
@@ -319,6 +323,12 @@ export interface CreditFacility {
   undisbursedLimit?: number | string | null;
   approvingLevel?: string | null;
   requestItemId?: string | null;
+  // Application Details Enhancement — structuring fields
+  repaymentType?: string | null;
+  repaymentFrequency?: string | null;
+  sourceOfRepayment?: string | null;
+  securityRequirement?: string | null;
+  recommendedAmount?: number | string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2237,6 +2247,22 @@ export interface CreditBureauCheck {
   hasHits: boolean | null;
   findings: string | null;
   attachedDocId: string | null;
+  // CCRIS structured fields
+  ccrisOutstandingFacilities?: number | null;
+  ccrisTotalOutstandingBalance?: number | string | null;
+  ccrisSaaFlag?: boolean;
+  ccrisSaaCount?: number | null;
+  ccrisMissedPayments12Months?: number | null;
+  ccrisBankruptcyFlag?: boolean;
+  ccrisLegalActionFlag?: boolean;
+  ccrisReportDate?: string | null;
+  // CTOS structured fields
+  ctosScore?: number | null;
+  ctosAdverseFlag?: boolean;
+  ctosAdverseDetails?: string | null;
+  ctosBankruptcyFlag?: boolean;
+  ctosDirectorshipsCount?: number | null;
+  ctosReportDate?: string | null;
   createdAt: string;
   updatedAt: string;
   runBy?: { id: string; firstName: string; lastName: string } | null;

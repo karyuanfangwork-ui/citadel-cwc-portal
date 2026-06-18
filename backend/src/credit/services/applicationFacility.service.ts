@@ -35,6 +35,12 @@ export interface CreateApplicationFacilityData {
   undisbursedLimit?: string | number | null;
   approvingLevel?: string | null;
   requestItemId?: string | null;
+  // Application Details Enhancement — structuring fields
+  repaymentType?: string | null;
+  repaymentFrequency?: string | null;
+  sourceOfRepayment?: string | null;
+  securityRequirement?: string | null;
+  recommendedAmount?: string | number | null;
 }
 
 export interface UpdateApplicationFacilityData {
@@ -55,6 +61,12 @@ export interface UpdateApplicationFacilityData {
   undisbursedLimit?: string | number | null;
   approvingLevel?: string | null;
   requestItemId?: string | null;
+  // Application Details Enhancement — structuring fields
+  repaymentType?: string | null;
+  repaymentFrequency?: string | null;
+  sourceOfRepayment?: string | null;
+  securityRequirement?: string | null;
+  recommendedAmount?: string | number | null;
 }
 
 export interface ListApplicationFacilitiesOptions {
@@ -130,6 +142,11 @@ class ApplicationFacilityService {
       undisbursedLimit: data.undisbursedLimit != null ? new Prisma.Decimal(data.undisbursedLimit) : undefined,
       approvingLevel: data.approvingLevel ?? undefined,
       requestItem: data.requestItemId ? { connect: { id: data.requestItemId } } : undefined,
+      repaymentType: (data.repaymentType as any) ?? undefined,
+      repaymentFrequency: (data.repaymentFrequency as any) ?? undefined,
+      sourceOfRepayment: data.sourceOfRepayment ?? undefined,
+      securityRequirement: data.securityRequirement ?? undefined,
+      recommendedAmount: data.recommendedAmount != null ? new Prisma.Decimal(data.recommendedAmount) : undefined,
       application: { connect: { id: data.applicationId } },
     };
 
@@ -189,6 +206,11 @@ class ApplicationFacilityService {
     if (data.requestItemId !== undefined) {
       updateData.requestItem = data.requestItemId ? { connect: { id: data.requestItemId } } : { disconnect: true };
     }
+    if (data.repaymentType !== undefined) updateData.repaymentType = data.repaymentType as any;
+    if (data.repaymentFrequency !== undefined) updateData.repaymentFrequency = data.repaymentFrequency as any;
+    if (data.sourceOfRepayment !== undefined) updateData.sourceOfRepayment = data.sourceOfRepayment;
+    if (data.securityRequirement !== undefined) updateData.securityRequirement = data.securityRequirement;
+    if (data.recommendedAmount !== undefined) updateData.recommendedAmount = data.recommendedAmount != null ? new Prisma.Decimal(data.recommendedAmount) : null;
 
     const facility = await prisma.$transaction(async (tx) => {
       const updated = await tx.applicationFacility.update({

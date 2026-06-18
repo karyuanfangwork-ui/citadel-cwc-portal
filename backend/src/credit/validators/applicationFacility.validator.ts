@@ -16,6 +16,15 @@ const phase2Fields = {
   requestItemId: z.string().uuid().optional().nullable(),
 };
 
+// Application Details Enhancement — structuring fields
+const structuringFields = {
+  repaymentType: z.enum(['EMI', 'BULLET', 'INTEREST_ONLY', 'LUMP_SUM', 'CUSTOM']).optional().nullable(),
+  repaymentFrequency: z.enum(['MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL', 'LUMP_SUM']).optional().nullable(),
+  sourceOfRepayment: z.string().max(2000).optional().nullable(),
+  securityRequirement: z.string().max(2000).optional().nullable(),
+  recommendedAmount: decimalString.optional().nullable(),
+};
+
 export const createApplicationFacilitySchema = z.object({
   body: z.object({
     facilityType: facilityTypeEnum,
@@ -27,6 +36,7 @@ export const createApplicationFacilitySchema = z.object({
     approvedTenor: z.number().int().min(0).optional().nullable(),
     approvedRate: decimalString.optional().nullable(),
     ...phase2Fields,
+    ...structuringFields,
   }),
 });
 
@@ -41,6 +51,7 @@ export const updateApplicationFacilitySchema = z.object({
     approvedTenor: z.number().int().min(0).optional().nullable(),
     approvedRate: decimalString.optional().nullable(),
     ...phase2Fields,
+    ...structuringFields,
   }),
 });
 

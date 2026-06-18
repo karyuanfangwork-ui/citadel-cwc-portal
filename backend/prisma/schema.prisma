@@ -3541,6 +3541,13 @@ model ApplicationFacility {
   // P2-3: SME-specific lane configuration (simplified benchmarks, overrides)
   smeLaneConfig      Json?    @map("sme_lane_config")
 
+  // Application Details Enhancement — structuring fields
+  repaymentType       RepaymentType?     @map("repayment_type")
+  repaymentFrequency  RepaymentFrequency? @map("repayment_frequency")
+  sourceOfRepayment   String?            @map("source_of_repayment") @db.Text
+  securityRequirement String?            @map("security_requirement") @db.Text
+  recommendedAmount   Decimal?           @map("recommended_amount") @db.Decimal(15, 2)
+
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -5384,4 +5391,24 @@ model WebhookDelivery {
   @@index([status])
   @@index([createdAt])
   @@map("webhook_deliveries")
+}
+
+// ============================================================================
+// Application Details Enhancement — structuring fields on ApplicationFacility
+// ============================================================================
+
+enum RepaymentType {
+  EMI            // Equal Monthly Installment
+  BULLET         // Bullet repayment (principal at maturity)
+  INTEREST_ONLY  // Interest-only during tenor, principal at maturity
+  LUMP_SUM       // Single lump sum at maturity
+  CUSTOM         // Custom schedule (see justification)
+}
+
+enum RepaymentFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+  LUMP_SUM
 }

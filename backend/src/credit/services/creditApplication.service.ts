@@ -721,8 +721,8 @@ class CreditApplicationService {
             id: true,
             borrowerType: true,
             name: true,
-            account: { select: { id: true, name: true } },
-            contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true } },
+            account: { select: { id: true, name: true, industry: true, companySize: true, annualRevenue: true, registrationNumber: true, accountType: true, parentAccountId: true, description: true, address: true, city: true, state: true, country: true } },
+            contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true, phone: true, mobile: true, jobTitle: true, dateOfBirth: true } },
             // §S3 — Include financial statements for completion check + FinancialsTab
             financialStatements: {
               where: { deletedAt: null },

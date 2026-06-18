@@ -632,7 +632,7 @@ const CreditApplicationDetail: React.FC = () => {
           })()}
         />
       );
-      case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />);
+      case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} lane={lane} />);
       case 'application-details': return renderTabWithHeader('application-details', 's1', 'Application Details', <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />);
       case 'financial-profile': return renderTabWithHeader('financial-profile', 's3', 'Financial Profile', <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
       case 'credit-bureau': return renderTabWithHeader('credit-bureau', 's5', 'Credit Bureau & Compliance', <CreditBureauComplianceTab application={app!} onUpdated={setApp} />);

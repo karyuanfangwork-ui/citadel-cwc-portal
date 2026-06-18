@@ -324,7 +324,7 @@ class BorrowerProfileService {
     const profile = await prisma.borrowerProfile.findFirst({
       where: { id, deletedAt: null },
       include: {
-        account: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true, industry: true, companySize: true, annualRevenue: true, registrationNumber: true, taxNumber: true, accountType: true, parentAccountId: true, description: true, address: true, city: true, state: true, country: true } },
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, mobile: true, jobTitle: true, dateOfBirth: true, nricPassport: true } },
         directors: { where: { resignationDate: null }, orderBy: { appointmentDate: 'desc' } },
         shareholders: { orderBy: { shareholdingPct: 'desc' } },

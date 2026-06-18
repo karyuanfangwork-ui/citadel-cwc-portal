@@ -401,6 +401,12 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
           approvedAmount: approvedStates.has(def.state) ? Math.round(def.amount * 0.9 * 100) / 100 : undefined,
           approvedTenor: approvedStates.has(def.state) ? (def.tenor || 60) : undefined,
           approvedRate: approvedStates.has(def.state) ? (def.amount > 5000000 ? 4.50 : 4.00) : undefined,
+          // Application Details Enhancement — structuring fields
+          repaymentType: def.productType === 'OVERDRAFT' || def.productType === 'REVOLVING_CREDIT' ? 'INTEREST_ONLY' : 'EMI',
+          repaymentFrequency: def.productType === 'OVERDRAFT' || def.productType === 'REVOLVING_CREDIT' ? 'MONTHLY' : 'MONTHLY',
+          sourceOfRepayment: def.productType === 'TRADE_FINANCE' ? 'Trade receivables and import sales' : 'Business operating cashflow',
+          securityRequirement: def.amount > 1000000 ? 'Property charge + corporate guarantee' : 'Corporate guarantee',
+          recommendedAmount: approvedStates.has(def.state) ? Math.round(def.amount * 0.9 * 100) / 100 : Math.round(def.amount * 0.95 * 100) / 100,
         },
       });
 

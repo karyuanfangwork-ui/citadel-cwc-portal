@@ -224,6 +224,27 @@ export function getFacilityTypes(islamicEnabled: boolean): { value: FacilityType
   return base;
 }
 
+// ── Application Details Enhancement: Structuring field labels ────────────────
+
+export const REPAYMENT_TYPE_LABELS: Record<string, string> = {
+  EMI: 'EMI (Equal Monthly Installment)',
+  BULLET: 'Bullet (Principal at Maturity)',
+  INTEREST_ONLY: 'Interest Only',
+  LUMP_SUM: 'Lump Sum at Maturity',
+  CUSTOM: 'Custom Schedule',
+};
+
+export const REPAYMENT_FREQUENCY_LABELS: Record<string, string> = {
+  MONTHLY: 'Monthly',
+  QUARTERLY: 'Quarterly',
+  SEMI_ANNUAL: 'Semi-Annual',
+  ANNUAL: 'Annual',
+  LUMP_SUM: 'Lump Sum at Maturity',
+};
+
+export const REPAYMENT_TYPE_OPTIONS = Object.entries(REPAYMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }));
+export const REPAYMENT_FREQUENCY_OPTIONS = Object.entries(REPAYMENT_FREQUENCY_LABELS).map(([value, label]) => ({ value, label }));
+
 export const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
 // ── CA Memo Redesign: 7-Section Structure ──────────────────────

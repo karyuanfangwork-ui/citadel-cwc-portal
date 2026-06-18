@@ -1,11 +1,15 @@
-import React from 'react';
-import { CreditApplication } from '../../../src/services/credit.service';
-import BorrowerProfileTab from './BorrowerProfileTab';
+import React, { useEffect, useState } from 'react';
+import { CreditApplication, FatcaCrsDeclaration } from '../../../src/services/credit.service';
+import RetailCustomerProfile from './RetailCustomerProfile';
+import SmeCustomerProfile from './SmeCustomerProfile';
+import CorporateCustomerProfile from './CorporateCustomerProfile';
+import FatcaCrsSection from '../../../src/components/credit/FatcaCrsSection';
 import PartiesTab from './PartiesTab';
 
 interface CustomerProfileTabProps {
   application: CreditApplication;
   fatcaCrsEnabled: boolean;
+  lane?: string | null;
 }
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -18,28 +22,63 @@ const sectionHeaderStyle: React.CSSProperties = {
   marginBottom: 16,
 };
 
-const CustomerProfileTab: React.FC<CustomerProfileTabProps> = ({ application, fatcaCrsEnabled }) => {
+/**
+ * Determine which profile view to use based on borrowerType and lane.
+ * - INDIVIDUAL → Retail
+ * - SOLE_PROPRIETOR → SME
+ * - CORPORATE → SME if lane is PERSONAL_FAST or SME, Corporate if lane is CORPORATE
+ * - JOINT → Retail (treated as individual joint borrowers)
+ */
+function getProfileView(borrowerType: string | null | undefined, lane: string | null | undefined): 'retail' | 'sme' | 'corporate' {
+  if (!borrowerType || borrowerType === 'INDIVIDUAL' || borrowerType === 'JOINT') return 'retail';
+  if (borrowerType === 'SOLE_PROPRIETOR') return 'sme';
+  // CORPORATE
+  if (lane === 'CORPORATE') return 'corporate';
+  return 'sme';
+}
+
+const CustomerProfileTab: React.FC<CustomerProfileTabProps> = ({ application, fatcaCrsEnabled, lane }) => {
+  const borrowerType = application.borrowerProfile?.borrowerType ?? null;
+  const view = getProfileView(borrowerType, lane);
+  const isCorporate = borrowerType === 'CORPORATE' || borrowerType === 'SOLE_PROPRIETOR';
+
+  // §8.2 — Track FATCA/CRS declaration status (corporate only)
+  const [fatcaDeclaration, setFatcaDeclaration] = useState<FatcaCrsDeclaration | null>(null);
+  const fatcaIsComplete = !isCorporate || !!fatcaDeclaration?.verifiedAt || !!fatcaDeclaration?.selfCertifiedById;
+  useEffect(() => { /* onFatcaComplete?.(fatcaIsComplete); */ }, [fatcaIsComplete]);
+
   return (
     <div className="space-y-8">
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            person
-          </span>
-          Borrower Profile
-        </h3>
-        <BorrowerProfileTab application={application} fatcaCrsEnabled={fatcaCrsEnabled} />
-      </section>
+      {/* ── Borrower-type-specific profile sections ─────────────── */}
+      {view === 'retail' && <RetailCustomerProfile application={application} />}
+      {view === 'sme' && <SmeCustomerProfile application={application} />}
+      {view === 'corporate' && <CorporateCustomerProfile application={application} />}
 
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            groups
+      {/* ── FATCA/CRS Declaration (corporate only, gated by feature flag) ─── */}
+      {fatcaCrsEnabled && isCorporate && !fatcaIsComplete && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-red-600">warning</span>
+          <span className="text-sm font-semibold text-red-800">
+            FATCA/CRS declaration is mandatory for corporate borrowers before proceeding.
           </span>
-          Parties &amp; Guarantors
-        </h3>
-        <PartiesTab app={application} borrowerType={application?.borrowerProfile?.borrowerType} />
-      </section>
+        </div>
+      )}
+      {fatcaCrsEnabled && isCorporate && application.borrowerProfile?.id && (
+        <FatcaCrsSection borrowerProfileId={application.borrowerProfile.id} onDeclarationLoaded={setFatcaDeclaration} />
+      )}
+
+      {/* ── Parties & Guarantors (shared for SME/Corporate) ──────── */}
+      {view !== 'retail' && (
+        <section>
+          <h3 style={sectionHeaderStyle}>
+            <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+              groups
+            </span>
+            Parties &amp; Guarantors
+          </h3>
+          <PartiesTab app={application} borrowerType={borrowerType} />
+        </section>
+      )}
     </div>
   );
 };
