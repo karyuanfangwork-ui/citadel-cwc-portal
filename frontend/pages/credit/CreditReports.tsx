@@ -17,6 +17,7 @@ const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Submitted',
   KYC_REVIEW: 'KYC Review',
+  COMPLIANCE_HOLD: 'Compliance Hold',
   KYC_APPROVED: 'KYC Approved',
   KYC_REJECTED: 'KYC Rejected',
   UNDERWRITING: 'Underwriting',

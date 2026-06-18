@@ -1,7 +1,6 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
 import ConditionsTab from './ConditionsTab';
-import DisbursementTab from './DisbursementTab';
 import SummaryTab from './SummaryTab';
 
 interface ConditionsOfferTabProps {
@@ -32,16 +31,6 @@ const ConditionsOfferTab: React.FC<ConditionsOfferTabProps> = ({ app, facilities
           Conditions &amp; Precedents
         </h3>
         <ConditionsTab />
-      </section>
-
-      <section>
-        <h3 style={sectionHeaderStyle}>
-          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            payments
-          </span>
-          Disbursement
-        </h3>
-        <DisbursementTab application={app} onUpdated={onUpdated} />
       </section>
 
       <section>

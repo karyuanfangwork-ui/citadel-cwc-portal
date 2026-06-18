@@ -34,7 +34,7 @@ import ApplicationInsightPanel, { InsightTaskItem } from '../src/components/cred
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string; icon: string }[] = [
   { key: 'pre-submission', label: 'Lead', states: ['DRAFT'], color: '#6366f1', icon: 'rocket_launch' },
-  { key: 'kyc', label: 'Onboarding', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'], color: '#f59e0b', icon: 'person_add' },
+  { key: 'kyc', label: 'Onboarding', states: ['SUBMITTED', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'KYC_REJECTED'], color: '#f59e0b', icon: 'person_add' },
   { key: 'assessment', label: 'Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT'], color: '#8b5cf6', icon: 'analytics' },
   { key: 'decision', label: 'Approval', states: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'], color: '#f97316', icon: 'fact_check' },
   { key: 'post-decision', label: 'Offer Letter', states: ['OFFER', 'ACCEPTED'], color: '#06b6d4', icon: 'mail' },
@@ -134,7 +134,7 @@ function getBorrowerType(app: CreditApplication): string {
 }
 
 const ACTIVE_STATES = new Set<ApplicationState>([
-  'DRAFT', 'SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED',
+  'DRAFT', 'SUBMITTED', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'KYC_REJECTED',
   'UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'APPROVED',
   'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'REFERRED_BACK',
 ]);

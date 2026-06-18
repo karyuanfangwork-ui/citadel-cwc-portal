@@ -131,15 +131,20 @@ export interface ListCreditApplicationsOptions {
 //   DRAFT ──submit──► SUBMITTED
 //   DRAFT ──withdraw──► WITHDRAWN
 //   SUBMITTED ──start_kyc──► KYC_REVIEW
+//   KYC_REVIEW ──place_compliance_hold──► COMPLIANCE_HOLD
 //   KYC_REVIEW ──approve_kyc──► KYC_APPROVED
 //   KYC_REVIEW ──reject_kyc──► KYC_REJECTED
+//   COMPLIANCE_HOLD ──clear_compliance_hold──► KYC_APPROVED
+//   COMPLIANCE_HOLD ──reject_compliance──► KYC_REJECTED
 //   KYC_APPROVED ──start_underwriting──► UNDERWRITING
 //   KYC_REJECTED ──resubmit──► SUBMITTED
 //   UNDERWRITING ──start_assessment──► CREDIT_ASSESSMENT
 //   CREDIT_ASSESSMENT ──submit_to_committee──► COMMITTEE_REVIEW
 //   COMMITTEE_REVIEW ──approve──► APPROVED
 //   COMMITTEE_REVIEW ──reject──► REJECTED
-//   APPROVED ──make_offer──► OFFER
+//   APPROVED ──start_condition_fulfilment──► CONDITION_FULFILMENT
+//   APPROVED ──make_offer_direct──► OFFER (legacy path)
+//   CONDITION_FULFILMENT ──make_offer──► OFFER (CP gate: all CPs fulfilled/waived)
 //   OFFER ──accept_offer──► ACCEPTED
 //   OFFER ──decline_offer──► REJECTED
 //   ACCEPTED ──disburse──► DISBURSED
@@ -170,10 +175,15 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.DRAFT, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   // Submitted → KYC Review
   { from: ApplicationState.SUBMITTED, to: ApplicationState.KYC_REVIEW, action: 'start_kyc' },
+  // KYC Review → Compliance Hold
+  { from: ApplicationState.KYC_REVIEW, to: ApplicationState.COMPLIANCE_HOLD, action: 'place_compliance_hold', reasonRequired: true },
   // KYC Review → KYC Approved
   { from: ApplicationState.KYC_REVIEW, to: ApplicationState.KYC_APPROVED, action: 'approve_kyc' },
   // KYC Review → KYC Rejected
   { from: ApplicationState.KYC_REVIEW, to: ApplicationState.KYC_REJECTED, action: 'reject_kyc', reasonRequired: true },
+  // Compliance Hold → KYC Approved / KYC Rejected
+  { from: ApplicationState.COMPLIANCE_HOLD, to: ApplicationState.KYC_APPROVED, action: 'clear_compliance_hold', reasonRequired: true },
+  { from: ApplicationState.COMPLIANCE_HOLD, to: ApplicationState.KYC_REJECTED, action: 'reject_compliance', reasonRequired: true },
   // KYC Approved → Underwriting
   { from: ApplicationState.KYC_APPROVED, to: ApplicationState.UNDERWRITING, action: 'start_underwriting' },
   // KYC Rejected → Submitted (resubmit)
@@ -186,8 +196,12 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.COMMITTEE_REVIEW, to: ApplicationState.APPROVED, action: 'approve', timestampField: 'decisionedAt' },
   // Committee Review → Rejected
   { from: ApplicationState.COMMITTEE_REVIEW, to: ApplicationState.REJECTED, action: 'reject', reasonRequired: true, timestampField: 'decisionedAt' },
-  // Approved → Offer
-  { from: ApplicationState.APPROVED, to: ApplicationState.OFFER, action: 'make_offer' },
+  // Approved → Condition Fulfilment (Sprint 2 — CP fulfilment gate)
+  { from: ApplicationState.APPROVED, to: ApplicationState.CONDITION_FULFILMENT, action: 'start_condition_fulfilment' },
+  // Condition Fulfilment → Offer (all CPs fulfilled/waived)
+  { from: ApplicationState.CONDITION_FULFILMENT, to: ApplicationState.OFFER, action: 'make_offer' },
+  // Approved → Offer (legacy direct path — still allowed for backward compat)
+  { from: ApplicationState.APPROVED, to: ApplicationState.OFFER, action: 'make_offer_direct' },
   // Offer → Accepted
   { from: ApplicationState.OFFER, to: ApplicationState.ACCEPTED, action: 'accept_offer' },
   // Offer → Rejected (customer declines)
@@ -201,16 +215,19 @@ const TRANSITIONS: TransitionDef[] = [
   // Any non-terminal → Withdrawn
   { from: ApplicationState.SUBMITTED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.KYC_REVIEW, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
+  { from: ApplicationState.COMPLIANCE_HOLD, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.KYC_APPROVED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.KYC_REJECTED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.UNDERWRITING, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.CREDIT_ASSESSMENT, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.COMMITTEE_REVIEW, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.APPROVED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
+  { from: ApplicationState.CONDITION_FULFILMENT, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.OFFER, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.ACCEPTED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   // ── Refer Back transitions (any review stage → REFERRED_BACK) ──
   { from: ApplicationState.KYC_REVIEW, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
+  { from: ApplicationState.COMPLIANCE_HOLD, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
   { from: ApplicationState.CREDIT_ASSESSMENT, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
   { from: ApplicationState.COMMITTEE_REVIEW, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
   // ── Resume transitions (REFERRED_BACK → prior stage) ──
@@ -236,15 +253,20 @@ const TERMINAL_STATES: ApplicationState[] = [
 const TRANSITION_PERMISSIONS: Record<string, string> = {
   submit: 'credit:write',
   start_kyc: 'credit:write',
+  place_compliance_hold: 'credit:approve',
   approve_kyc: 'credit:write',
   reject_kyc: 'credit:approve',
+  clear_compliance_hold: 'credit:approve',
+  reject_compliance: 'credit:approve',
   resubmit: 'credit:write',
   start_underwriting: 'credit:write',
   start_assessment: 'credit:write',
   submit_to_committee: 'credit:write',
   approve: 'credit:approve',
   reject: 'credit:approve',
+  start_condition_fulfilment: 'credit:approve',
   make_offer: 'credit:approve',
+  make_offer_direct: 'credit:approve',
   accept_offer: 'credit:write',
   decline_offer: 'credit:approve',
   disburse: 'credit:admin',
@@ -262,15 +284,20 @@ const ACTION_LABELS: Record<string, string> = {
   submit: 'Submit Application',
   withdraw: 'Withdraw',
   start_kyc: 'Start KYC Review',
+  place_compliance_hold: 'Place Compliance Hold',
   approve_kyc: 'Approve KYC',
   reject_kyc: 'Reject KYC',
+  clear_compliance_hold: 'Clear Compliance Hold',
+  reject_compliance: 'Reject Compliance',
   resubmit: 'Resubmit',
   start_underwriting: 'Start Underwriting',
   start_assessment: 'Start Credit Assessment',
   submit_to_committee: 'Submit to Committee',
   approve: 'Approve',
   reject: 'Reject',
+  start_condition_fulfilment: 'Start Condition Fulfilment',
   make_offer: 'Make Offer',
+  make_offer_direct: 'Make Offer (Direct)',
   accept_offer: 'Accept Offer',
   decline_offer: 'Decline Offer',
   disburse: 'Disburse',
@@ -293,6 +320,41 @@ function getValidTransitions(currentState: ApplicationState): TransitionDef[] {
 function findTransition(currentState: ApplicationState, action: string): TransitionDef | undefined {
   if (TERMINAL_STATES.includes(currentState)) return undefined;
   return TRANSITIONS.find((t) => t.from === currentState && t.action === action);
+}
+
+async function getAmlAdverseFindings(applicationId: string): Promise<string[]> {
+  const app = await prisma.creditApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      borrowerProfile: {
+        select: {
+          amlRiskTier: true,
+          isSanctionedEntity: true,
+        },
+      },
+      bureauChecklist: {
+        select: {
+          noAdverseRecord: true,
+          adverseExceptionReason: true,
+        },
+      },
+    },
+  });
+
+  const findings: string[] = [];
+  const amlRiskTier = app?.borrowerProfile?.amlRiskTier;
+  if (amlRiskTier === 'HIGH' || amlRiskTier === 'PROHIBITED') {
+    findings.push(`AML risk tier is ${amlRiskTier}`);
+  }
+  if (app?.borrowerProfile?.isSanctionedEntity) {
+    findings.push('Borrower is flagged as a sanctioned entity');
+  }
+  const checklist = app?.bureauChecklist;
+  if (checklist && checklist.noAdverseRecord === false && !checklist.adverseExceptionReason) {
+    findings.push('Bureau checklist has adverse records without an exception reason');
+  }
+
+  return findings;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,9 +683,10 @@ class CreditApplicationService {
 
     const PIPELINE_GROUPS: Record<string, ApplicationState[]> = {
       lead: ['DRAFT'],
-      onboarding: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'],
+      onboarding: ['SUBMITTED', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'KYC_REJECTED'],
       assessment: ['UNDERWRITING', 'CREDIT_ASSESSMENT'],
       approval: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'],
+      conditionFulfilment: ['CONDITION_FULFILMENT'],
       offer: ['OFFER', 'ACCEPTED'],
       disbursement: ['DISBURSED'],
       completed: ['ACTIVE', 'CLOSED', 'WITHDRAWN'],
@@ -686,6 +749,7 @@ class CreditApplicationService {
         bureauChecklist: true,
         scoreRuns: { orderBy: { createdAt: 'desc' as const }, take: 1 },
         bureauChecks: true,
+        _count: { select: { scoreRuns: true } },
       },
     }) as any;
 
@@ -695,6 +759,9 @@ class CreditApplicationService {
     // so the frontend can check `app.riskRating` for section S4 completion
     const latestScoreRun = app.scoreRuns?.[0];
     app.riskRating = latestScoreRun?.riskRating ?? null;
+    app.scoreRunCount = app._count?.scoreRuns ?? app.scoreRuns?.length ?? 0;
+    app.latestScoreRunAt = latestScoreRun?.runAt ?? latestScoreRun?.createdAt ?? null;
+    app.latestScoreRunStatus = latestScoreRun ? 'COMPLETED' : null;
 
     return app;
   }
@@ -942,55 +1009,79 @@ class CreditApplicationService {
       throw new Error(`Rejection reason code is required for action '${action}'`);
     }
 
-    // §1.7 — Submission-readiness hard gate: block submit if validation fails
+    // §1.7 — Submission-readiness hard gate: block DRAFT -> SUBMITTED if intake validation fails.
+    // Committee-only controls (bureau verification, verified docs, signoff, score run) are enforced
+    // separately on submit_to_committee to avoid over-blocking early intake.
     if (action === 'submit') {
-      const readiness = await validateSubmissionReadiness(id);
+      const readiness = await validateSubmissionReadiness(id, { stage: 'submission' });
       if (!readiness.ready) {
         const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
         throw new Error(`Submission blocked — ${errorMessages}`);
       }
     }
 
-    // §1.1b — Sign-off completion gate: block submit_to_committee if CA Memo sign-off incomplete
-    if (action === 'submit_to_committee') {
-      const signoffs = await prisma.applicationSignoff.findMany({
-        where: { applicationId: id },
-        select: { role: true, signedAt: true },
-      });
-      const signed = new Set(signoffs.filter(s => s.signedAt).map(s => s.role));
-      const required: SignoffRole[] = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as const;
-      if (!required.every(r => signed.has(r))) {
+    if (action === 'approve_kyc') {
+      const adverseFindings = await getAmlAdverseFindings(id);
+      if (adverseFindings.length > 0) {
         throw Object.assign(
           new Error(
-            'Cannot submit to committee — CA Memo sign-off incomplete. All sign-off roles (Prepared By, Reviewed By, Concurred By) must sign before committee review.',
-          ),
-          { statusCode: 400 },
-        );
-      }
-
-      // §1.1 — Bureau checklist enforcement: block submit_to_committee if checklist
-      // incomplete or not verified by a second officer.
-      const { isBureauChecklistComplete, isBureauChecklistVerified } = await import('./bureauCheck.service');
-      const checklistComplete = await isBureauChecklistComplete(id);
-      if (!checklistComplete) {
-        throw Object.assign(
-          new Error(
-            'Cannot submit to committee — Bureau checklist incomplete. CCRIS, CTOS and AML screening must be completed before committee submission.',
-          ),
-          { statusCode: 400 },
-        );
-      }
-      const checklistVerified = await isBureauChecklistVerified(id);
-      if (!checklistVerified) {
-        throw Object.assign(
-          new Error(
-            'Cannot submit to committee — Bureau checklist must be verified by a second officer before committee submission.',
+            `Cannot approve KYC — compliance hold required for adverse AML/PEP/sanctions findings: ${adverseFindings.join('; ')}. Use Place Compliance Hold instead.`,
           ),
           { statusCode: 400 },
         );
       }
     }
 
+    // Sprint 1 hard gates: block committee submission unless scorecard, verified documents,
+    // bureau verification, and three-way signoff are complete.
+    if (action === 'submit_to_committee') {
+      const signoffs = await prisma.applicationSignoff.findMany({
+        where: { applicationId: id },
+        select: { role: true, signedAt: true, signedById: true },
+      });
+      const signed = new Set(signoffs.filter(s => s.signedAt).map(s => s.role));
+      const required: SignoffRole[] = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as const;
+      const missingRoles = required.filter(r => !signed.has(r));
+      if (missingRoles.length > 0) {
+        throw Object.assign(
+          new Error(
+            `Cannot submit to committee — CA Memo sign-off incomplete. Missing: ${missingRoles.join(', ')}.`,
+          ),
+          { statusCode: 400 },
+        );
+      }
+
+      const signedBy = new Map(signoffs.map(s => [s.role, s.signedById]));
+      if (signedBy.get('PREPARED_BY') === signedBy.get('REVIEWED_BY')) {
+        throw Object.assign(
+          new Error('Cannot submit to committee — segregation of duties violation: Prepared By and Reviewed By cannot be the same user.'),
+          { statusCode: 400 },
+        );
+      }
+      if (signedBy.get('REVIEWED_BY') === signedBy.get('CONCURRED_BY')) {
+        throw Object.assign(
+          new Error('Cannot submit to committee — segregation of duties violation: Reviewed By and Concurred By cannot be the same user.'),
+          { statusCode: 400 },
+        );
+      }
+
+      const scoreRunCount = await prisma.creditScoreRun.count({ where: { applicationId: id } });
+      if (scoreRunCount === 0) {
+        throw Object.assign(
+          new Error('Cannot submit to committee — at least one completed CreditScoreRun is required. A manually populated risk rating alone is not sufficient.'),
+          { statusCode: 400 },
+        );
+      }
+
+      const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
+      if (!readiness.ready) {
+        const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
+        throw Object.assign(
+          new Error(`Cannot submit to committee — ${errorMessages}`),
+          { statusCode: 400 },
+        );
+      }
+    }
     // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
     // unless all required approval decisions have been collected via the
     // approval actions endpoint. This prevents bypassing multi-approver gating
@@ -1056,6 +1147,109 @@ class CreditApplicationService {
         throw new Error(
           `Cannot ${action}: stale collateral valuations (>12 months). ${details}. Please update valuations before proceeding.`,
         );
+      }
+    }
+
+    // Sprint 2 — CP Fulfilment gate: block CONDITION_FULFILMENT → OFFER if any
+    // PRECEDENT conditions are unfulfilled and not formally waived.
+    if (action === 'make_offer' && transition.from === ApplicationState.CONDITION_FULFILMENT) {
+      const precedentConditions = await prisma.condition.findMany({
+        where: { applicationId: id, conditionType: 'PRECEDENT' },
+        select: { id: true, title: true, isFulfilled: true, status: true, waiverReason: true, waivedAt: true },
+      });
+      const blocking = precedentConditions.filter(
+        (c) => !c.isFulfilled && c.status !== 'WAIVED' && !c.waivedAt,
+      );
+      if (blocking.length > 0) {
+        const details = blocking.map((c) => c.title).join(', ');
+        throw Object.assign(
+          new Error(
+            `Cannot make offer — ${blocking.length} precedent condition(s) unfulfilled and not waived: ${details}. Fulfil or formally waive all precedent conditions before making an offer.`,
+          ),
+          { statusCode: 400 },
+        );
+      }
+    }
+
+    // Sprint 2 — SICR gate: block submit_to_committee for corporate applications
+    // if no SICR assessment exists.
+    if (action === 'submit_to_committee') {
+      const appWithBorrowerType = await prisma.creditApplication.findUnique({
+        where: { id },
+        select: {
+          borrowerProfile: { select: { borrowerType: true } },
+        },
+      });
+      const borrowerType = appWithBorrowerType?.borrowerProfile?.borrowerType;
+      if (borrowerType === 'CORPORATE') {
+        const sicrCount = await prisma.sicrAssessment.count({ where: { applicationId: id } });
+        if (sicrCount === 0) {
+          throw Object.assign(
+            new Error(
+              'Cannot submit to committee — at least one SICR assessment is required for corporate applications.',
+            ),
+            { statusCode: 400 },
+          );
+        }
+      }
+    }
+
+    // Sprint 2 — Financial statement validation: block submit_to_committee for
+    // corporate/SME if financial statements have no line items or balance sheet
+    // doesn't balance (Assets = Liabilities + Equity within tolerance).
+    if (action === 'submit_to_committee') {
+      const appWithBp = await prisma.creditApplication.findUnique({
+        where: { id },
+        select: {
+          borrowerProfile: {
+            select: {
+              borrowerType: true,
+              id: true,
+            },
+          },
+        },
+      });
+      const bt = appWithBp?.borrowerProfile?.borrowerType;
+      const bpId = appWithBp?.borrowerProfile?.id;
+      const isRetail = bt === 'INDIVIDUAL' || bt === 'SOLE_PROPRIETOR';
+
+      if (!isRetail && bpId) {
+        const statements = await prisma.financialStatement.findMany({
+          where: { borrowerProfileId: bpId, deletedAt: null, statementType: 'BS' },
+          include: { lineItems: { select: { lineKey: true, amount: true } } },
+        });
+
+        for (const stmt of statements) {
+          // Check: statement must have at least 1 line item
+          if (stmt.lineItems.length === 0) {
+            throw Object.assign(
+              new Error(
+                `Cannot submit to committee — balance sheet (FY ${stmt.fiscalYearEnd.toISOString().slice(0, 4)}) has no line items. Populate financial data before submission.`,
+              ),
+              { statusCode: 400 },
+            );
+          }
+
+          // Check: Assets = Liabilities + Equity (within RM 1 tolerance)
+          const vals: Record<string, number> = {};
+          for (const li of stmt.lineItems) {
+            vals[li.lineKey] = Number(li.amount);
+          }
+          const totalAssets = vals['total_assets'] ?? 0;
+          const totalLiabilities = vals['total_liabilities'] ?? 0;
+          const totalEquity = vals['total_equity'] ?? 0;
+          if (totalAssets > 0 || totalLiabilities > 0 || totalEquity > 0) {
+            const delta = Math.abs(totalAssets - (totalLiabilities + totalEquity));
+            if (delta > 1) {
+              throw Object.assign(
+                new Error(
+                  `Cannot submit to committee — balance sheet (FY ${stmt.fiscalYearEnd.toISOString().slice(0, 4)}) does not balance: Assets (${totalAssets.toFixed(2)}) ≠ Liabilities (${totalLiabilities.toFixed(2)}) + Equity (${totalEquity.toFixed(2)}). Delta: ${delta.toFixed(2)}.`,
+                ),
+                { statusCode: 400 },
+              );
+            }
+          }
+        }
       }
     }
 

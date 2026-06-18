@@ -103,6 +103,7 @@ const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Submitted',
   KYC_REVIEW: 'KYC Review',
+  COMPLIANCE_HOLD: 'Compliance Hold',
   KYC_APPROVED: 'KYC Approved',
   KYC_REJECTED: 'KYC Rejected',
   UNDERWRITING: 'Underwriting',
@@ -298,7 +299,7 @@ const CreditDashboard: React.FC = () => {
 
 // Returns inline style for a status pill based on application state
 function getStatusPillStyle(state: string): React.CSSProperties {
-  const assessmentGroup = ['KYC_REVIEW', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'];
+  const assessmentGroup = ['KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'];
   const pendingGroup = ['OFFER', 'SUBMITTED'];
   const committeeGroup = ['COMMITTEE_REVIEW', 'APPROVED', 'ACCEPTED'];
   const alertGroup = ['KYC_REJECTED', 'REJECTED', 'WITHDRAWN'];
@@ -325,7 +326,7 @@ function getRiskGradeStyle(grade: string | null): { barColor: string; labelColor
 
 const MyWorkSection: React.FC<{ data: MyWorkDashboard; pipeline: PipelineDashboard | null; setActiveTab: (tab: TabKey) => void }> = ({ data, pipeline, setActiveTab }) => {
   // Derive pipeline KPIs — sum states for "In Assessment"
-  const assessmentStates = ['CREDIT_ASSESSMENT', 'UNDERWRITING', 'KYC_REVIEW', 'KYC_APPROVED'];
+  const assessmentStates = ['CREDIT_ASSESSMENT', 'UNDERWRITING', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED'];
   const inAssessmentCount = pipeline
     ? pipeline.states
         .filter(s => assessmentStates.includes(s.state))
@@ -526,7 +527,7 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard; pipeline: PipelineDashboa
 // Maps display stage labels to the raw `state` values that belong to each
 const PIPELINE_STAGE_GROUPS: { label: string; states: string[] }[] = [
   { label: 'New',         states: ['DRAFT', 'SUBMITTED'] },
-  { label: 'Assessment',  states: ['KYC_REVIEW', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'] },
+  { label: 'Assessment',  states: ['KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'] },
   { label: 'Approval',    states: ['COMMITTEE_REVIEW'] },
   { label: 'Offer Letter', states: ['OFFER', 'ACCEPTED'] },
   { label: 'Disbursement', states: ['DISBURSED'] },

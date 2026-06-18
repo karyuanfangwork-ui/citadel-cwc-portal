@@ -7,9 +7,9 @@ export type DocumentType = 'NRIC' | 'PASSPORT' | 'BUSINESS_REG' | 'TAX_RETURN' |
 export type DocumentStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export type ApplicationState =
-  | 'DRAFT' | 'SUBMITTED' | 'KYC_REVIEW' | 'KYC_APPROVED' | 'KYC_REJECTED'
+  | 'DRAFT' | 'SUBMITTED' | 'KYC_REVIEW' | 'COMPLIANCE_HOLD' | 'KYC_APPROVED' | 'KYC_REJECTED'
   | 'UNDERWRITING' | 'CREDIT_ASSESSMENT' | 'COMMITTEE_REVIEW'
-  | 'APPROVED' | 'REJECTED' | 'OFFER' | 'ACCEPTED'
+  | 'APPROVED' | 'REJECTED' | 'CONDITION_FULFILMENT' | 'OFFER' | 'ACCEPTED'
   | 'DISBURSED' | 'ACTIVE' | 'CLOSED' | 'WITHDRAWN'
   | 'REFERRED_BACK';
 
@@ -235,6 +235,9 @@ export interface CreditApplication {
   purpose: string | null;
   state: ApplicationState;
   riskRating: string | null;
+  scoreRunCount?: number;
+  latestScoreRunAt?: string | null;
+  latestScoreRunStatus?: string | null;
   rmId: string | null;
   analystId: string | null;
   // §3.1 — Multi-branch support
@@ -743,6 +746,11 @@ const creditService = {
 
   async deleteBorrowerProfile(id: string) {
     await apiClient.delete(`/credit/borrowers/${id}`);
+  },
+
+  async getBorrowerStats() {
+    const res = await apiClient.get('/credit/borrowers/stats');
+    return res.data.data as { total: number; active: number; pendingKyc: number; watchlist: number };
   },
 
   // Director / Shareholder / UBO CRUD on borrower profile

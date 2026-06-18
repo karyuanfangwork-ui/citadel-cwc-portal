@@ -38,15 +38,29 @@ export interface ReadinessResult {
   satisfied: ReadinessIssue[];
 }
 
+type ReadinessStage = 'submission' | 'committee';
+
+interface ReadinessOptions {
+  /**
+   * submission: DRAFT -> SUBMITTED intake gate. Requires mandatory document presence.
+   * committee: CREDIT_ASSESSMENT -> COMMITTEE_REVIEW gate. Requires verification and assessment controls.
+   */
+  stage?: ReadinessStage;
+}
+
 // Doc classes that can be satisfied by borrower profile data instead of a file upload
 const PROFILE_SATISFIABLE: Record<string, (bp: { contact?: { nricPassport?: string | null } | null }) => boolean> = {
   NRIC_PASSPORT: (bp) => !!bp.contact?.nricPassport,
 };
 
-export async function validateSubmissionReadiness(applicationId: string): Promise<ReadinessResult> {
+export async function validateSubmissionReadiness(
+  applicationId: string,
+  options: ReadinessOptions = {},
+): Promise<ReadinessResult> {
   const errors: ReadinessIssue[] = [];
   const warnings: ReadinessIssue[] = [];
   const satisfied: ReadinessIssue[] = [];
+  const stage = options.stage ?? 'committee';
 
   const application = await prisma.creditApplication.findUnique({
     where: { id: applicationId },
@@ -63,7 +77,15 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
         },
       },
       facilities: { select: { id: true, facilityType: true, amount: true } },
-      documents: { select: { id: true, classification: true } },
+      documents: {
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          classification: true,
+          verificationStatus: true,
+          isAvClean: true,
+        },
+      },
       parties: { select: { id: true, role: true, borrowerProfileId: true } },
     },
   });
@@ -115,6 +137,36 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
         message: `NRIC / Passport verified from borrower profile — document upload optional`,
         severity: 'info',
       });
+    } else if (stage === 'committee') {
+      const matchingDocs = application.documents.filter((d) => d.classification === docClass);
+      const hasVerifiedDoc = matchingDocs.some((d) => d.verificationStatus === 'VERIFIED');
+      const infectedDoc = matchingDocs.find((d) => d.isAvClean === false);
+
+      if (infectedDoc) {
+        errors.push({
+          field: 'documents',
+          message: `Required document failed AV scan: ${docClass.replace(/_/g, ' ')}`,
+          severity: 'error',
+        });
+      }
+
+      if (!hasVerifiedDoc) {
+        const statuses = matchingDocs
+          .map((d) => d.verificationStatus ?? 'PENDING')
+          .filter((value, index, all) => all.indexOf(value) === index)
+          .join(', ');
+        errors.push({
+          field: 'documents',
+          message: `Required document not verified: ${docClass.replace(/_/g, ' ')}${statuses ? ` (current: ${statuses})` : ''}`,
+          severity: 'error',
+        });
+      } else {
+        satisfied.push({
+          field: 'documents',
+          message: `Required document verified: ${docClass.replace(/_/g, ' ')}`,
+          severity: 'info',
+        });
+      }
     }
   }
 
@@ -171,33 +223,48 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     }
   }
 
-  // ---- Check 8: Bureau report freshness (90 days) ----
-  const freshnessCheck = await isBureauCheckFresh(applicationId);
-  if (!freshnessCheck.fresh) {
-    errors.push({
-      field: 'bureauChecks',
-      message: `Bureau reports are older than 90 days and must be refreshed: ${freshnessCheck.staleProviders.join(', ')}`,
-      severity: 'error',
-    });
-  }
-
-  // ---- Check 9: Bureau checklist completion + verification (hard gate) ----
-  const bureauComplete = await isBureauChecklistComplete(applicationId);
-  if (!bureauComplete) {
-    errors.push({
-      field: 'bureauChecklist',
-      message: 'Bureau checklist incomplete — CCRIS, CTOS and AML screening must be completed before committee submission.',
-      severity: 'error',
-    });
-  } else {
-    // Checklist is complete — verify it has been signed off by a second officer
-    const bureauVerified = await isBureauChecklistVerified(applicationId);
-    if (!bureauVerified) {
+  if (stage === 'committee') {
+    // ---- Check 8: Bureau report freshness (90 days) ----
+    const freshnessCheck = await isBureauCheckFresh(applicationId);
+    if (!freshnessCheck.fresh) {
       errors.push({
-        field: 'bureauChecklist',
-        message: 'Bureau checklist must be verified by a second officer before committee submission.',
+        field: 'bureauChecks',
+        message: `Bureau reports are older than 90 days and must be refreshed: ${freshnessCheck.staleProviders.join(', ')}`,
         severity: 'error',
       });
+    }
+
+    // ---- Check 9: Bureau checklist completion + verification (hard gate) ----
+    const bureauComplete = await isBureauChecklistComplete(applicationId);
+    if (!bureauComplete) {
+      errors.push({
+        field: 'bureauChecklist',
+        message: 'Bureau checklist incomplete — CCRIS, CTOS and AML screening must be completed before committee submission.',
+        severity: 'error',
+      });
+    } else {
+      // Checklist is complete — verify it has been signed off by a second officer
+      const bureauVerified = await isBureauChecklistVerified(applicationId);
+      if (!bureauVerified) {
+        errors.push({
+          field: 'bureauChecklist',
+          message: 'Bureau checklist must be verified by a second officer before committee submission.',
+          severity: 'error',
+        });
+      }
+    }
+
+    // Sprint 2 — ECL snapshot required for corporate before committee
+    const borrowerType = application.borrowerProfile.borrowerType as string;
+    if (borrowerType === 'CORPORATE') {
+      const eclCount = await prisma.eclSnapshot.count({ where: { applicationId } });
+      if (eclCount === 0) {
+        errors.push({
+          field: 'ecl',
+          message: 'At least one ECL snapshot is required for corporate applications before committee submission.',
+          severity: 'error',
+        });
+      }
     }
   }
 

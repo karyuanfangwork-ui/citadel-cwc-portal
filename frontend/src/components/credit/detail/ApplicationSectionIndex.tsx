@@ -24,6 +24,7 @@ const SECTIONS: { label: string; tabId: DetailTab360; icon: string }[] = [
   { label: 'Application Details', tabId: 'application-details', icon: 'description' },
   { label: 'Financial Profile', tabId: 'financial-profile', icon: 'trending_up' },
   { label: 'Risk Assessment', tabId: 'risk-assessment', icon: 'shield' },
+  { label: 'Credit Bureau & Compliance', tabId: 'credit-bureau', icon: 'fact_check' },
   { label: 'Collateral & Guarantees', tabId: 'collateral-guarantees', icon: 'verified_user' },
   { label: 'Documents', tabId: 'documents', icon: 'folder_open' },
   { label: 'Approvals', tabId: 'approvals', icon: 'check_circle' },

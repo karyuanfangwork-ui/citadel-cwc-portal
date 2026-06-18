@@ -290,6 +290,23 @@ export async function disburseOrder(
     );
   }
 
+  // Sprint 2 — CP Fulfilment gate: block disbursement if any PRECEDENT conditions
+  // are unfulfilled and not formally waived.
+  const precedentConditions = await prisma.condition.findMany({
+    where: { applicationId: order.applicationId, conditionType: 'PRECEDENT' },
+    select: { id: true, title: true, isFulfilled: true, status: true, waivedAt: true },
+  });
+  const blockingCps = precedentConditions.filter(
+    (c) => !c.isFulfilled && c.status !== 'WAIVED' && !c.waivedAt,
+  );
+  if (blockingCps.length > 0) {
+    const details = blockingCps.map((c) => c.title).join(', ');
+    throw new AppError(
+      `Cannot disburse — ${blockingCps.length} precedent condition(s) unfulfilled and not waived: ${details}. Fulfil or formally waive all precedent conditions before disbursement.`,
+      400,
+    );
+  }
+
   // Use transaction: update order + transition application state
   const updated = await prisma.$transaction(async (tx) => {
     const disbursement = await tx.disbursementOrder.update({

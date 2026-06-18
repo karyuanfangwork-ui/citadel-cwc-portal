@@ -39,8 +39,10 @@ import CustomerProfileTab from './credit/tabs/CustomerProfileTab';
 import ApplicationDetailsTab from './credit/tabs/ApplicationDetailsTab';
 import ApprovalsTab360 from './credit/tabs/ApprovalsTab360';
 import ConditionsOfferTab from './credit/tabs/ConditionsOfferTab';
+import DisbursementTab from './credit/tabs/DisbursementTab';
 import CollateralGuaranteesTab from './credit/tabs/CollateralGuaranteesTab';
 import FinancialProfileTab from './credit/tabs/FinancialProfileTab';
+import CreditBureauComplianceTab from './credit/tabs/CreditBureauComplianceTab';
 import RiskAssessmentTab from './credit/tabs/RiskAssessmentTab';
 
 import ScoreOutdatedBanner from '../src/components/credit/ScoreOutdatedBanner';
@@ -75,7 +77,7 @@ const PHASE_TO_SECTION_TAB_360: Record<string, DetailTab360> = {
   s2: 'customer-profile',
   s3: 'financial-profile',
   s4: 'risk-assessment',
-  s5: 'risk-assessment',
+  s5: 'credit-bureau',
   s6: 'collateral-guarantees',
   s7: 'approvals',
   meta: 'documents',
@@ -84,7 +86,7 @@ const PHASE_TO_SECTION_TAB_360: Record<string, DetailTab360> = {
 // Section index uses 360 tab IDs
 const SECTION_INDEX_TABS_360: DetailTab360[] = [
   'overview', 'customer-profile', 'application-details', 'financial-profile',
-  'risk-assessment', 'collateral-guarantees', 'documents', 'approvals', 'conditions-offer', 'timeline-audit',
+  'risk-assessment', 'credit-bureau', 'collateral-guarantees', 'documents', 'approvals', 'conditions-offer', 'disbursement', 'timeline-audit',
 ];
 
 type SectionStatus = 'complete' | 'in-progress' | 'pending' | 'exception';
@@ -116,6 +118,7 @@ const CreditApplicationDetail: React.FC = () => {
   const isNewApplication = searchParams.get('new') === '1';
 
   const getDefaultTab360 = (state: string): DetailTab360 => {
+    if (state === 'COMPLIANCE_HOLD') return 'credit-bureau';
     if (['COMMITTEE_REVIEW', 'REFERRED_BACK', 'ACCEPTED', 'REJECTED'].includes(state)) return 'approvals';
     return 'overview';
   };
@@ -430,6 +433,9 @@ const CreditApplicationDetail: React.FC = () => {
     borrowerType: app.borrowerProfile?.borrowerType ?? null,
     registrationNumber: null,
     riskRating: app.riskRating,
+    scoreRunCount: app.scoreRunCount,
+    latestScoreRunAt: app.latestScoreRunAt,
+    latestScoreRunStatus: app.latestScoreRunStatus,
     firstWayOut: app.firstWayOut,
     preparedAt: app.preparedAt,
     decisionedAt: app.decisionedAt,
@@ -584,11 +590,13 @@ const CreditApplicationDetail: React.FC = () => {
       case 'customer-profile': return <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />;
       case 'application-details': return <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />;
       case 'financial-profile': return <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'credit-bureau': return <CreditBureauComplianceTab application={app!} onUpdated={setApp} />;
       case 'risk-assessment': return <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />;
       case 'collateral-guarantees': return <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
       case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
       case 'approvals': return <ApprovalsTab360 app={app!} onRefresh={fetchApp} onUpdated={setApp} />;
       case 'conditions-offer': return <ConditionsOfferTab app={app!} facilities={facilities} onRefresh={fetchApp} onUpdated={(updated) => setApp(updated)} />;
+      case 'disbursement': return <DisbursementTab application={app!} onUpdated={(updated) => setApp(updated)} />;
       case 'timeline-audit': return <TimelineAuditTab applicationId={app!.id} />;
       default: return null;
     }

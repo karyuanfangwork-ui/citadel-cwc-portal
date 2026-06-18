@@ -5,6 +5,14 @@ import { borrowerProfileService } from '../services/borrowerProfile.service';
 
 class BorrowerProfileController {
   /**
+   * GET /borrowers/stats — Aggregate borrower counts for KPI cards
+   */
+  stats = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const stats = await borrowerProfileService.getBorrowerStats();
+    res.json({ status: 'success', data: stats });
+  });
+
+  /**
    * GET /borrowers/check-duplicate — Check if a borrower exists for a given SSM or NRIC
    */
   checkDuplicate = asyncHandler(async (req: AuthRequest, res: Response) => {

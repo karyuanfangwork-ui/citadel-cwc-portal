@@ -3,79 +3,33 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, { Pagination } from '../src/services/credit.service';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-import NewBorrowerWizard from '../src/components/credit/NewBorrowerWizard';
-
-type BorrowerType = 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
-type RiskRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'CC' | 'C' | 'D' | 'NR';
-type AmlTier = 'LOW' | 'MEDIUM' | 'HIGH';
-
-interface BorrowerProfileRow {
-  id: string;
-  borrowerType: BorrowerType;
-  name?: string | null;
-  creditRiskRating: RiskRating | null;
-  amlRiskTier: AmlTier | null;
-  exposureLimit: string | number | null;
-  totalExposure: string | number | null;
-  isActive: boolean;
-  createdAt: string;
-  account?: { id: string; name: string } | null;
-  contact?: { id: string; firstName: string; lastName: string } | null;
-}
-
-const formatCurrency = (val: string | number | null | undefined) => {
-  if (val == null) return '—';
-  const num = typeof val === 'string' ? parseFloat(val) : val;
-  if (isNaN(num)) return '—';
-  return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(num);
-};
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-const TYPE_BADGE: Record<BorrowerType, { bg: string; text: string }> = {
-  CORPORATE: { bg: '#3b82f620', text: '#2563eb' },
-  INDIVIDUAL: { bg: '#a855f720', text: '#7e22ce' },
-  SOLE_PROPRIETOR: { bg: '#f59e0b20', text: '#d97706' },
-};
-
-const RATING_COLOR = (r: RiskRating | null) => {
-  if (!r) return 'var(--color-text-tertiary)';
-  if (['AAA', 'AA', 'A'].includes(r)) return '#16a34a';
-  if (['BBB', 'BB'].includes(r)) return '#2563eb';
-  if (['B', 'CCC'].includes(r)) return '#d97706';
-  return '#dc2626';
-};
-
-const AML_BADGE: Record<AmlTier, { bg: string; text: string }> = {
-  LOW: { bg: '#22c55e20', text: '#16a34a' },
-  MEDIUM: { bg: '#f59e0b20', text: '#d97706' },
-  HIGH: { bg: '#ef444420', text: '#dc2626' },
-};
-
-const displayName = (p: BorrowerProfileRow) => {
-  if (p.account) return p.account.name;
-  if (p.contact) return `${p.contact.firstName} ${p.contact.lastName}`.trim();
-  if (p.name) return p.name;
-  return 'Unnamed Borrower';
-};
-const initials = (name: string) => {
-  const parts = name.split(/\s+/).filter(Boolean);
-  return (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
-};
+import BorrowerKpiCards from '../src/components/credit/borrowers/BorrowerKpiCards';
+import BorrowerFilterBar, { BorrowerFilterState } from '../src/components/credit/borrowers/BorrowerFilterBar';
+import BorrowerDataTable, { BorrowerProfileRow } from '../src/components/credit/borrowers/BorrowerDataTable';
+import BorrowerQuickPreview from '../src/components/credit/borrowers/BorrowerQuickPreview';
 
 const BorrowerProfileList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const accountIdFilter = searchParams.get('accountId') || '';
+
   const [profiles, setProfiles] = useState<BorrowerProfileRow[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
-  const [showCreate, setShowCreate] = useState(false);
+  const [selectedBorrower, setSelectedBorrower] = useState<BorrowerProfileRow | null>(null);
+
+  const [filters, setFilters] = useState<BorrowerFilterState>({
+    search: '',
+    typeFilter: '',
+    statusFilter: '',
+    riskFilter: '',
+  });
 
   const canCreate = hasPermission(user, 'credit:create');
+
+  // KPI data — populated from /borrowers/stats endpoint
+  const [kpiData, setKpiData] = useState({ total: 0, active: 0, pendingKyc: 0, watchlist: 0 });
 
   const fetchProfiles = useCallback(async (page = 1) => {
     try {
@@ -83,8 +37,8 @@ const BorrowerProfileList: React.FC = () => {
       const data = await creditService.listBorrowerProfiles({
         page,
         limit: 20,
-        search: search || undefined,
-        borrowerType: typeFilter || undefined,
+        search: filters.search || undefined,
+        borrowerType: filters.typeFilter || undefined,
         accountId: accountIdFilter || undefined,
       });
       setProfiles((data.profiles as unknown) as BorrowerProfileRow[]);
@@ -94,153 +48,255 @@ const BorrowerProfileList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, typeFilter, accountIdFilter]);
+  }, [filters.search, filters.typeFilter, accountIdFilter]);
+
+  // Fetch KPI stats
+  useEffect(() => {
+    creditService.getBorrowerStats()
+      .then(stats => setKpiData(stats))
+      .catch(() => { /* KPI non-critical, silently fail */ });
+  }, []);
 
   useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
 
+  const handleRowClick = (id: string) => {
+    // On desktop xl+: select for quick preview; on smaller: navigate
+    const borrower = profiles.find(p => p.id === id);
+    if (borrower) setSelectedBorrower(borrower);
+  };
+
+  const handleNameClick = (id: string) => {
+    navigate(`/credit/borrowers/${id}`);
+  };
+
+  const handleActionClick = (id: string, action: string) => {
+    switch (action) {
+      case 'view':
+      case 'edit':
+        navigate(`/credit/borrowers/${id}`);
+        break;
+      case 'newApp':
+        navigate(`/credit/applications/new?borrowerId=${id}`);
+        break;
+    }
+  };
+
+  const handleOpen360 = (id: string) => {
+    navigate(`/credit/borrowers/${id}`);
+  };
+
+  const handleNewApp = (id: string) => {
+    navigate(`/credit/applications/new?borrowerId=${id}`);
+  };
+
+  const handleExport = () => {
+    console.log('Export not yet implemented');
+  };
+
+  // Pagination helpers
+  const currentPage = pagination.page;
+  const totalPages = pagination.totalPages;
+  const totalItems = pagination.total;
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * 20 + 1;
+  const endItem = Math.min(currentPage * 20, totalItems);
+
+  const getPageNumbers = (): (number | '...')[] => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [1];
+    if (currentPage > 3) pages.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
+
   return (
     <>
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+      <div style={{ padding: '24px 32px 48px' }}>
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
           <div>
-            <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
-              <Link to="/credit" className="hover:text-brand-700 transition-colors" style={{ textDecoration: 'none', color: 'inherit' }}>Credit</Link>
-              <span>/</span><span className="font-semibold text-text-primary">Borrower Profiles</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: '4px' }}>
+              <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }}>Credit</Link>
+              <span>/</span>
+              <span style={{ fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>Borrower Management</span>
             </div>
-            <h1 className="text-2xl font-black text-text-primary">Borrower Profiles</h1>
+            <h1 style={{
+              fontSize: 'var(--cr-text-headline-lg, 24px)',
+              lineHeight: 'var(--cr-leading-headline-lg, 32px)',
+              fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
+              fontWeight: 700,
+              color: 'var(--cr-on-surface, #191c1e)',
+              letterSpacing: 'var(--cr-tracking-headline-lg, -0.01em)',
+              margin: 0,
+            }}>Borrower Management</h1>
           </div>
           {canCreate && (
-            <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-lg">person_add</span> New Borrower
+            <button
+              onClick={() => navigate('/credit/borrowers/new')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 16px',
+                backgroundColor: 'var(--cr-primary, #000000)',
+                color: 'var(--cr-on-primary, #ffffff)',
+                border: 'none', borderRadius: 'var(--cr-radius, 0.25rem)',
+                fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
+                fontSize: 'var(--cr-text-label-md, 12px)',
+                fontWeight: 600,
+                letterSpacing: 'var(--cr-tracking-label, 0.05em)',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.85)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--cr-primary, #000000)'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+              New Borrower
             </button>
           )}
         </div>
 
+        {/* ── Account filter banner ── */}
         {accountIdFilter && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-            <span className="material-symbols-outlined text-indigo-600 text-lg">filter_alt</span>
-            <span className="text-sm text-indigo-800">Filtered by account</span>
-            <Link to={`/crm/accounts/${accountIdFilter}`} className="text-sm font-bold text-indigo-700 hover:text-indigo-900 underline" style={{ textDecoration: 'underline' }}>
-              View Account
-            </Link>
-            <Link to="/credit/borrowers" className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-800" style={{ textDecoration: 'none' }}>
-              Clear filter
-            </Link>
+          <div style={{
+            backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
+            borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+            padding: '12px 16px', marginBottom: '16px',
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>filter_alt</span>
+            <span style={{ fontSize: 'var(--cr-text-body-md, 14px)', color: '#1e40af' }}>Filtered by account</span>
+            <Link to={`/crm/accounts/${accountIdFilter}`} style={{ fontSize: 'var(--cr-text-body-md, 14px)', fontWeight: 600, color: '#1d4ed8', textDecoration: 'underline' }}>View Account</Link>
+            <Link to="/credit/borrowers" style={{ marginLeft: 'auto', fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>Clear filter</Link>
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-5 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-lg">search</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search borrowers..."
-              className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-          </div>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-            className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
-            <option value="">All Types</option>
-            <option value="CORPORATE">Corporate</option>
-            <option value="INDIVIDUAL">Individual</option>
-            <option value="SOLE_PROPRIETOR">Sole Proprietor</option>
-          </select>
-        </div>
+        {/* ── KPI Cards ── */}
+        <BorrowerKpiCards total={kpiData.total} active={kpiData.active} pendingKyc={kpiData.pendingKyc} watchlist={kpiData.watchlist} />
 
-        <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--color-surface-muted)' }}>
-                  {['Borrower', 'Type', 'Risk Rating', 'AML Tier', 'Exposure Limit', 'Total Exposure', 'Status', 'Created'].map(h => (
-                    <th key={h} style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? [0,1,2,3,4].map(i => (
-                  <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                    {[200,80,80,80,100,100,60,80].map((w,j) => (
-                      <td key={j} style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                        <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                      </td>
-                    ))}
-                  </tr>
-                )) : profiles.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-text-secondary">
-                    <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">person</span>
-                    <p className="font-bold">No borrower profiles yet</p>
-                    <p className="text-sm mt-1">Create your first borrower profile to start credit processing</p>
-                  </td></tr>
-                ) : profiles.map(p => {
-                  const name = displayName(p);
-                  const typeBadge = TYPE_BADGE[p.borrowerType];
-                  const amlBadge = p.amlRiskTier ? AML_BADGE[p.amlRiskTier] : null;
-                  return (
-                    <tr key={p.id} onClick={() => navigate(`/credit/borrowers/${p.id}`)}
-                      style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0 uppercase">
-                            {initials(name)}
-                          </div>
-                          <div className="text-sm font-bold text-text-primary">{name}</div>
-                        </div>
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: typeBadge.bg, color: typeBadge.text }}>
-                          {p.borrowerType.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--text-sm)', fontWeight: 700, color: RATING_COLOR(p.creditRiskRating) }}>
-                        {p.creditRiskRating ?? '—'}
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                        {amlBadge ? (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: amlBadge.bg, color: amlBadge.text }}>
-                            {p.amlRiskTier}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                        {formatCurrency(p.exposureLimit)}
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                        {formatCurrency(p.totalExposure)}
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: p.isActive ? '#22c55e20' : '#6b728020', color: p.isActive ? '#16a34a' : '#6b7280' }}>
-                          {p.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-                        {formatDate(p.createdAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {/* ── Master-detail layout ── */}
+        <div style={{ display: 'flex', gap: '0', alignItems: 'flex-start' }}>
+          {/* ── Left: Main content ── */}
+          <div style={{ flex: '1', minWidth: 0 }}>
+            {/* ── Filter Bar ── */}
+            <BorrowerFilterBar filters={filters} onFilterChange={setFilters} onExport={handleExport} />
+
+            {/* ── Data Table ── */}
+            <div style={{
+              backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
+              border: '1px solid var(--cr-outline-variant, #c6c6cd)',
+              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+              overflow: 'hidden',
+            }}>
+              <BorrowerDataTable
+                profiles={profiles}
+                loading={loading}
+                onRowClick={handleRowClick}
+                onNameClick={handleNameClick}
+                onActionClick={handleActionClick}
+              />
+
+              {/* ── Pagination Footer ── */}
+              {totalPages > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
+                  backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
+                }}>
+                  <span style={{
+                    fontSize: 'var(--cr-text-body-sm, 13px)',
+                    fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
+                    color: 'var(--cr-on-surface-variant, #45464d)',
+                  }}>
+                    Showing {startItem} to {endItem} of {totalItems.toLocaleString()} entries
+                  </span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                      onClick={() => fetchProfiles(Math.max(1, currentPage - 1))}
+                      disabled={currentPage <= 1}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--cr-outline-variant, #c6c6cd)',
+                        borderRadius: 'var(--cr-radius, 0.25rem)',
+                        backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
+                        color: 'var(--cr-on-surface-variant, #45464d)',
+                        cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage <= 1 ? 0.5 : 1,
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                    </button>
+                    {getPageNumbers().map((p, i) =>
+                      p === '...' ? (
+                        <span key={`ellipsis-${i}`} style={{ padding: '4px 8px', color: 'var(--cr-on-surface-variant, #45464d)' }}>…</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => fetchProfiles(p)}
+                          style={{
+                            padding: '4px 12px',
+                            border: p === currentPage ? '1px solid var(--cr-secondary, #0051d5)' : '1px solid var(--cr-outline-variant, #c6c6cd)',
+                            borderRadius: 'var(--cr-radius, 0.25rem)',
+                            backgroundColor: p === currentPage ? 'var(--cr-secondary, #0051d5)' : 'var(--cr-surface-container-lowest, #ffffff)',
+                            color: p === currentPage ? 'var(--cr-on-secondary, #ffffff)' : 'var(--cr-on-surface, #191c1e)',
+                            fontSize: 'var(--cr-text-body-sm, 13px)',
+                            fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
+                            cursor: 'pointer',
+                          }}
+                        >{p}</button>
+                      )
+                    )}
+                    <button
+                      onClick={() => fetchProfiles(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage >= totalPages}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--cr-outline-variant, #c6c6cd)',
+                        borderRadius: 'var(--cr-radius, 0.25rem)',
+                        backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
+                        color: 'var(--cr-on-surface-variant, #45464d)',
+                        cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                        opacity: currentPage >= totalPages ? 0.5 : 1,
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <span className="text-sm text-text-secondary">{pagination.total} borrowers total</span>
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => i + 1).map(p => (
-                  <button key={p} onClick={() => fetchProfiles(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                    className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-gray-100'}`}>{p}</button>
-                ))}
-              </div>
+
+          {/* ── Right: Quick-preview drawer (xl+ only) ── */}
+          {selectedBorrower && (
+            <div style={{
+              width: '400px',
+              flexShrink: 0,
+              marginLeft: '16px',
+              backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
+              border: '1px solid var(--cr-outline-variant, #c6c6cd)',
+              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+              overflow: 'hidden',
+              position: 'sticky',
+              top: '24px',
+              alignSelf: 'flex-start',
+            }}>
+              <BorrowerQuickPreview
+                borrower={selectedBorrower}
+                onClose={() => setSelectedBorrower(null)}
+                onOpen360={handleOpen360}
+                onNewApp={handleNewApp}
+              />
             </div>
           )}
         </div>
-
-        <NewBorrowerWizard
-          isOpen={showCreate}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => fetchProfiles()}
-          navigateAfterCreate={true}
-        />
       </div>
+
     </>
   );
 };

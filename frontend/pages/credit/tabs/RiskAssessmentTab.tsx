@@ -1,7 +1,8 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
 import RiskScoreTab from './RiskScoreTab';
-import CreditChecksRiskTab from './CreditChecksRiskTab';
+import IndustryOutlookTab from './IndustryOutlookTab';
+import RiskMitigatorsTab from './RiskMitigatorsTab';
 import RiskRatingEclTab from './RiskRatingEclTab';
 import ProfitabilityWalletTab from './ProfitabilityWalletTab';
 import CounterpartiesTab from './CounterpartiesTab';
@@ -48,11 +49,21 @@ const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({
       <section>
         <h3 style={sectionHeaderStyle}>
           <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-            fact_check
+            travel_explore
           </span>
-          Credit Checks &amp; Risk
+          Industry / Conduct Risk
         </h3>
-        <CreditChecksRiskTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
+        <IndustryOutlookTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
+      </section>
+
+      <section>
+        <h3 style={sectionHeaderStyle}>
+          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+            health_and_safety
+          </span>
+          Risk Mitigants
+        </h3>
+        <RiskMitigatorsTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
       </section>
 
       {isFeatureEnabled('credit:ecl') && (

@@ -24,7 +24,7 @@ function signoffComplete(signoffs: ApplicationSignoff[]): boolean {
 function committeeComplete(app: CreditApplication): boolean {
   const st = (app.state || app.status) as ApplicationState;
   // Past COMMITTEE_REVIEW means it was submitted to committee
-  return !['DRAFT', 'SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'].includes(st);
+  return !['DRAFT', 'SUBMITTED', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'KYC_REJECTED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'].includes(st);
 }
 
 function approvalComplete(approvals: CreditApproval[]): boolean {

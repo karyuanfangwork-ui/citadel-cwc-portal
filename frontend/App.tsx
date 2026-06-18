@@ -84,6 +84,7 @@ import CreditReports from './pages/credit/CreditReports';
 import GroupExposurePage from './pages/credit/GroupExposurePage';
 import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
+import CreateBorrowerPage from './pages/CreateBorrowerPage';
 import CreditApplicationList from './pages/CreditApplicationList';
 import CreditApplicationDetail from './pages/CreditApplicationDetail';
 import MyApprovals from './pages/MyApprovals';
@@ -298,6 +299,7 @@ const AppShell = () => {
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditLayout /></ProtectedRoute>}>
                 <Route index element={<CreditDashboard />} />
                 <Route path="borrowers" element={<BorrowerProfileList />} />
+                <Route path="borrowers/new" element={<CreateBorrowerPage />} />
                 <Route path="borrowers/:id" element={<BorrowerProfileDetail />} />
                 <Route path="applications" element={<CreditApplicationList />} />
                 <Route path="applications/:id" element={<CreditApplicationDetail />} />

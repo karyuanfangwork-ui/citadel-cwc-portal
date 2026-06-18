@@ -89,6 +89,22 @@ export interface DuplicateMatch {
 
 class BorrowerProfileService {
   /**
+   * GET /borrowers/stats — Aggregate counts for KPI cards
+   */
+  async getBorrowerStats() {
+    const baseWhere = { deletedAt: null } as const;
+
+    const [total, active, pendingKyc, watchlist] = await Promise.all([
+      prisma.borrowerProfile.count({ where: baseWhere }),
+      prisma.borrowerProfile.count({ where: { ...baseWhere, isActive: true } }),
+      prisma.borrowerProfile.count({ where: { ...baseWhere, amlRiskTier: 'HIGH' } }),
+      prisma.borrowerProfile.count({ where: { ...baseWhere, isSanctionedEntity: true } }),
+    ]);
+
+    return { total, active, pendingKyc, watchlist };
+  }
+
+  /**
    * Check if a borrower profile already exists for a given SSM or NRIC.
    * Returns the borrower ID if found, null otherwise.
    */

@@ -13,6 +13,12 @@ router.use(authenticate);
 // §2.9 — Decrypt encrypted fields on all GET responses
 router.use(decryptBorrowerFields());
 
+router.get(
+  '/stats',
+  requirePermission('credit:read'),
+  borrowerProfileController.stats,
+);
+
 /**
  * GET /borrowers/check-duplicate
  * Check if a borrower exists for a given SSM or NRIC

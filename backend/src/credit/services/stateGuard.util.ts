@@ -13,6 +13,7 @@ import { AppError } from '../../middleware/error.middleware';
 const EDITABLE_STATES: ApplicationState[] = [
   'DRAFT',
   'KYC_REVIEW',
+  'COMPLIANCE_HOLD',
   'KYC_APPROVED',
   'UNDERWRITING',
   'CREDIT_ASSESSMENT',
@@ -27,6 +28,7 @@ const EDITABLE_STATES: ApplicationState[] = [
 const DELETABLE_STATES: ApplicationState[] = [
   'DRAFT',
   'KYC_REVIEW',
+  'COMPLIANCE_HOLD',
   'KYC_APPROVED',
   'UNDERWRITING',
   'CREDIT_ASSESSMENT',
@@ -42,7 +44,7 @@ const DELETABLE_STATES: ApplicationState[] = [
 export function requireEditableState(state: ApplicationState, action: string): void {
   if (!EDITABLE_STATES.includes(state)) {
     throw new AppError(
-      `Cannot ${action} — application is in ${state} state. Edits are only allowed in DRAFT, KYC_REVIEW, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, COMMITTEE_REVIEW, or OFFER states.`,
+      `Cannot ${action} — application is in ${state} state. Edits are only allowed in DRAFT, KYC_REVIEW, COMPLIANCE_HOLD, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, COMMITTEE_REVIEW, or OFFER states.`,
       400,
     );
   }
@@ -54,7 +56,7 @@ export function requireEditableState(state: ApplicationState, action: string): v
 export function requireDeletableState(state: ApplicationState, action: string): void {
   if (!DELETABLE_STATES.includes(state)) {
     throw new AppError(
-      `Cannot ${action} — application is in ${state} state. Deletion is only allowed in DRAFT, KYC_REVIEW, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, COMMITTEE_REVIEW, APPROVED, OFFER, or ACCEPTED states.`,
+      `Cannot ${action} — application is in ${state} state. Deletion is only allowed in DRAFT, KYC_REVIEW, COMPLIANCE_HOLD, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, COMMITTEE_REVIEW, APPROVED, OFFER, or ACCEPTED states.`,
       400,
     );
   }

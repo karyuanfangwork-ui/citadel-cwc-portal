@@ -13,6 +13,7 @@ export const STATE_COLORS: Record<string, { bg: string; text: string }> = {
   DRAFT: { bg: '#6366f120', text: '#6366f1' },
   SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
   KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
+  COMPLIANCE_HOLD: { bg: '#ef444420', text: '#dc2626' },
   KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
   KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
   UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
@@ -20,6 +21,7 @@ export const STATE_COLORS: Record<string, { bg: string; text: string }> = {
   COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
   APPROVED: { bg: '#22c55e20', text: '#16a34a' },
   REJECTED: { bg: '#ef444420', text: '#dc2626' },
+  CONDITION_FULFILMENT: { bg: '#f59e0b20', text: '#d97706' },
   OFFER: { bg: '#06b6d420', text: '#0891b2' },
   ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
   DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
@@ -33,6 +35,7 @@ export const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Submitted',
   KYC_REVIEW: 'KYC Review',
+  COMPLIANCE_HOLD: 'Compliance Hold',
   KYC_APPROVED: 'KYC Approved',
   KYC_REJECTED: 'KYC Rejected',
   UNDERWRITING: 'Underwriting',
@@ -40,6 +43,7 @@ export const STATE_LABELS: Record<string, string> = {
   COMMITTEE_REVIEW: 'Committee Review',
   APPROVED: 'Approved',
   REJECTED: 'Rejected',
+  CONDITION_FULFILMENT: 'Condition Fulfilment',
   OFFER: 'Offer',
   ACCEPTED: 'Accepted',
   DISBURSED: 'Disbursed',
@@ -54,6 +58,7 @@ export const STATE_ICONS: Record<string, string> = {
   DRAFT: 'edit_note',
   SUBMITTED: 'send',
   KYC_REVIEW: 'fact_check',
+  COMPLIANCE_HOLD: 'gpp_maybe',
   KYC_APPROVED: 'how_to_reg',
   KYC_REJECTED: 'person_off',
   UNDERWRITING: 'analytics',
@@ -61,6 +66,7 @@ export const STATE_ICONS: Record<string, string> = {
   COMMITTEE_REVIEW: 'groups',
   APPROVED: 'check_circle',
   REJECTED: 'cancel',
+  CONDITION_FULFILMENT: 'assignment_late',
   OFFER: 'mail',
   ACCEPTED: 'thumb_up',
   DISBURSED: 'payments',
@@ -72,10 +78,11 @@ export const STATE_ICONS: Record<string, string> = {
 
 export const STEPPER_STAGES: { key: string; label: string; states: ApplicationState[] }[] = [
   { key: 'draft', label: 'Draft', states: ['DRAFT'] },
-  { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'] },
+  { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'KYC_REJECTED'] },
   { key: 'assessment', label: 'Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT'] },
   { key: 'referred', label: 'Referred Back', states: ['REFERRED_BACK'] },
   { key: 'decision', label: 'Decision', states: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'] },
+  { key: 'condition', label: 'Condition Fulfilment', states: ['CONDITION_FULFILMENT'] },
   { key: 'offer', label: 'Offer', states: ['OFFER', 'ACCEPTED'] },
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
 ];
@@ -126,7 +133,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
   { key: 'approval', label: 'Approval', index: 6, targetTab: 'approvals' },
   { key: 'offer', label: 'Offer', index: 7, targetTab: 'conditions-offer' },
   { key: 'legal', label: 'Legal', index: 8, targetTab: 'documents' },
-  { key: 'disbursement', label: 'Disbursement', index: 9, targetTab: 'conditions-offer' },
+  { key: 'disbursement', label: 'Disbursement', index: 9, targetTab: 'disbursement' },
   { key: 'post', label: 'Post', index: 10, targetTab: 'timeline-audit' },
 ];
 
@@ -141,6 +148,7 @@ export function getJourneyStage(state: string | null | undefined): number {
     case 'DRAFT': return 2;
     case 'SUBMITTED':
     case 'KYC_REVIEW': return 1;
+    case 'COMPLIANCE_HOLD': return 1;
     case 'KYC_APPROVED': return 3;
     case 'KYC_REJECTED': return 1;
     case 'UNDERWRITING': return 4;
@@ -148,6 +156,7 @@ export function getJourneyStage(state: string | null | undefined): number {
     case 'REFERRED_BACK': return 2;
     case 'COMMITTEE_REVIEW': return 6;
     case 'APPROVED': return 7;
+    case 'CONDITION_FULFILMENT': return 7;
     case 'REJECTED': return 6;
     case 'OFFER': return 7;
     case 'ACCEPTED': return 8;
@@ -418,7 +427,7 @@ export const TAB_GROUPS: TabGroup[] = [
 export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.id));
 
 // ── Application 360 Tab Type ──
-// New 10-tab system replacing the legacy 30+ DetailTab values.
+// New Application 360 tab system replacing the legacy 30+ DetailTab values.
 // During Pass 2, DetailTab360 coexists with DetailTab.
 // After Pass 2 finalization (Step 2.11), DetailTab will be removed.
 
@@ -427,11 +436,13 @@ export type DetailTab360 =
   | 'customer-profile'
   | 'application-details'
   | 'financial-profile'
+  | 'credit-bureau'
   | 'risk-assessment'
   | 'collateral-guarantees'
   | 'documents'
   | 'approvals'
   | 'conditions-offer'
+  | 'disbursement'
   | 'timeline-audit';
 
 export const TAB_GROUPS_360: TabGroup[] = [
@@ -461,6 +472,11 @@ export const TAB_GROUPS_360: TabGroup[] = [
     tabs: [{ id: 'risk-assessment' as DetailTab360 as unknown as DetailTab, label: 'Risk Assessment' }],
   },
   {
+    id: 'credit-bureau',
+    label: 'Credit Bureau & Compliance',
+    tabs: [{ id: 'credit-bureau' as DetailTab360 as unknown as DetailTab, label: 'Credit Bureau & Compliance' }],
+  },
+  {
     id: 'collateral-guarantees',
     label: 'Collateral & Guarantees',
     tabs: [{ id: 'collateral-guarantees' as DetailTab360 as unknown as DetailTab, label: 'Collateral & Guarantees' }],
@@ -479,6 +495,11 @@ export const TAB_GROUPS_360: TabGroup[] = [
     id: 'conditions-offer',
     label: 'Conditions & Offer',
     tabs: [{ id: 'conditions-offer' as DetailTab360 as unknown as DetailTab, label: 'Conditions & Offer' }],
+  },
+  {
+    id: 'disbursement',
+    label: 'Disbursement',
+    tabs: [{ id: 'disbursement' as DetailTab360 as unknown as DetailTab, label: 'Disbursement' }],
   },
   {
     id: 'timeline-audit',
@@ -503,8 +524,8 @@ export const TAB_TO_TAB360: Record<DetailTab, DetailTab360> = {
   'risk-score': 'risk-assessment',
   'payment-capability': 'financial-profile',
   'sme-financials': 'financial-profile',
-  'credit-checks-risk': 'risk-assessment',
-  'credit-checks': 'risk-assessment',
+  'credit-checks-risk': 'credit-bureau',
+  'credit-checks': 'credit-bureau',
   'industry': 'risk-assessment',
   'risk': 'risk-assessment',
   'collateral': 'collateral-guarantees',
@@ -517,7 +538,7 @@ export const TAB_TO_TAB360: Record<DetailTab, DetailTab360> = {
   'documents': 'documents',
   'comments': 'timeline-audit',
   'audit': 'timeline-audit',
-  'disbursement': 'conditions-offer',
+  'disbursement': 'disbursement',
   'risk-rating': 'risk-assessment',
   'profitability': 'risk-assessment',
   'counterparties': 'risk-assessment',
@@ -538,11 +559,13 @@ export const TAB360_TO_LEGACY: Record<DetailTab360, DetailTab> = {
   'customer-profile': 'borrower-profile',
   'application-details': 'loan-request',
   'financial-profile': 'financials',
+  'credit-bureau': 'credit-checks-risk',
   'risk-assessment': 'risk-score',
   'collateral-guarantees': 'collateral',
   'documents': 'documents',
   'approvals': 'approvals',
   'conditions-offer': 'conditions',
+  'disbursement': 'disbursement',
   'timeline-audit': 'audit',
 };
 
@@ -737,6 +760,9 @@ export function getPhaseCompletion(app: {
   borrowerType?: string | null;
   registrationNumber?: string | null;
   riskRating?: string | null;
+  scoreRunCount?: number | null;
+  latestScoreRunAt?: string | null;
+  latestScoreRunStatus?: string | null;
   firstWayOut?: string | null;
   preparedAt?: string | null;
   decisionedAt?: string | null;
@@ -784,7 +810,7 @@ export function getPhaseCompletion(app: {
     ) ? 'complete' : 'incomplete',
 
     s4: (
-      hasValue(app.riskRating)
+      Number(app.scoreRunCount ?? 0) > 0 || hasValue(app.latestScoreRunAt)
     ) ? 'complete' : 'incomplete',
 
     s5: (() => {
@@ -819,7 +845,7 @@ export const PHASE_TO_TAB_MAP: Record<string, string> = {
   s2: 'borrower-profile',
   s3: 'financials',
   s4: 'risk-score',
-  s5: 'credit-checks-risk',
+  s5: 'credit-bureau',
   s6: 'collateral',
   s7: 'approvals',
   meta: 'documents',
