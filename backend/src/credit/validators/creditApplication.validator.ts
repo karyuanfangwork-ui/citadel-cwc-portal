@@ -21,6 +21,31 @@ const accountClassificationEnum = z.enum([
   'PERFORMING', 'EARLY_CARE', 'WATCHLIST', 'NON_CCRIS_RR', 'CCRIS_RR', 'IMPAIRED',
 ]);
 const accountStrategyEnum = z.enum(['GROW', 'MAINTAIN', 'EXIT']);
+const evidenceSourceTypeEnum = z.enum([
+  'MANUAL',
+  'APPLICATION_FORM',
+  'PAYROLL_RECORDS',
+  'CREDIT_BUREAU',
+  'CORE_BANKING_SYSTEM',
+  'BANK_STATEMENT_ANALYSIS',
+  'UPLOADED_FINANCIAL_STATEMENTS',
+  'OCR_EXTRACTION',
+  'TAX_DOCUMENTS',
+  'INTERNAL_RISK_ENGINE',
+  'CREDIT_SCORING_ENGINE',
+]);
+const evidenceConfidenceEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
+const evidenceMappingFieldSchema = z.object({
+  fieldKey: z.string().min(1),
+  fieldLabel: z.string().min(1),
+  sourceType: evidenceSourceTypeEnum,
+  documentId: z.string().uuid().nullable().optional(),
+  documentLabel: z.string().max(500).nullable().optional(),
+  note: z.string().max(2000).nullable().optional(),
+  autoPopulated: z.boolean().optional(),
+  ocrExtracted: z.boolean().optional(),
+  confidence: evidenceConfidenceEnum.optional(),
+});
 
 // Optional ISO date string (YYYY-MM-DD or full ISO). Accepts null/empty for clearing.
 const optionalDate = z
@@ -110,6 +135,14 @@ export const transitionApplicationSchema = z.object({
   }),
 });
 
+export const evidenceMappingSchema = z.object({
+  body: z.object({
+    sourceSummary: z.string().max(2000).optional().nullable(),
+    mappings: z.array(evidenceMappingFieldSchema).min(1),
+  }),
+});
+
 export type CreateCreditApplicationInput = z.infer<typeof createCreditApplicationSchema>['body'];
 export type UpdateCreditApplicationInput = z.infer<typeof updateCreditApplicationSchema>['body'];
 export type TransitionApplicationInput = z.infer<typeof transitionApplicationSchema>['body'];
+export type EvidenceMappingInput = z.infer<typeof evidenceMappingSchema>['body'];

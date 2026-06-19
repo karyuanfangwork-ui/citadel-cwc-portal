@@ -201,11 +201,44 @@ export interface CreditDocument {
   verifier?: CreditUserRef;
 }
 
+export type EvidenceSourceType =
+  | 'MANUAL'
+  | 'APPLICATION_FORM'
+  | 'PAYROLL_RECORDS'
+  | 'CREDIT_BUREAU'
+  | 'CORE_BANKING_SYSTEM'
+  | 'BANK_STATEMENT_ANALYSIS'
+  | 'UPLOADED_FINANCIAL_STATEMENTS'
+  | 'OCR_EXTRACTION'
+  | 'TAX_DOCUMENTS'
+  | 'INTERNAL_RISK_ENGINE'
+  | 'CREDIT_SCORING_ENGINE';
+
+export interface EvidenceFieldMapping {
+  fieldKey: string;
+  fieldLabel: string;
+  sourceType: EvidenceSourceType;
+  documentId: string | null;
+  documentLabel: string | null;
+  note: string | null;
+  autoPopulated: boolean;
+  ocrExtracted: boolean;
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+}
+
+export interface EvidenceMappingSnapshot {
+  applicationId: string;
+  sourceSummary: string | null;
+  mappings: EvidenceFieldMapping[];
+  updatedAt: string | null;
+  updatedBy: CreditUserRef | null;
+}
+
 /**
-...[truncated]
  * Prisma returns assignedRm / assignedAnalyst / assignedRmId / assignedAnalystId,
  * but the frontend interface uses rm / analyst / rmId / analystId.
  */
+
 function normalizeApplication(raw: any): CreditApplication {
   if (!raw) return raw;
   const app = { ...raw };
@@ -809,6 +842,19 @@ const creditService = {
   async getDocumentDownloadUrl(documentId: string): Promise<string> {
     const res = await apiClient.get(`/credit/credit-documents/${documentId}/download`);
     return res.data.data.downloadUrl as string;
+  },
+
+  async getEvidenceMapping(applicationId: string): Promise<EvidenceMappingSnapshot> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/evidence-mapping`);
+    return res.data.data as EvidenceMappingSnapshot;
+  },
+
+  async saveEvidenceMapping(
+    applicationId: string,
+    data: { sourceSummary?: string | null; mappings: EvidenceFieldMapping[] },
+  ): Promise<EvidenceMappingSnapshot> {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/evidence-mapping`, data);
+    return res.data.data as EvidenceMappingSnapshot;
   },
 
   async verifyDocument(documentId: string) {
@@ -2567,12 +2613,17 @@ export const retailIncomeApi = {
       employerName?: string;
       monthlyGrossIncome: string;
       epfMonthlyAmount?: string;
+      monthlyTaxDeduction?: string;
+      monthlySocsoDeduction?: string;
+      monthlyNetIncome?: string;
       hirePurchaseCommitment: string;
       creditCardCommitment: string;
       existingLoanCommitment: string;
       otherCommitments: string;
       proposedInstalment?: string;
       dsrPercent?: string;
+      netDsrPercent?: string;
+      dsrBasis?: string;
       dsrStatus?: 'pass' | 'warning' | 'fail';
       financialsVerified?: boolean;
       financialsVerifiedAt?: string | null;

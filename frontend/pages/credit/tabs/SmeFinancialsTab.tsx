@@ -1,10 +1,13 @@
 /**
- * P2-3: SME Financials Tab
+ * Phase 3: SME / Corporate Financial Profile
  *
- * Simplified financial assessment view for SME borrowers.
- * - Shows statement type requirements (AUDITED/MANAGEMENT/COMPILED)
- * - Displays SME-calibrated benchmarks for key ratios
- * - For SOLE_PROPRIETOR: shows dual assessment (owner DSR + business DSCR)
+ * Restructured SME Financials tab with:
+ *  - BusinessProfileSection (enhanced statement type card)
+ *  - RatiosAndTrendsSection (expanded ratio table with trend arrows)
+ *  - FinancialRiskIndicatorsPanel (derived risk flags)
+ *  - Analyst remarks (placeholder)
+ *
+ * For SOLE_PROPRIETOR: dual assessment (owner DSR + business DSCR) preserved.
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -14,8 +17,10 @@ import smeFinancialApi, {
   DualAssessment,
   StatementTypeValidation,
 } from '../../../src/services/smeFinancial.service';
-import creditService, { CreditApplication } from '../../../src/services/credit.service';
-import toast from 'react-hot-toast';
+import creditService, { CreditApplication, FinancialRatio } from '../../../src/services/credit.service';
+import BusinessProfileSection from '../../../src/components/credit/BusinessProfileSection';
+import RatiosAndTrendsSection from '../../../src/components/credit/RatiosAndTrendsSection';
+import FinancialRiskIndicatorsPanel from '../../../src/components/credit/FinancialRiskIndicatorsPanel';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,138 +51,20 @@ function formatCurrency(value: number | null): string {
   return `RM ${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-function statementTypeLabel(type: string | null): string {
-  switch (type) {
-    case 'AUDITED': return 'Audited';
-    case 'MANAGEMENT': return 'Management';
-    case 'COMPILED': return 'Compiled';
-    default: return 'Not specified';
-  }
-}
-
 // ── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
   application: CreditApplication;
   onUpdated?: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Callback to push DSCR up to parent for summary strip */
+  onDscrChange?: (dscr: number | null) => void;
+  /** Callback to push SME ratios up to parent for calculation breakdown */
+  onRatiosChange?: (ratios: SmeFinancialRatio[]) => void;
 };
 
-// ── Sub-Components ───────────────────────────────────────────────────────────
+// ── Dual Assessment Card (preserved from original) ───────────────────────────
 
-/** Statement type requirements card */
-const StatementTypeCard: React.FC<{
-  assessment: SmeFinancialAssessment;
-  validation: StatementTypeValidation | null;
-}> = ({ assessment, validation }) => {
-  const requiresAudited = assessment.requiresAudited;
-  const acceptsManagement = assessment.acceptsManagement;
-
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Financial Statement Requirements</h3>
-
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <span className="text-xs text-gray-500">Current Type</span>
-          <p className="text-sm font-medium text-gray-900">
-            {statementTypeLabel(assessment.smeFinancialStatementType)}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-gray-500">Years Trading</span>
-          <p className="text-sm font-medium text-gray-900">
-            {assessment.yearsTrading !== null ? assessment.yearsTrading : '—'}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-gray-500">Annual Turnover</span>
-          <p className="text-sm font-medium text-gray-900">
-            {formatCurrency(assessment.annualTurnover)}
-          </p>
-        </div>
-        <div>
-          <span className="text-xs text-gray-500">SIC Code</span>
-          <p className="text-sm font-medium text-gray-900">
-            {assessment.sicCode ?? '—'}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex gap-2 mb-3">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-          requiresAudited ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
-        }`}>
-          {requiresAudited ? '⚠ Audited Required' : '✓ Audited Not Required'}
-        </span>
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-          acceptsManagement ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-        }`}>
-          {acceptsManagement ? '✓ Management Accepted' : '⚠ Management Not Accepted'}
-        </span>
-      </div>
-
-      {validation && (
-        <div className={`text-xs p-2 rounded ${
-          validation.acceptable ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-        }`}>
-          {validation.reason}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/** Simplified ratios table */
-const SimplifiedRatiosTable: React.FC<{ ratios: SmeFinancialRatio[] }> = ({ ratios }) => {
-  if (ratios.length === 0) {
-    return <p className="text-sm text-gray-500">No ratio data available.</p>;
-  }
-
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">SME Simplified Ratios</h3>
-      </div>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ratio</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-gray-500 uppercase">Value</th>
-            <th className="px-5 py-2 text-center text-xs font-medium text-gray-500 uppercase">Pass</th>
-            <th className="px-5 py-2 text-center text-xs font-medium text-gray-500 uppercase">Warn</th>
-            <th className="px-5 py-2 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {ratios.map((r) => (
-            <tr key={r.key} className="hover:bg-gray-50">
-              <td className="px-5 py-2 text-sm text-gray-900">{r.label}</td>
-              <td className="px-5 py-2 text-sm text-right font-mono text-gray-900">
-                {formatNumber(r.value)}{r.unit === '%' ? '%' : r.unit === 'x' ? 'x' : ''}
-              </td>
-              <td className="px-5 py-2 text-sm text-center text-gray-600">
-                {r.benchmark.direction === 'higher_is_better' ? '≥' : '≤'}{r.benchmark.passThreshold}
-                {r.unit === '%' ? '%' : r.unit === 'x' ? 'x' : ''}
-              </td>
-              <td className="px-5 py-2 text-sm text-center text-gray-600">
-                {r.benchmark.direction === 'higher_is_better' ? '≥' : '≤'}{r.benchmark.warnThreshold}
-                {r.unit === '%' ? '%' : r.unit === 'x' ? 'x' : ''}
-              </td>
-              <td className="px-5 py-2 text-center">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusBadge(r.status)}`}>
-                  {statusLabel(r.status)}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-/** Dual assessment card for sole proprietors */
 const DualAssessmentCard: React.FC<{ dual: DualAssessment }> = ({ dual }) => (
   <div className="bg-white rounded-lg border border-gray-200 p-5">
     <h3 className="text-sm font-semibold text-gray-700 mb-4">Dual Assessment (Sole Proprietor)</h3>
@@ -264,15 +151,41 @@ const DualAssessmentCard: React.FC<{ dual: DualAssessment }> = ({ dual }) => (
   </div>
 );
 
+// ── Analyst Remarks (placeholder) ─────────────────────────────────────────────
+
+const PlaceholderBadge = () => (
+  <span className="ml-1 text-[9px] text-gray-400 font-medium italic" title="Not yet persisted">(preview)</span>
+);
+
+const AnalystRemarks: React.FC<{ readOnly: boolean }> = ({ readOnly }) => {
+  const [remarks, setRemarks] = useState('');
+  return (
+    <div className="bg-white border rounded-lg p-4">
+      <label className="block text-xs font-medium text-gray-600 mb-1">
+        Analyst Remarks <PlaceholderBadge />
+      </label>
+      <textarea
+        value={remarks}
+        disabled={readOnly}
+        onChange={(e) => setRemarks(e.target.value)}
+        className="w-full border border-dashed border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50/50 disabled:bg-gray-50 resize-none h-24"
+        placeholder="Document risk observations, mitigating factors, and recommendation for the business financial assessment…"
+      />
+    </div>
+  );
+};
+
 // ── Main Tab Component ───────────────────────────────────────────────────────
 
-const SmeFinancialsTab: React.FC<Props> = ({ application }) => {
+const SmeFinancialsTab: React.FC<Props> = ({ application, onDscrChange, onRatiosChange }) => {
   const borrowerProfileId = application.borrowerProfile?.id;
   const borrowerType = application.borrowerProfile?.borrowerType;
   const isSoleProprietor = borrowerType === 'SOLE_PROPRIETOR';
+  const readOnly = application.state !== 'DRAFT';
 
   const [assessment, setAssessment] = useState<SmeFinancialAssessment | null>(null);
   const [validation, setValidation] = useState<StatementTypeValidation | null>(null);
+  const [corporateRatios, setCorporateRatios] = useState<FinancialRatio[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -287,20 +200,36 @@ const SmeFinancialsTab: React.FC<Props> = ({ application }) => {
       const data = await smeFinancialApi.getAssessment(borrowerProfileId);
       setAssessment(data);
 
-      // Also get validation for current statement type
+      // Push DSCR up to parent
+      const dscrRatio = data.simplifiedRatios.find(r => r.key === 'dscr');
+      onDscrChange?.(dscrRatio?.value ?? null);
+
+      // Push ratios up to parent
+      onRatiosChange?.(data.simplifiedRatios);
+
+      // Get validation
       const valData = await smeFinancialApi.validateStatementType({
         smeFinancialStatementType: data.smeFinancialStatementType,
         yearsTrading: data.yearsTrading,
         annualAmount: data.annualTurnover,
       });
       setValidation(valData);
+
+      // Fetch corporate financial statement ratios (if any)
+      const statements = await creditService.listFinancialStatements(borrowerProfileId);
+      if (statements.length > 0) {
+        // Get ratios from the most recent statement
+        const latest = statements[0];
+        if (latest.ratios) {
+          setCorporateRatios(latest.ratios);
+        }
+      }
     } catch (err: any) {
       setError(friendlyMessage(err, 'Failed to load SME financial assessment'));
-      toast.error('Failed to load SME financial assessment');
     } finally {
       setLoading(false);
     }
-  }, [borrowerProfileId]);
+  }, [borrowerProfileId, onDscrChange, onRatiosChange]);
 
   useEffect(() => {
     fetchAssessment();
@@ -333,24 +262,37 @@ const SmeFinancialsTab: React.FC<Props> = ({ application }) => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Statement Type Requirements */}
-      <StatementTypeCard assessment={assessment} validation={validation} />
+    <div className="space-y-6 p-1">
+      {/* Business Profile + Statement Quality */}
+      <BusinessProfileSection
+        application={application}
+        assessment={assessment}
+        validation={validation}
+      />
 
-      {/* Simplified Ratios */}
-      <SimplifiedRatiosTable ratios={assessment.simplifiedRatios} />
+      {/* Ratios & Trends */}
+      <RatiosAndTrendsSection
+        smeRatios={assessment.simplifiedRatios}
+        corporateRatios={corporateRatios}
+      />
+
+      {/* Risk Indicators */}
+      <FinancialRiskIndicatorsPanel smeRatios={assessment.simplifiedRatios} />
 
       {/* Dual Assessment for Sole Proprietor */}
       {isSoleProprietor && assessment.dualAssessment && (
         <DualAssessmentCard dual={assessment.dualAssessment} />
       )}
 
-      {/* Info box for non-SME */}
+      {/* Non-sole-proprietor info */}
       {!isSoleProprietor && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-700">
           This borrower is classified as <strong>{borrowerType}</strong>. Dual assessment (owner DSR + business DSCR) is only available for sole proprietors.
         </div>
       )}
+
+      {/* Analyst Remarks */}
+      <AnalystRemarks readOnly={readOnly} />
     </div>
   );
 };

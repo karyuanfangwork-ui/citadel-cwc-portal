@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
 import RiskScoreTab from './RiskScoreTab';
 import IndustryOutlookTab from './IndustryOutlookTab';
@@ -8,6 +8,7 @@ import ProfitabilityWalletTab from './ProfitabilityWalletTab';
 import CounterpartiesTab from './CounterpartiesTab';
 import AccountConductTab from './AccountConductTab';
 import ForwardLookingRiskTab from './ForwardLookingRiskTab';
+import CollapsibleSection from '../../../src/components/credit/CollapsibleSection';
 
 interface RiskAssessmentTabProps {
   application: CreditApplication;
@@ -16,61 +17,6 @@ interface RiskAssessmentTabProps {
   onRefresh: () => void;
   isFeatureEnabled: (flag: string) => boolean;
 }
-
-// ── Collapsible Section ──────────────────────────────────────────
-
-interface SectionProps {
-  id: string;
-  label: string;
-  icon: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}
-
-const CollapsibleSection: React.FC<SectionProps> = ({ id, label, icon, defaultOpen = false, children }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <section id={id}>
-      <button
-        onClick={() => setOpen(prev => !prev)}
-        style={{
-          fontFamily: 'var(--cr-font-display)',
-          fontSize: 15,
-          fontWeight: 700,
-          color: 'var(--cr-on-surface, #0f172a)',
-          borderBottom: '1px solid var(--cr-outline-variant, #e2e8f0)',
-          paddingBottom: 8,
-          marginBottom: 16,
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
-          {icon}
-        </span>
-        {label}
-        <span
-          className="material-symbols-outlined"
-          style={{
-            marginLeft: 'auto',
-            fontSize: 20,
-            color: 'var(--cr-outline)',
-            transition: 'transform 0.2s',
-            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-          }}
-        >
-          expand_more
-        </span>
-      </button>
-      {open && <div style={{ marginBottom: 8 }}>{children}</div>}
-    </section>
-  );
-};
 
 const RiskAssessmentTab: React.FC<RiskAssessmentTabProps> = ({
   application,

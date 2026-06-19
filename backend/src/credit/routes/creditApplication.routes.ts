@@ -8,6 +8,7 @@ import {
   createCreditApplicationSchema,
   updateCreditApplicationSchema,
   transitionApplicationSchema,
+  evidenceMappingSchema,
 } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
@@ -176,6 +177,31 @@ router.get(
   requirePermission('credit:read'),
   validateUUID('id'),
   creditApplicationController.getAuditTrail,
+);
+
+/**
+ * GET /applications/:id/evidence-mapping
+ * Get the latest source mapping snapshot for an application
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/evidence-mapping',
+  requirePermission('credit:read'),
+  validateUUID('id'),
+  creditApplicationController.getEvidenceMapping,
+);
+
+/**
+ * POST /applications/:id/evidence-mapping
+ * Persist a new source mapping snapshot
+ * Requires: credit:write
+ */
+router.post(
+  '/:id/evidence-mapping',
+  requirePermission('credit:write'),
+  validateUUID('id'),
+  validate(evidenceMappingSchema),
+  creditApplicationController.saveEvidenceMapping,
 );
 
 /**

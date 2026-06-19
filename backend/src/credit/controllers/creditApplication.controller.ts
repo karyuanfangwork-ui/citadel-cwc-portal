@@ -8,6 +8,7 @@ import { overrideConnectedPartyFlag } from '../services/connectedParty.service';
 import { RmScopedRequest } from '../middleware/rmScope.middleware';
 import { AuditChainService } from '../services/auditChain.service';
 import prisma from '../../utils/prisma';
+import { evidenceMappingSchema } from '../validators/creditApplication.validator';
 
 class CreditApplicationController {
   /**
@@ -244,6 +245,41 @@ class CreditApplicationController {
     }
 
     const result = await creditApplicationService.getAuditTrail(id, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /applications/:id/evidence-mapping — Retrieve the latest source mapping snapshot
+   */
+  getEvidenceMapping = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+
+    const application = await creditApplicationService.getApplication(id);
+    if (!application) {
+      throw new AppError('Credit application not found', 404);
+    }
+
+    const result = await creditApplicationService.getEvidenceMapping(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * POST /applications/:id/evidence-mapping — Persist a source mapping snapshot
+   */
+  saveEvidenceMapping = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const user = requireUser(req);
+    const parsed = evidenceMappingSchema.safeParse({ body: req.body });
+    if (!parsed.success) {
+      throw new AppError(parsed.error.issues[0]?.message || 'Invalid evidence mapping payload', 400);
+    }
+
+    const application = await creditApplicationService.getApplication(id);
+    if (!application) {
+      throw new AppError('Credit application not found', 404);
+    }
+
+    const result = await creditApplicationService.saveEvidenceMapping(id, user.id, parsed.data.body);
     res.json({ status: 'success', data: result });
   });
 

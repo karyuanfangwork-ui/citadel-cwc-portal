@@ -8,6 +8,7 @@ import { validateSubmissionReadiness } from './submissionReadiness.service';
 import { approvalMatrixService } from './approvalMatrix.service';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
+import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1480,6 +1481,60 @@ class CreditApplicationService {
       events,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  /**
+   * Get the latest evidence mapping snapshot for an application.
+   */
+  async getEvidenceMapping(id: string) {
+    const event = await prisma.creditAuditEvent.findFirst({
+      where: { applicationId: id, eventType: 'EVIDENCE_MAPPING' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const updatedBy = event?.actorId
+      ? await prisma.user.findUnique({
+          where: { id: event.actorId },
+          select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+        })
+      : null;
+
+    return event
+      ? {
+          applicationId: id,
+          sourceSummary: (event.metadata as any)?.sourceSummary ?? null,
+          mappings: (event.metadata as any)?.mappings ?? [],
+          updatedAt: event.createdAt.toISOString(),
+          updatedBy,
+        }
+      : {
+          applicationId: id,
+          sourceSummary: null,
+          mappings: [],
+          updatedAt: null,
+          updatedBy: null,
+        };
+  }
+
+  /**
+   * Persist a new evidence mapping snapshot as an audit-chain event.
+   */
+  async saveEvidenceMapping(id: string, actorId: string | undefined, data: EvidenceMappingInput) {
+    const application = await prisma.creditApplication.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!application) {
+      throw new AppError('Credit application not found', 404);
+    }
+
+    await AuditChainService.appendEvent(id, 'EVIDENCE_MAPPING', actorId ?? null, 'upsert_evidence_mapping', null, null, {
+      sourceSummary: data.sourceSummary ?? null,
+      mappings: data.mappings,
+      version: 1,
+    });
+
+    return this.getEvidenceMapping(id);
   }
 
   // -------------------------------------------------------------------------
