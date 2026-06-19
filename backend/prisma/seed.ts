@@ -11,6 +11,7 @@ import {
     SEED_PRODUCTION_USERS,
 } from './seed-admin-config';
 import { seedWorkflows } from './seed-workflows';
+import { seedCreditRuleConfig } from './seeds/creditRuleConfig.seed';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -1428,6 +1429,9 @@ async function main() {
     // ── Workflow Types & Steps (from seed-workflows) ──
     // Must run AFTER request types are created so linking works
     await seedWorkflows(prisma, RETAIN_ADMIN_CONFIG);
+
+    // Seed credit rule config fallback rows
+    await seedCreditRuleConfig(prisma);
 
     // Create Notification Templates (from seed-admin-config)
     if (RETAIN_ADMIN_CONFIG) {

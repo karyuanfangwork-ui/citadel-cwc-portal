@@ -2710,6 +2710,11 @@ enum DocumentClass {
   OTHER
 }
 
+enum RuleConfigKind {
+  REQUIRED_DOCUMENT
+  REQUIRED_FIELD
+}
+
 // Covenant types
 enum CovenantType {
   FINANCIAL_RATIO
@@ -3873,6 +3878,36 @@ model DocumentRequirement {
   
   @@index([applicationId])
   @@map("document_requirements")
+}
+
+model CreditRuleConfig {
+  id            String          @id @default(uuid()) @db.Uuid
+
+  kind          RuleConfigKind   @map("kind")
+
+  // Scope — null means wildcard / applies to all values of that dimension
+  productType   CreditProductType? @map("product_type")
+  lane          ProcessingLane?    @map("lane")
+  borrowerType  BorrowerType?      @map("borrower_type")
+
+  // For REQUIRED_DOCUMENT rows
+  documentClass DocumentClass? @map("document_class")
+  documentLabel String?        @map("document_label") @db.VarChar(255)
+
+  // For REQUIRED_FIELD rows — dot-path into the application payload
+  fieldPath     String?  @map("field_path") @db.VarChar(255)
+  fieldLabel    String?  @map("field_label") @db.VarChar(255)
+
+  isMandatory   Boolean  @default(true) @map("is_mandatory")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([kind, isActive])
+  @@index([productType, lane, borrowerType])
+  @@map("credit_rule_configs")
 }
 
 // ============================================================================

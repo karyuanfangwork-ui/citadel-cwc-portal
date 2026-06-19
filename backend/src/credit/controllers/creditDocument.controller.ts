@@ -364,6 +364,17 @@ class CreditDocumentController {
   });
 
   /**
+   * POST /applications/:applicationId/document-requirements/seed
+   * Seed the default document checklist for a new application.
+   */
+  seedDefaultRequirements = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const applicationId = String(req.params.applicationId);
+    const result = await creditDocumentService.seedDefaultRequirements(applicationId);
+
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
    * GET /document-requirements/:id
    * Get a single document requirement.
    */

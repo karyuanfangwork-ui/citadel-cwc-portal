@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import creditService from '../services/credit.service';
+import creditService, { CreditIntegrationsStatus } from '../services/credit.service';
 
 /**
  * Credit feature flags — fetched from the backend public endpoint.
@@ -10,6 +10,7 @@ import creditService from '../services/credit.service';
  */
 export function useCreditFeatureFlags() {
   const [flags, setFlags] = useState<Record<string, boolean>>({});
+  const [integrations, setIntegrations] = useState<CreditIntegrationsStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,10 +20,11 @@ export function useCreditFeatureFlags() {
       .then(data => {
         if (cancelled) return;
         const map: Record<string, boolean> = {};
-        for (const f of data) {
+        for (const f of data.flags) {
           map[f.key] = f.enabled;
         }
         setFlags(map);
+        setIntegrations(data.integrations ?? null);
       })
       .catch(() => {
         // Non-critical — flags default to false
@@ -38,5 +40,5 @@ export function useCreditFeatureFlags() {
     return flags[key] ?? false;
   }, [flags]);
 
-  return { flags, loading, isFeatureEnabled };
+  return { flags, integrations, loading, isFeatureEnabled };
 }

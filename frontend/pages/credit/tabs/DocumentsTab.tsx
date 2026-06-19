@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import creditService, { CreditApplication, CreditDocument, DocumentStatus } from '../../../src/services/credit.service';
+import creditService, { CreditApplication, CreditDocument, DocumentStatus, DocumentRequirement, ChecklistProgress } from '../../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import EmptyState from '../../../src/components/EmptyState';
@@ -36,17 +36,10 @@ function getDocClasses(borrowerType?: string, segment?: BorrowerSegment) {
   return filtered;
 }
 
-const REQUIRED_BY_TYPE: Record<string, string[]> = {
-  INDIVIDUAL: ['NRIC_PASSPORT', 'PAYSLIP', 'BANK_STATEMENT'],
-  SOLE_PROPRIETOR: ['NRIC_PASSPORT', 'SSM_CERT', 'BANK_STATEMENT'],
-  JOINT: ['JV_AGREEMENT', 'AUDITED_FINANCIALS'],
-  CORPORATE: ['SSM_CERT', 'AUDITED_FINANCIALS', 'MOA_AOA'],
-};
-
-const LABEL: Record<string, string> = Object.fromEntries(ALL_DOC_CLASSES.map(d => [d.value, d.label]));
+const LABEL: Record<string, string> = Object.fromEntries(ALL_DOC_CLASSES.map((d) => [d.value, d.label]));
 
 const STATUS_STYLE: Record<DocumentStatus, { bg: string; text: string; label: string }> = {
-  PENDING:  { bg: '#fef9c3', text: '#854d0e', label: 'Pending' },
+  PENDING: { bg: '#fef9c3', text: '#854d0e', label: 'Pending' },
   VERIFIED: { bg: '#dcfce7', text: '#166534', label: 'Verified' },
   REJECTED: { bg: '#fee2e2', text: '#991b1b', label: 'Rejected' },
 };
@@ -59,6 +52,8 @@ interface DocumentsTabProps {
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   const [docs, setDocs] = useState<CreditDocument[]>([]);
+  const [requirements, setRequirements] = useState<DocumentRequirement[]>([]);
+  const [progress, setProgress] = useState<ChecklistProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [verifying, setVerifying] = useState<string | null>(null);
@@ -82,7 +77,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     }
   };
 
-  useEffect(() => { fetchDocs(); }, [app.id]);
+  const fetchChecklist = async () => {
+    try {
+      let checklist = await creditService.listDocumentRequirements(app.id);
+      if (checklist.requirements.length === 0) {
+        await creditService.seedDocumentRequirements(app.id);
+        checklist = await creditService.listDocumentRequirements(app.id);
+      }
+      setRequirements(checklist.requirements);
+      setProgress(checklist.progress);
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to load document checklist'));
+    }
+  };
+
+  useEffect(() => {
+    fetchDocs();
+    fetchChecklist();
+  }, [app.id]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,12 +106,18 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     if (description.trim()) fd.append('description', description);
     try {
       setUploading(true);
-      await creditService.uploadApplicationDocument(app.borrowerProfileId, app.id, fd);
+      const uploaded = await creditService.uploadApplicationDocument(app.borrowerProfileId, app.id, fd);
+      const match = requirements.find(
+        (req) => req.isMandatory && !req.isCollected && req.documentClass === (uploaded.classification ?? ''),
+      );
+      if (match) {
+        await creditService.linkRequirementDoc(match.id, uploaded.id);
+      }
       toast.success('Document uploaded');
       setFile(null);
       setDescription('');
       if (fileRef.current) fileRef.current.value = '';
-      fetchDocs();
+      await Promise.all([fetchDocs(), fetchChecklist()]);
     } catch (e) {
       toast.error(friendlyMessage(e, 'Upload failed'));
     } finally {
@@ -112,7 +130,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     try {
       await creditService.deleteDocument(docId);
       toast.success('Document deleted');
-      setDocs(prev => prev.filter(d => d.id !== docId));
+      setDocs((prev) => prev.filter((d) => d.id !== docId));
+      fetchChecklist();
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to delete document'));
     }
@@ -121,9 +140,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   const handleVerify = async (docId: string) => {
     try {
       setVerifying(docId);
-      const updated = await creditService.verifyDocument(docId);
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, verificationStatus: 'VERIFIED' as DocumentStatus } : d));
+      await creditService.verifyDocument(docId);
+      setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, verificationStatus: 'VERIFIED' as DocumentStatus } : d)));
       toast.success('Document verified');
+      fetchChecklist();
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to verify document'));
     } finally {
@@ -135,11 +155,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     if (!rejectReason.trim()) { toast.error('Rejection reason is required'); return; }
     try {
       setVerifying(docId);
-      const updated = await creditService.rejectDocument(docId, rejectReason);
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, verificationStatus: 'REJECTED' as DocumentStatus, rejectionReason: rejectReason } : d));
+      await creditService.rejectDocument(docId, rejectReason);
+      setDocs((prev) => prev.map((d) => (d.id === docId ? { ...d, verificationStatus: 'REJECTED' as DocumentStatus, rejectionReason: rejectReason } : d)));
       toast.success('Document rejected');
       setRejectingId(null);
       setRejectReason('');
+      fetchChecklist();
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to reject document'));
     } finally {
@@ -150,11 +171,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   const borrowerType = app.borrowerProfile?.borrowerType;
   const segment = getBorrowerSegment(borrowerType);
   const docClasses = getDocClasses(borrowerType, segment);
-  const requiredClasses = REQUIRED_BY_TYPE[borrowerType ?? ''] ?? REQUIRED_BY_TYPE['CORPORATE'];
-  const uploadedClasses = new Set(docs.map(d => (d as any).classification));
+  const uploadedClasses = new Set(docs.map((d) => (d as any).classification));
   const nricFromProfile = !!((app.borrowerProfile as any)?.contact?.nricPassport);
-  const missingRequired = requiredClasses.filter(c => !uploadedClasses.has(c));
-  const effectiveMissing = missingRequired.filter(c => !(c === 'NRIC_PASSPORT' && nricFromProfile));
+  const liveRequiredClasses = new Set(requirements.filter((req) => req.isMandatory).map((req) => req.documentClass));
+  const missingRequired = requirements.filter(
+    (req) => req.isMandatory && !req.isCollected && !(req.documentClass === 'NRIC_PASSPORT' && nricFromProfile),
+  );
 
   return (
     <div className="space-y-6">
@@ -179,15 +201,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
           </span>
         </div>
       )}
-      {/* Required docs status */}
-      {effectiveMissing.length > 0 && (
+
+      {/* Required documents status */}
+      {missingRequired.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">warning</span>
           <div>
             <p className="text-sm font-bold text-amber-800 mb-1">Required documents missing</p>
             <ul className="text-xs text-amber-700 space-y-0.5">
-              {effectiveMissing.map(c => (
-                <li key={c}>• {LABEL[c]}</li>
+              {missingRequired.map((req) => (
+                <li key={req.id}>• {req.label}</li>
               ))}
             </ul>
           </div>
@@ -204,6 +227,52 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
               Borrower's NRIC / Passport is on file from their profile. A scanned copy can still be uploaded below for your records.
             </p>
           </div>
+        </div>
+      )}
+
+      {progress && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Required Documents</h3>
+              <p className="text-xs text-text-secondary mt-1">Live checklist linked to the application requirement engine.</p>
+            </div>
+            <span className="text-xs text-text-secondary">
+              {progress.collectedMandatory}/{progress.totalMandatory} collected ({progress.completionPct}%)
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className="h-2 rounded-full bg-green-600 transition-all"
+              style={{ width: `${progress.completionPct}%` }}
+            />
+          </div>
+          <ul className="space-y-2">
+            {requirements.map((req) => {
+              const collected = req.isCollected;
+              return (
+                <li key={req.id} className="flex items-start gap-3 text-sm">
+                  <span className={`mt-0.5 text-base ${collected ? 'text-green-600' : 'text-gray-400'}`}>
+                    {collected ? '✓' : '○'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-text-primary">{req.label}</span>
+                      {req.isMandatory && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">Required</span>
+                      )}
+                      {req.linkedDoc?.fileName && (
+                        <span className="text-[10px] text-gray-500">Linked: {req.linkedDoc.fileName}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-0.5">
+                      {req.documentClass}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -239,13 +308,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
             </label>
             <select
               value={classification}
-              onChange={e => setClassification(e.target.value)}
+              onChange={(e) => setClassification(e.target.value)}
               className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200"
               style={{ fontFamily: 'var(--font-sans)' }}
             >
-              {docClasses.map(d => (
+              {docClasses.map((d) => (
                 <option key={d.value} value={d.value}>
-                  {d.label}{requiredClasses.includes(d.value) ? ' (required)' : ''}
+                  {d.label}{liveRequiredClasses.has(d.value) ? ' (required)' : ''}
                 </option>
               ))}
             </select>
@@ -255,7 +324,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
             <input
               ref={fileRef}
               type="file"
-              onChange={e => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="w-full text-sm text-text-primary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
             />
           </div>
@@ -264,7 +333,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
             <input
               type="text"
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional note"
               className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200"
             />
@@ -302,7 +371,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
           />
         ) : (
           <ul className="divide-y divide-border">
-            {docs.map(doc => {
+            {docs.map((doc) => {
               const status = (doc.verificationStatus ?? doc.status ?? 'PENDING') as DocumentStatus;
               const style = STATUS_STYLE[status] ?? STATUS_STYLE.PENDING;
               const classification = (doc as any).classification as string;
@@ -374,7 +443,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
                       <input
                         type="text"
                         value={rejectReason}
-                        onChange={e => setRejectReason(e.target.value)}
+                        onChange={(e) => setRejectReason(e.target.value)}
                         placeholder="Reason for rejection…"
                         className="flex-1 px-3 py-1.5 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-red-200"
                         autoFocus

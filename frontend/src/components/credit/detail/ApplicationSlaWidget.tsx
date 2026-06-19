@@ -13,6 +13,7 @@ import React, { useState } from 'react';
 interface ApplicationSlaWidgetProps {
   slaDaysLeft: number | null;
   createdAt: string | null;
+  slaTargetHours?: number | null;
 }
 
 const DEFAULT_SLA_DAYS = 14;
@@ -75,6 +76,7 @@ const SlaRing: React.FC<{ pct: number; color: string; size?: number; centerText:
 const ApplicationSlaWidget: React.FC<ApplicationSlaWidgetProps> = ({
   slaDaysLeft,
   createdAt,
+  slaTargetHours,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -88,10 +90,10 @@ const ApplicationSlaWidget: React.FC<ApplicationSlaWidgetProps> = ({
     else if (slaDaysLeft <= 3) ringColor = '#d97706'; // amber
   }
 
-  // Calculate percentage: how much of the SLA has elapsed
+  const targetDays = Math.max(1, Math.round((slaTargetHours ?? DEFAULT_SLA_DAYS * 24) / 24));
   const pct =
     slaDaysLeft !== null
-      ? Math.max(0, Math.min(100, (slaDaysLeft / DEFAULT_SLA_DAYS) * 100))
+      ? Math.max(0, Math.min(100, ((slaDaysLeft / targetDays) * 100)))
       : 0;
 
   // Center text inside ring

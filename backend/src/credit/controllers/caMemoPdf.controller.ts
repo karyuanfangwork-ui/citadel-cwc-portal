@@ -7,7 +7,7 @@ const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: '
 const esc = (s: any) => (s != null ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '—');
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildHtml(app: any, title: string): string {
+export function buildHtml(app: any, title: string): string {
   const borrower = app.borrowerProfile?.account?.name ?? app.borrowerProfile?.contact
     ? `${app.borrowerProfile.contact?.firstName} ${app.borrowerProfile.contact?.lastName}`
     : 'Unknown Borrower';
@@ -262,6 +262,15 @@ ${(app.conditions ?? []).length > 0 ? `<h3>Conditions Precedent</h3>
 
 </body>
 </html>`;
+}
+
+export async function previewCaMemo(req: Request, res: Response, next: NextFunction) {
+  try {
+    const app = await getCaMemoData(String(req.params.appId));
+    const title = `CA Memo — ${app.applicationNo}`;
+    const html = buildHtml(app, title);
+    res.type('html').send(html);
+  } catch (e) { next(e); }
 }
 
 export async function generateCaMemo(req: Request, res: Response, next: NextFunction) {

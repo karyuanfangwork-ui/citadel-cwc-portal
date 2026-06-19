@@ -55,7 +55,8 @@ const emptyForm: FormState = {
 // ── Component ────────────────────────────────────────────────────
 
 const RetailFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) => {
-  const readOnly = application.state !== 'DRAFT';
+  const LOCKED_STATES = new Set(['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED', 'CONDITION_FULFILMENT', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN']);
+  const readOnly = LOCKED_STATES.has(application.state ?? '');
   const appId = application.id;
 
   const [form, setForm] = useState<FormState>(emptyForm);

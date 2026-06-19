@@ -201,6 +201,44 @@ export interface CreditDocument {
   verifier?: CreditUserRef;
 }
 
+export interface DocumentRequirementLinkedDoc {
+  id: string;
+  fileName: string;
+  classification: string;
+  isAvClean: boolean | null;
+  sha256Hash?: string | null;
+}
+
+export interface DocumentRequirement {
+  id: string;
+  applicationId: string;
+  documentClass: string;
+  label: string;
+  isMandatory: boolean;
+  isCollected: boolean;
+  collectedDocId: string | null;
+  sortOrder: number;
+  linkedDoc?: DocumentRequirementLinkedDoc | null;
+}
+
+export interface ChecklistProgress {
+  totalMandatory: number;
+  collectedMandatory: number;
+  completionPct: number;
+}
+
+export interface ChecklistSummary {
+  mandatory: { total: number; collected: number; outstanding: number; completionPct: number };
+  optional: { total: number; collected: number; outstanding: number; completionPct: number };
+  allMandatoryCollected: boolean;
+  outstandingItems: { id: string; documentClass: string; label: string; sortOrder: number }[];
+}
+
+export interface SeedDocumentRequirementsResult {
+  created: number;
+  skipped: boolean;
+}
+
 export type EvidenceSourceType =
   | 'MANUAL'
   | 'APPLICATION_FORM'
@@ -275,6 +313,8 @@ export interface CreditApplication {
   scoreRunCount?: number;
   latestScoreRunAt?: string | null;
   latestScoreRunStatus?: string | null;
+  slaTargetHours?: number | null;
+  slaDueAt?: string | null;
   rmId: string | null;
   analystId: string | null;
   // §3.1 — Multi-branch support
@@ -332,6 +372,17 @@ export interface CreditApplication {
   facilities?: CreditFacility[];
   parties?: CreditApplicationParty[];
   approvals?: CreditApproval[];
+}
+
+export interface CreditIntegrationsStatus {
+  bureau: 'LIVE' | 'PLACEHOLDER';
+  aml: 'LIVE' | 'PLACEHOLDER';
+  ocr: 'LIVE' | 'PLACEHOLDER';
+}
+
+export interface PublicFeatureFlagsResponse {
+  flags: { key: string; enabled: boolean }[];
+  integrations: CreditIntegrationsStatus;
 }
 
 export interface CreditFacility {
@@ -823,6 +874,26 @@ const creditService = {
     return res.data.data.documents as CreditDocument[];
   },
 
+  async listDocumentRequirements(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/document-requirements`);
+    return res.data.data as { requirements: DocumentRequirement[]; progress: ChecklistProgress };
+  },
+
+  async getChecklistSummary(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/document-requirements/summary`);
+    return res.data.data as ChecklistSummary;
+  },
+
+  async seedDocumentRequirements(applicationId: string) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/document-requirements/seed`);
+    return res.data.data as SeedDocumentRequirementsResult;
+  },
+
+  async linkRequirementDoc(requirementId: string, collectedDocId: string | null) {
+    const res = await apiClient.patch(`/credit/document-requirements/${requirementId}`, { collectedDocId });
+    return res.data.data.requirement as DocumentRequirement;
+  },
+
   async uploadDocument(borrowerProfileId: string, formData: FormData) {
     const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -926,10 +997,16 @@ const creditService = {
     return res.data.data.flags as { key: string; enabled: boolean }[];
   },
 
-  /** Public endpoint — no admin permission required. Returns {key, enabled} for all credit flags. */
-  async getPublicFeatureFlags(): Promise<{ key: string; enabled: boolean }[]> {
+  /** Public endpoint — no admin permission required. Returns flags plus integration states. */
+  async getPublicFeatureFlags(): Promise<PublicFeatureFlagsResponse> {
     const res = await apiClient.get('/credit/feature-flags/public');
-    return res.data.data.flags as { key: string; enabled: boolean }[];
+    return res.data.data as PublicFeatureFlagsResponse;
+  },
+
+  /** Read-only CA Memo HTML preview for the in-app workspace. */
+  async previewCaMemoHtml(id: string): Promise<string> {
+    const res = await apiClient.get(`/credit/applications/${id}/ca-memo/preview`, { responseType: 'text' });
+    return res.data as string;
   },
 
   // ── P2-2: Processing Lanes ──────────────────────────────────────────────────

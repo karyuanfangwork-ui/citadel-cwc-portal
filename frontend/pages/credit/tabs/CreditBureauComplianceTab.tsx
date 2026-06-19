@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreditApplication } from '../../../src/services/credit.service';
+import { CreditApplication, CreditIntegrationsStatus } from '../../../src/services/credit.service';
 import CreditChecksTab from './CreditChecksTab';
 import {
   AiCompliancePanel,
@@ -11,6 +11,7 @@ import {
 type Props = {
   application: CreditApplication;
   onUpdated: (next: CreditApplication) => void;
+  integrations: CreditIntegrationsStatus | null;
 };
 
 const panelStyle: React.CSSProperties = {
@@ -30,7 +31,7 @@ const sectionHeaderStyle: React.CSSProperties = {
   marginBottom: 16,
 };
 
-const CreditBureauComplianceTab: React.FC<Props> = ({ application, onUpdated }) => {
+const CreditBureauComplianceTab: React.FC<Props> = ({ application, onUpdated, integrations }) => {
   const checklist = (application as any).bureauChecklist;
   const statusItems = [
     { label: 'CCRIS uploaded', done: Boolean(checklist?.ccrisUploaded) },
@@ -45,6 +46,34 @@ const CreditBureauComplianceTab: React.FC<Props> = ({ application, onUpdated }) 
 
   return (
     <div className="space-y-6">
+      {integrations && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <div className="flex items-start gap-2">
+            <span className="material-symbols-outlined text-base mt-0.5">integration_instructions</span>
+            <div>
+              <p className="font-semibold mb-1">Integration status</p>
+              <p className="text-xs text-blue-800 mb-3">
+                Sandbox placeholders are shown until live integrations are connected.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                {[
+                  ['bureau', 'Credit bureau'],
+                  ['aml', 'AML screening'],
+                  ['ocr', 'OCR extraction'],
+                ].map(([key, label]) => (
+                  <div key={key} className="rounded-md border border-blue-200 bg-white px-3 py-2 flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-700">{label}</span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-semibold ${integrations[key as keyof CreditIntegrationsStatus] === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {integrations[key as keyof CreditIntegrationsStatus]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section style={panelStyle}>
         <h3 style={sectionHeaderStyle}>
           <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>

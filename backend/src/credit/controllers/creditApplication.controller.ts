@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditApplicationService } from '../services/creditApplication.service';
+import { creditSlaService } from '../services/creditSla.service';
 import { requireUser } from '../utils/requireUser';
 import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
 import { overrideConnectedPartyFlag } from '../services/connectedParty.service';
@@ -111,7 +112,24 @@ class CreditApplicationController {
       });
     }
 
-    res.json({ status: 'success', data: { application } });
+    const sla = await creditSlaService.getEffectiveSlaForApplication({
+      id: application.id,
+      state: application.state,
+      productType: application.productType,
+      branchId: application.branchId ?? null,
+      createdAt: application.createdAt,
+    });
+
+    res.json({
+      status: 'success',
+      data: {
+        application: {
+          ...application,
+          slaTargetHours: sla.slaTargetHours,
+          slaDueAt: sla.slaDueAt,
+        },
+      },
+    });
   });
 
   /**

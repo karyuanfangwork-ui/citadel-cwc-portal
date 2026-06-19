@@ -24,7 +24,8 @@ type Props = {
 };
 
 const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
-  const readOnly = application.state !== 'DRAFT';
+  const LOCKED_STATES = new Set(['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED', 'CONDITION_FULFILMENT', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN']);
+  const readOnly = LOCKED_STATES.has(application.state ?? '');
 
   const [form, setForm] = useState<Partial<CreditApplication>>(application);
   const dirtyKeys = useRef<Set<keyof CreditApplication>>(new Set());

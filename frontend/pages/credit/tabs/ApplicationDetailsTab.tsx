@@ -15,6 +15,7 @@ import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import useAutosave from '../../../src/hooks/useAutosave';
 import LoanRequestTab from './LoanRequestTab';
 import RequestsFacilitiesTab from './RequestsFacilitiesTab';
+import RetailFacilitiesTab from './RetailFacilitiesTab';
 
 interface ApplicationDetailsTabProps {
   application: CreditApplication;
@@ -195,7 +196,8 @@ const ApplicationDetailsTab: React.FC<ApplicationDetailsTabProps> = ({
   onDirtyChange,
   advancedMemo,
 }) => {
-  const readOnly = application.state !== 'DRAFT';
+  const LOCKED_STATES = new Set(['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED', 'CONDITION_FULFILMENT', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN']);
+  const readOnly = LOCKED_STATES.has(application.state ?? '');
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [requestItems, setRequestItems] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,14 +239,14 @@ const ApplicationDetailsTab: React.FC<ApplicationDetailsTabProps> = ({
         <LoanRequestTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
       </CaMemoSection>
 
-      {/* ── Section 2: Structuring & Pricing ────────────────────────────── */}
-      <CaMemoSection title="Structuring & Pricing" phase="S1">
-        {facilities.length === 0 ? (
-          <div className="text-sm text-gray-400 py-4">
-            No facilities have been added to this application yet.
-            {advancedMemo && ' Use the Facilities & CA Memo section below to add one.'}
-          </div>
-        ) : (
+      {/* ── Section 2: Facilities ───────────────────────────────────────── */}
+      <CaMemoSection title="Facilities" phase="S1">
+        <RetailFacilitiesTab application={application} onDirtyChange={onDirtyChange} />
+      </CaMemoSection>
+
+      {/* ── Section 3: Structuring & Pricing (only when facilities exist) ── */}
+      {facilities.length > 0 && (
+        <CaMemoSection title="Structuring & Pricing" phase="S1">
           <div className="space-y-3">
             {facilities.map((f, i) => (
               <FacilityStructuringCard
@@ -257,8 +259,8 @@ const ApplicationDetailsTab: React.FC<ApplicationDetailsTabProps> = ({
               />
             ))}
           </div>
-        )}
-      </CaMemoSection>
+        </CaMemoSection>
+      )}
 
       {/* ── Section 3: Recommendation & Justification ────────────────────── */}
       <CaMemoSection title="Recommendation & Justification" phase="S1">

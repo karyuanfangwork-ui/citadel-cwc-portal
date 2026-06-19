@@ -10,6 +10,7 @@ import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor
 import { hasPendingScoreOverride } from './scoreOverride.service';
 import { isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
 import { fatcaCrsService } from './fatcaCrs.service';
+import { checkRequiredFields } from './creditFieldCheck.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -119,6 +120,23 @@ export async function validateSubmissionReadiness(
   }
 
   // ---- Check 3: Mandatory documents (per borrower type) ----
+  const ruleScope = {
+    productType: application.productType ?? null,
+    lane: (application.lane as string) ?? 'PERSONAL_FAST',
+    borrowerType: application.borrowerProfile.borrowerType as string,
+  };
+
+  if (stage === 'submission') {
+    const fieldCheck = await checkRequiredFields(ruleScope, application as Record<string, any>);
+    for (const missing of fieldCheck.missing) {
+      errors.push({
+        field: missing.fieldPath,
+        message: `Required field missing: ${missing.label}`,
+        severity: 'error',
+      });
+    }
+  }
+
   const mandatoryClasses = getRequiredDocuments(application.borrowerProfile.borrowerType as string);
   for (const docClass of mandatoryClasses) {
     const hasDoc = application.documents.some((d) => d.classification === docClass);

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission, requireServiceApiKey } from '../../middleware/auth.middleware';
 import { requireFeatureFlag, invalidateFlagCache } from '../middleware/featureFlag.middleware';
 import prisma from '../../utils/prisma';
+import { getIntegrationsStatus } from '../adapters/registry';
 
 // Sprint 1 — Borrower + Documents
 import borrowerProfileRoutes from './borrowerProfile.routes';
@@ -58,7 +59,7 @@ import monitoringItemRoutes from './monitoringItem.routes';
 import securityRoutes from './security.routes';
 
 // CA Memo Phase 5
-import { generateCaMemo } from '../controllers/caMemoPdf.controller';
+import { generateCaMemo, previewCaMemo } from '../controllers/caMemoPdf.controller';
 import { getApprovalPack } from '../controllers/approvalPack.controller';
 import bureauCheckRoutes from './bureauCheck.routes';
 import qualitativeAssessmentRoutes from './qualitativeAssessment.routes';
@@ -104,6 +105,7 @@ import amlRescreenRoutes from './amlRescreen.routes';
 
 // §6.2 — Credit Policy Limits
 import policyLimitRoutes from './policyLimit.routes';
+import creditRuleConfigRoutes from './creditRuleConfig.routes';
 
 // §F23 — FX Rate Admin
 import fxRateRoutes from './fxRate.routes';
@@ -129,7 +131,7 @@ router.get('/feature-flags/public', authenticate, requirePermission('credit:read
     select: { key: true, enabled: true },
     orderBy: { key: 'asc' },
   });
-  res.json({ status: 'success', data: { flags } });
+  res.json({ status: 'success', data: { flags, integrations: getIntegrationsStatus() } });
 });
 
 // Admin endpoint — returns full flag details
@@ -253,6 +255,7 @@ router.use(monitoringItemRoutes);
 router.use('/security', securityRoutes);
 
 // CA Memo Phase 5
+router.get('/applications/:appId/ca-memo/preview', authenticate, requirePermission('credit:read'), previewCaMemo);
 router.get('/applications/:appId/ca-memo', authenticate, requirePermission('credit:read'), generateCaMemo);
 router.get('/applications/:appId/approval-pack', authenticate, requirePermission('credit:read'), getApprovalPack);
 router.use('/applications', bureauCheckRoutes);
@@ -299,6 +302,7 @@ router.use('/', amlRescreenRoutes);
 
 // §6.2 — Credit Policy Limits
 router.use('/policy-limits', policyLimitRoutes);
+router.use('/', creditRuleConfigRoutes);
 
 // §F23 — FX Rate Admin
 router.use('/fx-rates', fxRateRoutes);

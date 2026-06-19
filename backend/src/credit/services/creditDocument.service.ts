@@ -5,6 +5,7 @@ import { s3Service } from '../../services/s3.service';
 import { AuditChainService } from './auditChain.service';
 import { requireEditableState, requireDeletableState } from './stateGuard.util';
 import { AppError } from '../../middleware/error.middleware';
+import { resolveRequiredDocuments } from './creditRuleEngine.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -749,6 +750,49 @@ class CreditDocumentService {
     });
 
     return result;
+  }
+
+  /**
+   * Seed a starter document checklist for an application based on borrower type.
+   * Idempotent: skips when the application already has requirements.
+   */
+  async seedDefaultRequirements(
+    applicationId: string,
+  ): Promise<{ created: number; skipped: boolean }> {
+    const existing = await prisma.documentRequirement.count({ where: { applicationId } });
+    if (existing > 0) {
+      return { created: 0, skipped: true };
+    }
+
+    const app = await prisma.creditApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        borrowerProfile: { select: { borrowerType: true } },
+      },
+    });
+
+    if (!app) {
+      throw new AppError('Application not found', 404);
+    }
+
+    const resolved: Array<{ documentClass: DocumentClass; label: string; isMandatory: boolean; sortOrder: number }> = await resolveRequiredDocuments({
+      productType: app?.productType ?? null,
+      lane: (app?.lane as string) ?? 'PERSONAL_FAST',
+      borrowerType: app?.borrowerProfile?.borrowerType ?? 'INDIVIDUAL',
+    });
+
+    const result = await prisma.documentRequirement.createMany({
+      data: resolved.map((item, index) => ({
+        applicationId,
+        documentClass: item.documentClass,
+        label: item.label,
+        isMandatory: item.isMandatory,
+        sortOrder: item.sortOrder ?? index,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { created: result.count, skipped: false };
   }
 
   /**

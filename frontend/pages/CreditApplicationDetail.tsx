@@ -25,7 +25,7 @@ import ApplicationTeamWidget from '../src/components/credit/detail/ApplicationTe
 import ApplicationPendingTasks from '../src/components/credit/detail/ApplicationPendingTasks';
 import ApplicationCustomerInsights from '../src/components/credit/detail/ApplicationCustomerInsights';
 import ApplicationNotesWidget from '../src/components/credit/detail/ApplicationNotesWidget';
-import SectionCompletionHeader, { CompletionStatus } from '../src/components/credit/detail/SectionCompletionHeader';
+import SectionCompletionHeader, { CompletionStatus, CompletionItem } from '../src/components/credit/detail/SectionCompletionHeader';
 
 // ── Legacy panels (still used for mobile / fallback) ──
 import ApplicationAlertsPanel, { AlertItem } from '../src/components/credit/detail/ApplicationAlertsPanel';
@@ -45,6 +45,7 @@ import CollateralGuaranteesTab from './credit/tabs/CollateralGuaranteesTab';
 import FinancialProfileTab from './credit/tabs/FinancialProfileTab';
 import CreditBureauComplianceTab from './credit/tabs/CreditBureauComplianceTab';
 import RiskAssessmentTab from './credit/tabs/RiskAssessmentTab';
+import CaMemoPreviewTab from './credit/tabs/CaMemoPreviewTab';
 
 import ScoreOutdatedBanner from '../src/components/credit/ScoreOutdatedBanner';
 import BorrowerSummaryCard, { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
@@ -104,7 +105,7 @@ const CreditApplicationDetail: React.FC = () => {
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { flags: featureFlags, isFeatureEnabled } = useCreditFeatureFlags();
+  const { flags: featureFlags, integrations, isFeatureEnabled } = useCreditFeatureFlags();
   const { lane, reason: laneReason } = useApplicationLane(id);
 
   useEffect(() => {
@@ -485,11 +486,15 @@ const CreditApplicationDetail: React.FC = () => {
   const segment = getBorrowerSegment(app.borrowerProfile?.borrowerType);
   const journeyStageIndex = getJourneyStage(currentState);
 
-  // SLA days remaining
+  // SLA days remaining — use backend-provided target when available
   const slaDaysLeft = (() => {
+    if (app?.slaDueAt) {
+      return Math.ceil((new Date(app.slaDueAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    }
     if (!app?.createdAt) return null;
     const created = new Date(app.createdAt);
-    const slaTarget = new Date(created.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const fallbackHours = app.slaTargetHours ?? 14 * 24;
+    const slaTarget = new Date(created.getTime() + fallbackHours * 60 * 60 * 1000);
     return Math.ceil((slaTarget.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   })();
 
@@ -575,12 +580,27 @@ const CreditApplicationDetail: React.FC = () => {
       return content;
     }
     const blockers = (readiness?.errors ?? []).map(e => `${e.field}: ${e.message}`);
+
+    // For s1 (Application Details), show a field-level checklist so the user knows exactly what's missing
+    let items: CompletionItem[] | undefined;
+    if (phaseKey === 's1' && phaseStatus === 'incomplete') {
+      const hasVal = (v: unknown) => v != null && String(v).trim() !== '';
+      items = [
+        { label: 'Requested Amount', status: hasVal(app?.requestedAmount) ? 'done' : 'missing' },
+        { label: 'Tenor', status: hasVal(app?.requestedTenor) ? 'done' : 'missing' },
+        { label: 'Product Type', status: hasVal(app?.productType) ? 'done' : 'missing' },
+        { label: 'Purpose', status: hasVal(app?.purpose) ? 'done' : 'missing' },
+        { label: 'Facility added', status: facilities.length > 0 ? 'done' : 'missing' },
+      ];
+    }
+
     return (
       <>
         <SectionCompletionHeader
           title={title}
           status={phaseStatus}
           blockers={phaseStatus === 'blocked' || phaseStatus === 'incomplete' ? blockers.slice(0, 3) : []}
+          items={items}
         />
         {content}
       </>
@@ -626,7 +646,7 @@ const CreditApplicationDetail: React.FC = () => {
             if (!app.createdAt) return 50;
             const created = new Date(app.createdAt);
             const elapsedDays = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
-            const slaDays = 14;
+            const slaDays = Math.max(1, Math.round((app.slaTargetHours ?? 14 * 24) / 24));
             if (elapsedDays > slaDays) return Math.max(10, 100 - Math.round(((elapsedDays - slaDays) / slaDays) * 50));
             return Math.round(100 - (elapsedDays / slaDays) * 100);
           })()}
@@ -635,11 +655,12 @@ const CreditApplicationDetail: React.FC = () => {
       case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} lane={lane} />);
       case 'application-details': return renderTabWithHeader('application-details', 's1', 'Application Details', <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />);
       case 'financial-profile': return renderTabWithHeader('financial-profile', 's3', 'Financial Profile', <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
-      case 'credit-bureau': return renderTabWithHeader('credit-bureau', 's5', 'Credit Bureau & Compliance', <CreditBureauComplianceTab application={app!} onUpdated={setApp} />);
+      case 'credit-bureau': return renderTabWithHeader('credit-bureau', 's5', 'Credit Bureau & Compliance', <CreditBureauComplianceTab application={app!} onUpdated={setApp} integrations={integrations} />);
       case 'risk-assessment': return renderTabWithHeader('risk-assessment', 's4', 'Risk Assessment', <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />);
       case 'collateral-guarantees': return renderTabWithHeader('collateral-guarantees', 's6', 'Collateral & Guarantees', <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
       case 'documents': return renderTabWithHeader('documents', 'meta', 'Documents', <DocumentsTab app={app!} canApprove={canApprove} />);
       case 'approvals': return renderTabWithHeader('approvals', 's7', 'Approvals', <ApprovalsTab360 app={app!} onRefresh={fetchApp} onUpdated={setApp} />);
+      case 'ca-memo': return renderTabWithHeader('ca-memo', 's7', 'CA Memo', <CaMemoPreviewTab applicationId={app!.id} applicationNo={app!.applicationNo} />);
       case 'conditions-offer': return <ConditionsOfferTab app={app!} facilities={facilities} onRefresh={fetchApp} onUpdated={(updated) => setApp(updated)} />;
       case 'disbursement': return <DisbursementTab application={app!} onUpdated={(updated) => setApp(updated)} />;
       case 'timeline-audit': return <TimelineAuditTab applicationId={app!.id} />;
@@ -867,6 +888,7 @@ const CreditApplicationDetail: React.FC = () => {
           <ApplicationSlaWidget
             slaDaysLeft={slaDaysLeft}
             createdAt={app.createdAt ?? null}
+            slaTargetHours={app.slaTargetHours ?? null}
           />
 
           <ApplicationTeamWidget
@@ -904,6 +926,7 @@ const CreditApplicationDetail: React.FC = () => {
         <ApplicationSlaWidget
           slaDaysLeft={slaDaysLeft}
           createdAt={app.createdAt ?? null}
+          slaTargetHours={app.slaTargetHours ?? null}
         />
         {criticalAlerts.length > 0 && (
           <ApplicationAlertsPanel

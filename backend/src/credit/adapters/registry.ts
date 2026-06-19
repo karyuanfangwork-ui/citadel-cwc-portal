@@ -27,6 +27,14 @@ let esignProvider: IEsignProvider | null = null;
 
 let bureauGuardChecked = false;
 
+export function getIntegrationsStatus(): { bureau: 'LIVE' | 'PLACEHOLDER'; aml: 'LIVE' | 'PLACEHOLDER'; ocr: 'LIVE' | 'PLACEHOLDER' } {
+  return {
+    bureau: process.env.BUREAU_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
+    aml: process.env.AML_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
+    ocr: process.env.OCR_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
+  };
+}
+
 export function getAmlProvider(): IAmlProvider {
   if (!amlProvider) {
     // TODO: Add config check for real provider when available

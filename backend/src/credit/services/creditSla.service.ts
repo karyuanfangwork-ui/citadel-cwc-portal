@@ -72,29 +72,71 @@ class CreditSlaService {
   async computeSlaDueDate(applicationId: string): Promise<Date | null> {
     const app = await prisma.creditApplication.findUnique({
       where: { id: applicationId },
-      select: { state: true, productType: true, createdAt: true },
+      select: { state: true, productType: true, createdAt: true, branchId: true },
     });
     if (!app) return null;
 
-    // Find all active policies matching this state and product type
+    const effective = await this.getEffectiveSlaForApplication({
+      id: applicationId,
+      state: app.state,
+      productType: app.productType,
+      branchId: app.branchId,
+      createdAt: app.createdAt,
+    });
+
+    return effective.slaDueAt ? new Date(effective.slaDueAt) : null;
+  }
+
+  /**
+   * Resolve the effective SLA for a single application, honoring branch overrides.
+   */
+  async getEffectiveSlaForApplication(app: {
+    id: string;
+    state: string;
+    productType: string | null;
+    branchId: string | null;
+    createdAt: Date;
+  }): Promise<{ slaTargetHours: number | null; slaDueAt: string | null }> {
     const policies = await prisma.creditSlaPolicy.findMany({
       where: {
         targetState: app.state,
         isActive: true,
         OR: [
-          { productType: null },           // global policy
-          { productType: app.productType }, // product-specific policy
+          { productType: null },
+          { productType: app.productType },
         ],
       },
-      orderBy: { slaHours: 'asc' }, // most urgent first
+      orderBy: { slaHours: 'asc' },
     });
 
-    if (policies.length === 0) return null;
+    if (policies.length === 0) {
+      return { slaTargetHours: null, slaDueAt: null };
+    }
 
-    // Use the shortest SLA as the due date
-    const minHours = policies[0].slaHours;
-    const dueDate = new Date(app.createdAt.getTime() + minHours * 60 * 60 * 1000);
-    return dueDate;
+    const overrideHoursByPolicy = new Map<string, number>();
+    if (app.branchId) {
+      const overrides = await prisma.creditSlaPolicyBranchOverride.findMany({
+        where: { branchId: app.branchId, isActive: true },
+        select: { policyId: true, slaHours: true },
+      });
+      overrides.forEach(o => overrideHoursByPolicy.set(o.policyId, o.slaHours));
+    }
+
+    let effectiveHours: number | null = null;
+    for (const policy of policies) {
+      const branchOverrideHours = overrideHoursByPolicy.get(policy.id);
+      const policyHours = branchOverrideHours ?? policy.slaHours;
+      if (effectiveHours == null || policyHours < effectiveHours) {
+        effectiveHours = policyHours;
+      }
+    }
+
+    if (effectiveHours == null) {
+      return { slaTargetHours: null, slaDueAt: null };
+    }
+
+    const dueAt = new Date(app.createdAt.getTime() + effectiveHours * 60 * 60 * 1000).toISOString();
+    return { slaTargetHours: effectiveHours, slaDueAt: dueAt };
   }
 
   // -------------------------------------------------------------------------

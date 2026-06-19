@@ -461,6 +461,7 @@ export type DetailTab360 =
   | 'risk-assessment'
   | 'collateral-guarantees'
   | 'documents'
+  | 'ca-memo'
   | 'approvals'
   | 'conditions-offer'
   | 'disbursement'
@@ -506,6 +507,11 @@ export const TAB_GROUPS_360: TabGroup[] = [
     id: 'documents',
     label: 'Documents',
     tabs: [{ id: 'documents' as DetailTab360 as unknown as DetailTab, label: 'Documents' }],
+  },
+  {
+    id: 'ca-memo',
+    label: 'CA Memo',
+    tabs: [{ id: 'ca-memo' as DetailTab360 as unknown as DetailTab, label: 'CA Memo' }],
   },
   {
     id: 'approvals',
@@ -584,6 +590,7 @@ export const TAB360_TO_LEGACY: Record<DetailTab360, DetailTab> = {
   'risk-assessment': 'risk-score',
   'collateral-guarantees': 'collateral',
   'documents': 'documents',
+  'ca-memo': 'overview',
   'approvals': 'approvals',
   'conditions-offer': 'conditions',
   'disbursement': 'disbursement',

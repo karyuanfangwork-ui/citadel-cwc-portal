@@ -229,6 +229,17 @@ router.post(
   creditDocumentController.batchCreateRequirements,
 );
 
+/**
+ * POST /applications/:applicationId/document-requirements/seed
+ * Seed default document requirements for the application
+ * Requires: credit:write
+ */
+router.post(
+  '/applications/:applicationId/document-requirements/seed',
+  requirePermission('credit:write'),
+  creditDocumentController.seedDefaultRequirements,
+);
+
 // ==============================================================================
 // Document Requirements (top-level CRUD)
 // ==============================================================================
