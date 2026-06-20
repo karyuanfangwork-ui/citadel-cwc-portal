@@ -16,12 +16,12 @@ import smeFinancialApi, {
   SmeFinancialRatio,
   DualAssessment,
   StatementTypeValidation,
-} from '../../../src/services/smeFinancial.service';
-import creditService, { CreditApplication, FinancialRatio } from '../../../src/services/credit.service';
-import BusinessProfileSection from '../../../src/components/credit/BusinessProfileSection';
-import RatiosAndTrendsSection from '../../../src/components/credit/RatiosAndTrendsSection';
-import FinancialRiskIndicatorsPanel from '../../../src/components/credit/FinancialRiskIndicatorsPanel';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
+} from '../../../../src/services/smeFinancial.service';
+import creditService, { CreditApplication, FinancialRatio } from '../../../../src/services/credit.service';
+import BusinessProfileSection from '../../../../src/components/credit/BusinessProfileSection';
+import RatiosAndTrendsSection from '../../../../src/components/credit/RatiosAndTrendsSection';
+import FinancialRiskIndicatorsPanel from '../../../../src/components/credit/FinancialRiskIndicatorsPanel';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

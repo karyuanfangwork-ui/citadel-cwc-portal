@@ -4,9 +4,9 @@ import {
   AccountUtilisationSnapshot,
   AccountUtilisationInput,
   utilisationApi,
-} from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import EmptyState from '../../../src/components/EmptyState';
+} from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import EmptyState from '../../../../src/components/EmptyState';
 
 type Props = {
   application: CreditApplication;

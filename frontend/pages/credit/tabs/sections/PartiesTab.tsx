@@ -4,14 +4,14 @@ import creditService, {
   CreditApplication,
   CreditApplicationParty,
   BorrowerProfile,
-} from '../../../src/services/credit.service';
-import { useAuth } from '../../../src/context/AuthContext';
-import { hasPermission } from '../../../src/utils/permissions';
+} from '../../../../src/services/credit.service';
+import { useAuth } from '../../../../src/context/AuthContext';
+import { hasPermission } from '../../../../src/utils/permissions';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import EmptyState from '../../../src/components/EmptyState';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import NewBorrowerWizard from '../../../src/components/credit/NewBorrowerWizard';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import EmptyState from '../../../../src/components/EmptyState';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import NewBorrowerWizard from '../../../../src/components/credit/NewBorrowerWizard';
 
 interface PartiesTabProps {
   app: CreditApplication;

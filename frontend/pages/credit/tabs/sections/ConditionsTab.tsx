@@ -5,15 +5,15 @@ import {
   ConditionPrecedent,
   CpCompletionStatus,
   ConditionCategory,
-} from '../../../src/services/credit.service';
-import { useAuth } from '../../../src/context/AuthContext';
-import { hasPermission } from '../../../src/utils/permissions';
+} from '../../../../src/services/credit.service';
+import { useAuth } from '../../../../src/context/AuthContext';
+import { hasPermission } from '../../../../src/utils/permissions';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import { formatDate } from '../creditUtils';
-import EmptyState from '../../../src/components/EmptyState';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import StateBadge from '../../../src/components/ui/StateBadge';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import { formatDate } from '../../creditUtils';
+import EmptyState from '../../../../src/components/EmptyState';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import StateBadge from '../../../../src/components/ui/StateBadge';
 
 interface ConditionsTabProps {
   // No props needed — fetches its own data based on URL param

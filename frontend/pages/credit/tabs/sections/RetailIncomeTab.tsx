@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { retailIncomeApi } from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import CalculationBreakdownPanel, { RatioBreakdown } from '../../../src/components/credit/CalculationBreakdownPanel';
+import { retailIncomeApi } from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import CalculationBreakdownPanel, { RatioBreakdown } from '../../../../src/components/credit/CalculationBreakdownPanel';
 
 interface Props {
   applicationId: string;

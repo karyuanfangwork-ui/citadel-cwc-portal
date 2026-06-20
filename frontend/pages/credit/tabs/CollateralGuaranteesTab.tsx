@@ -1,8 +1,8 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
-import CollateralTab from './CollateralTab';
-import SecurityGuaranteesTab from './SecurityGuaranteesTab';
-import GuarantorFinancialAssessmentTab from './GuarantorFinancialAssessmentTab';
+import CollateralTab from './sections/CollateralTab';
+import SecurityGuaranteesTab from './sections/SecurityGuaranteesTab';
+import GuarantorFinancialAssessmentTab from './sections/GuarantorFinancialAssessmentTab';
 
 interface CollateralGuaranteesTabProps {
   application: CreditApplication;

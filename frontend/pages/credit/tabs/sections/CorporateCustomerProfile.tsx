@@ -4,11 +4,11 @@ import {
   BorrowerProfile,
   ExposureSummary,
   IndustryAssessment,
-} from '../../../src/services/credit.service';
-import creditService from '../../../src/services/credit.service';
-import { industryAssessmentApi, qualitativeAssessmentApi } from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { formatCurrency } from '../creditUtils';
+} from '../../../../src/services/credit.service';
+import creditService from '../../../../src/services/credit.service';
+import { industryAssessmentApi, qualitativeAssessmentApi } from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { formatCurrency } from '../../creditUtils';
 
 type Props = {
   application: CreditApplication;

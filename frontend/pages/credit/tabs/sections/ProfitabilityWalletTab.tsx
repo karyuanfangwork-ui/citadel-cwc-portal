@@ -6,10 +6,10 @@ import creditService, {
   WalletShare,
   profitabilityApi,
   walletShareApi,
-} from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { ProfitabilityBarChart, WalletShareChart } from '../../../src/components/credit/FinancialCharts';
-import useAutosave from '../../../src/hooks/useAutosave';
+} from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { ProfitabilityBarChart, WalletShareChart } from '../../../../src/components/credit/FinancialCharts';
+import useAutosave from '../../../../src/hooks/useAutosave';
 
 const PRODUCT_CATEGORIES = [
   { key: 'FINANCINGS',         label: 'Financings' },

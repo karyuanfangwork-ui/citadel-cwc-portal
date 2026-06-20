@@ -5,9 +5,9 @@ import {
   scoringApi,
   CreditScoreRun,
   RiskRating,
-} from '../../../src/services/credit.service';
-import { formatCurrency, formatDate, formatDateTime, PRODUCT_LABELS } from '../creditUtils';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+} from '../../../../src/services/credit.service';
+import { formatCurrency, formatDate, formatDateTime, PRODUCT_LABELS } from '../../creditUtils';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
 
 interface SummaryTabProps {
   app: CreditApplication;

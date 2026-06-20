@@ -47,7 +47,8 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
   if (!open) return null;
 
   const entries = Object.entries(phaseCompletion);
-  const incompleteRequired = entries.filter(([key, status]) => status === 'incomplete' && key !== 'meta');
+  const requiredKeys = new Set(['s1', 's2', 's3', 's4', 's5']);
+  const incompleteRequired = entries.filter(([key, status]) => requiredKeys.has(key) && status === 'incomplete');
   const allReady = incompleteRequired.length === 0;
 
   return (
@@ -134,15 +135,17 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={onSubmitAnyway}
+            onClick={allReady ? onSubmitAnyway : undefined}
+            disabled={!allReady}
+            title={!allReady ? `Complete ${incompleteRequired.length} required section${incompleteRequired.length > 1 ? 's' : ''} before submitting` : undefined}
             className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${
               allReady
                 ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
-            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            style={{ border: 'none', cursor: allReady ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}
           >
-            {allReady ? 'Submit for Review' : 'Submit anyway'}
+            {allReady ? 'Submit for Review' : 'Complete sections to submit'}
           </button>
         </div>
       </div>

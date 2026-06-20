@@ -6,11 +6,11 @@ import creditService, {
   ExposureSummary,
   CaRequestType,
   FacilityType,
-} from '../../../src/services/credit.service';
-import apiClient from '../../../src/services/api';
-import { getFacilityTypes } from '../creditUtils';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import useAutosave from '../../../src/hooks/useAutosave';
+} from '../../../../src/services/credit.service';
+import apiClient from '../../../../src/services/api';
+import { getFacilityTypes } from '../../creditUtils';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import useAutosave from '../../../../src/hooks/useAutosave';
 import RetailFacilitiesTab from './RetailFacilitiesTab';
 import PricingWorksheetPanel from './PricingWorksheetPanel';
 

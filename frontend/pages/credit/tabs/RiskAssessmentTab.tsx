@@ -1,13 +1,13 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
-import RiskScoreTab from './RiskScoreTab';
-import IndustryOutlookTab from './IndustryOutlookTab';
-import RiskMitigatorsTab from './RiskMitigatorsTab';
-import RiskRatingEclTab from './RiskRatingEclTab';
-import ProfitabilityWalletTab from './ProfitabilityWalletTab';
-import CounterpartiesTab from './CounterpartiesTab';
-import AccountConductTab from './AccountConductTab';
-import ForwardLookingRiskTab from './ForwardLookingRiskTab';
+import RiskScoreTab from './sections/RiskScoreTab';
+import IndustryOutlookTab from './sections/IndustryOutlookTab';
+import RiskMitigatorsTab from './sections/RiskMitigatorsTab';
+import RiskRatingEclTab from './sections/RiskRatingEclTab';
+import ProfitabilityWalletTab from './sections/ProfitabilityWalletTab';
+import CounterpartiesTab from './sections/CounterpartiesTab';
+import AccountConductTab from './sections/AccountConductTab';
+import ForwardLookingRiskTab from './sections/ForwardLookingRiskTab';
 import CollapsibleSection from '../../../src/components/credit/CollapsibleSection';
 
 interface RiskAssessmentTabProps {

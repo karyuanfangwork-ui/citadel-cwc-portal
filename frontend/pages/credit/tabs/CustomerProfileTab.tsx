@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { CreditApplication, FatcaCrsDeclaration } from '../../../src/services/credit.service';
-import RetailCustomerProfile from './RetailCustomerProfile';
-import SmeCustomerProfile from './SmeCustomerProfile';
-import CorporateCustomerProfile from './CorporateCustomerProfile';
+import RetailCustomerProfile from './sections/RetailCustomerProfile';
+import SmeCustomerProfile from './sections/SmeCustomerProfile';
+import CorporateCustomerProfile from './sections/CorporateCustomerProfile';
 import FatcaCrsSection from '../../../src/components/credit/FatcaCrsSection';
-import PartiesTab from './PartiesTab';
+import PartiesTab from './sections/PartiesTab';
 
 interface CustomerProfileTabProps {
   application: CreditApplication;

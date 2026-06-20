@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import creditService from '../../../src/services/credit.service';
+import creditService from '../../../../src/services/credit.service';
 
 const BASE_RATE_TYPES = [
   { value: 'BLR', label: 'BLR (Base Lending Rate)' },

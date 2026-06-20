@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { qualitativeAssessmentApi } from '../../../src/services/credit.service';
+import { qualitativeAssessmentApi } from '../../../../src/services/credit.service';
 
 interface Props {
   applicationId: string;

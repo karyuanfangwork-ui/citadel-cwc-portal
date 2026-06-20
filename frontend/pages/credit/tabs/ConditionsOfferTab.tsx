@@ -1,7 +1,7 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
-import ConditionsTab from './ConditionsTab';
-import SummaryTab from './SummaryTab';
+import ConditionsTab from './sections/ConditionsTab';
+import SummaryTab from './sections/SummaryTab';
 
 interface ConditionsOfferTabProps {
   app: CreditApplication;

@@ -6,12 +6,12 @@ import creditService, {
   financialApi,
   retailIncomeApi,
   FinancialRatio,
-} from '../../../src/services/credit.service';
-import { useAuth } from '../../../src/context/AuthContext';
-import { hasPermission } from '../../../src/utils/permissions';
+} from '../../../../src/services/credit.service';
+import { useAuth } from '../../../../src/context/AuthContext';
+import { hasPermission } from '../../../../src/utils/permissions';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
 
 // S4 · Risk Score — Scorecard output, internal rating, DSR stress test.
 // Bank-only ECL/SICR/ESG/ExternalRatings remain in RiskRatingEclTab (advanced_memo flag).

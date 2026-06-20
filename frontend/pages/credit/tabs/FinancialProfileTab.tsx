@@ -8,9 +8,9 @@ import EvidenceMappingPanel from '../../../src/components/credit/EvidenceMapping
 import JointBorrowerSection from '../../../src/components/credit/JointBorrowerSection';
 import ValidationOverridePanel from '../../../src/components/credit/ValidationOverridePanel';
 import FinancialsTab from './FinancialsTab';
-import SmeFinancialsTab from './SmeFinancialsTab';
-import PaymentCapabilityTab from './PaymentCapabilityTab';
-import RetailIncomeTab from './RetailIncomeTab';
+import SmeFinancialsTab from './sections/SmeFinancialsTab';
+import PaymentCapabilityTab from './sections/PaymentCapabilityTab';
+import RetailIncomeTab from './sections/RetailIncomeTab';
 
 /**
  * FinancialProfileTab — Phase 1 UX / Layout Restructure

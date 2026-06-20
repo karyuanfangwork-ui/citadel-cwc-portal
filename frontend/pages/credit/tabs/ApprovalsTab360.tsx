@@ -1,6 +1,6 @@
 import React from 'react';
 import { CreditApplication } from '../../../src/services/credit.service';
-import ApprovalsTab from './ApprovalsTab';
+import ApprovalsTab from './sections/ApprovalsTab';
 import SignoffTab from './SignoffTab';
 import ApprovalMatrixApplicabilityPanel from '../../../src/components/credit/ApprovalMatrixApplicabilityPanel';
 

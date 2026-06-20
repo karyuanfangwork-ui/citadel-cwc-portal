@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import creditService, { CreditAuditEvent } from '../../../src/services/credit.service';
+import creditService, { CreditAuditEvent } from '../../../../src/services/credit.service';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import { formatDateTime, STATE_COLORS, STATE_ICONS } from '../creditUtils';
-import StateBadge from '../../../src/components/credit/StateBadge';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import EmptyState from '../../../src/components/EmptyState';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import { formatDateTime, STATE_COLORS, STATE_ICONS } from '../../creditUtils';
+import StateBadge from '../../../../src/components/credit/StateBadge';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import EmptyState from '../../../../src/components/EmptyState';
 
 interface AuditTabProps {
   // No props needed — fetches its own data based on URL param

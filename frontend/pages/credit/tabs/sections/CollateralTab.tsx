@@ -5,12 +5,12 @@ import {
   Collateral,
   Guarantee,
   guaranteeApi,
-} from '../../../src/services/credit.service';
+} from '../../../../src/services/credit.service';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import { formatCurrency } from '../creditUtils';
-import EmptyState from '../../../src/components/EmptyState';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import { formatCurrency } from '../../creditUtils';
+import EmptyState from '../../../../src/components/EmptyState';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
 
 interface LinkedCollateralItem {
   collateralId: string;

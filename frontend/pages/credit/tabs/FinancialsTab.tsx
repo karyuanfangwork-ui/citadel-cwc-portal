@@ -9,7 +9,7 @@ import creditService, {
   financialApi,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import RetailIncomeTab from './RetailIncomeTab';
+import RetailIncomeTab from './sections/RetailIncomeTab';
 
 // S3 · Financials — Financial spreading for corporate borrowers, DSR for retail.
 // Provides: statement listing, creation, line-item entry, balance validation,

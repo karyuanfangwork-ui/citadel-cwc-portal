@@ -5,14 +5,14 @@ import creditService, {
   CreditApproval,
   policyLimitApi,
   PolicyEvaluationResult,
-} from '../../../src/services/credit.service';
+} from '../../../../src/services/credit.service';
 import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import ApprovalPackPreview from '../../../src/components/credit/ApprovalPackPreview';
-import ApprovalChainPanel from '../../../src/components/credit/ApprovalChainPanel';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import ApprovalPackPreview from '../../../../src/components/credit/ApprovalPackPreview';
+import ApprovalChainPanel from '../../../../src/components/credit/ApprovalChainPanel';
 import LooSection from './LooSection';
-import CommitteeWidget from '../../../src/components/credit/CommitteeWidget';
+import CommitteeWidget from '../../../../src/components/credit/CommitteeWidget';
 
 interface ApprovalsTabProps {
   app: CreditApplication;
@@ -51,7 +51,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   // Fetch sign-off status for the advisory in approval chain panel
   useEffect(() => {
     if (!id) return;
-    import('../../../src/services/credit.service').then(m => {
+    import('../../../../src/services/credit.service').then(m => {
       m.signoffApi.list(id).then(signoffs => {
         const complete = REQUIRED_SIGNOFF_ROLES.every(role =>
           signoffs.some(s => s.role === role && s.signedAt),

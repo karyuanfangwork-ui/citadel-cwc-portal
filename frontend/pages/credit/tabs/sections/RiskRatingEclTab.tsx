@@ -8,14 +8,14 @@ import creditService, {
   RatingAgency,
   MfrsStage,
   RiskRating,
-} from '../../../src/services/credit.service';
-import { useAuth } from '../../../src/context/AuthContext';
-import { hasPermission } from '../../../src/utils/permissions';
-import { useToast } from '../../../src/context/ToastContext';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { RiskRatingKpiCards, RatingScaleBar, EclForecastBar, EclStageDonut, EclSnapshotWaterfall, ScoreRunHistory } from '../../../src/components/credit/FinancialCharts';
-import useAutosave from '../../../src/hooks/useAutosave';
+} from '../../../../src/services/credit.service';
+import { useAuth } from '../../../../src/context/AuthContext';
+import { hasPermission } from '../../../../src/utils/permissions';
+import { useToast } from '../../../../src/context/ToastContext';
+import { friendlyMessage } from '../../../../src/utils/errorMessages';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { RiskRatingKpiCards, RatingScaleBar, EclForecastBar, EclStageDonut, EclSnapshotWaterfall, ScoreRunHistory } from '../../../../src/components/credit/FinancialCharts';
+import useAutosave from '../../../../src/hooks/useAutosave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

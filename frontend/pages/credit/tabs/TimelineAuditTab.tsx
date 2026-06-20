@@ -1,6 +1,6 @@
 import React from 'react';
 import ApplicationComments from '../../../src/components/credit/ApplicationComments';
-import AuditTab from './AuditTab';
+import AuditTab from './sections/AuditTab';
 
 interface TimelineAuditTabProps {
   applicationId: string;

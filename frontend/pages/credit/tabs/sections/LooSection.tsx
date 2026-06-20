@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import creditService, { looApi, LooStatus } from '../../../src/services/credit.service';
-import { pollPdfJob } from '../../../src/services/pdfJob.service';
+import creditService, { looApi, LooStatus } from '../../../../src/services/credit.service';
+import { pollPdfJob } from '../../../../src/services/pdfJob.service';
 
 interface Props {
   applicationId: string;

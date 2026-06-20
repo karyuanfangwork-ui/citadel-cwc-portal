@@ -3,8 +3,8 @@ import creditService, {
   CreditApplication,
   CreditFacility,
   FacilityType,
-} from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+} from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
 
 // ── Retail-only facility types (no LC, BG, Trust Receipt, Islamic variants) ──
 const RETAIL_FACILITY_TYPES: { value: FacilityType; label: string }[] = [

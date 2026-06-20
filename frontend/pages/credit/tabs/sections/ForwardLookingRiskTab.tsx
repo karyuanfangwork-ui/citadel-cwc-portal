@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import useAutosave from '../../../src/hooks/useAutosave';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import useAutosave from '../../../../src/hooks/useAutosave';
 import {
   CreditApplication,
   EsgAssessment,
@@ -10,7 +10,7 @@ import {
   SicrTriggerType,
   esgApi,
   sicrApi,
-} from '../../../src/services/credit.service';
+} from '../../../../src/services/credit.service';
 
 type Props = {
   application: CreditApplication;

@@ -6,8 +6,8 @@ import {
   SecurityCategory,
   collateralApi,
   guaranteeApi,
-} from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+} from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
 
 type Props = {
   application: CreditApplication;

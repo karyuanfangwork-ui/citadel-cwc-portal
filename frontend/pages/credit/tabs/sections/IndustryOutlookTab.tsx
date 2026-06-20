@@ -3,9 +3,9 @@ import {
   CreditApplication,
   IndustryAssessment,
   industryAssessmentApi,
-} from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import useAutosave from '../../../src/hooks/useAutosave';
+} from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import useAutosave from '../../../../src/hooks/useAutosave';
 
 type Props = {
   application: CreditApplication;

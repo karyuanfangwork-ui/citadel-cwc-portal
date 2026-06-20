@@ -5,10 +5,10 @@ import {
   CreditScoreRun,
   bureauCheckApi,
   retailIncomeApi,
-} from '../../../src/services/credit.service';
-import creditService from '../../../src/services/credit.service';
-import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { formatCurrency, formatDate } from '../creditUtils';
+} from '../../../../src/services/credit.service';
+import creditService from '../../../../src/services/credit.service';
+import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { formatCurrency, formatDate } from '../../creditUtils';
 
 type Props = {
   application: CreditApplication;

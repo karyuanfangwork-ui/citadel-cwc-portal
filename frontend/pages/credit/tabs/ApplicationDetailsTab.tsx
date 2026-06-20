@@ -14,8 +14,8 @@ import {
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import useAutosave from '../../../src/hooks/useAutosave';
 import LoanRequestTab from './LoanRequestTab';
-import RequestsFacilitiesTab from './RequestsFacilitiesTab';
-import RetailFacilitiesTab from './RetailFacilitiesTab';
+import RequestsFacilitiesTab from './sections/RequestsFacilitiesTab';
+import RetailFacilitiesTab from './sections/RetailFacilitiesTab';
 
 interface ApplicationDetailsTabProps {
   application: CreditApplication;
