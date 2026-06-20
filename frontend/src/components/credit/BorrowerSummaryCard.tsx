@@ -1,11 +1,10 @@
 import React from 'react';
 
+
 interface BorrowerProfile {
   id?: string;
   borrowerType?: string | null;
   name?: string | null;
-  account?: { id: string; name: string } | null;
-  contact?: { id: string; firstName: string; lastName: string } | null;
 }
 
 interface BorrowerSummaryCardProps {
@@ -16,16 +15,9 @@ interface BorrowerSummaryCardProps {
 
 /**
  * Resolve borrower display name from profile.
- * Priority: account.name → contact.firstName+lastName → profile.name → 'Unnamed Borrower'
  */
 export function getBorrowerDisplayName(bp: BorrowerProfile | null | undefined): string {
-  if (!bp) return 'Unnamed Borrower';
-  if (bp.account?.name) return bp.account.name;
-  if (bp.contact?.firstName || bp.contact?.lastName) {
-    return [bp.contact.firstName, bp.contact.lastName].filter(Boolean).join(' ');
-  }
-  if (bp.name) return bp.name;
-  return 'Unnamed Borrower';
+  return bp?.name ?? 'Unnamed Borrower';
 }
 
 const BORROWER_TYPE_LABELS: Record<string, string> = {

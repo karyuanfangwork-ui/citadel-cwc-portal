@@ -134,8 +134,7 @@ class DelegationService {
           select: {
             id: true,
             borrowerType: true,
-            account: { select: { name: true } },
-            contact: { select: { firstName: true, lastName: true } },
+            name: true,
           },
         },
       },
@@ -181,15 +180,8 @@ class DelegationService {
         }
       }
 
-      // Resolve borrower name from Account or Contact
-      let borrowerName = 'Unknown';
-      if (app.borrowerProfile) {
-        if (app.borrowerProfile.account) {
-          borrowerName = app.borrowerProfile.account.name;
-        } else if (app.borrowerProfile.contact) {
-          borrowerName = `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`;
-        }
-      }
+      // Resolve borrower name from self-contained borrower profile
+      const borrowerName = app.borrowerProfile?.name ?? 'Unknown';
 
       results.push({
         applicationId: app.id,

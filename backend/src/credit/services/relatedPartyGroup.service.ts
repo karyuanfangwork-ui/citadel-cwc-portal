@@ -60,7 +60,7 @@ class RelatedPartyGroupService {
           members: {
             include: {
               borrowerProfile: {
-                select: { id: true, borrowerType: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } },
+                select: { id: true, borrowerType: true, name: true },
               },
             },
           },
@@ -86,7 +86,7 @@ class RelatedPartyGroupService {
         members: {
           include: {
             borrowerProfile: {
-              select: { id: true, borrowerType: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } },
+              select: { id: true, borrowerType: true, name: true },
             },
           },
           orderBy: { createdAt: 'asc' },
@@ -131,7 +131,7 @@ class RelatedPartyGroupService {
         members: {
           include: {
             borrowerProfile: {
-              select: { id: true, borrowerType: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } },
+              select: { id: true, borrowerType: true, name: true },
             },
           },
         },
@@ -170,7 +170,7 @@ class RelatedPartyGroupService {
       include: {
         group: { select: { id: true, name: true } },
         borrowerProfile: {
-          select: { id: true, borrowerType: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } },
+          select: { id: true, borrowerType: true, name: true },
         },
       },
     });
@@ -205,8 +205,6 @@ class RelatedPartyGroupService {
                 name: true,
                 exposureLimit: true,
                 creditRiskRating: true,
-                account: { select: { id: true, name: true } },
-                contact: { select: { id: true, firstName: true, lastName: true } },
               },
             },
           },
@@ -241,10 +239,7 @@ class RelatedPartyGroupService {
       aggregateTotalExposure += totalExp;
       if (expLimit) aggregateExposureLimit += expLimit;
 
-      const borrowerName = bp.account?.name
-        || (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}`.trim() : '')
-        || bp.name
-        || 'Unnamed Borrower';
+      const borrowerName = bp.name ?? 'Unnamed Borrower';
 
       memberExposures.push({
         memberId: member.id,

@@ -31,6 +31,14 @@ interface FormState {
   netWorth: string;
   sourceOfWealth: string;
   purposeOfAccount: string;
+  // Identity fields (CRM-independent, Phase 3)
+  nricPassport: string;
+  phone: string;
+  email: string;
+  address: string;
+  // Corporate identity fields
+  registrationNumber: string;
+  industry: string;
 }
 
 // ── Static Options ────────────────────────────────────────────────────────
@@ -82,6 +90,12 @@ const formStateFromProfile = (p: BorrowerProfile): FormState => ({
   netWorth: toStr(p.netWorth),
   sourceOfWealth: p.sourceOfWealth ?? '',
   purposeOfAccount: p.purposeOfAccount ?? '',
+  nricPassport: p.nricPassport ?? '',
+  phone: p.phone ?? '',
+  email: p.email ?? '',
+  address: p.address ?? '',
+  registrationNumber: p.registrationNumber ?? '',
+  industry: p.industry ?? '',
 });
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -95,17 +109,21 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
   const [form, setForm] = useState<FormState>(formStateFromProfile(profile));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Reset form when profile changes or modal reopens
   useEffect(() => {
     if (isOpen) {
       setForm(formStateFromProfile(profile));
       setError(null);
+      setFieldErrors({});
     }
   }, [profile, isOpen]);
 
-  const set = (field: keyof FormState, value: string | boolean) =>
+  const set = (field: keyof FormState, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    setFieldErrors(prev => { if (prev[field]) { const n = { ...prev }; delete n[field]; return n; } return prev; });
+  };
 
   const isCrmLinked = !!(profile.accountId || profile.contactId);
 
@@ -118,6 +136,9 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
       'name', 'borrowerType', 'creditRiskRating', 'amlRiskTier',
       'exposureLimit', 'occupation', 'employer', 'annualIncome',
       'netWorth', 'sourceOfWealth', 'purposeOfAccount',
+      // Phase 3: Identity fields
+      'nricPassport', 'phone', 'email', 'address',
+      'registrationNumber', 'industry',
     ];
     const booleanFields: (keyof FormState)[] = ['isActive', 'isSanctionedEntity'];
 
@@ -145,8 +166,32 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
     return payload;
   };
 
+  // ── Phase 6: Inline validation ──
+  const validate = (): string | null => {
+    const errs: Record<string, string> = {};
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      errs.email = 'Invalid email format';
+    }
+    if (form.nricPassport && form.nricPassport.length < 5) {
+      errs.nricPassport = 'NRIC / Passport too short';
+    }
+    if (form.phone && form.phone.replace(/[\s\-+()]/g, '').length < 6) {
+      errs.phone = 'Phone number too short';
+    }
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      return Object.values(errs)[0];
+    }
+    return null;
+  };
+
   const handleSubmit = async () => {
     setError(null);
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     const payload = buildPayload();
 
     if (Object.keys(payload).length === 0) {
@@ -167,6 +212,7 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
   };
 
   const inputCls = 'w-full px-3 py-2 border border-cwc-border rounded-cwc-md text-sm outline-none focus:ring-2 focus:ring-brand-300 bg-surface transition-all';
+  const errorInputCls = 'w-full px-3 py-2 border border-red-400 rounded-cwc-md text-sm outline-none focus:ring-2 focus:ring-red-300 bg-red-50/50 transition-all';
   const labelCls = 'block text-xs font-bold text-text-primary mb-1';
 
   return (
@@ -243,6 +289,114 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
               />
             </button>
           </div>
+
+          {/* ── Phase 3: Contact & Identity Fields ── */}
+          {/* Retail/Individual identity fields */}
+          {(form.borrowerType === 'INDIVIDUAL' || form.borrowerType === 'JOINT') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-cwc-border">
+              <div>
+                <label className={labelCls}>NRIC / Passport</label>
+                <input
+                  type="text"
+                  value={form.nricPassport}
+                  onChange={e => set('nricPassport', e.target.value)}
+                  placeholder="e.g. 901234-14-5678"
+                  className={fieldErrors.nricPassport ? errorInputCls : inputCls}
+                />
+                {fieldErrors.nricPassport && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.nricPassport}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  placeholder="e.g. +60 12-345 6789"
+                  className={fieldErrors.phone ? errorInputCls : inputCls}
+                />
+                {fieldErrors.phone && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.phone}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  placeholder="e.g. ahmad@example.com"
+                  className={fieldErrors.email ? errorInputCls : inputCls}
+                />
+                {fieldErrors.email && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.email}</p>}
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Address</label>
+                <textarea
+                  value={form.address}
+                  onChange={e => set('address', e.target.value)}
+                  placeholder="Residential address"
+                  className={inputCls}
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Corporate/SME identity fields */}
+          {(form.borrowerType === 'CORPORATE' || form.borrowerType === 'SOLE_PROPRIETOR') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-cwc-border">
+              <div>
+                <label className={labelCls}>Registration Number</label>
+                <input
+                  type="text"
+                  value={form.registrationNumber}
+                  onChange={e => set('registrationNumber', e.target.value)}
+                  placeholder="e.g. 202001234567 (1234567-A)"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Industry / Sector</label>
+                <input
+                  type="text"
+                  value={form.industry}
+                  onChange={e => set('industry', e.target.value)}
+                  placeholder="e.g. Technology, Manufacturing"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Phone</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  placeholder="e.g. +60 3-1234 5678"
+                  className={fieldErrors.phone ? errorInputCls : inputCls}
+                />
+                {fieldErrors.phone && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.phone}</p>}
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  placeholder="e.g. contact@company.com"
+                  className={fieldErrors.email ? errorInputCls : inputCls}
+                />
+                {fieldErrors.email && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.email}</p>}
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Registered Address</label>
+                <textarea
+                  value={form.address}
+                  onChange={e => set('address', e.target.value)}
+                  placeholder="Registered business address"
+                  className={inputCls}
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Credit Risk ── */}

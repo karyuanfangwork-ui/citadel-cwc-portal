@@ -634,7 +634,7 @@ export const LANE_LABELS: Record<ProcessingLane, string> = {
 
 /** Lane descriptions shown in tooltips / info banners. */
 export const LANE_DESCRIPTIONS: Record<ProcessingLane, string> = {
-  PERSONAL_FAST: 'Individual borrower ≤ RM150k — streamlined 6-tab flow, 2 approvals',
+  PERSONAL_FAST: 'Individual borrower ≤ RM150k — streamlined 7-section flow, 2 approvals',
   SME: 'SME borrower (turnover < RM5M) — 12-tab flow, 2-eye approval',
   CORPORATE: 'Full corporate assessment — comprehensive flow, matrix-based approval',
 };

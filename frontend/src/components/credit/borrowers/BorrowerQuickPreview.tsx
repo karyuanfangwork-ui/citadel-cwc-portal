@@ -34,12 +34,7 @@ const formatCurrency = (val: string | number | null | undefined) => {
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(num);
 };
 
-const displayName = (p: BorrowerProfileRow) => {
-  if (p.account) return p.account.name;
-  if (p.contact) return `${p.contact.firstName} ${p.contact.lastName}`.trim();
-  if (p.name) return p.name;
-  return 'Unnamed Borrower';
-};
+const displayName = (p: BorrowerProfileRow) => p.name || 'Unnamed Borrower';
 
 const BorrowerQuickPreview: React.FC<BorrowerQuickPreviewProps> = ({ borrower, onClose, onOpen360, onNewApp }) => {
   const name = displayName(borrower);

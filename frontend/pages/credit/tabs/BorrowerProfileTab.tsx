@@ -21,8 +21,6 @@ type Props = {
 
 const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete, fatcaCrsEnabled = false }) => {
   const bp = application.borrowerProfile;
-  const account = bp?.account;
-  const contact = bp?.contact;
   const isIndividual = bp?.borrowerType === 'INDIVIDUAL';
   const isCorporate = bp?.borrowerType === 'CORPORATE' || bp?.borrowerType === 'SOLE_PROPRIETOR';
 
@@ -45,9 +43,7 @@ const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete, fat
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Name</label>
             <div className="text-sm font-semibold text-gray-900 bg-gray-50 rounded-lg px-3 py-2">
-              {isIndividual
-                ? (contact ? `${contact.firstName} ${contact.lastName}` : '—')
-                : (account?.name || '—')}
+              {bp?.name || '—'}
             </div>
           </div>
           <div>

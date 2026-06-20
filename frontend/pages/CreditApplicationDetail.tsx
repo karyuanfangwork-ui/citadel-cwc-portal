@@ -685,12 +685,14 @@ const CreditApplicationDetail: React.FC = () => {
       {/* ── Application 360 Workspace — 3-column layout ── */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden credit-module">
 
-        {/* ── Left Sidebar: Section Index (240px) ── */}
-        <ApplicationSectionIndex
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          sectionStatuses={sectionStatuses}
-        />
+        {/* ── Left Sidebar: Section Index (240px) — hidden for Personal Fast lane ── */}
+        {lane !== 'PERSONAL_FAST' && (
+          <ApplicationSectionIndex
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            sectionStatuses={sectionStatuses}
+          />
+        )}
 
         {/* ── Center Column: Workspace ── */}
         <main className="flex-1 overflow-y-auto cr-scroll" style={{ backgroundColor: 'var(--cr-surface-bright, #fff)' }}>

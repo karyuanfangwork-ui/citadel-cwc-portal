@@ -3109,10 +3109,10 @@ model BorrowerProfile {
   id                String       @id @default(uuid()) @db.Uuid
   borrowerType      BorrowerType @default(CORPORATE) @map("borrower_type")
   
-  // Display name for unlinked profiles (required when accountId and contactId are both null)
+  // Authoritative display name — required at creation for all borrower types
   name              String?      @db.VarChar(255)
   
-  // Link to CRM — at least one of accountId, contactId, or name must be set
+  // Optional CRM soft links — no validation dependency, kept for future sync only
   accountId         String?      @unique @map("account_id") @db.Uuid
   contactId         String?      @unique @map("contact_id") @db.Uuid
   
@@ -3136,6 +3136,14 @@ model BorrowerProfile {
   yearsTrading                Int?                     @map("years_trading")
   smeFinancialStatementType   SmeFinancialStatementType? @map("sme_financial_statement_type")
   sicCode                     String?                  @map("sic_code") @db.VarChar(10)
+
+  // Identity fields — self-contained, no CRM dependency
+  registrationNumber          String?                  @map("registration_number") @db.VarChar(100)
+  industry                    String?                  @db.VarChar(100)
+  nricPassport                String?                  @map("nric_passport") @db.VarChar(50)
+  address                     String?                  @db.VarChar(500)
+  phone                       String?                  @db.VarChar(50)
+  email                       String?                  @db.VarChar(255)
 
   // §2.9 — Encrypted PII fields (AES-256-GCM)
   // These store the encrypted versions of annualIncome, netWorth, and sourceOfWealth.

@@ -416,12 +416,7 @@ const ApprovalCenter: React.FC = () => {
   const renderCreditCard = (app: CreditApplication) => {
     const state = (app.state || app.status) as ApplicationState;
     const urgency = getCreditUrgency(app.createdAt, state);
-    const borrowerName = app.borrowerProfile
-      ? (app.borrowerProfile.account?.name ||
-        (app.borrowerProfile.contact
-          ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-          : app.borrowerProfile.name) || 'Unnamed Borrower')
-      : app.id.slice(0, 8);
+    const borrowerName = app.borrowerProfile?.name || 'Unnamed Borrower';
 
     return (
       <div key={app.id}

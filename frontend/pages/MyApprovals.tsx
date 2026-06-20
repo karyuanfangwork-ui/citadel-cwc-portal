@@ -99,12 +99,7 @@ const MyApprovals: React.FC = () => {
   const renderCard = (app: CreditApplication) => {
     const state = (app.state || app.status) as ApplicationState;
     const urgency = getUrgency(app.createdAt, state, (app as any)._slaBreached);
-    const borrowerName = app.borrowerProfile
-      ? (app.borrowerProfile.account?.name ||
-        (app.borrowerProfile.contact
-          ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-          : app.borrowerProfile.name) || 'Unnamed Borrower')
-      : app.id.slice(0, 8);
+    const borrowerName = app.borrowerProfile?.name || 'Unnamed Borrower';
     const analystName = app.analyst
       ? `${app.analyst.firstName} ${app.analyst.lastName}`
       : null;

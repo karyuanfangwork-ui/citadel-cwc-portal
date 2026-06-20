@@ -28,12 +28,7 @@ interface BorrowerDataTableProps {
 
 // ── Helpers ──
 
-const displayName = (p: BorrowerProfileRow) => {
-  if (p.account) return p.account.name;
-  if (p.contact) return `${p.contact.firstName} ${p.contact.lastName}`.trim();
-  if (p.name) return p.name;
-  return 'Unnamed Borrower';
-};
+const displayName = (p: BorrowerProfileRow) => p.name || 'Unnamed Borrower';
 
 const formatCurrency = (val: string | number | null | undefined) => {
   if (val == null) return '—';

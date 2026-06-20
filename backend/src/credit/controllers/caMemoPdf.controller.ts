@@ -8,9 +8,7 @@ const esc = (s: any) => (s != null ? String(s).replace(/&/g, '&amp;').replace(/<
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildHtml(app: any, title: string): string {
-  const borrower = app.borrowerProfile?.account?.name ?? app.borrowerProfile?.contact
-    ? `${app.borrowerProfile.contact?.firstName} ${app.borrowerProfile.contact?.lastName}`
-    : 'Unknown Borrower';
+  const borrower = app.borrowerProfile?.name ?? 'Unknown Borrower';
 
   const signoffs = app.signoffs ?? [];
   const prepared = signoffs.find((s: any) => s.role === 'PREPARED_BY');
@@ -97,8 +95,8 @@ ${(app.facilities ?? []).length > 0 ? `<table>
 <h2>S2 — Borrower Profile</h2>
 <h3>Borrower Details</h3>
 <table>
-  <tr><td class="label">Account Name</td><td>${esc(app.borrowerProfile?.account?.name)}</td><td class="label">Registration No</td><td>${esc(app.borrowerProfile?.account?.registrationNumber)}</td></tr>
-  <tr><td class="label">Industry</td><td>${esc(app.borrowerProfile?.account?.industry)}</td><td class="label">Borrower Type</td><td>${esc(app.borrowerProfile?.borrowerType)}</td></tr>
+  <tr><td class="label">Borrower Name</td><td>${esc(app.borrowerProfile?.name)}</td><td class="label">Registration No</td><td>${esc(app.borrowerProfile?.registrationNumber)}</td></tr>
+  <tr><td class="label">Industry</td><td>${esc(app.borrowerProfile?.industry)}</td><td class="label">Borrower Type</td><td>${esc(app.borrowerProfile?.borrowerType)}</td></tr>
 </table>
 
 ${(app.borrowerProfile?.directors ?? []).length > 0 ? `<h3>Directors</h3>
@@ -117,7 +115,7 @@ ${(app.parties ?? []).length > 0 ? `<h3>Key Parties &amp; UBOs</h3>
 <table>
   <tr><th>Name</th><th>Role</th><th>ID Type</th><th>ID Number</th><th>Nationality</th></tr>
   ${app.parties.map((p: any) => {
-     const partyName = p.borrowerProfile?.account?.name ?? (p.borrowerProfile?.contact ? `${p.borrowerProfile.contact.firstName} ${p.borrowerProfile.contact.lastName}` : '—');
+     const partyName = p.borrowerProfile?.name ?? '—';
      return `<tr><td>${esc(partyName)}</td><td>${esc(p.role)}</td><td>—</td><td>—</td><td>—</td></tr>`;
   }).join('')}
 </table>` : ''}
@@ -217,7 +215,7 @@ ${(app.facilities ?? []).some((f: any) => (f.guarantees ?? []).length > 0) ? `
 <table>
   <tr><th>Facility</th><th>Guarantor</th><th>Type</th><th>Amount</th><th>Limited</th><th>Net Worth</th><th>Remarks</th></tr>
   ${(app.facilities ?? []).flatMap((f: any) => (f.guarantees ?? []).map((g: any) => ({ ...g, facilityType: f.facilityType }))).map((g: any) => {
-    const name = g.guarantorProfile?.account?.name ?? (g.guarantorProfile?.contact ? `${g.guarantorProfile.contact.firstName} ${g.guarantorProfile.contact.lastName}` : '—');
+    const name = g.guarantorProfile?.name ?? '—';
     return `<tr><td>${esc(g.facilityType)}</td><td>${esc(name)}</td><td>${esc(g.guaranteeType)}</td><td class="right">${fmt(g.amount)}</td><td>${g.isLimited ? 'Yes' : 'No'}</td><td class="right">${fmt(g.estimatedNetWorth)}</td><td>${esc(g.remarks)}</td></tr>`;
   }).join('')}
 </table>` : ''}

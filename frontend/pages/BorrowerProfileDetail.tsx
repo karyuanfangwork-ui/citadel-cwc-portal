@@ -81,13 +81,8 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
 
 type DetailTab = 'overview' | 'directors' | 'shareholders' | 'ubos' | 'applications' | 'exposure' | 'financials';
 
-// Derive display name from account/contact or profile.name
-const displayName = (p: BorrowerProfile) => {
-  if (p.account) return p.account.name;
-  if (p.contact) return `${p.contact.firstName} ${p.contact.lastName}`.trim();
-  if (p.name) return p.name;
-  return 'Unnamed Borrower';
-};
+// Derive display name from the independent borrower profile
+const displayName = (p: BorrowerProfile) => p.name || 'Unnamed Borrower';
 
 const getInitials = (p: BorrowerProfile) => {
   const name = displayName(p);

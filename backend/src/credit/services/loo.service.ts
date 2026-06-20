@@ -11,7 +11,7 @@ const LOO_INCLUDE = {
   facilities: true,
   conditions: true,
   decisions: { orderBy: { createdAt: 'desc' as const }, take: 1 },
-  borrowerProfile: { include: { account: true, contact: true } },
+  borrowerProfile: { select: { id: true, name: true, address: true, registrationNumber: true, industry: true, borrowerType: true, email: true, phone: true } },
 } satisfies Prisma.CreditApplicationInclude;
 
 type LooApplicationPayload = Prisma.CreditApplicationGetPayload<{ include: typeof LOO_INCLUDE }>;
@@ -65,15 +65,9 @@ class LooService {
       .map((c: any) => c.description);
 
     const borrowerProfile: any = app.borrowerProfile;
-    const borrowerName: string =
-      borrowerProfile?.account?.name ??
-      (borrowerProfile?.contact
-        ? `${borrowerProfile.contact.firstName ?? ''} ${borrowerProfile.contact.lastName ?? ''}`.trim()
-        : null) ??
-      borrowerProfile?.name ??
-      'Unnamed Borrower';
+    const borrowerName: string = borrowerProfile?.name ?? 'Unnamed Borrower';
 
-    const borrowerAddress: string = borrowerProfile?.contact?.address ?? 'Address on file';
+    const borrowerAddress: string = borrowerProfile?.address ?? 'Address on file';
 
     const now = new Date();
     const expiryDate = new Date(now);
@@ -252,7 +246,7 @@ class LooService {
         looExpiryDate: true,
         assignedRmId: true,
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
-        borrowerProfile: { select: { id: true, name: true, account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } },
+        borrowerProfile: { select: { id: true, name: true } },
       },
     });
 
@@ -266,11 +260,7 @@ class LooService {
       // Check if we should notify for this number of remaining days
       if (!WARNING_DAYS.includes(daysRemaining)) continue;
 
-      const borrowerName =
-        (app.borrowerProfile as any)?.account?.name ??
-        (app.borrowerProfile as any)?.name ??
-        ((app.borrowerProfile as any)?.contact ? `${(app.borrowerProfile as any).contact.firstName ?? ''} ${(app.borrowerProfile as any).contact.lastName ?? ''}`.trim() : null) ??
-        'Unnamed Borrower';
+      const borrowerName = (app.borrowerProfile as any)?.name ?? 'Unnamed Borrower';
 
       // Notify assigned RM
       if (app.assignedRmId && app.assignedRm) {

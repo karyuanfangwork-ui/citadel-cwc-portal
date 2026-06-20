@@ -47,6 +47,13 @@ export const updateBorrowerProfileSchema = z.object({
     name: z.string().max(255).optional().nullable(),
     accountId: z.string().uuid().optional().nullable(),
     contactId: z.string().uuid().optional().nullable(),
+    // Identity fields
+    registrationNumber: z.string().max(100).optional().nullable(),
+    industry: z.string().max(100).optional().nullable(),
+    nricPassport: z.string().max(50).optional().nullable(),
+    address: z.string().max(500).optional().nullable(),
+    phone: z.string().max(50).optional().nullable(),
+    email: z.string().email().optional().nullable(),
     creditRiskRating: riskRatingEnum.optional().nullable(),
     amlRiskTier: amlRiskTierEnum.optional().nullable(),
     exposureLimit: decimalField,

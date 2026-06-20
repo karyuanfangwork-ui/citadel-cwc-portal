@@ -45,9 +45,16 @@ app.use(helmet({
 app.use(cookieParser());
 
 // CORS
+const corsOriginsValue: unknown = config.cors.origins;
+const corsOrigins = Array.isArray(corsOriginsValue)
+    ? corsOriginsValue
+    : typeof corsOriginsValue === 'string'
+        ? corsOriginsValue.split(',').map((origin: string) => origin.trim()).filter(Boolean)
+        : [];
+
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || config.cors.origins.includes(origin)) {
+        if (!origin || corsOrigins.includes(origin)) {
             callback(null, true);
             return;
         }

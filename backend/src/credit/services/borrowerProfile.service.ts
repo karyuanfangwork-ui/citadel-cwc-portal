@@ -13,6 +13,13 @@ export interface CreateBorrowerProfileData {
   name?: string | null;
   accountId?: string | null;
   contactId?: string | null;
+  // Identity fields
+  registrationNumber?: string | null;
+  industry?: string | null;
+  nricPassport?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
   creditRiskRating?: string | null;
   amlRiskTier?: string | null;
   exposureLimit?: number | string | null;
@@ -41,6 +48,13 @@ export interface UpdateBorrowerProfileData {
   name?: string | null;
   accountId?: string | null;
   contactId?: string | null;
+  // Identity fields
+  registrationNumber?: string | null;
+  industry?: string | null;
+  nricPassport?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
   creditRiskRating?: string | null;
   amlRiskTier?: string | null;
   exposureLimit?: number | string | null;
@@ -285,6 +299,12 @@ class BorrowerProfileService {
         { purposeOfAccount: { contains: search, mode: 'insensitive' } },
         { occupation: { contains: search, mode: 'insensitive' } },
         { employer: { contains: search, mode: 'insensitive' } },
+        { registrationNumber: { contains: search, mode: 'insensitive' } },
+        { industry: { contains: search, mode: 'insensitive' } },
+        { nricPassport: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
         { account: { name: { contains: search, mode: 'insensitive' } } },
         { contact: { firstName: { contains: search, mode: 'insensitive' } } },
         { contact: { lastName: { contains: search, mode: 'insensitive' } } },
@@ -358,12 +378,8 @@ class BorrowerProfileService {
    * If overrideDuplicate is true, skips the duplicate check (admin override).
    */
   async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; userId?: string }) {
-    // Validate: cannot have both accountId and contactId
-    if (data.accountId && data.contactId) {
-      throw new Error('Only one of accountId or contactId may be provided, not both');
-    }
-    if (!data.accountId && !data.contactId && !data.name) {
-      throw new Error('name is required when no CRM account or contact is linked');
+    if (!data.name?.trim()) {
+      throw new Error('Borrower name is required');
     }
 
     // Server-side duplicate check (unless admin override)
@@ -385,6 +401,12 @@ class BorrowerProfileService {
       name: data.name ?? undefined,
       ...(data.accountId && { account: { connect: { id: data.accountId } } }),
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
+      registrationNumber: data.registrationNumber ?? undefined,
+      industry: data.industry ?? undefined,
+      nricPassport: data.nricPassport ?? undefined,
+      address: data.address ?? undefined,
+      phone: data.phone ?? undefined,
+      email: data.email ?? undefined,
       creditRiskRating: (data.creditRiskRating as any) ?? undefined,
       amlRiskTier: (data.amlRiskTier as any) ?? undefined,
       exposureLimit: data.exposureLimit != null ? new Prisma.Decimal(data.exposureLimit as string | number) : undefined,
@@ -466,6 +488,12 @@ class BorrowerProfileService {
     if (data.exposureLimit !== undefined) updateData.exposureLimit = data.exposureLimit != null ? new Prisma.Decimal(data.exposureLimit as string | number) : null;
     if (data.totalExposure !== undefined) updateData.totalExposure = data.totalExposure != null ? new Prisma.Decimal(data.totalExposure as string | number) : null;
     if (data.isSanctionedEntity !== undefined) updateData.isSanctionedEntity = data.isSanctionedEntity;
+    if (data.registrationNumber !== undefined) updateData.registrationNumber = data.registrationNumber;
+    if (data.industry !== undefined) updateData.industry = data.industry;
+    if (data.nricPassport !== undefined) updateData.nricPassport = data.nricPassport;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.email !== undefined) updateData.email = data.email;
     if (data.sourceOfWealth !== undefined) updateData.sourceOfWealth = data.sourceOfWealth;
     if (data.purposeOfAccount !== undefined) updateData.purposeOfAccount = data.purposeOfAccount;
     if (data.occupation !== undefined) updateData.occupation = data.occupation;

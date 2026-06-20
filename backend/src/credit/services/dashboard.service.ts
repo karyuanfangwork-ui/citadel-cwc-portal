@@ -269,8 +269,7 @@ class DashboardService {
               select: {
                 id: true,
                 name: true,
-                account: { select: { name: true } },
-                contact: { select: { firstName: true, lastName: true } },
+                industry: true,
               },
             },
           },
@@ -283,10 +282,7 @@ class DashboardService {
 
     const slaBreaches: SlaBreachItem[] = activeBreaches.map(b => {
       const bp = b.application.borrowerProfile;
-      const borrowerName = bp?.account?.name
-        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
-        ?? bp?.name
-        ?? 'Unknown';
+      const borrowerName = bp?.name ?? 'Unknown';
       return {
         id: b.id,
         applicationId: b.application.id,
@@ -349,8 +345,7 @@ class DashboardService {
           name: true,
           borrowerType: true,
           creditRiskRating: true,
-          account: { select: { name: true } },
-          contact: { select: { firstName: true, lastName: true } },
+          industry: true,
         },
       },
     };
@@ -384,7 +379,7 @@ class DashboardService {
         },
       },
       include: {
-        application: { select: { id: true, applicationNo: true, state: true, borrowerProfile: { select: { id: true, name: true, account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } } } },
+        application: { select: { id: true, applicationNo: true, state: true, borrowerProfile: { select: { id: true, name: true, industry: true } } } },
         policy: { select: { name: true } },
       },
     });
@@ -393,10 +388,7 @@ class DashboardService {
 
     const toMyWorkItem = (app: any): MyWorkItem => {
       const bp = app.borrowerProfile;
-      const borrowerName = bp?.account?.name
-        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
-        ?? bp?.name
-        ?? 'Unknown';
+      const borrowerName = bp?.name ?? 'Unknown';
 
       const slaStatus: 'OK' | 'WARNING' | 'OVERDUE' = breachedAppIds.has(app.id)
         ? 'OVERDUE'
@@ -418,10 +410,7 @@ class DashboardService {
 
     const mySlaBreachItems: SlaBreachItem[] = myBreaches.map(b => {
       const bp = (b as any).application?.borrowerProfile;
-      const borrowerName = bp?.account?.name
-        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
-        ?? bp?.name
-        ?? 'Unknown';
+      const borrowerName = bp?.name ?? 'Unknown';
       return {
         id: b.id,
         applicationId: b.application.id,
@@ -473,14 +462,7 @@ class DashboardService {
         ],
       },
       include: {
-        borrowerProfile: {
-          select: {
-            id: true,
-            creditRiskRating: true,
-            account: { select: { name: true, industry: true } },
-            contact: { select: { firstName: true, lastName: true } },
-          },
-        },
+        borrowerProfile: { select: { id: true, creditRiskRating: true, name: true, industry: true } },
         decisions: {
           where: { decisionById: userId },
           select: { id: true },
@@ -504,14 +486,7 @@ class DashboardService {
         },
       },
       include: {
-        borrowerProfile: {
-          select: {
-            id: true,
-            creditRiskRating: true,
-            account: { select: { name: true, industry: true } },
-            contact: { select: { firstName: true, lastName: true } },
-          },
-        },
+        borrowerProfile: { select: { id: true, creditRiskRating: true, name: true, industry: true } },
         decisions: { select: { id: true } },
       },
       orderBy: { submittedAt: 'asc' },
@@ -549,11 +524,7 @@ class DashboardService {
       }
       // If no matrix match, allow through (no matrix restriction applies)
 
-      const borrowerName =
-        app.borrowerProfile?.account?.name ??
-        (app.borrowerProfile?.contact
-          ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-          : 'Unknown');
+      const borrowerName = app.borrowerProfile?.name ?? 'Unknown';
 
       const submittedAt = app.submittedAt;
       const daysWaiting = submittedAt
@@ -606,9 +577,11 @@ class DashboardService {
         deletedAt: null,
         ...(filters?.branchId ? { branchId: filters.branchId } : {}),
       },
-      include: {
-        account: { select: { name: true, industry: true } },
-        contact: { select: { firstName: true, lastName: true } },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        creditRiskRating: true,
         applications: {
           where: {
             deletedAt: null,
@@ -637,10 +610,8 @@ class DashboardService {
     // Aggregate exposure per borrower
     // TODO: Replace with DB-level aggregation (Prisma groupBy + _sum) for production scale
     const borrowerExposures: ExposureByBorrower[] = borrowers.map(bp => {
-      const borrowerName =
-        bp.account?.name ??
-        (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : 'Unknown');
-      const industry = bp.account?.industry ?? null;
+      const borrowerName = bp.name ?? 'Unknown';
+      const industry = bp.industry ?? null;
       const rating = bp.creditRiskRating ?? (bp.applications[0]?.scoreRuns[0]?.riskRating as string | null) ?? null;
 
       let totalExposure = 0;
@@ -723,9 +694,12 @@ class DashboardService {
 
     const borrowers = await prisma.borrowerProfile.findMany({
       where,
-      include: {
-        account: { select: { name: true, industry: true } },
-        contact: { select: { firstName: true, lastName: true } },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        creditRiskRating: true,
+        exposureLimit: true,
         applications: {
           where: {
             deletedAt: null,
@@ -744,7 +718,7 @@ class DashboardService {
     const byProductType: Record<string, number> = {};
 
     for (const bp of borrowers) {
-      const borrowerName = bp.account?.name ?? (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : 'Unknown');
+      const borrowerName = bp.name ?? 'Unknown';
       let totalExposure = 0;
       for (const app of bp.applications) {
         for (const fac of app.facilities) {
@@ -879,8 +853,6 @@ class DashboardService {
         borrowerProfile: {
           select: {
             name: true,
-            account: { select: { name: true } },
-            contact: { select: { firstName: true, lastName: true } },
           },
         },
         assignedRm: {
@@ -901,10 +873,7 @@ class DashboardService {
 
     for (const app of applicationsRaw) {
       const bp = app.borrowerProfile;
-      const borrowerName = bp?.account?.name
-        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
-        ?? bp?.name
-        ?? 'Unknown';
+      const borrowerName = bp?.name ?? 'Unknown';
 
       // Only include apps that have at least one final decision (APPROVE or REJECT)
       if (!app.decisions || app.decisions.length === 0) continue;

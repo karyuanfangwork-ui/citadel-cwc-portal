@@ -194,7 +194,7 @@ const FinancialSpreading: React.FC = () => {
     if (!borrowerProfileId) return;
     try {
       const profile = await creditService.getBorrowerProfile(borrowerProfileId);
-      setBorrowerName(profile.account?.name || (profile.contact ? `${profile.contact.firstName} ${profile.contact.lastName}` : profile.name) || 'Unnamed Borrower');
+      setBorrowerName(profile.name || 'Unnamed Borrower');
       setBorrowerType(profile.borrowerType ?? null);
     } catch (e) { console.error(e); }
   }, [borrowerProfileId]);

@@ -148,6 +148,13 @@ export interface BorrowerProfile {
   annualTurnover?: number | string | null;
   yearsTrading?: number | null;
   sicCode?: string | null;
+  // Identity fields — CRM-independent
+  registrationNumber?: string | null;
+  industry?: string | null;
+  nricPassport?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
   isActive: boolean;
   deletedAt: string | null;
   createdAt: string;
@@ -167,10 +174,16 @@ export interface BorrowerProfile {
 
 export interface CreateBorrowerProfilePayload {
   borrowerType: 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
-  name?: string | null;
+  name: string;
   accountId?: string | null;
   contactId?: string | null;
   overrideDuplicate?: boolean;
+  registrationNumber?: string | null;
+  industry?: string | null;
+  nricPassport?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export interface DuplicateMatch {

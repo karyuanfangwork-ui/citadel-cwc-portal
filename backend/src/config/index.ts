@@ -2,10 +2,19 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+const corsOrigins = Array.from(
+    new Set(
+        (process.env.CORS_ORIGIN || 'http://localhost:5173')
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean)
+    )
+);
+
+if (process.env.NODE_ENV !== 'production') {
+    corsOrigins.push('http://localhost:5173');
+    corsOrigins.push('http://127.0.0.1:5173');
+}
 
 export const config = {
     env: process.env.NODE_ENV || 'development',

@@ -50,8 +50,8 @@ interface ReadinessOptions {
 }
 
 // Doc classes that can be satisfied by borrower profile data instead of a file upload
-const PROFILE_SATISFIABLE: Record<string, (bp: { contact?: { nricPassport?: string | null } | null }) => boolean> = {
-  NRIC_PASSPORT: (bp) => !!bp.contact?.nricPassport,
+const PROFILE_SATISFIABLE: Record<string, (bp: { nricPassport?: string | null }) => boolean> = {
+  NRIC_PASSPORT: (bp) => !!bp.nricPassport,
 };
 
 export async function validateSubmissionReadiness(
@@ -74,7 +74,7 @@ export async function validateSubmissionReadiness(
           amlRiskTier: true,
           exposureLimit: true,
           totalExposure: true,
-          contact: { select: { nricPassport: true } },
+          nricPassport: true,
         },
       },
       facilities: { select: { id: true, facilityType: true, amount: true } },
@@ -109,16 +109,8 @@ export async function validateSubmissionReadiness(
     });
   }
 
-  // ---- Check 2: Borrower profile must be linked ----
+  // ---- Check 2: Borrower profile readiness uses self-contained borrower data ----
   const bp = application.borrowerProfile;
-  if (!bp.accountId && !bp.contactId) {
-    errors.push({
-      field: 'borrowerProfile',
-      message: 'Borrower profile must be linked to an account or contact',
-      severity: 'error',
-    });
-  }
-
   // ---- Check 3: Mandatory documents (per borrower type) ----
   const ruleScope = {
     productType: application.productType ?? null,

@@ -577,8 +577,6 @@ class CreditApplicationService {
               borrowerType: true,
               name: true,
               creditRiskRating: true,
-              account: { select: { id: true, name: true } },
-              contact: { select: { id: true, firstName: true, lastName: true } },
             },
           },
           branch: { select: { id: true, code: true, name: true } },
@@ -722,6 +720,12 @@ class CreditApplicationService {
             id: true,
             borrowerType: true,
             name: true,
+            registrationNumber: true,
+            industry: true,
+            nricPassport: true,
+            address: true,
+            phone: true,
+            email: true,
             account: { select: { id: true, name: true, industry: true, companySize: true, annualRevenue: true, registrationNumber: true, accountType: true, parentAccountId: true, description: true, address: true, city: true, state: true, country: true } },
             contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true, phone: true, mobile: true, jobTitle: true, dateOfBirth: true } },
             // §S3 — Include financial statements for completion check + FinancialsTab
@@ -800,7 +804,7 @@ class CreditApplicationService {
     const application = await prisma.creditApplication.create({
       data: createData,
       include: {
-        borrowerProfile: { select: { id: true, borrowerType: true, name: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
+        borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true } },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -895,7 +899,7 @@ class CreditApplicationService {
       where: { id },
       data: updateData,
       include: {
-        borrowerProfile: { select: { id: true, borrowerType: true, name: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
+        borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },

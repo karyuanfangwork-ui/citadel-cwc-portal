@@ -116,7 +116,7 @@ class PolicyLimitService {
     const appRaw = await prisma.creditApplication.findUnique({
       where: { id: applicationId },
       include: {
-        borrowerProfile: { select: { id: true, accountId: true, account: { select: { id: true, industry: true } } } },
+        borrowerProfile: { select: { id: true, industry: true } },
         facilities: { select: { approvedAmount: true, amount: true } },
       },
     });
@@ -149,8 +149,8 @@ class PolicyLimitService {
       }
     }
 
-    // 2) SECTOR limits — sector comes from CrmAccount.industry
-    const industry = app.borrowerProfile?.account?.industry as string | null | undefined;
+    // 2) SECTOR limits — sector comes from BorrowerProfile.industry
+    const industry = app.borrowerProfile?.industry as string | null | undefined;
     if (industry) {
       const sectorLimits = await prisma.creditPolicyLimit.findMany({
         where: { type: 'SECTOR', sector: industry, isActive: true },
@@ -207,9 +207,9 @@ class PolicyLimitService {
   }
 
   private async getSectorExposure(industry: string, excludeId: string): Promise<number> {
-    // Find all active borrowerProfiles whose linked CrmAccount has this industry
+    // Find all active borrowerProfiles in this industry
     const profiles = await prisma.borrowerProfile.findMany({
-      where: { account: { industry }, isActive: true, deletedAt: null },
+      where: { industry, isActive: true, deletedAt: null },
       select: { id: true },
     });
     const profileIds = profiles.map(p => p.id);

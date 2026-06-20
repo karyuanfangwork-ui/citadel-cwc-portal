@@ -111,10 +111,8 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
         ) : (
           <div className="space-y-3">
             {parties.map(p => {
-              const contact = p.borrowerProfile?.contact;
-              const account = p.borrowerProfile?.account;
-              const displayName = p.borrowerProfile?.name || (contact ? `${contact.firstName} ${contact.lastName}` : account?.name ?? 'Unknown');
-              const initials = contact ? `${contact.firstName?.[0] ?? ''}${contact.lastName?.[0] ?? ''}` : (account?.name?.[0] ?? p.borrowerProfile?.name?.[0] ?? '?');
+              const displayName = p.borrowerProfile?.name || 'Unknown';
+              const initials = p.borrowerProfile?.name?.slice(0, 2).toUpperCase() ?? '?';
               const roleLabel = p.role?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? 'Party';
               return (
                 <div key={p.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4">

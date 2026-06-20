@@ -46,8 +46,6 @@ const CreditApplicationMobileSummary: React.FC = () => {
   const borrowerName = (() => {
     if (!app?.borrowerProfile) return '—';
     const bp = app.borrowerProfile;
-    if (bp.account?.name) return bp.account.name;
-    if (bp.contact) return `${bp.contact.firstName} ${bp.contact.lastName}`.trim();
     return bp.name || '—';
   })();
 
