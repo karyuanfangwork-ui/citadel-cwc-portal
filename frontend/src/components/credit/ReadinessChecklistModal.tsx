@@ -7,6 +7,8 @@ export interface ReadinessChecklistModalProps {
   phaseCompletion: Record<string, PhaseStatus>;
   onSubmitAnyway: () => void;
   onNavigateToSection: (tabId: string) => void;
+  /** Processing lane — when PERSONAL_FAST, s4 navigates to credit-checks (combined section) */
+  lane?: string | null;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -43,8 +45,14 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
   phaseCompletion,
   onSubmitAnyway,
   onNavigateToSection,
+  lane,
 }) => {
   if (!open) return null;
+
+  // Personal Fast lane combines s4 + s5 into a single "credit-checks" section
+  const phaseToTab = lane === 'PERSONAL_FAST'
+    ? { ...PHASE_TO_TAB_MAP, s4: 'credit-checks', s5: 'credit-checks' }
+    : PHASE_TO_TAB_MAP;
 
   const entries = Object.entries(phaseCompletion);
   const requiredKeys = new Set(['s1', 's2', 's3', 's4', 's5']);
@@ -88,7 +96,7 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
           {entries.map(([key, status]) => {
             const config = STATUS_CONFIG[status] || STATUS_CONFIG.optional;
             const label = PHASE_LABELS[key] || key;
-            const tabId = PHASE_TO_TAB_MAP[key] || key;
+            const tabId = phaseToTab[key] || key;
             const isIncomplete = status === 'incomplete' && key !== 'meta';
             return (
               <div

@@ -377,6 +377,7 @@ export interface CreditApplication {
   status?: ApplicationState;
   productName?: string;
   reviewedBy?: string | null;
+  lane?: string | null;
   // relations
   borrowerProfile?: BorrowerProfile;
   rm?: CreditUserRef;
@@ -2619,7 +2620,9 @@ export const piiRevealApi = {
 
 export const bureauChecklistApi = {
   get: async (applicationId: string) => {
-    const res = await apiClient.get(`/credit/applications/${applicationId}/bureau-checklist`);
+    const res = await apiClient.get(`/credit/applications/${applicationId}/bureau-checklist`, {
+      params: { _: Date.now() },
+    });
     return res.data.data as {
       ccrisUploaded: boolean;
       ctosUploaded: boolean;

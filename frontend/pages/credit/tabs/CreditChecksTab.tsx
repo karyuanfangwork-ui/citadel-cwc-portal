@@ -256,7 +256,12 @@ type ChecklistData = {
   verifiedBy: { id: string; firstName: string; lastName: string } | null;
 };
 
-const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks: CreditBureauCheck[] }> = ({ appId, readOnly, checks }) => {
+type ChecklistSavePayload = Pick<ChecklistData,
+  'ccrisUploaded' | 'ctosUploaded' | 'noAdverseRecord' | 'adverseExceptionReason' | 'amlScreeningDone'
+>;
+
+
+const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks: CreditBureauCheck[]; application: CreditApplication }> = ({ appId, readOnly, checks, application }) => {
   const { user } = useAuth();
   const [checklist, setChecklist] = useState<ChecklistData>({
     ccrisUploaded: false, ctosUploaded: false, noAdverseRecord: false,
@@ -291,7 +296,10 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
   useEffect(() => { loadChecklist(); }, [loadChecklist]);
 
   /** Check whether a specific bureau provider has a verified attached doc */
-  const hasVerifiedDoc = (providerKey: string): boolean => {
+  const isPersonalFast = String((application as any).lane) === 'PERSONAL_FAST';
+
+  const hasVerifiedDoc = (providerKey: keyof ChecklistData) => {
+    if (isPersonalFast) return true;
     const provider = CHECKLIST_DOC_PROVIDER[providerKey];
     if (!provider) return true; // amlScreeningDone / noAdverseRecord don't need doc
     const match = checks.find(c => c.provider === provider);
@@ -305,9 +313,15 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
     if (readOnly) return;
     setSaving(true);
     try {
-      await bureauChecklistApi.upsert(appId, updated);
-      // Re-fetch to get updated verifiedById (cleared on tick change)
-      await loadChecklist();
+      const payload: ChecklistSavePayload = {
+        ccrisUploaded: updated.ccrisUploaded,
+        ctosUploaded: updated.ctosUploaded,
+        noAdverseRecord: updated.noAdverseRecord,
+        adverseExceptionReason: updated.adverseExceptionReason,
+        amlScreeningDone: updated.amlScreeningDone,
+      };
+      const saved = await bureauChecklistApi.upsert(appId, payload);
+      setChecklist(prev => ({ ...prev, ...saved }));
     } catch (e: any) {
       const msg = e?.response?.data?.error?.message || e?.response?.data?.message || 'Failed to save checklist';
       toast.error(msg);
@@ -321,9 +335,9 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
   const handleVerify = async () => {
     setVerifying(true);
     try {
-      await bureauChecklistApi.verify(appId);
+      const verified = await bureauChecklistApi.verify(appId);
       toast.success('Bureau checklist verified');
-      await loadChecklist();
+      setChecklist(prev => ({ ...prev, ...verified }));
     } catch (e: any) {
       const msg = e?.response?.data?.error?.message || e?.response?.data?.message || 'Failed to verify checklist';
       toast.error(msg);
@@ -361,13 +375,20 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
           </div>
         )}
 
+        {isPersonalFast && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded border border-blue-200 bg-blue-50 text-blue-800 text-xs">
+            <span className="font-semibold">Personal Fast streamlined flow.</span>
+            CCRIS / CTOS can be ticked directly here without uploading PDFs in Documents.
+          </div>
+        )}
+
         {CHECKLIST_ITEMS.map(item => {
           const needsDoc = CHECKLIST_DOC_PROVIDER[item.key];
           const docReady = hasVerifiedDoc(item.key);
           const isChecked = item.key === 'noAdverseRecord'
             ? checklist.noAdverseRecord || Boolean(checklist.adverseExceptionReason)
             : (checklist as any)[item.key];
-          const disabled = readOnly || (needsDoc && !docReady);
+          const disabled = readOnly || (needsDoc && !docReady && !isPersonalFast);
 
           return (
             <label key={item.key} className={`flex items-start gap-2 text-sm ${disabled && !readOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
@@ -384,7 +405,7 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
               />
               <span className={isChecked ? 'text-gray-700' : 'text-gray-500'}>
                 {item.label}
-                {needsDoc && !docReady && (
+                {needsDoc && !docReady && !isPersonalFast && (
                   <span className="ml-1 text-[10px] text-amber-600 font-medium">
                     (upload & verify {bureauProviderLabel(needsDoc)} PDF first)
                   </span>
@@ -692,7 +713,7 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
         )}
         {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
       </CaMemoSection>
-      <BureauChecklistPanel appId={application.id} readOnly={readOnly} checks={checks} />
+      <BureauChecklistPanel appId={application.id} readOnly={readOnly} checks={checks} application={application} />
 
       {/* §2.8 — AML Rescreen History */}
       <AmlRescreenHistorySection

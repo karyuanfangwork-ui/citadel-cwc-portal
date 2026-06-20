@@ -101,10 +101,13 @@ export async function validateSubmissionReadiness(
   }
 
   // ---- Check 1: At least one facility ----
-  if (application.facilities.length === 0) {
+  // PERSONAL_FAST applications use the streamlined loan-request flow and do not
+  // expose a separate facilities step. Keep the facility gate for SME/CORPORATE
+  // lanes where the user can actually add and structure facilities.
+  if (application.lane !== 'PERSONAL_FAST' && application.facilities.length === 0) {
     errors.push({
       field: 'facilities',
-      message: 'At least one credit facility is required before submission',
+      message: 'Add at least one facility in the Facilities section before submission',
       severity: 'error',
     });
   }

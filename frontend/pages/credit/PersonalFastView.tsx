@@ -1,9 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { CreditApplication, CreditApproval, ApplicationSignoff, ApplicationState } from '../../src/services/credit.service';
+import { CreditApplication, CreditApproval, ApplicationSignoff, ApplicationState, CreditScoreRun } from '../../src/services/credit.service';
+import creditService from '../../src/services/credit.service';
 import { LANE_LABELS, LANE_DESCRIPTIONS, ProcessingLane as ProcessingLaneType, FATCA_CRS_FLAG, getPhaseCompletion, getIncompletePhaseCount, PhaseStatus } from './creditUtils';
 import StateBadge from '../../src/components/credit/StateBadge';
 import EditBorrowerModal from '../../src/components/credit/EditBorrowerModal';
 import { SectionErrorBoundary, SectionLoadingSkeleton, SectionEmptyState } from '../../src/components/credit/SectionStates';
+import { useAuth } from '../../src/context/AuthContext';
+import { hasPermission } from '../../src/utils/permissions';
+import toast from 'react-hot-toast';
+import { friendlyMessage } from '../../src/utils/errorMessages';
 
 // ── Tab components (same ones used by CreditApplicationDetail) ──
 import LoanRequestTab from './tabs/LoanRequestTab';
@@ -69,7 +74,7 @@ function getSectionStatus(phases: string[], completion: Record<string, PhaseStat
 }
 
 /** Human-readable hint for what's needed to complete a section. */
-function getSectionHint(sectionId: string, app: CreditApplication): string | null {
+function getSectionHint(sectionId: string, app: CreditApplication, lane: string): string | null {
   const hasValue = (v: unknown) => v != null && String(v).trim() !== '';
   const bp = app.borrowerProfile;
   switch (sectionId) {
@@ -78,7 +83,7 @@ function getSectionHint(sectionId: string, app: CreditApplication): string | nul
       if (!hasValue(app.requestedTenor)) return 'Enter requested tenor';
       if (!hasValue(app.productType)) return 'Select product type';
       if (!hasValue(app.purpose)) return 'Enter purpose of loan';
-      if (!app.facilities || app.facilities.length === 0) return 'Add at least one facility';
+      if (lane !== 'PERSONAL_FAST' && (!app.facilities || app.facilities.length === 0)) return 'Add at least one facility in the Facilities section';
       return null;
     case 'borrower-profile':
       if (!hasValue(bp?.borrowerType)) return 'Set borrower type';
@@ -172,6 +177,7 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
     requestedTenor: app.requestedTenor,
     productType: app.productType as string | null,
     purpose: app.purpose,
+    lane,
     borrowerType: app.borrowerProfile?.borrowerType ?? null,
     registrationNumber: app.borrowerProfile?.registrationNumber ?? null,
     riskRating: app.riskRating,
@@ -211,6 +217,32 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
 
   // ── Phase 3: Edit borrower modal state ──
   const [showEditBorrower, setShowEditBorrower] = useState(false);
+
+  // ── Scorecard runner state (S4 — Personal Fast has no dedicated risk tab) ──
+  const { user } = useAuth();
+  const canWrite = hasPermission(user, 'credit:write');
+  const [scoreRuns, setScoreRuns] = useState<CreditScoreRun[]>([]);
+  const [executingScore, setExecutingScore] = useState(false);
+
+  useEffect(() => {
+    if (!app.id) return;
+    creditService.listScoreRuns(app.id).then(runs => setScoreRuns(runs || [])).catch(() => setScoreRuns([]));
+  }, [app.id, app.scoreRunCount]);
+
+  const handleRunScore = useCallback(async () => {
+    if (!app.id) return;
+    setExecutingScore(true);
+    try {
+      const run = await creditService.executeScore(app.id);
+      toast.success('Scorecard executed');
+      setScoreRuns(prev => [run, ...prev]);
+      onRefresh();
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to execute scorecard'));
+    } finally { setExecutingScore(false); }
+  }, [app.id, onRefresh]);
+
+  const latestScoreRun = scoreRuns[0];
 
   // ── Phase 6: Section retry keys ──
   // Increment to force SectionErrorBoundary to remount its children
@@ -332,7 +364,52 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
       case 'financials':
         return <FinancialsTab application={app} />;
       case 'credit-checks':
-        return <CreditChecksTab application={app} onUpdated={setApp} />;
+        return (
+          <>
+            {/* S4 — Scorecard runner (Personal Fast has no dedicated risk tab) */}
+            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Scorecard & Rating</h4>
+                  {latestScoreRun ? (
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <span className="text-xs text-gray-500">Total Score</span>
+                        <div className="text-2xl font-black text-gray-900">{latestScoreRun.totalScore}</div>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500">Risk Rating</span>
+                        <div className="text-lg font-black text-gray-900">{latestScoreRun.riskRating || 'NR'}</div>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500">Executed</span>
+                        <div className="text-sm font-semibold text-gray-700">
+                          {(latestScoreRun.runAt || latestScoreRun.executedAt)
+                            ? new Date(latestScoreRun.runAt || latestScoreRun.executedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No score run yet. Run the scorecard to generate a credit score and risk rating.</p>
+                  )}
+                </div>
+                {canWrite && currentState === 'DRAFT' && (
+                  <button
+                    onClick={handleRunScore}
+                    disabled={executingScore}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-brand-700 text-white rounded-lg hover:bg-brand-800 disabled:opacity-50 transition-colors shrink-0"
+                    style={{ cursor: executingScore ? 'wait' : 'pointer', border: 'none' }}
+                  >
+                    <span className="material-symbols-outlined text-sm">play_arrow</span>
+                    {executingScore ? 'Running...' : 'Run Scorecard'}
+                  </button>
+                )}
+              </div>
+            </div>
+            <CreditChecksTab application={app} onUpdated={setApp} />
+          </>
+        );
       case 'signoff':
         return (
           <>
@@ -404,8 +481,8 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
               <div className="text-xs text-amber-700 mt-0.5 flex items-center gap-1">
                 <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 Next: <span className="font-semibold">{nextSection.title}</span>
-                {getSectionHint(nextSection.id, app) && (
-                  <span className="text-amber-600"> — {getSectionHint(nextSection.id, app)}</span>
+                {getSectionHint(nextSection.id, app, lane) && (
+                  <span className="text-amber-600"> — {getSectionHint(nextSection.id, app, lane)}</span>
                 )}
               </div>
             ) : (
@@ -440,7 +517,7 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
       {PERSONAL_FAST_SECTIONS.map((section) => {
         const status = getSectionStatus(section.phases, phaseCompletion);
         const style = STATUS_STYLES[status];
-        const hint = getSectionHint(section.id, app);
+        const hint = getSectionHint(section.id, app, lane);
         const isCollapsed = collapsedSections.has(section.id);
         const isCollapsible = section.collapsible;
         const isEmpty = isSectionEmpty(section.id, app);
@@ -512,15 +589,13 @@ const PersonalFastView: React.FC<PersonalFastViewProps> = ({
                   sectionTitle={section.title}
                   onRetry={() => handleSectionRetry(section.id)}
                 >
-                  {isEmpty ? (
+                  {isEmpty && section.id !== 'financials' && section.id !== 'credit-checks' ? (
                     <SectionEmptyState
                       icon="draft"
                       title={`No ${section.title.toLowerCase()} data yet`}
                       description={
                         section.id === 'loan-request'
                           ? 'Fill in the loan request details to get started.'
-                          : section.id === 'financials'
-                          ? 'Add financial statements or retail income data to proceed.'
                           : section.id === 'credit-checks'
                           ? 'Run bureau checks and complete the compliance checklist.'
                           : 'Data for this section has not been added yet.'

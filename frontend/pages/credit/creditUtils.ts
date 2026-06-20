@@ -785,6 +785,7 @@ export function getPhaseCompletion(app: {
   requestedTenor?: number | string | null;
   productType?: string | null;
   purpose?: string | null;
+  lane?: string | null;
   borrowerType?: string | null;
   registrationNumber?: string | null;
   riskRating?: string | null;
@@ -817,7 +818,11 @@ export function getPhaseCompletion(app: {
       hasValue(app.requestedTenor) &&
       hasValue(app.productType) &&
       hasValue(app.purpose) &&
-      (app.facilities && app.facilities.length > 0)
+      (
+        app.lane === 'PERSONAL_FAST'
+          ? true
+          : (app.facilities && app.facilities.length > 0)
+      )
     ) ? 'complete' : 'incomplete',
 
     s2: (() => {

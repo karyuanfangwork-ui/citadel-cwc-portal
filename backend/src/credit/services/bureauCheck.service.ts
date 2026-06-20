@@ -88,6 +88,17 @@ async function requireVerifiedBureauDoc(
   provider: BureauProvider,
   fieldLabel: string,
 ): Promise<void> {
+  const app = await prisma.creditApplication.findUnique({
+    where: { id: applicationId },
+    select: { lane: true },
+  });
+
+  // Personal Fast is intentionally streamlined: bureau checklist ticks are
+  // allowed without a supporting uploaded PDF attachment.
+  if (app?.lane === 'PERSONAL_FAST') {
+    return;
+  }
+
   const bureauCheck = await prisma.creditBureauCheck.findFirst({
     where: { applicationId, provider },
     include: { attachedDoc: true },
@@ -119,27 +130,48 @@ export async function upsertBureauChecklist(
     amlScreeningDone?: boolean;
   },
 ) {
+  const {
+    ccrisUploaded,
+    ctosUploaded,
+    noAdverseRecord,
+    adverseExceptionReason,
+    amlScreeningDone,
+  } = data;
+
   // ── Tick enforcement: ccrisUploaded requires verified CCRIS doc ──
-  if (data.ccrisUploaded) {
+  if (ccrisUploaded) {
     await requireVerifiedBureauDoc(applicationId, 'CCRIS_BORROWER_UPLOAD' as BureauProvider, 'ccrisUploaded');
   }
 
   // ── Tick enforcement: ctosUploaded requires verified CTOS doc ──
-  if (data.ctosUploaded) {
+  if (ctosUploaded) {
     await requireVerifiedBureauDoc(applicationId, 'CTOS' as BureauProvider, 'ctosUploaded');
   }
 
   // ── If ticking any checkbox, clear verifiedById (must re-verify) ──
-  const hasTickChange = data.ccrisUploaded !== undefined || data.ctosUploaded !== undefined
-    || data.noAdverseRecord !== undefined || data.amlScreeningDone !== undefined;
+  const hasTickChange = ccrisUploaded !== undefined || ctosUploaded !== undefined
+    || noAdverseRecord !== undefined || amlScreeningDone !== undefined;
+
+  const checklistData = {
+    ccrisUploaded,
+    ctosUploaded,
+    noAdverseRecord,
+    adverseExceptionReason,
+    amlScreeningDone,
+  };
 
   return prisma.bureauChecklist.upsert({
     where: { applicationId },
-    create: { applicationId, tickedById: userId, tickedAt: new Date(), ...data },
+    create: {
+      applicationId,
+      tickedById: userId,
+      tickedAt: new Date(),
+      ...checklistData,
+    },
     update: {
       tickedById: userId,
       tickedAt: new Date(),
-      ...data,
+      ...checklistData,
       // Any tick change invalidates the previous verification
       ...(hasTickChange ? { verifiedById: null, verifiedAt: null } : {}),
     },
@@ -157,13 +189,21 @@ export async function getBureauChecklist(applicationId: string) {
 }
 
 export async function isBureauChecklistComplete(applicationId: string): Promise<boolean> {
-  const checklist = await prisma.bureauChecklist.findUnique({ where: { applicationId } });
+  const [app, checklist] = await Promise.all([
+    prisma.creditApplication.findUnique({
+      where: { id: applicationId },
+      select: { lane: true },
+    }),
+    prisma.bureauChecklist.findUnique({ where: { applicationId } }),
+  ]);
+
   if (!checklist) return false;
+
+  const isPersonalFast = app?.lane === 'PERSONAL_FAST';
   return (
-    checklist.ccrisUploaded &&
-    checklist.ctosUploaded &&
     checklist.amlScreeningDone &&
-    (checklist.noAdverseRecord || Boolean(checklist.adverseExceptionReason))
+    (checklist.noAdverseRecord || Boolean(checklist.adverseExceptionReason)) &&
+    (isPersonalFast || (checklist.ccrisUploaded && checklist.ctosUploaded))
   );
 }
 
@@ -194,11 +234,10 @@ export async function verifyChecklist(
     throw new AppError('Bureau checklist not found for this application.', 404);
   }
 
-  // Must be complete before verifying
-  if (!checklist.ccrisUploaded || !checklist.ctosUploaded || !checklist.amlScreeningDone
-      || (!checklist.noAdverseRecord && !checklist.adverseExceptionReason)) {
+  // Must be complete before verifying (Personal Fast uses the streamlined rule set).
+  if (!(await isBureauChecklistComplete(applicationId))) {
     throw new AppError(
-      'Bureau checklist must be complete (CCRIS, CTOS, AML screening ticked; adverse record exception if applicable) before verification.',
+      'Bureau checklist must be complete before verification.',
       400,
     );
   }

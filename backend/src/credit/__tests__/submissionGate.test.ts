@@ -93,6 +93,18 @@ describe('validateSubmissionReadiness — DRAFT submission gate', () => {
     });
     mockPrisma.creditApplication.findUnique.mockResolvedValue({
       ...BASE_APPLICATION,
+      lane: 'SME',
+      borrowerProfile: {
+        borrowerType: 'SOLE_PROPRIETOR',
+        exposureLimit: null,
+        totalExposure: null,
+        amlRiskTier: null,
+      },
+      documents: [
+        { classification: 'NRIC_PASSPORT' },
+        { classification: 'SSM_CERT' },
+        { classification: 'BANK_STATEMENT' },
+      ],
       facilities: [],
     });
 
@@ -119,5 +131,18 @@ describe('validateSubmissionReadiness — DRAFT submission gate', () => {
       }),
       expect.objectContaining({ id: 'app-1' }),
     );
+  });
+
+  it('does not require facilities for PERSONAL_FAST submissions', async () => {
+    mockCheckRequiredFields.mockResolvedValue({ ok: true, missing: [] });
+    mockPrisma.creditApplication.findUnique.mockResolvedValue({
+      ...BASE_APPLICATION,
+      facilities: [],
+    });
+
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+
+    expect(result.ready).toBe(true);
+    expect(result.errors.find((error: { field: string }) => error.field === 'facilities')).toBeUndefined();
   });
 });

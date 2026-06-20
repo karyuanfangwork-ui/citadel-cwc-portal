@@ -16,13 +16,6 @@ const EMPLOYMENT_TYPES = [
   { value: 'PENSIONER', label: 'Pensioner', icon: 'elderly' },
 ];
 
-const EMPLOYMENT_STATUS = [
-  'PERMANENT',
-  'PROBATION',
-  'CONTRACT',
-  'RETIRED',
-] as const;
-
 function DsrBadge({ dsr }: { dsr: number }) {
   const status = dsr <= 60 ? 'pass' : dsr <= 70 ? 'warning' : 'fail';
   const styles = {
@@ -44,9 +37,7 @@ function DsrBadge({ dsr }: { dsr: number }) {
   );
 }
 
-// ── Form state now includes Phase 2 fields ──────────────────────────────────────
 type FormState = {
-  // Existing backend-persisted fields
   employmentType: string;
   employerName: string;
   monthlyGrossIncome: string;
@@ -58,18 +49,6 @@ type FormState = {
   existingLoanCommitment: string;
   otherCommitments: string;
   proposedInstalment: string;
-  // Phase 2 frontend-only placeholder fields (not yet persisted)
-  jobTitle: string;
-  employmentStatus: string;
-  lengthOfService: string;
-  fixedAllowances: string;
-  variableIncome: string;
-  otherRecurringIncome: string;
-  housingRentCommitment: string;
-  livingExpenses: string;
-  dependents: string;
-  assetsSavings: string;
-  analystRemarks: string;
 };
 
 const DEFAULT_FORM: FormState = {
@@ -84,17 +63,6 @@ const DEFAULT_FORM: FormState = {
   existingLoanCommitment: '',
   otherCommitments: '',
   proposedInstalment: '',
-  jobTitle: '',
-  employmentStatus: 'PERMANENT',
-  lengthOfService: '',
-  fixedAllowances: '',
-  variableIncome: '',
-  otherRecurringIncome: '',
-  housingRentCommitment: '',
-  livingExpenses: '',
-  dependents: '',
-  assetsSavings: '',
-  analystRemarks: '',
 };
 
 // ── Individual commitment row for verification ────────────────────────────────
@@ -109,15 +77,6 @@ function CommitmentRow({ label, amount, includesInDsr }: { label: string; amount
       </td>
       <td className="px-3 py-1.5 text-right tabular-nums text-xs">{fmt(amount)}</td>
     </tr>
-  );
-}
-
-// ── Placeholder field badge ──────────────────────────────────────────────────────
-function PlaceholderBadge() {
-  return (
-    <span className="ml-1 text-[9px] text-gray-400 font-medium italic" title="This field is not yet persisted to the backend">
-      (preview)
-    </span>
   );
 }
 
@@ -321,26 +280,6 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
     </div>
   );
 
-  // ── Field renderer for placeholder (non-persisted) fields ──
-  const placeholderField = (label: string, key: keyof FormState, type = 'number', prefix?: string) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">
-        {label} <PlaceholderBadge />
-      </label>
-      <div className="relative">
-        {prefix && <span className="absolute left-2.5 top-2 text-sm text-gray-400 font-medium">{prefix}</span>}
-        <input
-          type={type}
-          value={form[key] as any}
-          disabled={readOnly}
-          onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-          className={`w-full border rounded-md px-3 py-2 text-sm tabular-nums border-dashed border-gray-300 bg-gray-50/50 ${prefix ? 'pl-8' : ''} disabled:bg-gray-50`}
-          min={0}
-        />
-      </div>
-    </div>
-  );
-
   if (loading) return <div className="p-4 text-sm text-gray-400">Loading…</div>;
 
   // Computed summary for verification
@@ -450,7 +389,7 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
 
       {/* ── Section 1: Employment Details ──────── */}
       <CaMemoSection title="Employment Details" phase="S3">
-        <div className="space-y-4 max-w-2xl">
+        <div className="space-y-4">
           <div className="bg-white border rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -475,23 +414,6 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
                 </div>
               </div>
               {field('Employer Name', 'employerName', 'text')}
-              {placeholderField('Job Title', 'jobTitle', 'text')}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Employment Status <PlaceholderBadge />
-                </label>
-                <select
-                  value={form.employmentStatus}
-                  disabled={readOnly}
-                  onChange={(e) => setForm((prev) => ({ ...prev, employmentStatus: e.target.value }))}
-                  className="w-full border rounded-md px-3 py-2 text-sm border-dashed border-gray-300 bg-gray-50/50 disabled:bg-gray-50"
-                >
-                  {EMPLOYMENT_STATUS.map((s) => (
-                    <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
-                  ))}
-                </select>
-              </div>
-              {placeholderField('Length of Service (years)', 'lengthOfService')}
             </div>
           </div>
         </div>
@@ -499,16 +421,13 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
 
       {/* ── Section 2: Monthly Income ──────── */}
       <CaMemoSection title="Monthly Income" phase="S3">
-        <div className="space-y-4 max-w-2xl">
+        <div className="space-y-4">
           <div className="bg-white border rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4">
               {field('Monthly Gross Income', 'monthlyGrossIncome', 'number', 'RM')}
               {field('EPF Monthly Contribution', 'epfMonthlyAmount', 'number', 'RM')}
               {field('Monthly Tax Deduction', 'monthlyTaxDeduction', 'number', 'RM')}
               {field('Monthly SOCSO Deduction', 'monthlySocsoDeduction', 'number', 'RM')}
-              {placeholderField('Fixed Allowances', 'fixedAllowances', 'number', 'RM')}
-              {placeholderField('Variable Income (avg)', 'variableIncome', 'number', 'RM')}
-              {placeholderField('Other Recurring Income', 'otherRecurringIncome', 'number', 'RM')}
             </div>
           </div>
         </div>
@@ -516,57 +435,25 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
 
       {/* ── Section 3: Monthly Commitments ──────── */}
       <CaMemoSection title="Monthly Commitments" phase="S3">
-        <div className="space-y-4 max-w-2xl">
+        <div className="space-y-4">
           <div className="bg-white border rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4">
               {field('Hire Purchase / Car Loans', 'hirePurchaseCommitment', 'number', 'RM')}
               {field('Credit Card (min. payment)', 'creditCardCommitment', 'number', 'RM')}
               {field('Existing Personal Loans', 'existingLoanCommitment', 'number', 'RM')}
               {field('Other Obligations', 'otherCommitments', 'number', 'RM')}
-              {placeholderField('Housing / Rent Commitment', 'housingRentCommitment', 'number', 'RM')}
               {field('Proposed Monthly Instalment', 'proposedInstalment', 'number', 'RM')}
             </div>
           </div>
         </div>
       </CaMemoSection>
 
-      {/* ── Section 4: Living Expenses & Assets ──────── */}
-      <CaMemoSection title="Living Expenses & Assets" phase="S3">
-        <div className="space-y-4 max-w-2xl">
-          <div className="bg-white border rounded-lg p-4">
-            <div className="grid grid-cols-2 gap-4">
-              {placeholderField('Monthly Living Expenses', 'livingExpenses', 'number', 'RM')}
-              {placeholderField('Dependents (count)', 'dependents', 'number')}
-              {placeholderField('Assets / Savings', 'assetsSavings', 'number', 'RM')}
-            </div>
-          </div>
-        </div>
-      </CaMemoSection>
-
-      {/* ── Section 5: Calculation Breakdown ──────── */}
+      {/* ── Section 4: Calculation Breakdown ──────── */}
       {ratioBreakdowns.length > 0 && (
         <CaMemoSection title="Calculation Breakdown" phase="S3">
           <CalculationBreakdownPanel ratios={ratioBreakdowns} />
         </CaMemoSection>
       )}
-
-      {/* ── Section 6: Financial Assessment Remarks ──────── */}
-      <CaMemoSection title="Financial Assessment Remarks" phase="S3">
-        <div className="space-y-4 max-w-2xl">
-          <div className="bg-white border rounded-lg p-4">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Analyst Remarks <PlaceholderBadge />
-            </label>
-            <textarea
-              value={form.analystRemarks}
-              disabled={readOnly}
-              onChange={(e) => setForm((prev) => ({ ...prev, analystRemarks: e.target.value }))}
-              className="w-full border border-dashed border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50/50 disabled:bg-gray-50 resize-none h-24"
-              placeholder="Document any exceptions, observations, or justification for DSR override…"
-            />
-          </div>
-        </div>
-      </CaMemoSection>
 
       {/* ── Save button ──────── */}
       {!readOnly && (

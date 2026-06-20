@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
   CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi, commentApi,
@@ -457,6 +457,7 @@ const CreditApplicationDetail: React.FC = () => {
     requestedTenor: app.requestedTenor,
     productType: app.productType as string | null,
     purpose: app.purpose,
+    lane: app.lane ?? null,
     borrowerType: app.borrowerProfile?.borrowerType ?? null,
     registrationNumber: null,
     riskRating: app.riskRating,
@@ -476,6 +477,11 @@ const CreditApplicationDetail: React.FC = () => {
   });
   phaseCompletionRef.current = phaseCompletion;
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
+
+  const draftSubmissionBlockingPhases = ['s1', 's2', 's3', 's4', 's5'] as const;
+  const hasDraftSubmissionBlockers = draftSubmissionBlockingPhases.some(
+    (phase) => phaseCompletion[phase] === 'incomplete',
+  );
 
   const requiredPhases = Object.values(phaseCompletion).filter(s => s !== 'optional');
   const completedPhases = requiredPhases.filter(s => s === 'complete').length;
@@ -709,9 +715,8 @@ const CreditApplicationDetail: React.FC = () => {
             esignReady={esignReady}
             segment={segment}
             onShowTransitionDialog={(action) => {
-              const t = transitions.find(tr => tr.action === action);
               const isSubmitAction = currentState === 'DRAFT' || currentState === 'REFERRED_BACK' || action === 'submit_to_committee';
-              if (isSubmitAction && incompleteCount > 0) {
+              if (isSubmitAction && hasDraftSubmissionBlockers) {
                 pendingTransitionRef.current = action;
                 setReadinessModalOpen(true);
                 return;
@@ -1070,6 +1075,7 @@ const CreditApplicationDetail: React.FC = () => {
         open={readinessModalOpen}
         onClose={() => { setReadinessModalOpen(false); pendingTransitionRef.current = null; }}
         phaseCompletion={phaseCompletion}
+        lane={lane}
         onSubmitAnyway={() => {
           const action = pendingTransitionRef.current;
           setReadinessModalOpen(false);
@@ -1079,7 +1085,13 @@ const CreditApplicationDetail: React.FC = () => {
           }
         }}
         onNavigateToSection={(tabId) => {
-          handleTabChange(tabId as DetailTab360);
+          if (lane === 'PERSONAL_FAST') {
+            // Personal Fast uses scroll-to-section via hash, not tab switching
+            const el = document.getElementById(`pf-section-${tabId}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            handleTabChange(tabId as DetailTab360);
+          }
         }}
       />
       {DirtyGuardDialog}
