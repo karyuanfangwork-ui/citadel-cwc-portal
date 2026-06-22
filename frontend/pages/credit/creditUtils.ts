@@ -475,8 +475,8 @@ export const TAB_GROUPS_360: TabGroup[] = [
   },
   {
     id: 'customer-profile',
-    label: 'Customer Profile',
-    tabs: [{ id: 'customer-profile' as DetailTab360 as unknown as DetailTab, label: 'Customer Profile' }],
+    label: 'Borrower Profile',
+    tabs: [{ id: 'customer-profile' as DetailTab360 as unknown as DetailTab, label: 'Borrower Profile' }],
   },
   {
     id: 'application-details',

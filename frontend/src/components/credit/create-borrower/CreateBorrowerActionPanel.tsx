@@ -20,7 +20,7 @@ function computeValidationScore(formData: FormData): number {
   let total = 0;
   let filled = 0;
 
-  // Step 0: Customer type (always filled)
+  // Step 0: Borrower type (always filled)
   total += 1;
   filled += 1;
 

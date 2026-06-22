@@ -5,8 +5,8 @@ import FatcaCrsSection from '../../../src/components/credit/FatcaCrsSection';
 
 // S2 · Borrower Profile — Identity summary + KYC snapshot.
 // Used by PersonalFastView.tsx (retail fast-track lane).
-// CustomerProfileTab.tsx now uses the type-specific profile components
-// (RetailCustomerProfile / SmeCustomerProfile / CorporateCustomerProfile)
+// BorrowerProfileTab.tsx (PersonalFastView) uses the type-specific profile components
+// (RetailBorrowerProfile / SmeBorrowerProfile / CorporateBorrowerProfile)
 // plus the extracted FatcaCrsSection directly, and no longer renders this tab.
 
 type Props = {

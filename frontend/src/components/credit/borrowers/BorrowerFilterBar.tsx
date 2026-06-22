@@ -95,7 +95,7 @@ const BorrowerFilterBar: React.FC<BorrowerFilterBarProps> = ({ filters, onFilter
             type="text"
             value={filters.search}
             onChange={e => onFilterChange({ ...filters, search: e.target.value })}
-            placeholder="Search by Customer Name, CIF, IC..."
+            placeholder="Search by Borrower Name, CIF, IC..."
             style={{
               width: '100%',
               paddingLeft: '36px',

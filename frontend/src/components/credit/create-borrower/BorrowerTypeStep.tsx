@@ -2,7 +2,7 @@ import React from 'react';
 
 type BorrowerType = 'INDIVIDUAL' | 'CORPORATE' | 'SOLE_PROPRIETOR';
 
-interface CustomerTypeStepProps {
+interface BorrowerTypeStepProps {
   value: BorrowerType;
   onChange: (value: BorrowerType) => void;
 }
@@ -39,7 +39,7 @@ const SEGMENT_TAGS: Record<BorrowerType, string> = {
   CORPORATE: 'Corporate Fields Loaded',
 };
 
-const CustomerTypeStep: React.FC<CustomerTypeStepProps> = ({ value, onChange }) => {
+const BorrowerTypeStep: React.FC<BorrowerTypeStepProps> = ({ value, onChange }) => {
   return (
     <div>
       {/* Section heading */}
@@ -53,7 +53,7 @@ const CustomerTypeStep: React.FC<CustomerTypeStepProps> = ({ value, onChange }) 
             margin: '0 0 4px',
           }}
         >
-          Customer Type
+          Borrower Type
         </h2>
         <p
           style={{
@@ -208,4 +208,4 @@ const CustomerTypeStep: React.FC<CustomerTypeStepProps> = ({ value, onChange }) 
   );
 };
 
-export default CustomerTypeStep;
+export default BorrowerTypeStep;

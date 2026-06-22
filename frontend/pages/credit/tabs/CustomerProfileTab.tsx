@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { CreditApplication, FatcaCrsDeclaration } from '../../../src/services/credit.service';
-import RetailCustomerProfile from './sections/RetailCustomerProfile';
-import SmeCustomerProfile from './sections/SmeCustomerProfile';
-import CorporateCustomerProfile from './sections/CorporateCustomerProfile';
+import RetailBorrowerProfile from './sections/RetailBorrowerProfile';
+import SmeBorrowerProfile from './sections/SmeBorrowerProfile';
+import CorporateBorrowerProfile from './sections/CorporateBorrowerProfile';
 import FatcaCrsSection from '../../../src/components/credit/FatcaCrsSection';
 import PartiesTab from './sections/PartiesTab';
 
-interface CustomerProfileTabProps {
+interface BorrowerProfileTab360Props {
   application: CreditApplication;
   fatcaCrsEnabled: boolean;
   lane?: string | null;
@@ -37,7 +37,7 @@ function getProfileView(borrowerType: string | null | undefined, lane: string | 
   return 'sme';
 }
 
-const CustomerProfileTab: React.FC<CustomerProfileTabProps> = ({ application, fatcaCrsEnabled, lane }) => {
+const CustomerProfileTab: React.FC<BorrowerProfileTab360Props> = ({ application, fatcaCrsEnabled, lane }) => {
   const borrowerType = application.borrowerProfile?.borrowerType ?? null;
   const view = getProfileView(borrowerType, lane);
   const isCorporate = borrowerType === 'CORPORATE' || borrowerType === 'SOLE_PROPRIETOR';
@@ -50,9 +50,9 @@ const CustomerProfileTab: React.FC<CustomerProfileTabProps> = ({ application, fa
   return (
     <div className="space-y-8">
       {/* ── Borrower-type-specific profile sections ─────────────── */}
-      {view === 'retail' && <RetailCustomerProfile application={application} />}
-      {view === 'sme' && <SmeCustomerProfile application={application} />}
-      {view === 'corporate' && <CorporateCustomerProfile application={application} />}
+      {view === 'retail' && <RetailBorrowerProfile application={application} />}
+      {view === 'sme' && <SmeBorrowerProfile application={application} />}
+      {view === 'corporate' && <CorporateBorrowerProfile application={application} />}
 
       {/* ── FATCA/CRS Declaration (corporate only, gated by feature flag) ─── */}
       {fatcaCrsEnabled && isCorporate && !fatcaIsComplete && (

@@ -1,9 +1,9 @@
 /**
  * ApplicationCustomerInsights — Right panel widget showing borrower insights.
  *
- * Collapsible section with header 'CUSTOMER INSIGHTS'. Displays:
+ * Collapsible section with header 'BORROWER INSIGHTS'. Displays:
  *   1. Segment badge (colored pill using SEGMENT_COLORS)
- *   2. Existing relationships count or 'New Customer'
+ *   2. Existing relationships count or 'New Borrower'
  *   3. Industry
  *   4. Risk appetite (computed from segment)
  *
@@ -69,7 +69,7 @@ const ApplicationCustomerInsights: React.FC<ApplicationCustomerInsightsProps> = 
             letterSpacing: '0.1em',
           }}
         >
-          CUSTOMER INSIGHTS
+          BORROWER INSIGHTS
         </span>
         <span
           className="material-symbols-outlined"
@@ -148,7 +148,7 @@ const ApplicationCustomerInsights: React.FC<ApplicationCustomerInsightsProps> = 
                   opacity: 0.7,
                 }}
               >
-                New Customer
+                New Borrower
               </span>
             )}
           </div>

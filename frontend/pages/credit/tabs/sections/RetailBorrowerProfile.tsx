@@ -59,7 +59,7 @@ function RiskRatingBadge({ rating }: { rating: string | null }) {
   return <span className={`inline-flex px-2.5 py-1 rounded-full text-sm font-bold ${cls}`}>{rating}</span>;
 }
 
-const RetailCustomerProfile: React.FC<Props> = ({ application }) => {
+const RetailBorrowerProfile: React.FC<Props> = ({ application }) => {
   const bp = application.borrowerProfile;
   const contact = bp?.contact;
   const account = bp?.account;
@@ -114,7 +114,7 @@ const RetailCustomerProfile: React.FC<Props> = ({ application }) => {
       ]
     : [];
 
-  if (loading) return <div className="p-4 text-sm text-gray-400">Loading customer profile…</div>;
+  if (loading) return <div className="p-4 text-sm text-gray-400">Loading borrower profile…</div>;
 
   return (
     <div className="space-y-6">
@@ -335,4 +335,4 @@ const RetailCustomerProfile: React.FC<Props> = ({ application }) => {
   );
 };
 
-export default RetailCustomerProfile;
+export default RetailBorrowerProfile;

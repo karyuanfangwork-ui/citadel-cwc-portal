@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
 import ProgressTracker, { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
 import TopBar from '../src/components/credit/create-borrower/TopBar';
-import CustomerTypeStep from '../src/components/credit/create-borrower/CustomerTypeStep';
+import BorrowerTypeStep from '../src/components/credit/create-borrower/BorrowerTypeStep';
 import BasicInfoStep, { FormData, initialFormData } from '../src/components/credit/create-borrower/BasicInfoStep';
 import PlaceholderStep from '../src/components/credit/create-borrower/PlaceholderStep';
 import CreateBorrowerActionPanel from '../src/components/credit/create-borrower/CreateBorrowerActionPanel';
@@ -182,7 +182,7 @@ const CreateBorrowerPage: React.FC = () => {
     switch (currentStep) {
       case 0:
         return (
-          <CustomerTypeStep
+          <BorrowerTypeStep
             value={formData.borrowerType}
             onChange={handleBorrowerTypeChange}
           />

@@ -20,7 +20,7 @@ interface ApplicationSectionIndexProps {
 /** Ordered list of sidebar sections — one per detail tab */
 const SECTIONS: { label: string; tabId: DetailTab360; icon: string }[] = [
   { label: 'Overview', tabId: 'overview', icon: 'dashboard' },
-  { label: 'Customer Profile', tabId: 'customer-profile', icon: 'person' },
+  { label: 'Borrower Profile', tabId: 'customer-profile', icon: 'person' },
   { label: 'Application Details', tabId: 'application-details', icon: 'description' },
   { label: 'Financial Profile', tabId: 'financial-profile', icon: 'trending_up' },
   { label: 'Risk Assessment', tabId: 'risk-assessment', icon: 'shield' },

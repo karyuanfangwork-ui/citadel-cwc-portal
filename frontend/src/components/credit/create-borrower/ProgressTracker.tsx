@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const STEPS = [
-  { id: 'customer-type',    label: 'Customer Type',        icon: 'category' },
+  { id: 'customer-type',    label: 'Borrower Type',        icon: 'category' },
   { id: 'basic-info',       label: 'Basic Information',    icon: 'person' },
   { id: 'contact-info',    label: 'Contact Details',      icon: 'contacts' },
   { id: 'ownership',       label: 'Ownership',             icon: 'account_tree' },

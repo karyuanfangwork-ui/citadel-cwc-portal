@@ -69,7 +69,7 @@ const BorrowerDataTable: React.FC<BorrowerDataTableProps> = ({ profiles, loading
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)' }}>
-              {['Customer Name', 'CIF Number', 'Type', 'Risk Rating', 'Exposure', 'Status', 'Actions'].map(h => (
+              {['Borrower Name', 'CIF Number', 'Type', 'Risk Rating', 'Exposure', 'Status', 'Actions'].map(h => (
                 <th key={h} style={{
                   padding: '12px 16px', textAlign: 'left',
                   fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
@@ -121,7 +121,7 @@ const BorrowerDataTable: React.FC<BorrowerDataTableProps> = ({ profiles, loading
               letterSpacing: 'var(--cr-tracking-label, 0.05em)',
               borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
               borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
-            }}>Customer Name</th>
+            }}>Borrower Name</th>
             {['CIF Number', 'Type', 'Risk Rating', 'Exposure', 'Status', 'Actions'].map(h => (
               <th key={h} style={{
                 padding: '12px 16px', textAlign: h === 'Exposure' ? 'right' : 'left',
@@ -158,7 +158,7 @@ const BorrowerDataTable: React.FC<BorrowerDataTableProps> = ({ profiles, loading
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-low, #f2f4f6)'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                {/* Customer Name */}
+                {/* Borrower Name */}
                 <td style={{ padding: '12px 16px' }}>
                   <div>
                     <button

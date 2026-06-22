@@ -44,7 +44,7 @@ const FACILITY_LABELS: Record<string, string> = {
   ICMTD_I: 'ICMTD-i',
 };
 
-const SmeCustomerProfile: React.FC<Props> = ({ application }) => {
+const SmeBorrowerProfile: React.FC<Props> = ({ application }) => {
   const bp = application.borrowerProfile;
   const account = bp?.account;
 
@@ -62,7 +62,7 @@ const SmeCustomerProfile: React.FC<Props> = ({ application }) => {
       .catch(() => setLoading(false));
   }, [bp?.id]);
 
-  if (loading) return <div className="p-4 text-sm text-gray-400">Loading customer profile…</div>;
+  if (loading) return <div className="p-4 text-sm text-gray-400">Loading borrower profile…</div>;
 
   const directors = fullProfile?.directors ?? [];
   const shareholders = fullProfile?.shareholders ?? [];
@@ -269,4 +269,4 @@ const SmeCustomerProfile: React.FC<Props> = ({ application }) => {
   );
 };
 
-export default SmeCustomerProfile;
+export default SmeBorrowerProfile;

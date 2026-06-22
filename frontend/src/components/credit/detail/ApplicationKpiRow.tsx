@@ -195,7 +195,7 @@ const ApplicationKpiRow: React.FC<ApplicationKpiRowProps> = ({ app, segment }) =
 
   const cards: KpiCardProps[] = [
     {
-      label: 'Customer Type',
+      label: 'Borrower Type',
       value: SEGMENT_LABELS[segment],
     },
     {
