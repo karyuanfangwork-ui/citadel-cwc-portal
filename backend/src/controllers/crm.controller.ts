@@ -566,10 +566,10 @@ class CrmController {
     // Use ownerId from body if provided, otherwise default to logged-in user
     const ownerId = req.body.ownerId || req.user!.id;
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
-    const { autoAssign, ...restBody } = req.body;
+    const { autoAssign, followUpDate, ...restBody } = req.body;
     delete restBody.ownerId;
     const lead = await prisma.crmLead.create({
-      data: { ...restBody, ownerId },
+      data: { ...restBody, ownerId, followUpDate: followUpDate ? new Date(followUpDate) : undefined },
       include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmLead', resourceId: lead.id, newValues: req.body } });

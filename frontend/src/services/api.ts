@@ -79,7 +79,10 @@ apiClient.interceptors.response.use(
         }
 
         // ── Non-401 errors (or 401 with _retry already set) ───────
-        return Promise.reject(new Error(friendlyMessage));
+        const wrapped = new Error(friendlyMessage) as Error & { response?: any; status?: number };
+        wrapped.response = axiosError.response;
+        wrapped.status = axiosError.response?.status;
+        return Promise.reject(wrapped);
     }
 );
 

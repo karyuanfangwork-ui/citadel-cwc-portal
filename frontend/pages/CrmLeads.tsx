@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, Pagination, LeadSource, LeadStatus } from '../src/services/crm.service';
 import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
@@ -70,6 +70,7 @@ const CrmLeads = () => {
   const [saving, setSaving] = useState(false);
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const forceCreateRef = useRef(false);
   const [editingItem, setEditingItem] = useState<CrmLead | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [deleteItem, setDeleteItem] = useState<CrmLead | null>(null);
@@ -278,8 +279,24 @@ const CrmLeads = () => {
       if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
       else payload[k] = v;
     }
-    try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); setFormErrors([]); setDuplicateWarning(null); fetchLeads(); }
-    catch (e) { console.error(e); } finally { setSaving(false); }
+    try {
+      setSaving(true);
+      await crmService.createLead(payload, forceCreateRef.current);
+      forceCreateRef.current = false;
+      setShowCreate(false); setForm({}); setFormErrors([]); setDuplicateWarning(null); fetchLeads();
+    } catch (e: any) {
+      const status = e?.response?.status ?? e?.status;
+      const matchData = e?.response?.data?.data?.match;
+      if (status === 409 && matchData) {
+        const m = matchData;
+        const fields = (m.matchFields || []).join(', ');
+        setDuplicateWarning(`Duplicate lead detected: "${m.name || 'Unknown'}" (confidence ${Math.round(m.confidence * 100)}%, matched on ${fields}). Click "Save Lead" again to create anyway.`);
+        forceCreateRef.current = true;
+      } else {
+        console.error(e);
+        forceCreateRef.current = false;
+      }
+    } finally { setSaving(false); }
   };
 
   const openEdit = (lead: CrmLead) => {
@@ -293,6 +310,8 @@ const CrmLeads = () => {
       ownerId: lead.ownerId,
       source: lead.source,
       estimatedValue: lead.estimatedValue ?? undefined,
+      followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
+      followUpNote: lead.followUpNote ?? '',
     });
     setDuplicateWarning(null);
     setShowEdit(true);
@@ -313,6 +332,9 @@ const CrmLeads = () => {
     if (errors.length > 0) { setFormErrors(errors); return; }
     const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.lead);
     delete payload.status;
+    // Send null when follow-up date was cleared but previously had a value
+    if (form.followUpDate === '' && editingItem.followUpDate) payload.followUpDate = null;
+    if (form.followUpNote === '' && editingItem.followUpNote) payload.followUpNote = null;
     try {
       setSaving(true);
       await crmService.updateLead(editingItem.id, payload);
@@ -937,7 +959,7 @@ const CrmLeads = () => {
 
       {/* ── Create Modal — Kinetic Enterprise design ── */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); forceCreateRef.current = false; }}>
           <div className="absolute inset-0 bg-[#213145]/40 backdrop-blur-sm" />
           <div className="relative bg-white w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl flex flex-col overflow-hidden border border-[#e2e8f0]/30" onClick={e => e.stopPropagation()}>
             {/* Header */}
@@ -946,7 +968,7 @@ const CrmLeads = () => {
                 <h2 className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>Create New Lead</h2>
                 <p className="text-[13px] text-[#45464d] mt-1">Capture essential lead information to begin the qualification workflow.</p>
               </div>
-              <button onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }} className="p-2 hover:bg-[#dce9ff] rounded-full text-[#45464d] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); forceCreateRef.current = false; }} className="p-2 hover:bg-[#dce9ff] rounded-full text-[#45464d] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -1126,13 +1148,25 @@ const CrmLeads = () => {
                       </div>
                     </div>
                     <div className="md:col-span-2 flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Note</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Call back to discuss financing requirements"
+                        value={form.followUpNote || ''}
+                        onChange={e => setForm(prev => ({ ...prev, followUpNote: e.target.value || undefined }))}
+                        className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
+                        style={{ fontFamily: 'Inter, sans-serif' }}
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Qualification Notes</label>
+                      <p className="text-[11px] text-[#45464d] opacity-60">Supports markdown — use **bold**, - bullets, 1. numbering, or line breaks for formatting.</p>
                       <textarea
                         placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..."
-                        rows={4}
+                        rows={5}
                         value={form.description || ''}
                         onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-                        className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-none"
+                        className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-vertical"
                         style={{ fontFamily: 'Inter, sans-serif' }}
                       />
                     </div>
@@ -1159,7 +1193,7 @@ const CrmLeads = () => {
                 <span className="text-[13px] italic">Mandatory fields are marked with an asterisk (*)</span>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); }} className="px-6 py-2.5 border border-[#e2e8f0] rounded-lg text-[#45464d] font-semibold hover:bg-[#dce9ff] transition-colors" style={{ background: 'white', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setShowCreate(false); setDuplicateWarning(null); setFormErrors([]); forceCreateRef.current = false; }} className="px-6 py-2.5 border border-[#e2e8f0] rounded-lg text-[#45464d] font-semibold hover:bg-[#dce9ff] transition-colors" style={{ background: 'white', cursor: 'pointer' }}>
                   Cancel
                 </button>
                 <button type="submit" form="leadCreateForm" disabled={saving} className="px-6 py-2.5 bg-[#006a61] text-white rounded-lg font-semibold hover:opacity-90 shadow-sm transition-all flex items-center gap-2 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer' }}>
@@ -1284,8 +1318,13 @@ const CrmLeads = () => {
                       <input type="date" value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''} onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
                     </div>
                     <div className="md:col-span-2 flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Note</label>
+                      <input type="text" placeholder="e.g. Call back to discuss financing requirements" value={form.followUpNote || ''} onChange={e => setForm(prev => ({ ...prev, followUpNote: e.target.value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
+                    </div>
+                    <div className="md:col-span-2 flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Qualification Notes</label>
-                      <textarea placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..." rows={4} value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-none" style={{ fontFamily: 'Inter, sans-serif' }} />
+                      <p className="text-[11px] text-[#45464d] opacity-60">Supports markdown — use **bold**, - bullets, 1. numbering, or line breaks for formatting.</p>
+                      <textarea placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..." rows={5} value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-vertical" style={{ fontFamily: 'Inter, sans-serif' }} />
                     </div>
                   </div>
                 </section>

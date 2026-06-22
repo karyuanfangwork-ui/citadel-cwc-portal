@@ -464,8 +464,8 @@ const crmService = {
     const res = await api.get(`/crm/leads/${id}`);
     return res.data.data.lead as CrmLead;
   },
-  async createLead(data: Partial<CrmLead>) {
-    const res = await api.post('/crm/leads', data);
+  async createLead(data: Partial<CrmLead>, force = false) {
+    const res = await api.post(`/crm/leads${force ? '?force=true' : ''}`, data);
     return res.data.data.lead as CrmLead;
   },
   async updateLead(id: string, data: Partial<CrmLead>) {

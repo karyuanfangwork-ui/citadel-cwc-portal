@@ -103,6 +103,8 @@ const leadBodySchema = z.object({
   companyName: z.string().max(255).optional(),
   estimatedValue: z.coerce.number().nonnegative().optional(),
   description: z.string().optional(),
+  followUpDate: z.string().optional(),
+  followUpNote: z.string().optional(),
 });
 
 export const createLeadSchema = z.object({ body: leadBodySchema });
@@ -111,8 +113,6 @@ export const updateLeadSchema = z.object({
   body: leadBodySchema.partial().extend({
     status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
     lostReason: z.string().optional(),
-    followUpDate: z.string().optional(),
-    followUpNote: z.string().optional(),
   }),
 });
 

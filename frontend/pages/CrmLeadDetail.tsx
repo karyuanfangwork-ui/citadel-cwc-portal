@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType, LeadStatus, LeadSource } from '../src/services/crm.service';
 import InlineEdit from '../src/components/crm/InlineEdit';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
@@ -869,8 +870,14 @@ const CrmLeadDetail = () => {
               </h3>
               {lead.description ? (
                 <div className="mb-5 rounded-xl border border-[#e2e8f0] bg-[#f8f9ff] p-4">
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Description</p>
-                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.description}</p>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Qualification Notes</p>
+                  <div className="text-[13px] leading-relaxed text-[#45464d] [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-base [&_h1]:font-bold [&_h1]:my-2 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-[#006a61]/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:opacity-70">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
+                      }}
+                    >{lead.description}</ReactMarkdown>
+                  </div>
                 </div>
               ) : null}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
@@ -1528,9 +1535,10 @@ const CrmLeadDetail = () => {
                   className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Description</label>
-                <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-none" />
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Qualification Notes</label>
+                <p className="text-[11px] text-[#45464d] opacity-60 mb-1.5">Supports markdown — use **bold**, - bullets, 1. numbering, or line breaks for formatting.</p>
+                <textarea rows={5} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]" style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
