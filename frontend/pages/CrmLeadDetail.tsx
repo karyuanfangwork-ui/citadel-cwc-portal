@@ -391,21 +391,6 @@ const CrmLeadDetail = () => {
   };
   const priorityDotClass = (priority?: string) =>
     priority === 'high' ? 'bg-[#ba1a1a]' : priority === 'medium' ? 'bg-amber-500' : 'bg-[#45464d]';
-  const financialMetrics = [
-    {
-      label: 'CTOS Availability',
-      status: 'Verified',
-      confidence: 84,
-      description: 'Demo financial signal: CTOS availability has been verified with high confidence.',
-    },
-    {
-      label: 'Cash Flow Growth',
-      status: 'Positive',
-      confidence: 70,
-      description: 'Demo financial signal: cash flow trend is positive based on available CRM context.',
-    },
-  ];
-  const scoreRationale = leadScore.scoreData?.reason ?? lead.aiScoreReason ?? null;
 
   return (
     <>
@@ -862,12 +847,11 @@ const CrmLeadDetail = () => {
             </AiInsightCard>
           ) : null}
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div className="xl:col-span-2 bg-white border border-[#e2e8f0] rounded-xl p-5">
-              <h3 className="text-[13px] font-bold text-[#0b1c30] mb-4 flex items-center gap-2">
-                Lead Information
-                <span className="w-1.5 h-1.5 rounded-full bg-[#006a61]" />
-              </h3>
+          <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
+            <h3 className="text-[13px] font-bold text-[#0b1c30] mb-4 flex items-center gap-2">
+              Lead Information
+              <span className="w-1.5 h-1.5 rounded-full bg-[#006a61]" />
+            </h3>
               {lead.description ? (
                 <div className="mb-5 rounded-xl border border-[#e2e8f0] bg-[#f8f9ff] p-4">
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Qualification Notes</p>
@@ -919,40 +903,6 @@ const CrmLeadDetail = () => {
                 </div>
               ) : null}
             </div>
-
-            <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
-              <h3 className="text-[13px] font-bold text-[#0b1c30] mb-5 uppercase tracking-wide">Financial Health</h3>
-              <div className="space-y-6">
-                {financialMetrics.map(metric => (
-                  <div key={metric.label} title={metric.description}>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <p className="text-[12px] font-semibold text-[#45464d]">{metric.label}</p>
-                      <span className="text-[12px] font-bold text-[#006a61]">
-                        {metric.status} · {metric.confidence}% confidence
-                      </span>
-                    </div>
-                    <div
-                      role="progressbar"
-                      aria-label={`${metric.label}: ${metric.status}, ${metric.confidence}% confidence`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={metric.confidence}
-                      className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden"
-                    >
-                      <div className="h-full rounded-full bg-[#006a61]" style={{ width: `${metric.confidence}%` }} />
-                    </div>
-                    <p className="mt-1 text-[11px] text-[#45464d] opacity-70">{metric.description}</p>
-                  </div>
-                ))}
-                {scoreRationale ? (
-                  <div className="pt-4 border-t border-[#e2e8f0]">
-                    <p className="text-[12px] font-semibold text-[#45464d] mb-1">Score Rationale</p>
-                    <p className="text-[12px] leading-relaxed text-[#45464d]">{scoreRationale}</p>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
 
           <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[#e2e8f0]">
@@ -1009,7 +959,7 @@ const CrmLeadDetail = () => {
               <span className="material-symbols-outlined text-[#006a61] mt-0.5">{ACTIVITY_ICONS[a.activityType] || 'event'}</span>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[#0b1c30] text-sm">{a.subject}</p>
-                {a.description && <p className="text-xs text-[#45464d] mt-0.5">{a.description}</p>}
+                {a.description && <p className="text-xs text-[#45464d] mt-0.5 whitespace-pre-wrap">{a.description}</p>}
                 <p className="text-xs text-[#45464d] mt-1">
                   {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                   {a.scheduledAt && <span className="ml-2 text-[#006a61]">Scheduled: {formatDate(a.scheduledAt)}</span>}
@@ -1244,8 +1194,8 @@ const CrmLeadDetail = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Description</label>
-                <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
+                <textarea rows={5} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -1593,8 +1543,8 @@ const CrmLeadDetail = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Description</label>
-                <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
+                <textarea rows={5} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Scheduled At</label>

@@ -683,7 +683,7 @@ const CrmAccountDetail = () => {
                       <span className="material-symbols-outlined text-[18px] mt-0.5" style={{ color: T.teal }}>{ACTIVITY_ICONS[a.activityType]}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-[13px]" style={{ color: T.textPrimary }}>{a.subject}</p>
-                        {a.description && <p className="text-[12px] mt-0.5" style={{ color: T.textMuted }}>{a.description}</p>}
+                        {a.description && <p className="text-[12px] mt-0.5 whitespace-pre-wrap" style={{ color: T.textMuted }}>{a.description}</p>}
                         <p className="text-[12px] mt-1" style={{ color: T.textMuted }}>
                           {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                           {a.scheduledAt && <span className="ml-2" style={{ color: T.teal }}>Scheduled: {formatDate(a.scheduledAt)}</span>}
@@ -862,8 +862,8 @@ const CrmAccountDetail = () => {
               </div>
               <div>
                 <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Description</label>
-                <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                <textarea rows={5} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -918,8 +918,8 @@ const CrmAccountDetail = () => {
               </div>
               <div>
                 <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Description</label>
-                <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                <textarea rows={5} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-[#e2e8f0] rounded-lg px-3 py-2 text-[13px] resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold mb-1" style={{ color: T.textSecondary }}>Scheduled At</label>

@@ -824,7 +824,7 @@ const CrmOpportunityDetail = () => {
                       <span className="material-symbols-outlined mt-0.5" style={{ color: TEAL }}>{ACTIVITY_ICONS[a.activityType]}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold" style={{ fontSize: 14, color: DARK }}>{a.subject}</p>
-                        {a.description && <p className="mt-0.5" style={{ fontSize: 13, color: TEXT_SEC }}>{a.description}</p>}
+                        {a.description && <p className="mt-0.5 whitespace-pre-wrap" style={{ fontSize: 13, color: TEXT_SEC }}>{a.description}</p>}
                         <p className="mt-1" style={{ fontSize: 12, color: TEXT_MUTED }}>
                           {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                           {a.scheduledAt && <span className="ml-2" style={{ color: TEAL }}>Scheduled: {formatDate(a.scheduledAt)}</span>}
@@ -1049,8 +1049,8 @@ const CrmOpportunityDetail = () => {
               </div>
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Description</label>
-                <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full rounded-lg p-2.5 outline-none transition-all resize-none" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+                <textarea rows={5} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full rounded-lg p-2.5 outline-none transition-all resize-vertical" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -1269,8 +1269,8 @@ const CrmOpportunityDetail = () => {
               </div>
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Description</label>
-                <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full rounded-lg p-2.5 outline-none transition-all resize-none" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+                <textarea rows={5} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full rounded-lg p-2.5 outline-none transition-all resize-vertical" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
               </div>
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Scheduled At</label>
