@@ -85,9 +85,6 @@ export const CA_MEMO_HEADER_FIELD_NAMES = Object.keys(caMemoHeaderFields) as Arr
 // ApplicationState values — used at runtime for transition logic, not in zod schemas
 // (kept for reference; the service imports ApplicationState directly from @prisma/client)
 
-// Allow decimal-like strings or numbers, normalise to string for Prisma Decimal
-const decimalField = z.union([z.string(), z.number()]);
-
 // Positive decimal: accepts string|number, rejects <= 0 and non-numeric.
 const positiveDecimal = z
   .union([z.string(), z.number()])
