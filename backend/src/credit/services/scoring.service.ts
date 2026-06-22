@@ -41,7 +41,7 @@ export interface ScoreResult {
 // Risk Rating mapping (totalScore → RiskRating)
 // ---------------------------------------------------------------------------
 
-function mapTotalScoreToRiskRating(totalScore: number): RiskRating {
+export function mapTotalScoreToRiskRating(totalScore: number): RiskRating {
   if (totalScore >= 85) return 'AAA';
   if (totalScore >= 78) return 'AA';
   if (totalScore >= 70) return 'A';
@@ -89,7 +89,7 @@ function scoreLowerIsBetter(value: number | null, good: number, bad: number): nu
 /**
  * Compute factor score for a group from financial ratios.
  */
-function computeFinancialPerformanceScore(ratioMap: Record<string, number>): number {
+export function computeFinancialPerformanceScore(ratioMap: Record<string, number>): number {
   const ros = ratioMap['ros'] ?? null;
   const roa = ratioMap['roa'] ?? null;
   const roe = ratioMap['roe'] ?? null;
@@ -105,7 +105,7 @@ function computeFinancialPerformanceScore(ratioMap: Record<string, number>): num
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-function computeLeverageScore(ratioMap: Record<string, number>): number {
+export function computeLeverageScore(ratioMap: Record<string, number>): number {
   const debtToEquity = ratioMap['debt_to_equity'] ?? null;
   const debtToAssets = ratioMap['debt_to_assets'] ?? null;
 
@@ -118,7 +118,7 @@ function computeLeverageScore(ratioMap: Record<string, number>): number {
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-function computeLiquidityScore(ratioMap: Record<string, number>): number {
+export function computeLiquidityScore(ratioMap: Record<string, number>): number {
   const currentRatio = ratioMap['current_ratio'] ?? null;
   const quickRatio = ratioMap['quick_ratio'] ?? null;
 
@@ -131,7 +131,7 @@ function computeLiquidityScore(ratioMap: Record<string, number>): number {
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-function computeCashflowScore(ratioMap: Record<string, number>): number {
+export function computeCashflowScore(ratioMap: Record<string, number>): number {
   const dscr = ratioMap['dscr'] ?? null;
   const interestCoverage = ratioMap['interest_coverage'] ?? null;
 

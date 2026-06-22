@@ -196,11 +196,22 @@ export interface Borrower360Activity {
   createdAt: string;
 }
 
+export interface BorrowerRiskRatingSummary {
+  effective: string;
+  base: string;
+  calculatedAt: string;
+  version: number | null;
+  reasonCodes: Array<{ code: string; label: string }>;
+  missingInputs: string[];
+  bureauCapsApplied: string[];
+}
+
 export interface Borrower360Summary {
   borrowerId: string;
   borrowerType: string;
   borrowerName: string | null;
   riskGrade: string | null;
+  riskRating: BorrowerRiskRatingSummary | null;
   creditScore: number | null;
   scoreBand: string | null;
   dsrPercent: number | null;
@@ -949,6 +960,16 @@ const creditService = {
   async markBorrowerKycVerified(id: string) {
     const res = await apiClient.post(`/credit/borrowers/${id}/kyc`, {});
     return res.data.data as BorrowerProfile;
+  },
+
+  async calculateBorrowerRiskScore(id: string) {
+    const res = await apiClient.post(`/credit/borrowers/${id}/risk-score`);
+    return res.data.data;
+  },
+
+  async getBorrowerRiskHistory(id: string) {
+    const res = await apiClient.get(`/credit/borrowers/${id}/risk-score/history`);
+    return res.data.data;
   },
 
   async createBorrowerProfile(data: CreateBorrowerProfilePayload) {

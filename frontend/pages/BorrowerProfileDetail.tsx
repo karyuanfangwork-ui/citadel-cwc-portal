@@ -112,6 +112,7 @@ const BorrowerProfileDetail: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBureauModal, setShowBureauModal] = useState(false);
   const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [partyModal, setPartyModal] = useState<{ open: boolean; role: PartyRole }>({ open: false, role: 'director' });
 
   const canWrite = hasPermission(user, 'credit:write');
@@ -408,7 +409,34 @@ const BorrowerProfileDetail: React.FC = () => {
 
         {activeTab === 'risk' && (
           <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Risk & Compliance</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Risk & Compliance</h3>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!profile) return;
+                    setRecalculating(true);
+                    try {
+                      await creditService.calculateBorrowerRiskScore(profile.id);
+                      toast.success('Risk rating recalculated');
+                      await fetchProfile();
+                    } catch (e) {
+                      console.error(e);
+                      toast.error('Failed to recalculate risk rating');
+                    } finally {
+                      setRecalculating(false);
+                    }
+                  }}
+                  disabled={recalculating}
+                  className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                >
+                  <span className="material-symbols-outlined text-base">{recalculating ? 'progress_activity' : 'refresh'}</span>
+                  {recalculating ? 'Recalculating…' : 'Recalculate Risk Rating'}
+                </button>
+              )}
+            </div>
             {[
               { label: 'Risk Rating', value: profile.creditRiskRating ?? '—' },
               { label: 'AML Tier', value: profile.amlRiskTier ?? '—' },
@@ -421,6 +449,57 @@ const BorrowerProfileDetail: React.FC = () => {
                 <span className="text-sm text-text-primary tabular-nums">{row.value}</span>
               </div>
             ))}
+            {borrower360Summary?.riskRating && (
+              <div className="mt-4 pt-4 border-t border-border space-y-2">
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Preliminary Risk Rating Detail</h4>
+                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <span className="text-xs text-text-secondary w-32 shrink-0">Base Rating</span>
+                  <span className="text-sm text-text-primary tabular-nums">{borrower360Summary.riskRating.base}</span>
+                </div>
+                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <span className="text-xs text-text-secondary w-32 shrink-0">Effective Rating</span>
+                  <span className="text-sm font-bold tabular-nums" style={{ color: RATING_COLOR(borrower360Summary.riskRating.effective) }}>
+                    {borrower360Summary.riskRating.effective}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <span className="text-xs text-text-secondary w-32 shrink-0">Last Calculated</span>
+                  <span className="text-sm text-text-primary tabular-nums">
+                    {new Date(borrower360Summary.riskRating.calculatedAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <span className="text-xs text-text-secondary w-32 shrink-0">Rating Version</span>
+                  <span className="text-sm text-text-primary tabular-nums">
+                    {borrower360Summary.riskRating.version != null ? `v${borrower360Summary.riskRating.version}` : '—'}
+                  </span>
+                </div>
+                {borrower360Summary.riskRating.reasonCodes.length > 0 && (
+                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+                    <span className="text-xs text-text-secondary w-32 shrink-0">Key Risk Drivers</span>
+                    <span className="text-sm text-text-primary">
+                      {borrower360Summary.riskRating.reasonCodes.map((c) => c.label).join('; ')}
+                    </span>
+                  </div>
+                )}
+                {borrower360Summary.riskRating.missingInputs.length > 0 && (
+                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+                    <span className="text-xs text-text-secondary w-32 shrink-0">Missing Inputs</span>
+                    <span className="text-sm text-amber-600">
+                      {borrower360Summary.riskRating.missingInputs.join(', ')}
+                    </span>
+                  </div>
+                )}
+                {borrower360Summary.riskRating.bureauCapsApplied.length > 0 && (
+                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+                    <span className="text-xs text-text-secondary w-32 shrink-0">Bureau Caps Applied</span>
+                    <span className="text-sm text-text-primary">
+                      {borrower360Summary.riskRating.bureauCapsApplied.join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

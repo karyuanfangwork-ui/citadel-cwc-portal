@@ -3118,7 +3118,9 @@ model BorrowerProfile {
   contactId         String?      @unique @map("contact_id") @db.Uuid
   
   // Credit-specific fields
-  creditRiskRating   RiskRating?  @map("credit_risk_rating")
+  creditRiskRating       RiskRating?  @map("credit_risk_rating")
+  riskRatingCalculatedAt DateTime?    @map("risk_rating_calculated_at") @db.Timestamp(6)
+  riskRatingVersion      Int?         @map("risk_rating_version")
   amlRiskTier       AmlRiskTier?  @map("aml_risk_tier")
   exposureLimit     Decimal?      @map("exposure_limit") @db.Decimal(15, 2)
   totalExposure     Decimal?      @default(0) @map("total_exposure") @db.Decimal(15, 2)
@@ -3183,6 +3185,7 @@ model BorrowerProfile {
   income             BorrowerIncome?
   bureauReports      BorrowerBureauReport[]
   activities         BorrowerActivity[]
+  riskRuns           BorrowerRiskRun[]
 
   @@index([accountId])
   @@index([contactId])
@@ -3286,6 +3289,32 @@ model BorrowerActivity {
 
   @@index([borrowerId, createdAt])
   @@map("borrower_activities")
+}
+
+model BorrowerRiskRun {
+  id                  String          @id @default(uuid()) @db.Uuid
+  borrowerProfileId   String          @map("borrower_profile_id") @db.Uuid
+  borrowerProfile     BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+
+  scorecardVersionId  String?         @map("scorecard_version_id") @db.Uuid
+  scorecardVersion    Int?            @map("scorecard_version")
+
+  factorScores        Json            @map("factor_scores")
+  totalScore          Decimal         @map("total_score") @db.Decimal(10, 2)
+  baseRiskRating      RiskRating      @map("base_risk_rating")
+  effectiveRiskRating RiskRating      @map("effective_risk_rating")
+  bureauCapsApplied   Json?           @map("bureau_caps_applied")
+  reasonCodes         Json?           @map("reason_codes")
+  missingInputs       Json?           @map("missing_inputs")
+
+  calculationSource   String          @default("SYSTEM") @map("calculation_source") @db.VarChar(20)
+  calculatedById      String?         @map("calculated_by_id") @db.Uuid
+
+  runAt               DateTime        @default(now()) @map("run_at") @db.Timestamp(6)
+
+  @@index([borrowerProfileId])
+  @@index([runAt])
+  @@map("borrower_risk_runs")
 }
 
 // ============================================================================

@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
 import { bureauFreshness } from './borrowerCreditData.service';
+import { getLatestBorrowerRiskRun } from './borrowerScoring.service';
 
 export type AlertTone = 'warn' | 'neg';
 
@@ -101,7 +102,7 @@ export async function getBorrowerSummary(borrowerId: string) {
     throw new AppError('Borrower profile not found', 404);
   }
 
-  const [creditProfile, income, latestBureauReport, applications, documents] = await Promise.all([
+  const [creditProfile, income, latestBureauReport, applications, documents, latestRiskRun] = await Promise.all([
     prisma.borrowerCreditProfile.findUnique({ where: { borrowerId } }),
     prisma.borrowerIncome.findUnique({ where: { borrowerId } }),
     prisma.borrowerBureauReport.findFirst({
@@ -117,6 +118,7 @@ export async function getBorrowerSummary(borrowerId: string) {
       where: { borrowerProfileId: borrowerId, deletedAt: null },
       select: { classification: true, verificationStatus: true },
     }),
+    getLatestBorrowerRiskRun(borrowerId),
   ]);
 
   const fresh = bureauFreshness(latestBureauReport?.uploadedAt ?? null);
@@ -129,6 +131,17 @@ export async function getBorrowerSummary(borrowerId: string) {
     borrowerType: profile.borrowerType,
     borrowerName: profile.name,
     riskGrade: creditProfile?.riskGrade ?? profile.creditRiskRating ?? null,
+    riskRating: latestRiskRun
+      ? {
+          effective: latestRiskRun.effectiveRiskRating,
+          base: latestRiskRun.baseRiskRating,
+          calculatedAt: latestRiskRun.runAt,
+          version: latestRiskRun.scorecardVersion,
+          reasonCodes: latestRiskRun.reasonCodes ?? [],
+          missingInputs: latestRiskRun.missingInputs ?? [],
+          bureauCapsApplied: latestRiskRun.bureauCapsApplied ?? [],
+        }
+      : null,
     creditScore: creditProfile?.creditScore ?? null,
     scoreBand: creditProfile?.scoreBand ?? null,
     dsrPercent: creditProfile?.dsrPercent != null ? Number(creditProfile.dsrPercent) : null,

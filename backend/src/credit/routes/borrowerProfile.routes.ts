@@ -11,6 +11,7 @@ import {
 } from '../validators/borrowerCreditData.validator';
 import { encryptBorrowerFields, decryptBorrowerFields } from '../middleware/fieldEncryption.middleware';
 import { borrowerCreditDataController } from '../controllers/borrowerCreditData.controller';
+import { borrowerScoringController } from '../controllers/borrowerScoring.controller';
 
 const router = Router();
 
@@ -70,6 +71,24 @@ router.get(
   '/:id/activity',
   requirePermission('credit:read'),
   borrowerCreditDataController.activity,
+);
+
+router.post(
+  '/:id/risk-score',
+  requirePermission('credit:write'),
+  borrowerScoringController.calculate,
+);
+
+router.get(
+  '/:id/risk-score/latest',
+  requirePermission('credit:read'),
+  borrowerScoringController.latest,
+);
+
+router.get(
+  '/:id/risk-score/history',
+  requirePermission('credit:read'),
+  borrowerScoringController.history,
 );
 
 router.put(
