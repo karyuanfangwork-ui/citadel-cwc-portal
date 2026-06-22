@@ -185,6 +185,7 @@ model User {
   creditApplicationAnalyst CreditApplication[]     @relation("CreditApplicationAnalyst")
   creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
   creditDocumentVerifications CreditDocument[]    @relation("CreditDocumentVerifier")
+  borrowerBureauReportsUploaded BorrowerBureauReport[] @relation("BorrowerBureauReportUploadedBy")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
   bureauChecksRun          CreditBureauCheck[]     @relation("BureauCheckRunBy")
   applicationSignoffs      ApplicationSignoff[]    @relation("ApplicationSignoffBy")
@@ -3176,6 +3177,12 @@ model BorrowerProfile {
   keyCounterparties KeyCounterparty[]
   amlRescreenEvents AmlRescreenEvent[]
   fatcaCrsDeclarations FatcaCrsDeclaration[]
+  // §Borrower 360 — manual KYC verification marker
+  kycVerifiedAt      DateTime?                @map("kyc_verified_at") @db.Timestamp(6)
+  creditProfile      BorrowerCreditProfile?
+  income             BorrowerIncome?
+  bureauReports      BorrowerBureauReport[]
+  activities         BorrowerActivity[]
 
   @@index([accountId])
   @@index([contactId])
@@ -3184,6 +3191,101 @@ model BorrowerProfile {
   @@index([amlRiskTier])
   @@index([branchId])
   @@map("borrower_profiles")
+}
+
+// ============================================================================
+// Borrower 360 — borrower-owned credit data (score, income, bureau, activity)
+// ============================================================================
+
+model BorrowerCreditProfile {
+  id            String          @id @default(uuid()) @db.Uuid
+  borrowerId    String          @unique @map("borrower_id") @db.Uuid
+  creditScore   Int?            @map("credit_score")
+  scoreBand     String?         @map("score_band") @db.VarChar(20)
+  scoreSource   String?         @map("score_source") @db.VarChar(20)
+  scoreAsOf     DateTime?       @map("score_as_of") @db.Timestamp(6)
+  riskGrade     String?         @map("risk_grade") @db.VarChar(10)
+  dsrPercent    Decimal?        @map("dsr_percent") @db.Decimal(5, 2)
+  netDsrPercent Decimal?        @map("net_dsr_percent") @db.Decimal(5, 2)
+  dsrBasis      String?         @default("GROSS") @map("dsr_basis") @db.VarChar(10)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  borrower      BorrowerProfile @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+
+  @@map("borrower_credit_profiles")
+}
+
+model BorrowerIncome {
+  id                     String          @id @default(uuid()) @db.Uuid
+  borrowerId             String          @unique @map("borrower_id") @db.Uuid
+  employmentType         String?         @map("employment_type") @db.VarChar(30)
+  employerName           String?         @map("employer_name") @db.VarChar(255)
+  monthlyGrossIncome     Decimal         @default(0) @map("monthly_gross_income") @db.Decimal(15, 2)
+  epfMonthlyAmount       Decimal?        @map("epf_monthly_amount") @db.Decimal(15, 2)
+  monthlyTaxDeduction    Decimal         @default(0) @map("monthly_tax_deduction") @db.Decimal(15, 2)
+  monthlySocsoDeduction  Decimal         @default(0) @map("monthly_socso_deduction") @db.Decimal(15, 2)
+  hirePurchaseCommitment Decimal         @default(0) @map("hire_purchase_commitment") @db.Decimal(15, 2)
+  creditCardCommitment   Decimal         @default(0) @map("credit_card_commitment") @db.Decimal(15, 2)
+  existingLoanCommitment Decimal         @default(0) @map("existing_loan_commitment") @db.Decimal(15, 2)
+  otherCommitments       Decimal         @default(0) @map("other_commitments") @db.Decimal(15, 2)
+  monthlyNetIncome       Decimal?        @map("monthly_net_income") @db.Decimal(15, 2)
+  createdAt              DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt              DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  borrower               BorrowerProfile @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+
+  @@map("borrower_incomes")
+}
+
+model BorrowerBureauReport {
+  id            String          @id @default(uuid()) @db.Uuid
+  borrowerId    String          @map("borrower_id") @db.Uuid
+  source        String          @map("source") @db.VarChar(30)
+  reportDate    DateTime?       @map("report_date") @db.Date
+  uploadedAt    DateTime        @default(now()) @map("uploaded_at") @db.Timestamp(6)
+  uploadedById  String?         @map("uploaded_by_id") @db.Uuid
+  fileName      String?         @map("file_name") @db.VarChar(255)
+  filePath      String?         @map("file_path") @db.VarChar(500)
+  verified      Boolean         @default(false) @map("verified")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+
+  borrower      BorrowerProfile @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  uploadedBy    User?           @relation("BorrowerBureauReportUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  facilities    BorrowerBureauFacility[]
+
+  @@index([borrowerId])
+  @@map("borrower_bureau_reports")
+}
+
+model BorrowerBureauFacility {
+  id            String               @id @default(uuid()) @db.Uuid
+  reportId      String               @map("report_id") @db.Uuid
+  facilityType  String               @map("facility_type") @db.VarChar(50)
+  lender        String?              @db.VarChar(100)
+  balance       Decimal?             @db.Decimal(15, 2)
+  installment   Decimal?             @db.Decimal(15, 2)
+  conductStatus String?              @map("conduct_status") @db.VarChar(20)
+
+  report        BorrowerBureauReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("borrower_bureau_facilities")
+}
+
+model BorrowerActivity {
+  id          String          @id @default(uuid()) @db.Uuid
+  borrowerId  String          @map("borrower_id") @db.Uuid
+  type        String          @db.VarChar(40)
+  title       String          @db.VarChar(255)
+  detail      String?         @db.VarChar(500)
+  actorId     String?         @map("actor_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+
+  borrower    BorrowerProfile @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+
+  @@index([borrowerId, createdAt])
+  @@map("borrower_activities")
 }
 
 // ============================================================================

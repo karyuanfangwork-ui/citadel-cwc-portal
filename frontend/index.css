@@ -27,6 +27,18 @@
   --color-fin-100: var(--color-fin-100);
   --color-fin-500: var(--color-fin-500);
 
+  /* ── FINANCIAL CORE (Borrower 360) ── */
+  --color-fc-surface: var(--color-surface);
+  --color-fc-bg: var(--color-surface-subtle);
+  --color-fc-surface-low: var(--color-surface-muted);
+  --color-fc-primary: #0f172a;
+  --color-fc-secondary: #0051d5;
+  --color-fc-on-variant: #45464d;
+  --color-fc-outline: var(--color-cwc-border);
+  --color-fc-pos: #16a34a;
+  --color-fc-warn: #d97706;
+  --color-fc-neg: #dc2626;
+
   /* ── SEMANTIC STATUS ── */
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
@@ -74,6 +86,8 @@
   /* ── FONT FAMILY ── */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-display: 'Geist', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
 
   /* ── FONT SIZE ── */
   --text-xs:   var(--text-xs);
@@ -84,6 +98,21 @@
   --text-2xl:  var(--text-2xl);
   --text-3xl:  var(--text-3xl);
   --text-4xl:  var(--text-4xl);
+
+  --text-headline-lg: 24px;
+  --text-headline-lg--line-height: 32px;
+  --text-headline-lg--letter-spacing: -0.01em;
+  --text-headline-lg--font-weight: 600;
+  --text-headline-md: 20px;
+  --text-headline-md--line-height: 28px;
+  --text-headline-md--font-weight: 600;
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--letter-spacing: 0.05em;
+  --text-label-md--font-weight: 600;
+
+  /* ── BORDER RADIUS ── */
+  --radius-fc: 0.25rem;
 }
 
 /* ── ANIMATIONS ── */

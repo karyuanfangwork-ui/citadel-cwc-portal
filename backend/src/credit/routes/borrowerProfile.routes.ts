@@ -3,7 +3,14 @@ import { borrowerProfileController } from '../controllers/borrowerProfile.contro
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createBorrowerProfileSchema, updateBorrowerProfileSchema } from '../validators/borrowerProfile.validator';
+import {
+  createBureauReportSchema,
+  kycSchema,
+  upsertCreditProfileSchema,
+  upsertIncomeSchema,
+} from '../validators/borrowerCreditData.validator';
 import { encryptBorrowerFields, decryptBorrowerFields } from '../middleware/fieldEncryption.middleware';
+import { borrowerCreditDataController } from '../controllers/borrowerCreditData.controller';
 
 const router = Router();
 
@@ -51,6 +58,46 @@ router.get(
   '/:id/contact-nric/reveal',
   requirePermission('credit:write'),
   borrowerProfileController.revealContactNric,
+);
+
+router.get(
+  '/:id/summary',
+  requirePermission('credit:read'),
+  borrowerCreditDataController.summary,
+);
+
+router.get(
+  '/:id/activity',
+  requirePermission('credit:read'),
+  borrowerCreditDataController.activity,
+);
+
+router.put(
+  '/:id/credit-profile',
+  requirePermission('credit:write'),
+  validate(upsertCreditProfileSchema),
+  borrowerCreditDataController.upsertCreditProfile,
+);
+
+router.put(
+  '/:id/income',
+  requirePermission('credit:write'),
+  validate(upsertIncomeSchema),
+  borrowerCreditDataController.upsertIncome,
+);
+
+router.post(
+  '/:id/bureau-reports',
+  requirePermission('credit:write'),
+  validate(createBureauReportSchema),
+  borrowerCreditDataController.createBureauReport,
+);
+
+router.post(
+  '/:id/kyc',
+  requirePermission('credit:write'),
+  validate(kycSchema),
+  borrowerCreditDataController.markKycVerified,
 );
 
 /**

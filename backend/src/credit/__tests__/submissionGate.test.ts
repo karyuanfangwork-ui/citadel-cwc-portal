@@ -62,6 +62,7 @@ const BASE_APPLICATION = {
   borrowerProfileId: 'bp-1',
   productType: 'TERM_LOAN',
   lane: 'PERSONAL_FAST',
+  purpose: 'Working capital',
   borrowerProfile: {
     borrowerType: 'INDIVIDUAL',
     exposureLimit: null,

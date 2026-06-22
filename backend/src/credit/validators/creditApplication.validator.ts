@@ -88,13 +88,21 @@ export const CA_MEMO_HEADER_FIELD_NAMES = Object.keys(caMemoHeaderFields) as Arr
 // Allow decimal-like strings or numbers, normalise to string for Prisma Decimal
 const decimalField = z.union([z.string(), z.number()]);
 
+// Positive decimal: accepts string|number, rejects <= 0 and non-numeric.
+const positiveDecimal = z
+  .union([z.string(), z.number()])
+  .refine((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0;
+  }, { message: 'Amount must be greater than 0' });
+
 export const createCreditApplicationSchema = z.object({
   body: z.object({
     borrowerProfileId: z.string().uuid(),
     productType: creditProductTypeEnum,
     purpose: z.string().max(2000).optional().nullable(),
-    requestedAmount: decimalField,
-    requestedTenor: z.number().int().min(1).optional().nullable(),
+    requestedAmount: positiveDecimal,
+    requestedTenor: z.number().int().min(1).max(360).optional().nullable(),
     currency: currencyCodeEnum.default('MYR'),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),
@@ -107,8 +115,8 @@ export const updateCreditApplicationSchema = z.object({
   body: z.object({
     productType: creditProductTypeEnum.optional(),
     purpose: z.string().max(2000).optional().nullable(),
-    requestedAmount: decimalField.optional(),
-    requestedTenor: z.number().int().min(1).optional().nullable(),
+    requestedAmount: positiveDecimal.optional(),
+    requestedTenor: z.number().int().min(1).max(360).optional().nullable(),
     currency: currencyCodeEnum.optional(),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),

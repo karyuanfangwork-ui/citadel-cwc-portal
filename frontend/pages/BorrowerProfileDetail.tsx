@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
+import creditService, { BorrowerProfile, Borrower360Activity, Borrower360Summary, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
+import Borrower360Header from '../src/components/credit/borrower360/Borrower360Header';
+import BorrowerKpiBand from '../src/components/credit/borrower360/BorrowerKpiBand';
+import RetailOverview from '../src/components/credit/borrower360/RetailOverview';
+import CorporateOverview from '../src/components/credit/borrower360/CorporateOverview';
+import BureauUploadModal from '../src/components/credit/borrower360/BureauUploadModal';
+import IncomeEditModal from '../src/components/credit/borrower360/IncomeEditModal';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-import StateBadge from '../src/components/ui/StateBadge';
 import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
 import PartyFormModal, { PartyRole } from '../src/components/credit/PartyFormModal';
 import toast from 'react-hot-toast';
@@ -79,7 +84,7 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   BRIDGE_LOAN: 'Bridge Loan', PROJECT_FINANCE: 'Project Finance',
 };
 
-type DetailTab = 'overview' | 'directors' | 'shareholders' | 'ubos' | 'applications' | 'exposure' | 'financials';
+type DetailTab = 'overview' | 'profile' | 'financials' | 'exposure' | 'risk' | 'bureau' | 'documents';
 
 // Derive display name from the independent borrower profile
 const displayName = (p: BorrowerProfile) => p.name || 'Unnamed Borrower';
@@ -97,25 +102,34 @@ const BorrowerProfileDetail: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [profile, setProfile] = useState<BorrowerProfile | null>(null);
+  const [borrower360Summary, setBorrower360Summary] = useState<Borrower360Summary | null>(null);
+  const [borrower360Activity, setBorrower360Activity] = useState<Borrower360Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
-  const [applications, setApplications] = useState<CreditApplication[]>([]);
-  const [loadingApps, setLoadingApps] = useState(false);
   const [exposure, setExposure] = useState<ExposureDashboardSummary | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
   const [showLinkCrm, setShowLinkCrm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showBureauModal, setShowBureauModal] = useState(false);
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [partyModal, setPartyModal] = useState<{ open: boolean; role: PartyRole }>({ open: false, role: 'director' });
 
   const canWrite = hasPermission(user, 'credit:write');
   const canReview = hasPermission(user, 'credit:approve');
+  const isRetail = profile?.borrowerType !== 'CORPORATE';
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
     try {
       setLoading(true);
-      const data = await creditService.getBorrowerProfile(id);
-      setProfile(data);
+      const [profileData, summaryData, activityData] = await Promise.all([
+        creditService.getBorrowerProfile(id),
+        creditService.getBorrower360Summary(id),
+        creditService.getBorrower360Activity(id, 6),
+      ]);
+      setProfile(profileData);
+      setBorrower360Summary(summaryData);
+      setBorrower360Activity(activityData ?? []);
     } catch (e) {
       console.error(e);
       navigate('/credit/borrowers');
@@ -124,20 +138,20 @@ const BorrowerProfileDetail: React.FC = () => {
     }
   }, [id, navigate]);
 
-  useEffect(() => { fetchProfile(); }, [fetchProfile]);
-
-  useEffect(() => {
-    if (activeTab === 'applications' && id) {
-      (async () => {
-        try {
-          setLoadingApps(true);
-          const res = await creditService.listApplications({ borrowerProfileId: id, limit: 50 });
-          setApplications(res.applications ?? []);
-        } catch (e) { console.error(e); }
-        finally { setLoadingApps(false); }
-      })();
+  const handleRunKyc = useCallback(async () => {
+    if (!profile) return;
+    try {
+      const updated = await creditService.markBorrowerKycVerified(profile.id);
+      setProfile(updated);
+      toast.success('KYC verification recorded');
+      await fetchProfile();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to verify KYC');
     }
-  }, [activeTab, id]);
+  }, [fetchProfile, profile]);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   useEffect(() => {
     if (activeTab === 'exposure' && id) {
@@ -169,112 +183,69 @@ const BorrowerProfileDetail: React.FC = () => {
   return (
     <>
       <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
-          <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
-          <span>/</span>
-          <Link to="/credit/borrowers" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Borrowers</Link>
-          <span>/</span>
-          <span className="font-semibold text-text-primary">{displayName(profile)}</span>
-        </div>
+        <Borrower360Header
+          profile={profile}
+          summary={borrower360Summary}
+          canWrite={canWrite}
+          onEdit={() => setShowEditModal(true)}
+          onUploadBureau={() => setShowBureauModal(true)}
+          onRunKyc={handleRunKyc}
+          onNewApp={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
+        />
 
-        {/* Header */}
-        <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl shrink-0">
-              {getInitials(profile)}
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-text-primary">{displayName(profile)}</h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: typeBadge.bg, color: typeBadge.text }}>
-                  {profile.borrowerType.replace(/_/g, ' ')}
-                </span>
-                {profile.creditRiskRating && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${ratingColor}20`, color: ratingColor }}>
-                    Risk: {profile.creditRiskRating}
-                  </span>
-                )}
-                {amlBadge && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: amlBadge.bg, color: amlBadge.text }}>
-                    AML: {profile.amlRiskTier}
-                  </span>
-                )}
-                {profile.isSanctionedEntity && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                    Sanctioned Entity
-                  </span>
-                )}
-                {!profile.isActive && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                    Inactive
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {profile.account && (
-              <Link to={`/crm/accounts/${profile.account.id}`}
-                className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">business</span> View Account
-              </Link>
-            )}
-            {canWrite && (
-              <button
-                type="button"
-                onClick={() => setShowEditModal(true)}
-                className="flex items-center gap-1.5 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors font-bold cursor-pointer bg-none"
-                style={{ border: '1.5px solid' }}
-              >
-                <span className="material-symbols-outlined text-base">edit</span> Edit
-              </button>
-            )}
-            {canWrite && (
-              <button
-                type="button"
-                onClick={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
-                className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors cursor-pointer border-none"
-              >
-                <span className="material-symbols-outlined text-base">add_circle</span>
-                New Application for {displayName(profile)}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Stat chips */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {[
-            { label: 'Exposure Limit', value: formatCurrency(profile.exposureLimit), icon: 'account_balance_wallet' },
-            { label: 'Total Exposure', value: formatCurrency(profile.totalExposure), icon: 'payments' },
-            { label: 'Annual Income', value: formatCurrency(profile.annualIncome), icon: 'trending_up' },
-            { label: 'Net Worth', value: formatCurrency(profile.netWorth), icon: 'savings' },
-            { label: 'Directors', value: profile.directors?.length ?? 0, icon: 'groups' },
-            { label: 'Applications', value: profile.applications?.length ?? 0, icon: 'description' },
-          ].filter(s => s.value !== '—' || s.label === 'Directors' || s.label === 'Applications').map(s => (
-            <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
-              <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
-              <span className="font-bold text-text-primary">{s.value}</span>
-              <span className="text-text-secondary">{s.label}</span>
-            </div>
-          ))}
+        <div className="mt-6">
+          <BorrowerKpiBand summary={borrower360Summary} isRetail={isRetail} />
         </div>
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
-          {(['overview', 'directors', 'shareholders', 'ubos', 'applications', 'exposure', ...(profile.borrowerType === 'CORPORATE' ? ['financials'] : [])] as DetailTab[]).map(tab => (
+          {(['overview', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'] as DetailTab[]).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              {tab === 'ubos' ? 'UBOs' : tab}
+              {tab === 'risk' ? 'Risk & Compliance' : tab === 'bureau' ? 'Bureau' : tab === 'documents' ? 'Documents' : tab}
             </button>
           ))}
         </div>
 
-        {/* Overview tab */}
+        {/* Borrower 360 summary */}
         {activeTab === 'overview' && (
+          <div className="mb-6">
+            {borrower360Summary ? (
+              profile.borrowerType === 'CORPORATE' ? (
+                <CorporateOverview
+                  profile={profile}
+                  summary={borrower360Summary}
+                  activity={borrower360Activity}
+                  onAlertAction={(label) => {
+                    if (label === 'Upload Bureau Report') {
+                      setShowBureauModal(true);
+                    }
+                  }}
+                />
+              ) : (
+                <RetailOverview
+                  profile={profile}
+                  summary={borrower360Summary}
+                  activity={borrower360Activity}
+                  onAlertAction={(label) => {
+                    if (label === 'Upload Bureau Report') {
+                      setShowBureauModal(true);
+                    }
+                  }}
+                  onEditIncome={() => setShowIncomeModal(true)}
+                  canWrite={canWrite}
+                />
+              )
+            ) : (
+              <div className="rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-secondary">
+                Borrower 360 summary is not available yet.
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'profile' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Unlinked CRM nudge */}
             {!profile.accountId && !profile.contactId && (
@@ -435,8 +406,85 @@ const BorrowerProfileDetail: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'risk' && (
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Risk & Compliance</h3>
+            {[
+              { label: 'Risk Rating', value: profile.creditRiskRating ?? '—' },
+              { label: 'AML Tier', value: profile.amlRiskTier ?? '—' },
+              { label: 'Sanctioned Entity', value: profile.isSanctionedEntity ? 'Yes' : 'No' },
+              { label: 'Exposure Limit', value: formatCurrency(profile.exposureLimit) },
+              { label: 'Total Exposure', value: formatCurrency(profile.totalExposure) },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                <span className="text-xs text-text-secondary w-32 shrink-0">{row.label}</span>
+                <span className="text-sm text-text-primary tabular-nums">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'bureau' && (
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Bureau Report</h3>
+            {(borrower360Summary?.bureauFacilities ?? []).length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-bg-subtle text-[10px] uppercase tracking-wide text-text-secondary">
+                      <th className="px-3 py-2">Facility</th>
+                      <th className="px-3 py-2">Lender</th>
+                      <th className="px-3 py-2 text-right">Balance</th>
+                      <th className="px-3 py-2 text-right">Installment</th>
+                      <th className="px-3 py-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {borrower360Summary!.bureauFacilities.map((facility) => (
+                      <tr key={facility.id} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 font-semibold text-text-primary">{FACILITY_TYPE_LABELS[facility.facilityType] ?? facility.facilityType}</td>
+                        <td className="px-3 py-2 text-text-secondary">{facility.lender ?? '—'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(facility.balance)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(facility.installment)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
+                            {facility.conductStatus ?? '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary italic">No bureau report on file yet.</p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Documents</h3>
+            {(profile.documents ?? []).length > 0 ? (
+              <div className="space-y-3">
+                {(profile.documents ?? []).map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between gap-4 rounded-lg border border-border bg-bg-subtle px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{doc.fileName}</p>
+                      <p className="text-xs text-text-secondary">{doc.documentType} · {doc.status}</p>
+                    </div>
+                    <span className="text-xs text-text-secondary tabular-nums">{doc.fileSize?.toLocaleString?.() ?? doc.fileSize} bytes</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary italic">No borrower documents recorded yet.</p>
+            )}
+          </div>
+        )}
+
         {/* Directors tab */}
-        {activeTab === 'directors' && (
+        {false && (
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Directors</h3>
@@ -493,7 +541,7 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {/* Shareholders tab */}
-        {activeTab === 'shareholders' && (
+        {false && (
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Shareholders</h3>
@@ -547,7 +595,7 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {/* UBOs tab */}
-        {activeTab === 'ubos' && (
+        {false && (
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Ultimate Beneficial Owners</h3>
@@ -588,61 +636,6 @@ const BorrowerProfileDetail: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Applications tab */}
-        {activeTab === 'applications' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Credit Applications</h3>
-              {canWrite && (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
-                  className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-3 py-1.5 text-sm transition-colors cursor-pointer border-none"
-                >
-                  <span className="material-symbols-outlined text-base">add_circle</span> New Application
-                </button>
-              )}
-            </div>
-            {loadingApps ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} style={{ height: 60, borderRadius: 12, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
-                ))}
-              </div>
-            ) : applications.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">description</span>
-                <p className="font-semibold text-sm">No applications yet</p>
-                {canWrite && <p className="text-xs mt-1">Create a new credit application for this borrower</p>}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {applications.map(app => {
-                  const state = (app.state || app.status) as string;
-                  return (
-                    <div key={app.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/credit/applications/${app.id}`)}>
-                      <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-brand-700 text-lg">description</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-text-primary text-sm">{app.applicationNo || 'Application'}</p>
-                          <StateBadge state={state} size="sm" />
-                        </div>
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          {(app as any).productType?.replace(/_/g, ' ') || 'Application'} · {formatCurrency(app.requestedAmount)} · {formatDate(app.createdAt)}
-                        </p>
-                      </div>
-                      <span className="material-symbols-outlined text-base text-text-secondary">chevron_right</span>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </div>
@@ -765,7 +758,31 @@ const BorrowerProfileDetail: React.FC = () => {
             profile={profile}
             isOpen={showEditModal}
             onClose={() => setShowEditModal(false)}
-            onSaved={(updated) => { setProfile(updated); setShowEditModal(false); }}
+            onSaved={(updated) => { setProfile(updated); setShowEditModal(false); fetchProfile(); }}
+          />
+        )}
+
+        {profile && (
+          <BureauUploadModal
+            borrowerId={profile.id}
+            open={showBureauModal}
+            onClose={() => setShowBureauModal(false)}
+            onSaved={() => {
+              setShowBureauModal(false);
+              fetchProfile();
+            }}
+          />
+        )}
+
+        {profile && (
+          <IncomeEditModal
+            borrowerId={profile.id}
+            open={showIncomeModal}
+            onClose={() => setShowIncomeModal(false)}
+            onSaved={() => {
+              setShowIncomeModal(false);
+              fetchProfile();
+            }}
           />
         )}
 

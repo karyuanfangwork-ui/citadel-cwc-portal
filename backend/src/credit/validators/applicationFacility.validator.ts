@@ -5,6 +5,11 @@ const facilityTypeEnum = z.enum(FACILITY_TYPES);
 
 const decimalString = z.string().regex(/^\d+(\.\d+)?$/).or(z.number());
 
+const positiveDecimalString = decimalString.refine((v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+}, { message: 'Amount must be greater than 0' });
+
 const phase2Fields = {
   pricingLabel: z.string().max(100).optional().nullable(),
   existingLimit: decimalString.optional().nullable(),
@@ -28,8 +33,8 @@ const structuringFields = {
 export const createApplicationFacilitySchema = z.object({
   body: z.object({
     facilityType: facilityTypeEnum,
-    amount: decimalString,
-    tenorMonths: z.number().int().min(0).optional().nullable(),
+    amount: positiveDecimalString,
+    tenorMonths: z.number().int().min(1).max(360).optional().nullable(),
     ratePct: decimalString.optional().nullable(),
     purpose: z.string().max(2000).optional().nullable(),
     approvedAmount: decimalString.optional().nullable(),
@@ -43,8 +48,8 @@ export const createApplicationFacilitySchema = z.object({
 export const updateApplicationFacilitySchema = z.object({
   body: z.object({
     facilityType: facilityTypeEnum.optional(),
-    amount: decimalString.optional(),
-    tenorMonths: z.number().int().min(0).optional().nullable(),
+    amount: positiveDecimalString.optional(),
+    tenorMonths: z.number().int().min(1).max(360).optional().nullable(),
     ratePct: decimalString.optional().nullable(),
     purpose: z.string().max(2000).optional().nullable(),
     approvedAmount: decimalString.optional().nullable(),

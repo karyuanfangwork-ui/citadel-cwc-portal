@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 
@@ -30,6 +31,9 @@ export const errorHandler = (
     if (err instanceof AppError) {
         statusCode = err.statusCode;
         message = err.message;
+    } else if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        statusCode = 404;
+        message = 'Resource not found';
     }
 
     // Strip leaked env-var names and secret values from error messages visible to clients.

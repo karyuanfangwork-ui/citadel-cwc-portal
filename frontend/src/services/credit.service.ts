@@ -156,6 +156,7 @@ export interface BorrowerProfile {
   phone?: string | null;
   email?: string | null;
   isActive: boolean;
+  kycVerifiedAt?: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -170,6 +171,56 @@ export interface BorrowerProfile {
   applications?: CreditApplication[];
   financialStatements?: FinancialStatement[];
   _count?: { documents: number; applications: number };
+}
+
+export interface Borrower360Alert {
+  tone: 'warn' | 'neg';
+  icon: string;
+  title: string;
+  body: string;
+  actionLabel?: string;
+}
+
+export interface Borrower360Bureau {
+  source: string | null;
+  uploadedAt: string | null;
+  daysOld: number | null;
+  stale: boolean;
+}
+
+export interface Borrower360Activity {
+  id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  createdAt: string;
+}
+
+export interface Borrower360Summary {
+  borrowerId: string;
+  borrowerType: string;
+  borrowerName: string | null;
+  riskGrade: string | null;
+  creditScore: number | null;
+  scoreBand: string | null;
+  dsrPercent: number | null;
+  netDsrPercent: number | null;
+  totalExposure: number;
+  activeApps: number;
+  docCompletionPct: number;
+  facilityCount: number;
+  compliancePass: boolean;
+  bureau: Borrower360Bureau;
+  income: { gross: number; commitments: number; netIncome: number | null } | null;
+  bureauFacilities: Array<{
+    id: string;
+    facilityType: string;
+    lender: string | null;
+    balance: number | string | null;
+    installment: number | string | null;
+    conductStatus: string | null;
+  }>;
+  alerts: Borrower360Alert[];
 }
 
 export interface CreateBorrowerProfilePayload {
@@ -835,6 +886,69 @@ const creditService = {
   async getBorrowerProfile(id: string) {
     const res = await apiClient.get(`/credit/borrowers/${id}`);
     return res.data.data.profile as BorrowerProfile;
+  },
+
+  async getBorrower360Summary(id: string) {
+    const res = await apiClient.get(`/credit/borrowers/${id}/summary`);
+    return res.data.data as Borrower360Summary;
+  },
+
+  async getBorrower360Activity(id: string, limit = 6) {
+    const res = await apiClient.get(`/credit/borrowers/${id}/activity`, { params: { limit } });
+    return res.data.data as Borrower360Activity[];
+  },
+
+  async updateBorrowerCreditProfile(
+    id: string,
+    data: { creditScore?: number | null; scoreSource?: 'CTOS' | 'MANUAL' | null; scoreAsOf?: string | null; riskGrade?: string | null },
+  ) {
+    const res = await apiClient.put(`/credit/borrowers/${id}/credit-profile`, data);
+    return res.data.data as { id: string; borrowerId: string; creditScore: number | null; scoreBand: string | null; scoreSource: string | null; scoreAsOf: string | null; riskGrade: string | null };
+  },
+
+  async updateBorrowerIncome(
+    id: string,
+    data: {
+      employmentType?: string | null;
+      employerName?: string | null;
+      monthlyGrossIncome: number;
+      epfMonthlyAmount?: number;
+      monthlyTaxDeduction?: number;
+      monthlySocsoDeduction?: number;
+      hirePurchaseCommitment?: number;
+      creditCardCommitment?: number;
+      existingLoanCommitment?: number;
+      otherCommitments?: number;
+    },
+  ) {
+    const res = await apiClient.put(`/credit/borrowers/${id}/income`, data);
+    return res.data.data as {
+      id: string;
+      borrowerId: string;
+      monthlyGrossIncome: number | string;
+      monthlyNetIncome: number | string | null;
+      dsrPercent?: number | string | null;
+      netDsrPercent?: number | string | null;
+    };
+  },
+
+  async createBorrowerBureauReport(
+    id: string,
+    data: {
+      source: 'CTOS' | 'CCRIS_BORROWER_UPLOAD';
+      reportDate?: string | null;
+      fileName?: string | null;
+      filePath?: string | null;
+      facilities?: Array<{ facilityType: string; lender?: string | null; balance?: number | null; installment?: number | null; conductStatus?: string | null }>;
+    },
+  ) {
+    const res = await apiClient.post(`/credit/borrowers/${id}/bureau-reports`, data);
+    return res.data.data as { id: string; borrowerId: string; source: string; uploadedAt: string; facilities?: Array<{ id: string; facilityType: string }> };
+  },
+
+  async markBorrowerKycVerified(id: string) {
+    const res = await apiClient.post(`/credit/borrowers/${id}/kyc`, {});
+    return res.data.data as BorrowerProfile;
   },
 
   async createBorrowerProfile(data: CreateBorrowerProfilePayload) {

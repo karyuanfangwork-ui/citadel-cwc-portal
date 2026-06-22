@@ -11,6 +11,8 @@ import { hasPendingScoreOverride } from './scoreOverride.service';
 import { isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
 import { fatcaCrsService } from './fatcaCrs.service';
 import { checkRequiredFields } from './creditFieldCheck.service';
+import { collateralService } from './collateral.service';
+import { smeFinancialService } from './smeFinancial.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -53,6 +55,14 @@ interface ReadinessOptions {
 const PROFILE_SATISFIABLE: Record<string, (bp: { nricPassport?: string | null }) => boolean> = {
   NRIC_PASSPORT: (bp) => !!bp.nricPassport,
 };
+
+async function hasApprovedDeviation(applicationId: string, keyword: string): Promise<boolean> {
+  const deviations = await prisma.deviationApproval.findMany({
+    where: { applicationId, status: 'APPROVED' },
+    select: { policyRule: true },
+  });
+  return deviations.some((d) => (d.policyRule ?? '').toUpperCase().includes(keyword));
+}
 
 export async function validateSubmissionReadiness(
   applicationId: string,
@@ -127,6 +137,16 @@ export async function validateSubmissionReadiness(
       errors.push({
         field: missing.fieldPath,
         message: `Required field missing: ${missing.label}`,
+        severity: 'error',
+      });
+    }
+
+    // ---- Loan purpose mandatory at submission ----
+    const purposeText = (application.purpose ?? '').toString().trim();
+    if (purposeText.length === 0) {
+      errors.push({
+        field: 'purpose',
+        message: 'Loan purpose is required before submission',
         severity: 'error',
       });
     }
@@ -276,6 +296,54 @@ export async function validateSubmissionReadiness(
           field: 'ecl',
           message: 'At least one ECL snapshot is required for corporate applications before committee submission.',
           severity: 'error',
+        });
+      }
+    }
+
+    // ---- LTV cap gate (collateralised facilities only) ----
+    const ltvResults = await collateralService.computeApplicationLtv(applicationId);
+    const breachedLtv = ltvResults.filter((r) => r.exceedsCap && r.haircutDetails.length > 0);
+    if (breachedLtv.length > 0) {
+      const ltvWaived = await hasApprovedDeviation(applicationId, 'LTV');
+      if (!ltvWaived) {
+        errors.push({
+          field: 'ltv',
+          message: `${breachedLtv.length} facility/facilities breach the LTV cap (e.g. ${breachedLtv[0].ltvPercent.toFixed(1)}%). An approved policy deviation is required.`,
+          severity: 'error',
+        });
+      } else {
+        satisfied.push({
+          field: 'ltv',
+          message: 'LTV cap breach covered by an approved policy deviation.',
+          severity: 'info',
+        });
+      }
+    }
+
+    // ---- DSCR minimum gate (non-retail borrowers only) ----
+    if (!isRetailBorrower) {
+      const dscrAssessment = await smeFinancialService.computeDualAssessment(application.borrowerProfileId);
+      const dscrValue = dscrAssessment.businessDscr?.dscr ?? null;
+      if (dscrAssessment.overallStatus === 'fail') {
+        const dscrWaived = await hasApprovedDeviation(applicationId, 'DSCR');
+        if (!dscrWaived) {
+          errors.push({
+            field: 'dscr',
+            message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is below the minimum (1.00). An approved policy deviation is required.`,
+            severity: 'error',
+          });
+        } else {
+          satisfied.push({
+            field: 'dscr',
+            message: 'DSCR below minimum is covered by an approved policy deviation.',
+            severity: 'info',
+          });
+        }
+      } else if (dscrAssessment.overallStatus === 'warn') {
+        warnings.push({
+          field: 'dscr',
+          message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is in the warning band (1.00–1.10).`,
+          severity: 'warning',
         });
       }
     }
