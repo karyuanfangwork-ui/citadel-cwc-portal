@@ -211,10 +211,10 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "name": "Added as Request Participant",
     "eventType": "PARTICIPANT_ADDED",
     "emailSubject": "You have been added to request {{referenceNumber}}",
-    "emailBody": "<p>Hi {{userName}},</p><p>You have been added as a participant to request <strong>{{referenceNumber}}</strong>: {{summary}}. You can now view this request and will receive status updates.</p>",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Added as Participant</h2><p>Hello {{userName}},</p><p>You have been added as a participant to request <strong>#{{referenceNumber}} — {{summary}}</strong>.</p><p>You can now view this request and will receive status updates going forward.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
     "smsBody": "",
     "pushTitle": "Added to Request",
-    "pushBody": "You have been added as a participant to request {{referenceNumber}}.",
+    "pushBody": "You have been added as a participant to request {{referenceNumber}}. Tap to view.",
     "isActive": true
   },
   {
@@ -420,7 +420,58 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "pushTitle": "Trust review in {{daysUntilReview}} days",
     "pushBody": "{{trustType}} for {{accountName}} — review due {{nextReviewDate}}.",
     "isActive": false
+  },
+  {
+    "name": "onboarding_it_tasks_created",
+    "eventType": "ONBOARDING_IT_TASKS_CREATED",
+    "emailSubject": "Onboarding: {{itTaskCount}} IT Task(s) Pending for {{newHireName}}",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Onboarding — IT Tasks Pending</h2><p>Hello {{userName}},</p><p>A new employee onboarding ticket has been created and requires <strong>{{itTaskCount}} IT task(s)</strong> to be completed.</p><div style='background:#f0f4f8;border-radius:8px;padding:16px;margin:16px 0;'><p style='margin:0;'><strong>New Hire:</strong> {{newHireName}}</p><p style='margin:4px 0 0;'><strong>Position:</strong> {{jobTitle}}</p><p style='margin:4px 0 0;'><strong>Department:</strong> {{department}}</p></div><p>Please review the onboarding task list and begin provisioning as soon as possible.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Onboarding Ticket</a></p>",
+    "smsBody": "",
+    "pushTitle": "Onboarding IT Tasks ({{itTaskCount}})",
+    "pushBody": "{{itTaskCount}} IT task(s) pending for new hire {{newHireName}}. Tap to view.",
+    "isActive": true
+  },
+  {
+    "name": "offboarding_it_tasks_created",
+    "eventType": "OFFBOARDING_IT_TASKS_CREATED",
+    "emailSubject": "Offboarding: {{itTaskCount}} IT Task(s) Pending for {{employeeName}}",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#b45309;'>Offboarding — IT Tasks Pending</h2><p>Hello {{userName}},</p><p>An employee offboarding ticket has been created and requires <strong>{{itTaskCount}} IT task(s)</strong> to be completed.</p><div style='background:#fef3c7;border-radius:8px;padding:16px;margin:16px 0;'><p style='margin:0;'><strong>Departing Employee:</strong> {{employeeName}}</p><p style='margin:4px 0 0;'><strong>Department:</strong> {{department}}</p><p style='margin:4px 0 0;'><strong>Last Working Day:</strong> {{lastWorkingDay}}</p></div><p>Please review the offboarding task list and begin account revocation and hardware collection as scheduled.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#b45309;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Offboarding Ticket</a></p>",
+    "smsBody": "",
+    "pushTitle": "Offboarding IT Tasks ({{itTaskCount}})",
+    "pushBody": "{{itTaskCount}} IT task(s) pending for departing employee {{employeeName}}. Tap to view.",
+    "isActive": true
   }
+];
+
+// ── Notification Template Fixes ────────────────────────
+// Bug-fix patches that get force-applied to existing templates during seed,
+// regardless of RETAIN_ADMIN_CONFIG. Unlike SEED_NOTIFICATION_TEMPLATES (which
+// only creates missing templates and never overwrites), this list updates
+// specific fields on existing templates to fix bugs — without touching any
+// admin customizations to other fields.
+//
+// Each entry is matched by `name` (the @unique key). Only the fields listed in
+// `patch` are overwritten; all other columns (isActive, smsBody, etc.) are left
+// as-is so admin customizations survive.
+export const SEED_NOTIFICATION_TEMPLATE_FIXES: {
+  name: string;
+  patch: {
+    emailSubject?: string;
+    emailBody?: string;
+    pushTitle?: string;
+    pushBody?: string;
+  };
+}[] = [
+  {
+    name: "Added as Request Participant",
+    patch: {
+      emailSubject: "You have been added to request {{referenceNumber}}",
+      emailBody:
+        "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Added as Participant</h2><p>Hello {{userName}},</p><p>You have been added as a participant to request <strong>#{{referenceNumber}} — {{summary}}</strong>.</p><p>You can now view this request and will receive status updates going forward.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      pushBody:
+        "You have been added as a participant to request {{referenceNumber}}. Tap to view.",
+    },
+  },
 ];
 
 // ── Request Status Definitions ────────────────────────

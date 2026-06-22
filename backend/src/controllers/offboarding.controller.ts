@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { uploadSingleFile } from '../middleware/upload.middleware';
-import { notify } from '../services/notification.service';
+import { notify, notifyMultiple } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
+import { logger } from '../utils/logger';
 import path from 'path';
 import fs from 'fs';
 
@@ -465,4 +466,63 @@ export async function createDefaultOffboardingTasks(offboardingId: string, lastW
                 : lastWorkingDay,
         })),
     });
+
+    console.log(`✅ Created ${templates.length} offboarding tasks from templates`);
+
+    // ── Notify the dedicated IT agent if any IT-category tasks were created ──
+    const hasItTasks = templates.some(t => t.taskCategory.toUpperCase() === 'IT');
+    if (!hasItTasks) return;
+
+    // Resolve the offboarding request + parent ticket for notification context
+    const offboarding = await prisma.offboardingRequest.findUnique({
+        where: { id: offboardingId },
+        select: {
+            requestId: true,
+            employeeFirstName: true,
+            employeeLastName: true,
+            department: true,
+            lastWorkingDay: true,
+        },
+    });
+    if (!offboarding) return;
+
+    // Read the dedicated IT agent from system settings (shared with onboarding)
+    const itAgentSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'onboarding_it_agent_user_id' },
+    });
+
+    if (!itAgentSetting || !itAgentSetting.value) {
+        logger.warn('[Offboarding] No dedicated IT agent configured (system setting "onboarding_it_agent_user_id" not set) — skipping IT task notification');
+        return;
+    }
+
+    const itAgentId = itAgentSetting.value;
+
+    // Verify the agent still exists and is active
+    const itAgent = await prisma.user.findUnique({
+        where: { id: itAgentId },
+        select: { id: true, isActive: true },
+    });
+
+    if (!itAgent || !itAgent.isActive) {
+        logger.warn(`[Offboarding] Configured IT agent ${itAgentId} not found or inactive — skipping IT task notification`);
+        return;
+    }
+
+    const employeeName = `${offboarding.employeeFirstName} ${offboarding.employeeLastName}`;
+    const itTaskCount = templates.filter(t => t.taskCategory.toUpperCase() === 'IT').length;
+
+    await notifyMultiple(
+        [itAgentId],
+        'OFFBOARDING_IT_TASKS_CREATED',
+        {
+            employeeName,
+            department: offboarding.department || '',
+            lastWorkingDay: offboarding.lastWorkingDay.toLocaleDateString('en-GB'),
+            itTaskCount: String(itTaskCount),
+        },
+        offboarding.requestId,
+    );
+
+    logger.info(`[Offboarding] Notified dedicated IT agent ${itAgentId} about ${itTaskCount} IT task(s) for ${employeeName}`);
 }

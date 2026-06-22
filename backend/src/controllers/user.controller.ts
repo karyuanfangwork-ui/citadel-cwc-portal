@@ -409,6 +409,7 @@ class UserController {
                 lastName: true,
                 email: true,
                 entityId: true,
+                agentTeam: true,
             },
             orderBy: { firstName: 'asc' },
         });

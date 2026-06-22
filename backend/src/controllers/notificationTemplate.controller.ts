@@ -25,6 +25,7 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'COMMENT_ADDED',    label: 'Comment Added',    category: 'General', recipientDescription: 'Requester / Assignee', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'commenterName', 'commentText', 'userName', 'appUrl'] },
     { eventType: 'SLA_BREACHED',     label: 'SLA Breached',     category: 'SLA',  recipientDescription: 'Assigned agent (or admin if unassigned)',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'slaDeadline', 'userName', 'appUrl'] },
     { eventType: 'SLA_ESCALATED',     label: 'SLA Escalated',     category: 'SLA',  recipientDescription: 'Escalation handler (senior-most in role)',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'escalationHours', 'escalationLabel', 'notifyRoles', 'userName', 'appUrl'] },
+    { eventType: 'PARTICIPANT_ADDED', label: 'Participant Added', category: 'General', recipientDescription: 'Newly added participant', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'summary', 'requesterName', 'assigneeName', 'categoryName', 'requestTypeName', 'userName', 'appUrl'] },
     { eventType: 'PASSWORD_RESET',   label: 'Password Reset',   category: 'Auth',    recipientDescription: 'Requester',          availableVariables: ['userName', 'resetUrl', 'appUrl'] },
 
     // ── IT Workflow ─────────────────────────────────────────────────
@@ -78,6 +79,10 @@ const EVENT_TYPE_REGISTRY: {
     // ── Credit Module ──────────────────────────────────────────────────
     { eventType: 'CREDIT_RM_ASSIGNED',        label: 'Credit RM Assigned',        category: 'Credit', recipientDescription: 'Newly assigned RM',        availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
     { eventType: 'CREDIT_ANALYST_ASSIGNED',   label: 'Credit Analyst Assigned',   category: 'Credit', recipientDescription: 'Newly assigned Analyst',   availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
+
+    // ── Onboarding ────────────────────────────────────────────────────────
+    { eventType: 'ONBOARDING_IT_TASKS_CREATED', label: 'Onboarding IT Tasks Created', category: 'Onboarding', recipientDescription: 'Dedicated IT agent (configured in admin)', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'newHireName', 'jobTitle', 'department', 'itTaskCount', 'userName', 'appUrl'] },
+    { eventType: 'OFFBOARDING_IT_TASKS_CREATED', label: 'Offboarding IT Tasks Created', category: 'Onboarding', recipientDescription: 'Dedicated IT agent (configured in admin)', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'employeeName', 'department', 'lastWorkingDay', 'itTaskCount', 'userName', 'appUrl'] },
 ];
 
 class NotificationTemplateController {

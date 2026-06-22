@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import {
     SEED_NOTIFICATION_TEMPLATES,
+    SEED_NOTIFICATION_TEMPLATE_FIXES,
     SEED_STATUS_DEFINITIONS,
     SEED_WORKFLOW_TRANSITIONS,
     SEED_BANNER_CONFIGS,
@@ -1449,6 +1450,26 @@ async function main() {
         }
 
         console.log('✅ Notification templates created');
+    }
+
+    // ── Apply notification template bug-fix patches ──────────────
+    // These run regardless of RETAIN_ADMIN_CONFIG so that bug fixes (e.g.
+    // adding a missing "View Request" link) reach existing prod templates
+    // without overwriting admin customizations to other fields.
+    let fixedCount = 0;
+    for (const fix of SEED_NOTIFICATION_TEMPLATE_FIXES) {
+        const existing = await prisma.notificationTemplate.findUnique({
+            where: { name: fix.name },
+        });
+        if (!existing) continue;
+        await prisma.notificationTemplate.update({
+            where: { id: existing.id },
+            data: fix.patch,
+        });
+        fixedCount++;
+    }
+    if (fixedCount > 0) {
+        console.log(`✅ Notification template fixes applied (${fixedCount} template(s) patched)`);
     }
 
     // Seed onboarding task templates (from seed-admin-config, per-record upsert for idempotency)

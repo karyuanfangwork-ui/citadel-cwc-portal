@@ -174,6 +174,16 @@ export const adminService = {
         const response = await apiClient.put('/admin/system-settings/email-notifications-enabled', { enabled });
         return response.data.data.enabled as boolean;
     },
+
+    async getOnboardingItAgent(): Promise<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string } | null> {
+        const response = await apiClient.get('/admin/system-settings/onboarding-it-agent');
+        return response.data.data.agent;
+    },
+
+    async setOnboardingItAgent(userId: string): Promise<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string }> {
+        const response = await apiClient.put('/admin/system-settings/onboarding-it-agent', { userId });
+        return response.data.data.agent;
+    },
 };
 
 // ── Shared Types ────────────────────────────────────────────────────
