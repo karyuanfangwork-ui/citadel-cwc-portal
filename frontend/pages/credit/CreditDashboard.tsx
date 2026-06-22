@@ -1,13 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { dashboardApi, branchApi, Branch, ExposureSummary, SlaBreachItem, MyWorkDashboard } from '../../src/services/credit.service';
-import SlaBreachWidget from '../../src/components/credit/SlaBreachWidget';
+import { dashboardApi, branchApi, Branch } from '../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface WorkQueueBucket {
+  key: string;
+  label: string;
+  count: number;
+  slaCompliancePct: number | null;
+  states: string[];
+}
+
+interface WorkQueueResult {
+  buckets: WorkQueueBucket[];
+  totalApplications: number;
+}
+
+interface DashboardAlerts {
+  highDsr: { count: number; thresholdPct: number; filterUrl: string };
+  expiredBureau: { count: number; maxAgeDays: number; filterUrl: string };
+  amlReview: { count: number; filterUrl: string };
+}
+
+interface ActivityFeedItem {
+  id: string;
+  applicationId: string;
+  applicationNo: string;
+  eventType: string;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  newState: string | null;
+  createdAt: string;
+}
+
+interface ActivityFeedResult {
+  items: ActivityFeedItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface TeamPerformanceResult {
+  slaCompliancePct: number;
+  avgApprovalTurnaroundDays: number | null;
+  bottleneckStage: { state: string; avgDays: number; pctSlowerThanAvg: number } | null;
+  totalDecisions: number;
+}
 
 interface PipelineStateCount {
   state: string;
@@ -19,90 +63,46 @@ interface PipelineDashboard {
   states: PipelineStateCount[];
   totalApplications: number;
   slaBreachCount: number;
-  slaBreaches: SlaBreachItem[];
+  slaBreaches: any[];
 }
 
-interface ApprovalInboxItem {
-  applicationId: string;
+interface MyWorkItem {
+  id: string;
   applicationNo: string;
+  state: string;
   borrowerName: string;
   productType: string;
-  requestedAmount: number;
-  currency: string;
-  currentState: string;
-  urgency: 'HIGH' | 'MEDIUM' | 'LOW';
-  submittedAt: string | null;
-  daysWaiting: number;
+  updatedAt: string;
+  requestedAmount: number | null;
+  riskGrade: string | null;
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+  entityType: string | null;
+  slaRemainingHours: number | null;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
-interface ApprovalInbox {
-  high: ApprovalInboxItem[];
-  medium: ApprovalInboxItem[];
-  low: ApprovalInboxItem[];
-  totalPending: number;
-}
-
-interface ExposureByBorrower {
-  borrowerProfileId: string;
-  borrowerName: string;
-  industry: string | null;
-  totalExposure: number;
-  rating: string | null;
-}
-
-interface SectorBreakdown {
-  sector: string;
-  totalExposure: number;
-  count: number;
-}
-
-interface RatingDistribution {
-  rating: string;
-  count: number;
-  totalExposure: number;
-}
-
-interface ExposureDashboard {
-  topBorrowers: ExposureByBorrower[];
-  sectorBreakdown: SectorBreakdown[];
-  ratingDistribution: RatingDistribution[];
-  totalPortfolio: number;
-}
-
-interface CommitteeCalendarItem {
-  meetingId: string;
-  title: string;
-  scheduledAt: string;
-  location: string | null;
-  status: string;
-  meetingType: string;
-  agendaCount: number;
-}
-
-interface CommitteeCalendar {
-  meetings: CommitteeCalendarItem[];
-  totalUpcoming: number;
+interface MyWorkDashboard {
+  myApprovalCount: number;
+  myAssignedCount: number;
+  mySlaBreaches: number;
+  mySlaBreachItems: any[];
+  recentAssigned: MyWorkItem[];
+  recentApprovals: MyWorkItem[];
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const formatCurrency = (val: number | null) =>
+const formatMYR = (val: number | null | undefined) =>
   val != null
-    ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val)
+    ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)
     : '—';
-
-const URGENCY_COLORS: Record<string, { bg: string; text: string }> = {
-  HIGH: { bg: '#fef2f2', text: '#dc2626' },
-  MEDIUM: { bg: '#fffbeb', text: '#d97706' },
-  LOW: { bg: '#f0fdf4', text: '#16a34a' },
-};
 
 const STATE_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Submitted',
-  KYC_REVIEW: 'KYC Review',
+  KYC_REVIEW: 'Verification',
   COMPLIANCE_HOLD: 'Compliance Hold',
   KYC_APPROVED: 'KYC Approved',
   KYC_REJECTED: 'KYC Rejected',
@@ -117,28 +117,373 @@ const STATE_LABELS: Record<string, string> = {
   ACTIVE: 'Active',
   CLOSED: 'Closed',
   WITHDRAWN: 'Withdrawn',
+  REFERRED_BACK: 'Returned',
+  CONDITION_FULFILMENT: 'Condition Fulfilment',
 };
 
-const RATING_ORDER = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'];
+const PRIORITY_COLORS: Record<string, { dot: string; text: string }> = {
+  HIGH: { dot: '#ba1a1a', text: '#ba1a1a' },
+  MEDIUM: { dot: '#d97706', text: '#d97706' },
+  LOW: { dot: '#16a34a', text: '#45464d' },
+};
+
+const SLA_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  OK: { bg: '#f0fdf4', text: '#16a34a' },
+  WARNING: { bg: '#fffbeb', text: '#d97706' },
+  OVERDUE: { bg: '#fef2f2', text: '#ba1a1a' },
+};
+
+function formatSlaRemaining(hours: number | null): string {
+  if (hours == null) return '—';
+  if (hours <= 0) return 'Overdue';
+  if (hours < 24) return `${hours}h remaining`;
+  const days = Math.floor(hours / 24);
+  return `${days}d remaining`;
+}
+
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  return `${days}d ago`;
+}
+
+// Pipeline funnel stages — collapse 20 states into 6 display stages
+const FUNNEL_STAGES = [
+  { label: 'Draft', states: ['DRAFT'] },
+  { label: 'Submitted', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED'] },
+  { label: 'Verification', states: ['COMPLIANCE_HOLD'] },
+  { label: 'Under Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'CONDITION_FULFILMENT'] },
+  { label: 'Final Approval', states: ['APPROVED', 'OFFER', 'ACCEPTED', 'REFERRED_BACK'] },
+  { label: 'Disbursed', states: ['DISBURSED', 'ACTIVE'] },
+];
+
+function computeFunnel(pipelineStates: PipelineStateCount[]) {
+  const total = pipelineStates.reduce((sum, s) => sum + s.count, 0);
+  return FUNNEL_STAGES.map((stage, i) => {
+    const count = pipelineStates
+      .filter(ps => stage.states.includes(ps.state))
+      .reduce((sum, ps) => sum + ps.count, 0);
+    const conversionPct = total > 0 ? Math.round((count / total) * 100) : 0;
+    const prevCount = i === 0 ? total : FUNNEL_STAGES.slice(0, i).reduce((acc, s) => {
+      return acc + pipelineStates.filter(ps => s.states.includes(ps.state)).reduce((sum, ps) => sum + ps.count, 0);
+    }, 0);
+    const stageConversion = prevCount > 0 ? Math.round((count / prevCount) * 100) : 0;
+    return { label: stage.label, count, conversionPct, stageConversion };
+  });
+}
 
 // ---------------------------------------------------------------------------
-// Component
+// KPI Card Component
 // ---------------------------------------------------------------------------
 
-type TabKey = 'myWork' | 'pipeline' | 'approval' | 'exposure' | 'calendar';
+const KpiCard: React.FC<{ bucket: WorkQueueBucket; isCritical?: boolean }> = ({ bucket, isCritical }) => {
+  const compliance = bucket.slaCompliancePct;
+  const barColor = compliance == null ? 'var(--cr-outline-variant)' : compliance >= 80 ? 'var(--cr-secondary)' : compliance >= 60 ? '#d97706' : 'var(--cr-error)';
+
+  return (
+    <div
+      style={{
+        background: 'var(--cr-surface-container-lowest)',
+        border: `1px solid ${isCritical ? 'var(--cr-error)' : 'var(--cr-outline-variant)'}`,
+        borderLeft: isCritical ? '3px solid var(--cr-error)' : undefined,
+        borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+        padding: '14px 16px',
+        minWidth: 0,
+        flex: '1 1 0',
+      }}
+    >
+      <p
+        style={{
+          fontFamily: 'var(--cr-font-display)',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          color: isCritical ? 'var(--cr-error)' : 'var(--cr-on-surface-variant)',
+          marginBottom: 6,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {bucket.label}
+      </p>
+      <p
+        style={{
+          fontFamily: 'var(--cr-font-display)',
+          fontSize: 28,
+          fontWeight: 700,
+          color: isCritical ? 'var(--cr-error)' : 'var(--cr-on-surface)',
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1.1,
+        }}
+      >
+        {bucket.count}
+      </p>
+
+      {/* SLA compliance bar */}
+      {compliance != null && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <span style={{ fontSize: 10, color: 'var(--cr-on-surface-variant)' }}>SLA</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: barColor, fontVariantNumeric: 'tabular-nums' }}>{compliance}%</span>
+          </div>
+          <div style={{ height: 3, background: 'var(--cr-surface-container)', borderRadius: 9999, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${compliance}%`, background: barColor, borderRadius: 9999, transition: 'width 0.3s' }} />
+          </div>
+        </div>
+      )}
+
+      {isCritical && bucket.count > 0 && (
+        <p style={{ fontSize: 10, color: 'var(--cr-error)', marginTop: 6, fontWeight: 600 }}>Immediate attention</p>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Pipeline Funnel Component (CSS clip-path chevrons)
+// ---------------------------------------------------------------------------
+
+const PipelineFunnel: React.FC<{ pipeline: PipelineDashboard | null }> = ({ pipeline }) => {
+  if (!pipeline || !pipeline.states.length) {
+    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>No pipeline data</div>;
+  }
+
+  const stages = computeFunnel(pipeline.states);
+  const maxCount = Math.max(...stages.map(s => s.count), 1);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 2, overflowX: 'auto' }}>
+      {stages.map((stage, i) => {
+        const widthPct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
+        const isCurrent = stage.label === 'Under Assessment';
+        const bg = isCurrent ? 'var(--cr-secondary-fixed)' : 'var(--cr-surface-container)';
+        const textCol = isCurrent ? 'var(--cr-on-secondary-fixed-variant)' : 'var(--cr-on-surface-variant)';
+
+        return (
+          <div
+            key={stage.label}
+            style={{
+              flex: '1 1 0',
+              minWidth: 120,
+              background: bg,
+              clipPath: i === 0
+                ? 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)'
+                : i === stages.length - 1
+                  ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%)'
+                  : 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%)',
+              padding: '12px 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+            }}
+          >
+            <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, color: textCol, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+              {stage.label}
+            </p>
+            <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 22, fontWeight: 700, color: textCol, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+              {stage.count}
+            </p>
+            <p style={{ fontSize: 10, color: textCol, opacity: 0.8, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+              {stage.conversionPct}% of total
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Alert Tile Component
+// ---------------------------------------------------------------------------
+
+const AlertTile: React.FC<{
+  title: string;
+  icon: string;
+  count: number;
+  description: string;
+  actionLabel: string;
+  filterUrl: string;
+  variant: 'danger' | 'warning' | 'info';
+}> = ({ title, icon, count, description, actionLabel, filterUrl, variant }) => {
+  const colors = {
+    danger: { bg: '#fef2f2', border: '#ba1a1a', iconBg: '#ba1a1a', text: '#93000a' },
+    warning: { bg: '#fffbeb', border: '#d97706', iconBg: '#d97706', text: '#78350f' },
+    info: { bg: 'var(--cr-surface-container)', border: 'var(--cr-outline-variant)', iconBg: 'var(--cr-on-surface-variant)', text: 'var(--cr-on-surface-variant)' },
+  };
+  const c = colors[variant];
+
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+        padding: 16,
+        flex: '1 1 0',
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 'var(--cr-radius)', background: c.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#fff' }}>{icon}</span>
+        </div>
+        <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 13, fontWeight: 600, color: c.text, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+          {title}
+        </p>
+      </div>
+      <p style={{ fontSize: 13, color: c.text, lineHeight: 1.4, marginBottom: 12 }}>
+        {count > 0 ? `${count} ${description}` : 'No alerts'}
+      </p>
+      {count > 0 && (
+        <Link
+          to={filterUrl}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            fontFamily: 'var(--cr-font-display)',
+            fontSize: 12,
+            fontWeight: 600,
+            color: c.border,
+            textDecoration: 'none',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
+          {actionLabel}
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
+        </Link>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Activity Timeline Component
+// ---------------------------------------------------------------------------
+
+const ActivityTimeline: React.FC<{ items: ActivityFeedItem[]; loading: boolean }> = ({ items, loading }) => {
+  if (loading) {
+    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>Loading activities…</div>;
+  }
+  if (!items.length) {
+    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>No recent activity</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {items.slice(0, 8).map((item, i) => (
+        <div
+          key={item.id}
+          style={{
+            display: 'flex',
+            gap: 12,
+            paddingBottom: i < Math.min(items.length, 8) - 1 ? 14 : 0,
+            position: 'relative',
+          }}
+        >
+          {/* Timeline dot */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--cr-secondary)', marginTop: 4 }} />
+            {i < Math.min(items.length, 8) - 1 && <div style={{ width: 1, flex: 1, background: 'var(--cr-outline-variant)', marginTop: 2 }} />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--cr-on-surface)', marginBottom: 2 }}>
+              {item.action.replace(/_/g, ' ')}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>
+              {item.applicationNo && <Link to={`/credit/applications/${item.applicationId}`} style={{ color: 'var(--cr-secondary)', textDecoration: 'none' }}>{item.applicationNo}</Link>}
+              {item.actorName ? ` · ${item.actorName}` : ''}
+              {item.newState ? ` · → ${STATE_LABELS[item.newState] ?? item.newState}` : ''}
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 2 }}>{formatTimeAgo(item.createdAt)}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Team Performance Component
+// ---------------------------------------------------------------------------
+
+const TeamPerformance: React.FC<{ data: TeamPerformanceResult | null; loading: boolean }> = ({ data, loading }) => {
+  if (loading || !data) {
+    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>Loading…</div>;
+  }
+
+  const slaColor = data.slaCompliancePct >= 80 ? 'var(--cr-secondary)' : data.slaCompliancePct >= 60 ? '#d97706' : 'var(--cr-error)';
+
+  return (
+    <div>
+      {/* SLA Compliance */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SLA Compliance</span>
+          <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 18, fontWeight: 700, color: slaColor, fontVariantNumeric: 'tabular-nums' }}>{data.slaCompliancePct}%</span>
+        </div>
+        <div style={{ height: 6, background: 'var(--cr-surface-container)', borderRadius: 9999, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${data.slaCompliancePct}%`, background: slaColor, borderRadius: 9999, transition: 'width 0.3s' }} />
+        </div>
+      </div>
+
+      {/* Approval Turnaround */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Approval Turnaround</span>
+          <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 18, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums' }}>
+            {data.avgApprovalTurnaroundDays != null ? `${data.avgApprovalTurnaroundDays}d` : '—'}
+          </span>
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)' }}>{data.totalDecisions} decisions</p>
+      </div>
+
+      {/* Bottleneck */}
+      {data.bottleneckStage && (
+        <div style={{ background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', padding: 12 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+            Queue Bottlenecks
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--cr-on-surface)' }}>
+            <strong>{STATE_LABELS[data.bottleneckStage.state] ?? data.bottleneckStage.state}</strong> is currently{' '}
+            <span style={{ color: 'var(--cr-error)', fontWeight: 600 }}>{data.bottleneckStage.pctSlowerThanAvg}% slower</span>
+            {' '}than hub average ({data.bottleneckStage.avgDays}d avg)
+          </p>
+        </div>
+      )}
+
+      {!data.bottleneckStage && (
+        <div style={{ background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', padding: 12 }}>
+          <p style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>No bottlenecks detected</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
 
 const CreditDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabKey>('myWork');
+  const [workQueue, setWorkQueue] = useState<WorkQueueResult | null>(null);
+  const [alerts, setAlerts] = useState<DashboardAlerts | null>(null);
+  const [activity, setActivity] = useState<ActivityFeedResult | null>(null);
+  const [teamPerf, setTeamPerf] = useState<TeamPerformanceResult | null>(null);
   const [pipeline, setPipeline] = useState<PipelineDashboard | null>(null);
-  const [approvalInbox, setApprovalInbox] = useState<ApprovalInbox | null>(null);
-  const [exposure, setExposure] = useState<ExposureDashboard | null>(null);
-  const [exposureSummary, setExposureSummary] = useState<ExposureSummary | null>(null);
-  const [calendar, setCalendar] = useState<CommitteeCalendar | null>(null);
   const [myWork, setMyWork] = useState<MyWorkDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // §3.1 — Multi-branch support: branch filter dropdown (visible to Admin)
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchFilter, setBranchFilter] = useState<string>('');
 
@@ -146,754 +491,358 @@ const CreditDashboard: React.FC = () => {
     branchApi.list().then(setBranches).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const fetchAll = useCallback(() => {
     setLoading(true);
     setError(null);
 
-    if (activeTab === 'myWork') {
-      Promise.all([
-        dashboardApi.getMyWork(branchFilter ? { branchId: branchFilter } : undefined),
-        dashboardApi.getPipelineDashboard(branchFilter ? { branchId: branchFilter } : undefined),
-      ])
-        .then(([workRes, pipeRes]: any[]) => {
-          setMyWork(workRes.data?.data ?? workRes.data ?? workRes);
-          setPipeline(pipeRes.data?.data ?? pipeRes.data ?? pipeRes);
-        })
-        .catch((err: any) => {
-          console.error(err);
-          toast.error(friendlyMessage(err, 'Failed to load My Work data'));
-          setError(err.message ?? 'Failed to load My Work data');
-        })
-        .finally(() => setLoading(false));
-      return;
-    }
+    const branchParam = branchFilter ? { branchId: branchFilter } : undefined;
 
-    if (activeTab === 'exposure') {
-      Promise.all([
-        dashboardApi.getExposureDashboard(branchFilter ? { branchId: branchFilter } : undefined),
-        dashboardApi.getExposureSummary(branchFilter ? { branchId: branchFilter } : undefined),
-      ])
-        .then(([dashboard, summary]: any[]) => {
-          setExposure(dashboard.data?.data ?? dashboard.data ?? dashboard);
-          setExposureSummary(summary);
-        })
-        .catch((err: any) => {
-          console.error(err);
-          toast.error(friendlyMessage(err, 'Failed to load exposure data'));
-          setError(err.message ?? 'Failed to load exposure data');
-        })
-        .finally(() => setLoading(false));
-      return;
-    }
-
-    const fetcher =
-      activeTab === 'pipeline'
-        ? () => dashboardApi.getPipelineDashboard(branchFilter ? { branchId: branchFilter } : undefined)
-        : activeTab === 'approval'
-          ? () => dashboardApi.getApprovalInbox()
-          : () => dashboardApi.getCommitteeCalendar();
-
-    fetcher()
-      .then((res: any) => {
-        const payload = res.data?.data ?? res.data ?? res;
-        if (activeTab === 'pipeline') setPipeline(payload);
-        else if (activeTab === 'approval') setApprovalInbox(payload);
-        else setCalendar(payload);
+    Promise.all([
+      dashboardApi.getWorkQueue(branchParam),
+      dashboardApi.getAlerts(branchParam),
+      dashboardApi.getActivityFeed({ ...branchParam, limit: 20 }),
+      dashboardApi.getTeamPerformance(branchParam),
+      dashboardApi.getPipelineDashboard(branchParam),
+      dashboardApi.getMyWork(branchParam),
+    ])
+      .then(([wqRes, alertsRes, actRes, tpRes, pipeRes, workRes]: any[]) => {
+        setWorkQueue(wqRes.data?.data ?? wqRes.data ?? wqRes);
+        setAlerts(alertsRes.data?.data ?? alertsRes.data ?? alertsRes);
+        setActivity(actRes.data?.data ?? actRes.data ?? actRes);
+        setTeamPerf(tpRes.data?.data ?? tpRes.data ?? tpRes);
+        setPipeline(pipeRes.data?.data ?? pipeRes.data ?? pipeRes);
+        setMyWork(workRes.data?.data ?? workRes.data ?? workRes);
       })
       .catch((err: any) => {
         console.error(err);
-        toast.error(friendlyMessage(err, 'Failed to load dashboard data'));
-        setError(err.message ?? 'Failed to load dashboard data');
+        toast.error(friendlyMessage(err, 'Failed to load dashboard'));
+        setError(err.message ?? 'Failed to load dashboard');
       })
       .finally(() => setLoading(false));
-  }, [activeTab, branchFilter]);
+  }, [branchFilter]);
 
-  const tabs: { key: TabKey; label: string; icon: string }[] = [
-    { key: 'myWork', label: 'My Work', icon: 'assignment_ind' },
-    { key: 'pipeline', label: 'Pipeline', icon: 'water' },
-    { key: 'approval', label: 'Approval Inbox', icon: 'approval' },
-    { key: 'exposure', label: 'Exposure', icon: 'account_balance_wallet' },
-    { key: 'calendar', label: 'Committee Calendar', icon: 'calendar_month' },
-  ];
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  // ── Loading state ──
+  if (loading) {
+    return (
+      <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ height: 32, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', marginBottom: 24, width: 280 }} />
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 100, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius-lg)' }} />
+          ))}
+        </div>
+        <div style={{ height: 80, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius-lg)', marginBottom: 24 }} />
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ flex: 2, height: 300, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius-lg)' }} />
+          <div style={{ flex: 1, height: 300, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius-lg)' }} />
+            </div>
+      </div>
+    );
+  }
+
+  // ── Error state ──
+  if (error && !workQueue) {
+    return (
+      <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ textAlign: 'center', padding: 48, color: 'var(--cr-on-surface-variant)' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--cr-error)', marginBottom: 16 }}>error</span>
+          <p style={{ fontSize: 16, marginBottom: 8 }}>{error}</p>
+          <button
+            onClick={fetchAll}
+            style={{
+              fontFamily: 'var(--cr-font-display)',
+              fontSize: 13,
+              fontWeight: 600,
+              background: 'var(--cr-on-surface)',
+              color: 'var(--cr-surface-container-lowest)',
+              border: 'none',
+              borderRadius: 'var(--cr-radius)',
+              padding: '8px 20px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const buckets = workQueue?.buckets ?? [];
+  const findBucket = (key: string) => buckets.find(b => b.key === key);
+  const myAssigned = myWork?.recentAssigned ?? [];
 
   return (
-    <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', paddingBottom: 'var(--space-16, 64px)' }}>
-      <div className="px-4 sm:px-8 py-4 sm:py-8">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <h1 style={{ fontFamily: 'var(--cr-font-display, Geist, sans-serif)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--cr-on-surface, #191c1e)' }}>Credit Dashboard</h1>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* §3.1 — Branch filter */}
-            {branches.length > 0 && (
-              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
-                aria-label="Filter dashboard by branch"
-                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
-                <option value="">All Branches</option>
-                {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-              </select>
-            )}
-            {/* §8.4 — New Application CTA */}
-            <button
-              type="button"
-              onClick={() => navigate('/credit/applications/new')}
-              className="flex items-center gap-1.5 text-white font-semibold px-4 py-2 text-sm transition-opacity cursor-pointer border-none"
-              style={{ fontFamily: 'var(--cr-font-display, Geist, sans-serif)', background: 'var(--cr-secondary, #0051d5)', borderRadius: 'var(--cr-rounded, 0.25rem)' }}
-            >
-              <span className="material-symbols-outlined text-base">add_circle</span>
-              New Application
-            </button>
-          </div>
+    <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '0 0 64px' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--cr-font-display, Geist, sans-serif)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--cr-on-surface)', marginBottom: 4 }}>
+            Credit Assessment Dashboard
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>
+            {new Date().toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {branchFilter && branches.find(b => b.id === branchFilter) ? ` · ${branches.find(b => b.id === branchFilter)!.name}` : ' · All Branches'}
+          </p>
         </div>
-
-        {/* Tab bar */}
-        <div className="flex gap-1 p-1 mb-6 overflow-x-auto" role="tablist" style={{ background: 'var(--cr-surface-container, #eceef0)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)' }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.key}
-              role="tab"
-              aria-selected={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold whitespace-nowrap transition-all border-none cursor-pointer ${
-                activeTab === tab.key
-                  ? 'shadow-sm'
-                  : 'hover:opacity-80'
-              }`}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {branches.length > 0 && (
+            <select
+              value={branchFilter}
+              onChange={e => setBranchFilter(e.target.value)}
               style={{
-                fontFamily: 'var(--cr-font-display, Geist, sans-serif)',
-                borderRadius: 'var(--cr-rounded, 0.25rem)',
-                background: activeTab === tab.key ? 'var(--cr-surface-container-lowest, #ffffff)' : 'transparent',
-                color: activeTab === tab.key ? 'var(--cr-on-surface, #191c1e)' : 'var(--cr-on-surface-variant, #45464d)',
+                fontFamily: 'var(--cr-font-body)',
+                fontSize: 13,
+                padding: '8px 12px',
+                border: '1px solid var(--cr-outline-variant)',
+                borderRadius: 'var(--cr-radius)',
+                background: 'var(--cr-surface-container-lowest)',
+                color: 'var(--cr-on-surface)',
+                cursor: 'pointer',
               }}
             >
-              <span className="material-symbols-outlined text-base">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        {loading && <p className="text-sm text-text-secondary">Loading...</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {!loading && !error && activeTab === 'myWork' && myWork && (
-          <MyWorkSection data={myWork} pipeline={pipeline} setActiveTab={setActiveTab} />
-        )}
-        {!loading && !error && activeTab === 'pipeline' && pipeline && (
-          <PipelineSection data={pipeline} />
-        )}
-        {!loading && !error && activeTab === 'approval' && approvalInbox && (
-          <ApprovalInboxSection data={approvalInbox} />
-        )}
-        {!loading && !error && activeTab === 'exposure' && exposure && (
-          <ExposureSection data={exposure} summary={exposureSummary} />
-        )}
-        {!loading && !error && activeTab === 'calendar' && calendar && (
-          <CalendarSection data={calendar} />
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// My Work Section
-// ---------------------------------------------------------------------------
-
-// Returns inline style for a status pill based on application state
-function getStatusPillStyle(state: string): React.CSSProperties {
-  const assessmentGroup = ['KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'];
-  const pendingGroup = ['OFFER', 'SUBMITTED'];
-  const committeeGroup = ['COMMITTEE_REVIEW', 'APPROVED', 'ACCEPTED'];
-  const alertGroup = ['KYC_REJECTED', 'REJECTED', 'WITHDRAWN'];
-
-  if (assessmentGroup.includes(state))
-    return { background: 'var(--cr-secondary-fixed, #dbe1ff)', color: 'var(--cr-on-secondary-fixed-variant, #003ea8)' };
-  if (pendingGroup.includes(state))
-    return { background: '#fef3c7', color: '#92400e' };
-  if (committeeGroup.includes(state))
-    return { background: '#e8f5e9', color: '#1b5e20' };
-  if (alertGroup.includes(state))
-    return { background: 'var(--cr-error-container, #ffdad6)', color: 'var(--cr-on-error-container, #93000a)' };
-  return { background: 'var(--cr-surface-container, #eceef0)', color: 'var(--cr-on-surface-variant, #45464d)' };
-}
-
-function getRiskGradeStyle(grade: string | null): { barColor: string; labelColor: string; barWidth: string } {
-  if (!grade) return { barColor: 'var(--cr-outline-variant)', labelColor: 'var(--cr-on-surface-variant)', barWidth: '0%' };
-  const highRisk = ['CCC', 'CC', 'C', 'D'];
-  const medRisk = ['BB', 'B', 'BBB'];
-  if (highRisk.includes(grade)) return { barColor: 'var(--cr-error, #ba1a1a)', labelColor: 'var(--cr-error, #ba1a1a)', barWidth: '85%' };
-  if (medRisk.includes(grade)) return { barColor: '#d97706', labelColor: '#d97706', barWidth: '55%' };
-  return { barColor: '#16a34a', labelColor: '#16a34a', barWidth: '30%' };
-}
-
-const MyWorkSection: React.FC<{ data: MyWorkDashboard; pipeline: PipelineDashboard | null; setActiveTab: (tab: TabKey) => void }> = ({ data, pipeline, setActiveTab }) => {
-  // Derive pipeline KPIs — sum states for "In Assessment"
-  const assessmentStates = ['CREDIT_ASSESSMENT', 'UNDERWRITING', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED'];
-  const inAssessmentCount = pipeline
-    ? pipeline.states
-        .filter(s => assessmentStates.includes(s.state))
-        .reduce((sum, s) => sum + s.count, 0)
-    : null;
-  const totalActive = pipeline?.totalApplications ?? null;
-  const allSlaBreaches = pipeline?.slaBreachCount ?? null;
-
-  return (
-    <div className="space-y-6">
-      {/* 6-KPI Summary Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* My Cases */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>My Cases</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.myAssignedCount}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Assigned to me</p>
-        </div>
-
-        {/* Pending Approval — blue left border */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-secondary, #0051d5)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>Pending Approval</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-secondary, #0051d5)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.myApprovalCount}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Awaiting decision</p>
-        </div>
-
-        {/* SLA Breaches (mine) — red left border */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-error, #ba1a1a)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>My SLA Breaches</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-error, #ba1a1a)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{data.mySlaBreaches}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-error, #ba1a1a)', marginTop: 4 }}>Overdue</p>
-        </div>
-
-        {/* In Assessment — derived from pipeline */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>In Assessment</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{inAssessmentCount ?? '—'}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Pipeline stage</p>
-        </div>
-
-        {/* Total Active */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>Total Active</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{totalActive ?? '—'}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>All applications</p>
-        </div>
-
-        {/* All SLA Breaches — red left border */}
-        <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderLeft: '3px solid var(--cr-error, #ba1a1a)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 16 }}>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 6 }}>All SLA Breaches</p>
-          <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 28, fontWeight: 700, color: 'var(--cr-error, #ba1a1a)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{allSlaBreaches ?? '—'}</p>
-          <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 4 }}>Active breaches</p>
+              <option value="">All Branches</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => navigate('/credit/applications/new')}
+            style={{
+              fontFamily: 'var(--cr-font-display)',
+              fontSize: 13,
+              fontWeight: 600,
+              background: 'var(--cr-on-surface)',
+              color: 'var(--cr-surface-container-lowest)',
+              border: 'none',
+              borderRadius: 'var(--cr-radius)',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+            New Application
+          </button>
         </div>
       </div>
 
-      {/* Recent Assigned Cases */}
-      {data.recentAssigned.length > 0 && (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>My Recent Cases</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[500px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>App No</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Borrower</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Status</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Product</th>
-                  <th className="text-right px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Amount (RM)</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Risk Grade</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>SLA</th>
-                  <th className="text-right px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Updated</th>
-                  <th className="px-2 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentAssigned.map(item => (
-                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                    <td className="px-2 py-2.5">
-                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-secondary)', letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
-                        {item.applicationNo || '—'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5" style={{ fontWeight: 600, fontSize: 13, color: 'var(--cr-on-surface)' }}>{item.borrowerName}</td>
-                    <td className="px-2 py-2.5">
-                      <span style={{ ...getStatusPillStyle(item.state), fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', display: 'inline-block' }}>
-                        {STATE_LABELS[item.state] ?? item.state}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5" style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>{item.productType || '—'}</td>
-                    {/* Amount */}
-                    <td className="px-2 py-2.5 text-right">
-                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums' }}>
-                        {item.requestedAmount != null
-                          ? new Intl.NumberFormat('en-MY', { maximumFractionDigits: 0 }).format(item.requestedAmount)
-                          : '—'}
-                      </span>
-                    </td>
-                    {/* Risk Grade */}
-                    <td className="px-2 py-2.5">
-                      {item.riskGrade ? (() => {
-                        const { barColor, labelColor, barWidth } = getRiskGradeStyle(item.riskGrade);
-                        return (
-                          <div>
-                            <div style={{ width: 56, height: 5, background: 'var(--cr-surface-container-highest, #e2e2e9)', borderRadius: 9999, overflow: 'hidden', marginBottom: 3 }}>
-                              <div style={{ height: '100%', width: barWidth, background: barColor, borderRadius: 9999 }} />
+      {/* ── KPI Cards Row ── */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        {(['pendingReview', 'inProgress', 'pendingDocs', 'returned', 'overdue', 'pendingApproval'] as const).map(key => {
+          const bucket = findBucket(key) ?? { key, label: key, count: 0, slaCompliancePct: null, states: [] };
+          return <KpiCard key={key} bucket={bucket} isCritical={key === 'overdue'} />;
+        })}
+      </div>
+
+      {/* ── Pipeline Funnel ── */}
+      <div
+        style={{
+          background: 'var(--cr-surface-container-lowest)',
+          border: '1px solid var(--cr-outline-variant)',
+          borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+          padding: 20,
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
+            Application Pipeline
+          </h2>
+          <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>{pipeline?.totalApplications ?? 0} total</span>
+        </div>
+        <PipelineFunnel pipeline={pipeline} />
+      </div>
+
+      {/* ── Split Section: Left (table + alerts) / Right (team perf + activity) ── */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {/* Left column — 2/3 width */}
+        <div style={{ flex: '2 1 600px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* My Assigned Applications Table */}
+          <div
+            style={{
+              background: 'var(--cr-surface-container-lowest)',
+              border: '1px solid var(--cr-outline-variant)',
+              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--cr-outline-variant)' }}>
+              <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
+                My Assigned Applications
+              </h2>
+              <Link to="/credit/applications?assignedToMe=true" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
+                View All
+              </Link>
+            </div>
+
+            {myAssigned.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--cr-outline-variant)', marginBottom: 8 }}>inbox</span>
+                <p style={{ fontSize: 13 }}>No applications assigned to you</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--cr-surface-container-low)' }}>
+                      {['App ID', 'Borrower', 'Product', 'Amount', 'Status', 'SLA', 'Priority', ''].map(h => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: h === 'Amount' ? 'right' : 'left',
+                            padding: '8px 12px',
+                            fontFamily: 'var(--cr-font-display)',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            color: 'var(--cr-on-surface-variant)',
+                            borderBottom: '1px solid var(--cr-outline-variant)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myAssigned.map((app, i) => {
+                      const slaCol = SLA_STATUS_COLORS[app.slaStatus] ?? SLA_STATUS_COLORS.OK;
+                      const prioCol = PRIORITY_COLORS[app.priority] ?? PRIORITY_COLORS.LOW;
+                      return (
+                        <tr
+                          key={app.id}
+                          onClick={() => navigate(`/credit/applications/${app.id}`)}
+                          style={{
+                            cursor: 'pointer',
+                            background: i % 2 === 1 ? 'var(--cr-surface-container-low)' : 'transparent',
+                            borderBottom: '1px solid var(--cr-outline-variant)',
+                          }}
+                        >
+                          <td style={{ padding: '8px 12px', fontFamily: 'var(--cr-font-display)', fontWeight: 600, color: 'var(--cr-secondary)', whiteSpace: 'nowrap' }}>
+                            {app.applicationNo}
+                          </td>
+                          <td style={{ padding: '8px 12px', color: 'var(--cr-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
+                            {app.borrowerName}
+                          </td>
+                          <td style={{ padding: '8px 12px', color: 'var(--cr-on-surface-variant)', whiteSpace: 'nowrap' }}>
+                            {app.productType}
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--cr-on-surface)', whiteSpace: 'nowrap' }}>
+                            {formatMYR(app.requestedAmount)}
+                          </td>
+                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                            <span
+                              className="cr-status-pill"
+                              style={{ background: slaCol.bg, color: slaCol.text }}
+                            >
+                              {STATE_LABELS[app.state] ?? app.state}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 12px', fontSize: 12, color: slaCol.text, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                            {formatSlaRemaining(app.slaRemainingHours)}
+                          </td>
+                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: prioCol.dot }} />
+                              <span style={{ fontSize: 12, color: prioCol.text, fontWeight: 600 }}>{app.priority}</span>
                             </div>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{item.riskGrade}</span>
-                          </div>
-                        );
-                      })() : <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>—</span>}
-                    </td>
-                    {/* SLA */}
-                    <td className="px-2 py-2.5">
-                      {item.slaStatus === 'OVERDUE'
-                        ? <span style={{ background: 'var(--cr-error-container, #ffdad6)', color: 'var(--cr-on-error-container, #93000a)', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', display: 'inline-block' }}>OVERDUE</span>
-                        : <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>On Track</span>
-                      }
-                    </td>
-                    <td className="px-2 py-2.5 text-right" style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>
-                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
-                    </td>
-                    <td className="px-2 py-2.5 text-right">
-                      <Link to={`/credit/applications/${item.id}`} style={{ color: 'var(--cr-secondary)', fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>→</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Recent Approvals */}
-      {data.recentApprovals.length > 0 && (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Pending Approvals</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[500px]">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>App No</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Borrower</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Status</th>
-                  <th className="text-left px-2 py-2" style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>Product</th>
-                  <th className="px-2 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentApprovals.map(item => (
-                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                    <td className="px-2 py-2.5">
-                      <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 12, fontWeight: 700, color: 'var(--cr-secondary)', letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
-                        {item.applicationNo || '—'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5" style={{ fontWeight: 600, fontSize: 13, color: 'var(--cr-on-surface)' }}>{item.borrowerName}</td>
-                    <td className="px-2 py-2.5">
-                      <span style={{ ...getStatusPillStyle(item.state), fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--cr-radius-full, 9999px)', textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', display: 'inline-block' }}>
-                        {STATE_LABELS[item.state] ?? item.state}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2.5" style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>{item.productType || '—'}</td>
-                    <td className="px-2 py-2.5 text-right">
-                      <Link to={`/credit/applications/${item.id}`} style={{ color: 'var(--cr-secondary)', fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>→</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* My SLA Breaches */}
-      {data.mySlaBreachItems.length > 0 && (
-        <SlaBreachWidget
-          breaches={data.mySlaBreachItems}
-          totalCount={data.mySlaBreaches}
-          filterMode="mine"
-        />
-      )}
-
-      {/* Empty state */}
-      {data.myApprovalCount === 0 && data.myAssignedCount === 0 && data.mySlaBreaches === 0 && (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
-          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>check_circle</span>
-          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No pending work items. You're all caught up!</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Pipeline Section
-// ---------------------------------------------------------------------------
-
-// Maps display stage labels to the raw `state` values that belong to each
-const PIPELINE_STAGE_GROUPS: { label: string; states: string[] }[] = [
-  { label: 'New',         states: ['DRAFT', 'SUBMITTED'] },
-  { label: 'Assessment',  states: ['KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED', 'UNDERWRITING', 'CREDIT_ASSESSMENT'] },
-  { label: 'Approval',    states: ['COMMITTEE_REVIEW'] },
-  { label: 'Offer Letter', states: ['OFFER', 'ACCEPTED'] },
-  { label: 'Disbursement', states: ['DISBURSED'] },
-  { label: 'Completed',   states: ['ACTIVE', 'CLOSED'] },
-];
-
-const PipelineSection: React.FC<{ data: PipelineDashboard }> = ({ data }) => {
-  return (
-    <div className="space-y-6">
-      {/* Active States summary — Total Applications removed (duplicated in My Work KPI row as "Total Active") */}
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Active States</p>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.states.filter(s => s.count > 0).length}</p>
-      </div>
-
-      {/* SLA Breach Widget */}
-      <SlaBreachWidget
-        breaches={data.slaBreaches ?? []}
-        totalCount={data.slaBreachCount}
-        filterMode="all"
-      />
-
-      {/* Horizontal chevron pipeline */}
-      <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', padding: 20 }}>
-        <h3 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)', marginBottom: 16 }}>Application Pipeline</h3>
-        <div className="flex items-stretch gap-0 overflow-x-auto cr-scroll">
-          {PIPELINE_STAGE_GROUPS.map((group, idx) => {
-            const count = data.states
-              .filter(s => group.states.includes(s.state))
-              .reduce((sum, s) => sum + s.count, 0);
-            const maxCount = Math.max(
-              ...PIPELINE_STAGE_GROUPS.map(g =>
-                data.states.filter(s => g.states.includes(s.state)).reduce((sum, s) => sum + s.count, 0)
-              ),
-              1
-            );
-            const barWidth = `${Math.max((count / maxCount) * 100, 4)}%`;
-            const isCompleted = group.label === 'Completed';
-            const isLast = idx === PIPELINE_STAGE_GROUPS.length - 1;
-
-            return (
-              <React.Fragment key={group.label}>
-                <div style={{ flex: '1 1 0', minWidth: 90, padding: '12px 10px', background: 'var(--cr-surface-container-low)', borderRadius: 'var(--cr-radius, 0.25rem)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant)' }}>{group.label}</p>
-                  {/* Progress bar */}
-                  <div style={{ height: 4, background: 'var(--cr-surface-container-highest, #e2e2e9)', borderRadius: 9999, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: barWidth,
-                      background: isCompleted ? 'var(--cr-secondary-fixed-dim, #5e6070)' : 'var(--cr-secondary, #0051d5)',
-                      borderRadius: 9999,
-                      transition: 'width 0.3s ease',
-                    }} />
-                  </div>
-                  <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 22, fontWeight: 700, color: isCompleted ? 'var(--cr-on-surface-variant)' : 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{count}</p>
-                </div>
-                {!isLast && (
-                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px', color: 'var(--cr-outline-variant)', fontSize: 18, flexShrink: 0 }}>›</div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Approval Inbox Section
-// ---------------------------------------------------------------------------
-
-const ApprovalInboxSection: React.FC<{ data: ApprovalInbox }> = ({ data }) => {
-  const allItems = [...data.high, ...data.medium, ...data.low];
-
-  return (
-    <div className="space-y-6">
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Pending Approvals</p>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.totalPending}</p>
-      </div>
-
-      {allItems.length === 0 ? (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
-          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>check_circle</span>
-          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No pending approvals.</p>
-        </div>
-      ) : (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', overflow: 'hidden' }}>
-          <table className="w-full text-sm" style={{ fontFamily: 'var(--cr-font-body, Inter, sans-serif)' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)', background: 'var(--cr-surface-container, #eceef0)' }}>
-                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Urgency</th>
-                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '00.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Borrower</th>
-                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Product</th>
-                <th className="text-right px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Amount</th>
-                <th className="text-left px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>State</th>
-                <th className="text-right px-4 py-3" style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)' }}>Waiting</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {allItems.map(item => (
-                <tr key={item.applicationId} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                  <td className="px-4 py-3">
-                    <span
-                      className="inline-block px-2 py-0.5 rounded-full text-xs font-bold"
-                      style={{
-                        backgroundColor: URGENCY_COLORS[item.urgency]?.bg ?? '#f5f5f5',
-                        color: URGENCY_COLORS[item.urgency]?.text ?? '#666',
-                      }}
-                    >
-                      {item.urgency}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-text-primary">{item.borrowerName}</td>
-                  <td className="px-4 py-3 text-text-secondary">{item.productType}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-text-primary">{formatCurrency(item.requestedAmount)}</td>
-                  <td className="px-4 py-3 text-text-secondary">{STATE_LABELS[item.currentState] ?? item.currentState}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`font-bold ${item.daysWaiting >= 5 ? 'text-red-600' : item.daysWaiting >= 3 ? 'text-amber-600' : 'text-green-600'}`}>
-                      {item.daysWaiting}d
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      to={`/credit/applications/${item.applicationId}`}
-                      className="text-brand-700 text-xs font-bold hover:underline"
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Exposure Section
-// ---------------------------------------------------------------------------
-
-const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSummary | null }> = ({ data, summary }) => {
-  const maxExposure = Math.max(...data.topBorrowers.map(b => b.totalExposure), 1);
-
-  return (
-    <div className="space-y-6">
-      {/* Total portfolio */}
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Total Portfolio Exposure</p>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(summary?.totalPortfolioExposure ?? data.totalPortfolio)}</p>
-      </div>
-
-      {/* §2.6 — Exposure Limit Alerts */}
-      {summary && (summary.approachingLimit.length > 0 || summary.breachedLimit.length > 0) && (
-        <div className="space-y-3">
-          {summary.breachedLimit.length > 0 && (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-              <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#991b1b', marginBottom: 12 }} className="flex items-center gap-2">
-                <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>error</span>
-                Limit Breached ({summary.breachedLimit.length})
-              </h3>
-              <div className="space-y-2">
-                {summary.breachedLimit.map(b => (
-                  <Link key={b.borrowerProfileId} to={`/credit/borrowers/${b.borrowerProfileId}`}
-                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 hover:shadow-sm transition-shadow">
-                    <span className="text-sm font-semibold text-red-900">{b.borrowerName}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-red-700">{formatCurrency(b.totalExposure)} / {formatCurrency(b.exposureLimit)}</span>
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white">{b.utilisationPct}%</span>
-                    </div>
-                  </Link>
-                ))}
+                          </td>
+                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--cr-on-surface-variant)' }}>chevron_right</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          )}
-          {summary.approachingLimit.length > 0 && (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-              <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#92400e', marginBottom: 12 }} className="flex items-center gap-2">
-                <span className="material-symbols-outlined" style={{ color: '#d97706' }}>warning</span>
-                Approaching Limit ({summary.approachingLimit.length})
-              </h3>
-              <div className="space-y-2">
-                {summary.approachingLimit.map(b => (
-                  <Link key={b.borrowerProfileId} to={`/credit/borrowers/${b.borrowerProfileId}`}
-                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 hover:shadow-sm transition-shadow">
-                    <span className="text-sm font-semibold text-amber-900">{b.borrowerName}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-amber-700">{formatCurrency(b.totalExposure)} / {formatCurrency(b.exposureLimit)}</span>
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500 text-white">{b.utilisationPct}%</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
 
-      {/* Top borrowers */}
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Top Borrowers by Exposure</h3>
-        <div className="space-y-2">
-          {data.topBorrowers.length === 0 && (
-            <p className="text-sm text-text-secondary">No exposure data available.</p>
-          )}
-          {data.topBorrowers.map(b => (
-            <div key={b.borrowerProfileId} className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-text-secondary w-36 truncate" title={b.borrowerName}>
-                {b.borrowerName}
-              </span>
-              <div className="flex-1 h-5 bg-surface-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 rounded-full transition-all"
-                  style={{ width: `${(b.totalExposure / maxExposure) * 100}%` }}
+          {/* Alert Tiles */}
+          <div style={{ display: 'flex', gap: 12 }}>
+            {alerts && (
+              <>
+                <AlertTile
+                  title="High DSR"
+                  icon="trending_up"
+                  count={alerts.highDsr.count}
+                  description={`cases exceeding ${alerts.highDsr.thresholdPct}% DSR threshold. Manual override required.`}
+                  actionLabel="View Cases"
+                  filterUrl={alerts.highDsr.filterUrl}
+                  variant="danger"
                 />
-              </div>
-              <span className="text-xs font-bold text-text-primary w-28 text-right">{formatCurrency(b.totalExposure)}</span>
-              <span className="text-xs text-text-secondary w-8 text-center">{b.rating ?? 'NR'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Sector breakdown */}
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Sector Breakdown</h3>
-        {data.sectorBreakdown.length === 0 ? (
-          <p className="text-sm text-text-secondary">No sector data available.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Sector</th>
-                <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Exposure</th>
-                <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider"># Borrowers</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.sectorBreakdown.map(s => (
-                <tr key={s.sector} className="border-b border-border last:border-0">
-                  <td className="px-2 py-2 font-semibold text-text-primary">{s.sector}</td>
-                  <td className="px-2 py-2 text-right font-semibold">{formatCurrency(s.totalExposure)}</td>
-                  <td className="px-2 py-2 text-right text-text-secondary">{s.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Rating distribution */}
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Rating Distribution</h3>
-        {data.ratingDistribution.length === 0 ? (
-          <p className="text-sm text-text-secondary">No rating data available.</p>
-        ) : (
-          <div className="flex items-end gap-2 h-32">
-            {RATING_ORDER.filter(r => data.ratingDistribution.some(d => d.rating === r))
-              .map(rating => {
-                const d = data.ratingDistribution.find(d => d.rating === rating)!;
-                const maxCount = Math.max(...data.ratingDistribution.map(d => d.count), 1);
-                const heightPct = (d.count / maxCount) * 100;
-                const colorMap: Record<string, string> = {
-                  AAA: '#16a34a', AA: '#22c55e', A: '#4ade80',
-                  BBB: '#facc15', BB: '#f59e0b', B: '#f97316',
-                  CCC: '#ef4444', CC: '#dc2626', C: '#b91c1c',
-                  D: '#7f1d1d', NR: '#9ca3af',
-                };
-                return (
-                  <div key={rating} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-text-primary">{d.count}</span>
-                    <div
-                      className="w-full rounded-t transition-all"
-                      style={{
-                        height: `${heightPct}%`,
-                        backgroundColor: colorMap[rating] ?? '#6b7280',
-                        minHeight: d.count > 0 ? '4px' : '0',
-                      }}
-                    />
-                    <span className="text-xs font-bold text-text-secondary">{rating}</span>
-                  </div>
-                );
-              })}
+                <AlertTile
+                  title="Expired Bureau"
+                  icon="schedule"
+                  count={alerts.expiredBureau.count}
+                  description={`bureau reports older than ${alerts.expiredBureau.maxAgeDays} days need refresh.`}
+                  actionLabel="Refresh All"
+                  filterUrl={alerts.expiredBureau.filterUrl}
+                  variant="warning"
+                />
+                <AlertTile
+                  title="AML Review"
+                  icon="shield"
+                  count={alerts.amlReview.count}
+                  description="high-risk matches detected in AML screening."
+                  actionLabel="Open AML Case"
+                  filterUrl={alerts.amlReview.filterUrl}
+                  variant="info"
+                />
+              </>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* §2.6 — Product Type Breakdown */}
-      {summary && Object.keys(summary.byProductType).length > 0 && (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-          <h3 style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 16 }}>Exposure by Product Type</h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product Type</th>
-                <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Exposure</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(summary.byProductType)
-                .sort(([, a], [, b]) => (b as number) - (a as number))
-                .map(([type, amount]) => (
-                  <tr key={type} className="border-b border-border last:border-0">
-                    <td className="px-2 py-2 font-semibold text-text-primary">{type}</td>
-                    <td className="px-2 py-2 text-right font-semibold">{formatCurrency(amount as number)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
         </div>
-      )}
-    </div>
-  );
-};
 
-// ---------------------------------------------------------------------------
-// Committee Calendar Section
-// ---------------------------------------------------------------------------
+        {/* Right column — 1/3 width */}
+        <div style={{ flex: '1 1 320px', minWidth: 300, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Team Performance */}
+          <div
+            style={{
+              background: 'var(--cr-surface-container-lowest)',
+              border: '1px solid var(--cr-outline-variant)',
+              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+              padding: 20,
+            }}
+          >
+            <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)', marginBottom: 16 }}>
+              Team Performance
+            </h2>
+            <TeamPerformance data={teamPerf} loading={false} />
+          </div>
 
-const CalendarSection: React.FC<{ data: CommitteeCalendar }> = ({ data }) => {
-  return (
-    <div className="space-y-6">
-      <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 20 }}>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>Upcoming Meetings</p>
-        <p style={{ fontFamily: 'var(--cr-font-display, Geist)', fontSize: 24, fontWeight: 700, color: 'var(--cr-on-surface, #191c1e)', fontVariantNumeric: 'tabular-nums' }}>{data.totalUpcoming}</p>
-      </div>
-
-      {data.meetings.length === 0 ? (
-        <div style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 32, textAlign: 'center' }}>
-          <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 8 }}>event_busy</span>
-          <p style={{ fontFamily: 'var(--cr-font-body, Inter)', fontSize: 14, color: 'var(--cr-on-surface-variant, #45464d)' }}>No upcoming committee meetings.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {data.meetings.map(m => (
-            <div key={m.meetingId} style={{ background: 'var(--cr-surface-container-lowest, #ffffff)', border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-rounded-lg, 0.5rem)', padding: 16 }} className="flex items-center gap-4">
-              <div className="w-12 h-12 flex items-center justify-center flex-shrink-0" style={{ borderRadius: 'var(--cr-rounded, 0.25rem)', background: 'var(--cr-secondary-fixed, #dbe1ff)' }}>
-                <span className="material-symbols-outlined" style={{ color: 'var(--cr-secondary, #0051d5)' }}>calendar_month</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <Link to={`/credit/committee`} className="text-sm font-bold text-text-primary hover:text-brand-700">
-                  {m.title}
-                </Link>
-                <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
-                  <span>{new Date(m.scheduledAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                  <span>{new Date(m.scheduledAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-                  {m.location && <span>{m.location}</span>}
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
-                  m.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {m.status === 'IN_PROGRESS' ? 'In Progress' : 'Scheduled'}
-                </span>
-                <p className="text-xs text-text-secondary mt-1">{m.agendaCount} agenda item{m.agendaCount !== 1 ? 's' : ''}</p>
-              </div>
+          {/* Recent Activities */}
+          <div
+            style={{
+              background: 'var(--cr-surface-container-lowest)',
+              border: '1px solid var(--cr-outline-variant)',
+              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
+              padding: 20,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
+                Recent Activities
+              </h2>
+              <Link to="/credit/audit" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
+                View Audit Log
+              </Link>
             </div>
-          ))}
+            <ActivityTimeline items={activity?.items ?? []} loading={false} />
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -8,6 +8,8 @@ import BorrowerFilterBar, { BorrowerFilterState } from '../src/components/credit
 import BorrowerDataTable, { BorrowerProfileRow } from '../src/components/credit/borrowers/BorrowerDataTable';
 import BorrowerQuickPreview from '../src/components/credit/borrowers/BorrowerQuickPreview';
 
+const BORROWER_DRAFT_KEY = 'createBorrowerDraft';
+
 const BorrowerProfileList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -27,6 +29,29 @@ const BorrowerProfileList: React.FC = () => {
   });
 
   const canCreate = hasPermission(user, 'credit:create');
+
+  // Draft detection — show resume banner if a saved draft exists
+  const [hasDraft, setHasDraft] = useState(false);
+  const [draftInfo, setDraftInfo] = useState<{ name: string; step: number; savedAt: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(BORROWER_DRAFT_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        const name = draft?.formData?.name || 'Untitled';
+        const step = typeof draft?.currentStep === 'number' ? draft.currentStep : 0;
+        setDraftInfo({ name, step, savedAt: new Date().toISOString() });
+        setHasDraft(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleDiscardDraft = useCallback(() => {
+    localStorage.removeItem(BORROWER_DRAFT_KEY);
+    setHasDraft(false);
+    setDraftInfo(null);
+  }, []);
 
   // KPI data — populated from /borrowers/stats endpoint
   const [kpiData, setKpiData] = useState({ total: 0, active: 0, pendingKyc: 0, watchlist: 0 });
@@ -157,6 +182,67 @@ const BorrowerProfileList: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* ── Draft Resume Banner ── */}
+        {hasDraft && draftInfo && canCreate && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 16px',
+              marginBottom: 16,
+              backgroundColor: 'rgba(0, 81, 213, 0.06)',
+              border: '1px solid rgba(0, 81, 213, 0.2)',
+              borderRadius: 'var(--cr-radius, 0.25rem)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--cr-secondary, #0051d5)' }}>
+              draft
+            </span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>
+                Unsaved draft: "{draftInfo.name}"
+              </span>
+              <span style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', marginLeft: 8 }}>
+                (Step {draftInfo.step + 1} of 8)
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/credit/borrowers/new')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 14px',
+                backgroundColor: 'var(--cr-secondary, #0051d5)',
+                color: 'var(--cr-on-secondary, #ffffff)',
+                border: 'none', borderRadius: 'var(--cr-radius, 0.25rem)',
+                fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
+                fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit_note</span>
+              Resume Draft
+            </button>
+            <button
+              onClick={handleDiscardDraft}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 14px',
+                backgroundColor: 'transparent',
+                color: 'var(--cr-on-surface-variant, #45464d)',
+                border: '1px solid var(--cr-outline-variant, #c6c6cd)',
+                borderRadius: 'var(--cr-radius, 0.25rem)',
+                fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
+                fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+              Discard
+            </button>
+          </div>
+        )}
 
         {/* ── Account filter banner ── */}
         {accountIdFilter && (

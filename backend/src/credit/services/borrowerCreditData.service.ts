@@ -173,6 +173,38 @@ export async function upsertIncome(borrowerId: string, input: IncomeInput) {
   return { ...income, dsrPercent: dsr.dsrPercent, netDsrPercent: dsr.netDsrPercent };
 }
 
+// ---------------------------------------------------------------------------
+// AML / Sanction Screening — manual verification marker
+// Per ASSESSMENT.md: Citadel is a non-bank lender; no live AML API.
+// The officer confirms they checked external screening (UNSC, PEP, OFAC)
+// and records the result. This sets amlRiskTier + isSanctionedEntity.
+// ---------------------------------------------------------------------------
+
+export async function recordAmlScreening(
+  borrowerId: string,
+  data: { result: 'CLEAR' | 'REVIEW' | 'PROHIBITED'; notes?: string },
+  actorId?: string,
+) {
+  const amlRiskTier = data.result === 'CLEAR' ? 'LOW'
+    : data.result === 'REVIEW' ? 'MEDIUM' : 'PROHIBITED';
+  const isSanctionedEntity = data.result === 'PROHIBITED';
+
+  const borrower = await prisma.borrowerProfile.update({
+    where: { id: borrowerId },
+    data: { amlRiskTier: amlRiskTier as any, isSanctionedEntity },
+  });
+
+  await logBorrowerActivity(
+    borrowerId,
+    'AML_SCREENED',
+    `AML screening completed: ${data.result}`,
+    data.notes,
+    actorId,
+  );
+
+  return { borrower, result: data.result };
+}
+
 export async function createBureauReport(borrowerId: string, data: BureauReportInput, actorId?: string) {
   const report = await prisma.borrowerBureauReport.create({
     data: {

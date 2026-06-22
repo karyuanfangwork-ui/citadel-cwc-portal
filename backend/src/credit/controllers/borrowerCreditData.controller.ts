@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
-import { createBureauReport, upsertCreditProfile, upsertIncome } from '../services/borrowerCreditData.service';
+import { createBureauReport, upsertCreditProfile, upsertIncome, recordAmlScreening } from '../services/borrowerCreditData.service';
 import { getBorrowerSummary } from '../services/borrowerSummary.service';
 import { listBorrowerActivity, logBorrowerActivity } from '../services/borrowerActivity.service';
 import prisma from '../../utils/prisma';
@@ -63,6 +63,26 @@ class BorrowerCreditDataController {
     );
 
     res.json({ status: 'success', data: updatedBorrower });
+  });
+
+  runAml = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const borrowerId = String(req.params.id);
+    const borrower = await prisma.borrowerProfile.findUnique({
+      where: { id: borrowerId },
+      select: { id: true },
+    });
+
+    if (!borrower) {
+      throw new AppError('Borrower profile not found', 404);
+    }
+
+    const result = await recordAmlScreening(
+      borrowerId,
+      { result: req.body.result, notes: req.body.notes },
+      req.user?.id,
+    );
+
+    res.json({ status: 'success', data: result });
   });
 }
 

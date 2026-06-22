@@ -3148,6 +3148,33 @@ model BorrowerProfile {
   phone                       String?                  @db.VarChar(50)
   email                       String?                  @db.VarChar(255)
 
+  // Demographic fields
+  gender                      String?                  @db.VarChar(20)
+  nationality                 String?                  @db.VarChar(100)
+
+  // ── Borrower creation wizard — type-specific fields (Phase 1+2)
+  // Date of birth — individual (self-contained, no CRM dependency)
+  dateOfBirth                 DateTime?                @map("date_of_birth") @db.Date
+  // Date of incorporation — SME/Corporate
+  dateOfIncorporation         DateTime?                @map("date_of_incorporation") @db.Date
+  // Business nature / description — SME/Corporate
+  businessNature              String?                  @map("business_nature") @db.VarChar(500)
+  // Business type — SME/Corporate (e.g. Sdn Bhd, Partnership, PLC)
+  businessType                String?                  @map("business_type") @db.VarChar(50)
+  // Authorized representative — SME/Corporate
+  authorizedRepresentative    String?                  @map("authorized_representative") @db.VarChar(255)
+  // Individual demographic fields
+  preferredName               String?                  @map("preferred_name") @db.VarChar(100)
+  maritalStatus               String?                  @map("marital_status") @db.VarChar(30)
+  educationLevel              String?                  @map("education_level") @db.VarChar(50)
+  // Tax identification number — both individual and corporate
+  taxNumber                   String?                  @map("tax_number") @db.VarChar(50)
+  // Contact preferences
+  officePhone                 String?                  @map("office_phone") @db.VarChar(50)
+  preferredContactMethod      String?                  @map("preferred_contact_method") @db.VarChar(20)
+  // Mailing address (separate from residential/registered address)
+  mailingAddress              String?                  @map("mailing_address") @db.VarChar(500)
+
   // §2.9 — Encrypted PII fields (AES-256-GCM)
   // These store the encrypted versions of annualIncome, netWorth, and sourceOfWealth.
   // The plaintext fields above are retained for backward compatibility during migration.

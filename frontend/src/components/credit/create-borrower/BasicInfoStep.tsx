@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
 import creditService from '../../../services/credit.service';
-import crmService from '../../../services/crm.service';
 
 type BorrowerType = 'INDIVIDUAL' | 'CORPORATE' | 'SOLE_PROPRIETOR';
+
+export interface UploadedDoc {
+  documentClass: string;
+  fileName: string;
+  file: File;
+}
 
 export interface FormData {
   borrowerType: BorrowerType;
@@ -17,6 +22,39 @@ export interface FormData {
   accountId: string | null;
   contactId: string | null;
   originatorNotes: string;
+  // Phase 2 — type-specific fields
+  businessType: string;
+  authorizedRepresentative: string;
+  preferredName: string;
+  maritalStatus: string;
+  educationLevel: string;
+  taxNumber: string;
+  // Contact info (Step 3)
+  gender: string;
+  nationality: string;
+  phone: string;
+  officePhone: string;
+  email: string;
+  preferredContactMethod: string;
+  addressLine1: string;
+  addressLine2: string;
+  postcode: string;
+  city: string;
+  state: string;
+  mailingAddress: string;
+  // Employment & financials (Step 4)
+  employmentType: string;
+  employerName: string;
+  monthlyGrossIncome: string;
+  fixedAllowances: string;
+  existingCommitments: string;
+  requestedInstallment: string;
+  // Compliance (Step 5)
+  kycVerified: boolean;
+  amlResult: 'not_started' | 'clear' | 'review' | 'prohibited';
+  amlNotes: string;
+  // Documents (Step 6)
+  documents: UploadedDoc[];
 }
 
 export const initialFormData = (): FormData => ({
@@ -32,13 +70,40 @@ export const initialFormData = (): FormData => ({
   accountId: null,
   contactId: null,
   originatorNotes: '',
+  // Phase 2 — type-specific fields
+  businessType: '',
+  authorizedRepresentative: '',
+  preferredName: '',
+  maritalStatus: '',
+  educationLevel: '',
+  taxNumber: '',
+  // Contact info
+  gender: '',
+  nationality: 'Malaysian',
+  phone: '',
+  officePhone: '',
+  email: '',
+  preferredContactMethod: '',
+  addressLine1: '',
+  addressLine2: '',
+  postcode: '',
+  city: '',
+  state: '',
+  mailingAddress: '',
+  // Employment & financials
+  employmentType: '',
+  employerName: '',
+  monthlyGrossIncome: '',
+  fixedAllowances: '',
+  existingCommitments: '',
+  requestedInstallment: '',
+  // Compliance
+  kycVerified: false,
+  amlResult: 'not_started',
+  amlNotes: '',
+  // Documents
+  documents: [],
 });
-
-interface CrmSearchResult {
-  id: string;
-  name: string;
-  sub: string;
-}
 
 const INDUSTRY_OPTIONS = [
   { value: '', label: 'Select industry...' },
@@ -108,87 +173,55 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
 }) => {
   const isIndividual = formData.borrowerType === 'INDIVIDUAL';
   const isCorporateType = formData.borrowerType === 'CORPORATE' || formData.borrowerType === 'SOLE_PROPRIETOR';
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // ── CRM search state ──
-  const [crmSearch, setCrmSearch] = useState('');
-  const [crmResults, setCrmResults] = useState<CrmSearchResult[]>([]);
-  const [selectedCrm, setSelectedCrm] = useState<CrmSearchResult | null>(null);
-  const [crmSearching, setCrmSearching] = useState(false);
-  const [crmMode, setCrmMode] = useState<'search' | 'create' | 'skip' | null>(null);
-
-  const handleCrmSearch = async (q: string) => {
-    setCrmSearch(q);
-    setSelectedCrm(null);
-    if (q.length < 2) { setCrmResults([]); return; }
-    setCrmSearching(true);
-    try {
-      if (isIndividual) {
-        const data = await crmService.listContacts({ search: q, limit: 5 });
-        setCrmResults((data.contacts as any[]).map(c => ({
-          id: c.id,
-          name: `${c.firstName} ${c.lastName}`.trim(),
-          sub: [c.nricPassport, c.jobTitle].filter(Boolean).join(' · '),
-        })));
-      } else {
-        const data = await crmService.listAccounts({ search: q, limit: 5 });
-        setCrmResults(data.accounts.map(a => ({
-          id: a.id,
-          name: a.name,
-          sub: [a.industry].filter(Boolean).join(' · '),
-        })));
-      }
-    } catch {
-      setCrmResults([]);
-    } finally {
-      setCrmSearching(false);
-    }
+  // Malaysian NRIC format: XXXXXX-XX-XXXX (6 digits - 2 digits - 4 digits)
+  // Passport: alphanumeric, min 5 chars
+  const validateNric = (val: string): string | null => {
+    if (!val.trim()) return null;
+    const cleaned = val.replace(/[\s\-]/g, '');
+    // NRIC pattern: 12 digits (without dashes) or passport: 5-20 alphanumeric
+    if (/^\d{12}$/.test(cleaned)) return null;
+    if (/^[A-Za-z0-9]{5,20}$/.test(cleaned)) return null;
+    return 'Use NRIC (12 digits) or passport (5–20 alphanumeric chars)';
   };
 
-  const handleCreateCrmInline = async () => {
-    try {
-      if (isIndividual) {
-        const nameParts = formData.name.trim().split(/\s+/);
-        const contact = await crmService.createContact({
-          firstName: nameParts[0] || formData.name,
-          lastName: nameParts.slice(1).join(' ') || '',
-          nricPassport: formData.nric || undefined,
-          dateOfBirth: formData.dateOfBirth || undefined,
-        } as any);
-        const result = { id: contact.id, name: formData.name, sub: formData.nric };
-        setSelectedCrm(result);
-        setCrmSearch(formData.name);
-        onFormDataChange({ contactId: contact.id, accountId: null });
-      } else {
-        const account = await crmService.createAccount({
-          name: formData.name,
-          registrationNumber: formData.ssm || undefined,
-        } as any);
-        const result = { id: account.id, name: formData.name, sub: formData.ssm };
-        setSelectedCrm(result);
-        setCrmSearch(formData.name);
-        onFormDataChange({ accountId: account.id, contactId: null });
-      }
-    } catch {
-      // Error shown inline
-    }
+  // Malaysian SSM format: YYYYNNNNNNNXXX or NN-NNNNNN-X
+  const validateSsm = (val: string): string | null => {
+    if (!val.trim()) return null;
+    const cleaned = val.replace(/[\s\-]/g, '');
+    // SSM: 12-14 digits, or with company suffix (e.g. 202301012345)
+    if (/^\d{12,14}$/.test(cleaned)) return null;
+    // Also accept formats like "1234567-A" (old format)
+    if (/^\d{7}[A-Z]$/.test(cleaned.toUpperCase())) return null;
+    return 'Enter a valid SSM number (e.g. 202301012345 or 1234567-A)';
   };
 
-  const handleSelectCrm = (r: CrmSearchResult) => {
-    setSelectedCrm(r);
-    setCrmResults([]);
-    setCrmSearch(r.name);
-    if (isIndividual) {
-      onFormDataChange({ contactId: r.id, accountId: null });
-    } else {
-      onFormDataChange({ accountId: r.id, contactId: null });
+  const handleNricBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (duplicateStatus !== 'duplicate') {
+      e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)';
+      e.currentTarget.style.boxShadow = 'none';
     }
+    const err = validateNric(e.target.value);
+    setFieldErrors(prev => ({ ...prev, nric: err ?? '' }));
+    onDuplicateCheck();
   };
 
-  const handleSkipCrm = () => {
-    setCrmMode('skip');
-    setSelectedCrm(null);
-    setCrmResults([]);
-    onFormDataChange({ accountId: null, contactId: null });
+  const handleSsmBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (duplicateStatus !== 'duplicate') {
+      e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)';
+      e.currentTarget.style.boxShadow = 'none';
+    }
+    const err = validateSsm(e.target.value);
+    setFieldErrors(prev => ({ ...prev, ssm: err ?? '' }));
+    onDuplicateCheck();
+  };
+
+  const errorStyle: React.CSSProperties = {
+    fontSize: 'var(--cr-text-label-sm, 11px)',
+    color: 'var(--cr-error, #ba1a1a)',
+    marginTop: 4,
+    fontWeight: 500,
   };
 
   return (
@@ -268,25 +301,60 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
                 <input
                   type="text"
                   value={formData.ssm}
-                  onChange={e => { onFormDataChange({ ssm: e.target.value }); }}
+                  onChange={e => { onFormDataChange({ ssm: e.target.value }); if (fieldErrors.ssm) setFieldErrors(prev => ({ ...prev, ssm: '' })); }}
                   placeholder="e.g. 202301012345"
                   style={{
                     ...inputStyle,
                     ...(duplicateStatus === 'duplicate' ? { borderColor: 'var(--cr-error, #ba1a1a)', boxShadow: '0 0 0 1px var(--cr-error, #ba1a1a)' } : {}),
+                    ...(fieldErrors.ssm ? { borderColor: 'var(--cr-error, #ba1a1a)' } : {}),
                   }}
-                  onFocus={e => { if (duplicateStatus !== 'duplicate') { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}}
-                  onBlur={e => { if (duplicateStatus !== 'duplicate') { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; } onDuplicateCheck(); }}
+                  onFocus={e => { if (duplicateStatus !== 'duplicate' && !fieldErrors.ssm) { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}}
+                  onBlur={handleSsmBlur}
                 />
                 <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-outline, #76777d)', marginTop: 4 }}>
                   Checked for duplicates when you leave this field
                 </div>
+                {fieldErrors.ssm && <div style={errorStyle}>{fieldErrors.ssm}</div>}
               </div>
               <div>
-                <label style={labelStyle}>Date of Incorporation</label>
+                <label style={labelStyle}>
+                  Date of Incorporation <span style={{ color: 'var(--cr-error, #ba1a1a)' }}>*</span>
+                </label>
                 <input
                   type="date"
                   value={formData.dateOfIncorporation}
                   onChange={e => onFormDataChange({ dateOfIncorporation: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+              {/* ── Additional Corporate Fields ── */}
+              <div>
+                <label style={labelStyle}>Business Type</label>
+                <select
+                  value={formData.businessType}
+                  onChange={e => onFormDataChange({ businessType: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <option value="">Select</option>
+                  <option value="Sendirian Berhad">Sendirian Berhad (Sdn Bhd)</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="Sole Proprietorship">Sole Proprietorship</option>
+                  <option value="Public Listed">Public Listed Company (PLC)</option>
+                  <option value="Limited Liability Partnership">Limited Liability Partnership (LLP)</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Authorized Representative</label>
+                <input
+                  type="text"
+                  value={formData.authorizedRepresentative}
+                  onChange={e => onFormDataChange({ authorizedRepresentative: e.target.value })}
+                  placeholder="e.g. Ahmad bin Abdullah (Director)"
                   style={inputStyle}
                   onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -305,18 +373,20 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
                 <input
                   type="text"
                   value={formData.nric}
-                  onChange={e => onFormDataChange({ nric: e.target.value })}
+                  onChange={e => { onFormDataChange({ nric: e.target.value }); if (fieldErrors.nric) setFieldErrors(prev => ({ ...prev, nric: '' })); }}
                   placeholder="e.g. 901231-14-5678"
                   style={{
                     ...inputStyle,
                     ...(duplicateStatus === 'duplicate' ? { borderColor: 'var(--cr-error, #ba1a1a)', boxShadow: '0 0 0 1px var(--cr-error, #ba1a1a)' } : {}),
+                    ...(fieldErrors.nric ? { borderColor: 'var(--cr-error, #ba1a1a)' } : {}),
                   }}
-                  onFocus={e => { if (duplicateStatus !== 'duplicate') { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}}
-                  onBlur={e => { if (duplicateStatus !== 'duplicate') { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; } onDuplicateCheck(); }}
+                  onFocus={e => { if (duplicateStatus !== 'duplicate' && !fieldErrors.nric) { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}}
+                  onBlur={handleNricBlur}
                 />
                 <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-outline, #76777d)', marginTop: 4 }}>
                   Checked for duplicates when you leave this field
                 </div>
+                {fieldErrors.nric && <div style={errorStyle}>{fieldErrors.nric}</div>}
               </div>
               <div>
                 <label style={labelStyle}>
@@ -326,6 +396,101 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
                   type="date"
                   value={formData.dateOfBirth}
                   onChange={e => onFormDataChange({ dateOfBirth: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>Gender</label>
+                  <select
+                    value={formData.gender}
+                    onChange={e => onFormDataChange({ gender: e.target.value })}
+                    style={inputStyle}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    Nationality <span style={{ color: 'var(--cr-error, #ba1a1a)' }}>*</span>
+                  </label>
+                  <select
+                    value={formData.nationality}
+                    onChange={e => onFormDataChange({ nationality: e.target.value })}
+                    style={inputStyle}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <option value="Malaysian">Malaysian</option>
+                    <option value="Non-Malaysian">Non-Malaysian</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ── Additional Individual Fields ── */}
+              <div>
+                <label style={labelStyle}>Preferred Name</label>
+                <input
+                  type="text"
+                  value={formData.preferredName}
+                  onChange={e => onFormDataChange({ preferredName: e.target.value })}
+                  placeholder="e.g. Ahmad"
+                  style={inputStyle}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>Marital Status</label>
+                  <select
+                    value={formData.maritalStatus}
+                    onChange={e => onFormDataChange({ maritalStatus: e.target.value })}
+                    style={inputStyle}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <option value="">Select</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                    <option value="Separated">Separated</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Education Level</label>
+                  <select
+                    value={formData.educationLevel}
+                    onChange={e => onFormDataChange({ educationLevel: e.target.value })}
+                    style={inputStyle}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <option value="">Select</option>
+                    <option value="Secondary">Secondary / SPM</option>
+                    <option value="Diploma">Diploma</option>
+                    <option value="Bachelor">Bachelor's Degree</option>
+                    <option value="Master">Master's Degree</option>
+                    <option value="PhD">PhD</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Tax Identification Number</label>
+                <input
+                  type="text"
+                  value={formData.taxNumber}
+                  onChange={e => onFormDataChange({ taxNumber: e.target.value })}
+                  placeholder="e.g. SG123456780"
                   style={inputStyle}
                   onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -375,7 +540,8 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
         )}
       </div>
 
-      {/* ── Business Details Section ── */}
+      {/* ── Business Details Section (Corporate/SME only) ── */}
+      {isCorporateType && (
       <div style={{ ...sectionCardStyle, marginTop: 20 }}>
         <div
           style={{
@@ -393,7 +559,9 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
           {/* Business Nature — full width */}
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Business Nature / Description</label>
+            <label style={labelStyle}>
+              Business Nature / Description <span style={{ color: 'var(--cr-error, #ba1a1a)' }}>*</span>
+            </label>
             <textarea
               value={formData.businessNature}
               onChange={e => onFormDataChange({ businessNature: e.target.value })}
@@ -455,307 +623,23 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
               />
             </div>
           </div>
+
+          {/* Tax Number */}
+          <div>
+            <label style={labelStyle}>Tax Number</label>
+            <input
+              type="text"
+              value={formData.taxNumber}
+              onChange={e => onFormDataChange({ taxNumber: e.target.value })}
+              placeholder="e.g. C 123456780"
+              style={inputStyle}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
+            />
+          </div>
         </div>
       </div>
-
-      {/* ── CRM Link Section ── */}
-      <div style={{ ...sectionCardStyle, marginTop: 20 }}>
-        <div
-          style={{
-            fontSize: 'var(--cr-text-label-sm, 11px)',
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--cr-on-surface-variant, #45464d)',
-            marginBottom: 16,
-          }}
-        >
-          CRM Account Link <span style={{ textTransform: 'none', fontWeight: 400, letterSpacing: 'normal' }}>(optional)</span>
-        </div>
-
-        {selectedCrm ? (
-          /* ── CRM selected state ── */
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '12px 16px',
-              backgroundColor: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: 'var(--cr-radius, 0.25rem)',
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                backgroundColor: 'var(--cr-secondary, #0051d5)',
-                color: 'var(--cr-on-secondary, #ffffff)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
-                fontWeight: 800,
-                fontSize: 13,
-                flexShrink: 0,
-              }}
-            >
-              {selectedCrm.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 'var(--cr-text-body-md, 14px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>
-                {selectedCrm.name}
-              </div>
-              {selectedCrm.sub && (
-                <div style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)' }}>
-                  {selectedCrm.sub}
-                </div>
-              )}
-            </div>
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: 9999,
-                fontSize: 'var(--cr-text-label-sm, 11px)',
-                fontWeight: 600,
-                backgroundColor: 'var(--cr-secondary, #0051d5)',
-                color: 'var(--cr-on-secondary, #ffffff)',
-              }}
-            >
-              Linked
-            </span>
-            <button
-              onClick={() => { setSelectedCrm(null); setCrmSearch(''); setCrmMode(null); onFormDataChange({ accountId: null, contactId: null }); }}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--cr-on-surface-variant, #45464d)',
-                padding: 4,
-              }}
-              title="Remove CRM link"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-            </button>
-          </div>
-        ) : crmMode === 'skip' ? (
-          /* ── Skip state ── */
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '12px 16px',
-              backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)',
-              border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-              borderRadius: 'var(--cr-radius, 0.25rem)',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--cr-outline, #76777d)' }}>schedule</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>
-                CRM linking skipped
-              </div>
-              <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-on-surface-variant, #45464d)' }}>
-                You can link a CRM record later from the borrower profile.
-              </div>
-            </div>
-            <button
-              onClick={() => setCrmMode(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--cr-secondary, #0051d5)',
-                fontSize: 'var(--cr-text-label-md, 12px)',
-                fontWeight: 600,
-              }}
-            >
-              Change
-            </button>
-          </div>
-        ) : (
-          /* ── CRM selection options ── */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Search input */}
-            <div style={{ position: 'relative' }}>
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: 'var(--cr-outline, #76777d)', pointerEvents: 'none' }}>
-                search
-              </span>
-              <input
-                type="text"
-                value={crmSearch}
-                onChange={e => handleCrmSearch(e.target.value)}
-                placeholder={`Search by name${isCorporateType ? ' or SSM' : ' or NRIC'}…`}
-                style={{ ...inputStyle, paddingLeft: 34 }}
-                onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
-              />
-              {crmSearching && (
-                <span className="material-symbols-outlined" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 16, animation: 'spin 1s linear infinite', color: 'var(--cr-outline, #76777d)' }}>
-                  progress_activity
-                </span>
-              )}
-            </div>
-
-            {/* Search results */}
-            {crmResults.length > 0 && (
-              <div
-                style={{
-                  border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                  borderRadius: 'var(--cr-radius, 0.25rem)',
-                  overflow: 'hidden',
-                }}
-              >
-                {crmResults.map(r => (
-                  <button
-                    key={r.id}
-                    onClick={() => handleSelectCrm(r)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      width: '100%',
-                      padding: '10px 12px',
-                      backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-                      border: 'none',
-                      borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background-color 0.15s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container, #eceef0)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-lowest, #ffffff)'; }}
-                  >
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 'var(--cr-radius, 0.25rem)',
-                        backgroundColor: '#eff6ff',
-                        color: '#2563eb',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 11,
-                        fontWeight: 800,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {r.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>{r.name}</div>
-                      {r.sub && <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-on-surface-variant, #45464d)' }}>{r.sub}</div>}
-                    </div>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--cr-outline, #76777d)' }}>chevron_right</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-outline, #76777d)', fontWeight: 600 }}>
-              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--cr-outline-variant, #c6c6cd)' }} />or<div style={{ flex: 1, height: 1, backgroundColor: 'var(--cr-outline-variant, #c6c6cd)' }} />
-            </div>
-
-            {/* Create CRM inline */}
-            <button
-              onClick={handleCreateCrmInline}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '12px 16px',
-                backgroundColor: 'transparent',
-                border: '1.5px dashed #93c5fd',
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: '100%',
-                transition: 'background-color 0.15s, border-color 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; e.currentTarget.style.borderColor = '#2563eb'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = '#93c5fd'; }}
-            >
-              <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  {isIndividual ? 'person_add' : 'add_business'}
-                </span>
-              </div>
-              <div>
-                <div style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: '#2563eb' }}>
-                  Create new CRM {isIndividual ? 'Contact' : 'Account'}
-                </div>
-                <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-on-surface-variant, #45464d)' }}>
-                  Pre-filled from form — no re-entry needed
-                </div>
-              </div>
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--cr-outline, #76777d)', marginLeft: 'auto' }}>chevron_right</span>
-            </button>
-
-            {/* Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-outline, #76777d)', fontWeight: 600 }}>
-              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--cr-outline-variant, #c6c6cd)' }} />or<div style={{ flex: 1, height: 1, backgroundColor: 'var(--cr-outline-variant, #c6c6cd)' }} />
-            </div>
-
-            {/* Skip */}
-            <button
-              onClick={handleSkipCrm}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '12px 16px',
-                backgroundColor: 'transparent',
-                border: '1.5px dashed var(--cr-outline-variant, #c6c6cd)',
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: '100%',
-                transition: 'background-color 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container, #eceef0)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
-              <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                backgroundColor: 'var(--cr-surface-container, #eceef0)',
-                color: 'var(--cr-on-surface-variant, #45464d)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>schedule</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: 'var(--cr-on-surface-variant, #45464d)' }}>
-                  Skip for now — link CRM later
-                </div>
-                <div style={{ fontSize: 'var(--cr-text-label-sm, 11px)', color: 'var(--cr-outline, #76777d)' }}>
-                  A reminder will appear on the profile until linked
-                </div>
-              </div>
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--cr-outline, #76777d)', marginLeft: 'auto' }}>chevron_right</span>
-            </button>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Spinner keyframe */}
       <style>{`

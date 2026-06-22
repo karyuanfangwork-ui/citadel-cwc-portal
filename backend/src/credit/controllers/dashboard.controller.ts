@@ -87,6 +87,51 @@ class DashboardController {
     const result = await dashboardService.getExposureSummary(filters);
     res.json({ status: 'success', data: result });
   });
+
+  /**
+   * GET /credit/dashboard/work-queue
+   * 6 operational buckets with per-bucket SLA compliance %.
+   */
+  getWorkQueue = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const branchId = req.query.branchId as string | undefined;
+    const result = await dashboardService.getWorkQueue({ branchId });
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /credit/dashboard/alerts
+   * Alert tiles: High DSR, Expired Bureau, AML Review.
+   */
+  getDashboardAlerts = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const branchId = req.query.branchId as string | undefined;
+    const result = await dashboardService.getDashboardAlerts({ branchId });
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /credit/dashboard/activity
+   * Cross-application recent activity feed.
+   */
+  getActivityFeed = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const branchId = req.query.branchId as string | undefined;
+    const assignedToMe = req.query.assignedToMe === 'true' ? req.user!.id : undefined;
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const result = await dashboardService.getActivityFeed({ branchId, assignedToMe, page, limit });
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /credit/dashboard/team-performance
+   * SLA compliance, approval turnaround, bottleneck.
+   */
+  getTeamPerformance = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const branchId = req.query.branchId as string | undefined;
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
+    const result = await dashboardService.getTeamPerformance({ branchId, dateFrom, dateTo });
+    res.json({ status: 'success', data: result });
+  });
 }
 
 export const dashboardController = new DashboardController();

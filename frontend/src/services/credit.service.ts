@@ -155,6 +155,19 @@ export interface BorrowerProfile {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth?: string | null;
+  dateOfIncorporation?: string | null;
+  businessNature?: string | null;
+  businessType?: string | null;
+  authorizedRepresentative?: string | null;
+  preferredName?: string | null;
+  maritalStatus?: string | null;
+  educationLevel?: string | null;
+  taxNumber?: string | null;
+  officePhone?: string | null;
+  preferredContactMethod?: string | null;
+  mailingAddress?: string | null;
   isActive: boolean;
   kycVerifiedAt?: string | null;
   deletedAt: string | null;
@@ -246,6 +259,25 @@ export interface CreateBorrowerProfilePayload {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth?: string | null;
+  dateOfIncorporation?: string | null;
+  businessNature?: string | null;
+  businessType?: string | null;
+  authorizedRepresentative?: string | null;
+  preferredName?: string | null;
+  maritalStatus?: string | null;
+  educationLevel?: string | null;
+  taxNumber?: string | null;
+  officePhone?: string | null;
+  preferredContactMethod?: 'MOBILE' | 'EMAIL' | 'OFFICE_PHONE' | 'POST' | null;
+  mailingAddress?: string | null;
+  occupation?: string | null;
+  employer?: string | null;
+  annualTurnover?: string | null;
+  sicCode?: string | null;
 }
 
 export interface DuplicateMatch {
@@ -253,6 +285,17 @@ export interface DuplicateMatch {
   name: string;
   borrowerType: string;
   matchField: string;
+}
+
+export interface BorrowerSearchResult {
+  id: string;
+  name: string;
+  borrowerType: string;
+  nricPassport: string | null;
+  phone: string | null;
+  email: string | null;
+  registrationNumber: string | null;
+  kycVerified: boolean;
 }
 
 export interface CreditDocument {
@@ -980,6 +1023,38 @@ const creditService = {
   async checkDuplicateBorrower(params: { ssm?: string; nric?: string }): Promise<{ exists: boolean; borrowerId?: string }> {
     const res = await apiClient.get('/credit/borrowers/check-duplicate', { params });
     return res.data.data as { exists: boolean; borrowerId?: string };
+  },
+
+  async searchBorrowers(q: string): Promise<BorrowerSearchResult[]> {
+    const res = await apiClient.get('/credit/borrowers/search', { params: { q } });
+    return res.data.data as BorrowerSearchResult[];
+  },
+
+  async putIncome(borrowerId: string, body: Record<string, unknown>) {
+    const res = await apiClient.put(`/credit/borrowers/${borrowerId}/income`, body);
+    return res.data.data;
+  },
+
+  async runKyc(borrowerId: string) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerId}/kyc`, {});
+    return res.data.data;
+  },
+
+  async runAml(borrowerId: string, body: { result: string; notes?: string }) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerId}/aml-screening`, body);
+    return res.data.data;
+  },
+
+  async uploadBorrowerDocument(borrowerId: string, file: File, classification: string) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('borrowerProfileId', borrowerId);
+    formData.append('classification', classification);
+    formData.append('applicationId', '');
+    const res = await apiClient.post('/credit/credit-documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
   },
 
   async updateBorrowerProfile(id: string, data: Partial<BorrowerProfile>) {
@@ -2238,6 +2313,13 @@ export const dashboardApi = {
     const res = await apiClient.get('/credit/dashboard/exposure-summary', { params: filters });
     return res.data.data as ExposureSummary;
   },
+  // ── Dashboard Cockpit ──
+  getWorkQueue: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/work-queue', { params }),
+  getAlerts: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/alerts', { params }),
+  getActivityFeed: (params?: { branchId?: string; assignedToMe?: boolean; page?: number; limit?: number }) =>
+    apiClient.get('/credit/dashboard/activity', { params }),
+  getTeamPerformance: (params?: { branchId?: string; dateFrom?: string; dateTo?: string }) =>
+    apiClient.get('/credit/dashboard/team-performance', { params }),
 };
 
 // ── Reports API ─────────────────────────────────────────────

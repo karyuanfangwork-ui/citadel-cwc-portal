@@ -20,6 +20,21 @@ export interface CreateBorrowerProfileData {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth?: string | Date | null;
+  dateOfIncorporation?: string | Date | null;
+  businessNature?: string | null;
+  businessType?: string | null;
+  authorizedRepresentative?: string | null;
+  preferredName?: string | null;
+  maritalStatus?: string | null;
+  educationLevel?: string | null;
+  taxNumber?: string | null;
+  officePhone?: string | null;
+  preferredContactMethod?: string | null;
+  mailingAddress?: string | null;
   creditRiskRating?: string | null;
   amlRiskTier?: string | null;
   exposureLimit?: number | string | null;
@@ -55,6 +70,21 @@ export interface UpdateBorrowerProfileData {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth?: string | Date | null;
+  dateOfIncorporation?: string | Date | null;
+  businessNature?: string | null;
+  businessType?: string | null;
+  authorizedRepresentative?: string | null;
+  preferredName?: string | null;
+  maritalStatus?: string | null;
+  educationLevel?: string | null;
+  taxNumber?: string | null;
+  officePhone?: string | null;
+  preferredContactMethod?: string | null;
+  mailingAddress?: string | null;
   creditRiskRating?: string | null;
   amlRiskTier?: string | null;
   exposureLimit?: number | string | null;
@@ -116,6 +146,55 @@ class BorrowerProfileService {
     ]);
 
     return { total, active, pendingKyc, watchlist };
+  }
+
+  /**
+   * Search borrowers by NRIC, passport, phone, email, name, or registration number.
+   * Returns a list of matches with KYC status for the duplicate-check step.
+   */
+  async searchBorrowers(query: string, limit = 10) {
+    const q = query.trim();
+    if (q.length < 2) return [];
+
+    const where = {
+      deletedAt: null,
+      OR: [
+        { name: { contains: q, mode: 'insensitive' as const } },
+        { nricPassport: { contains: q, mode: 'insensitive' as const } },
+        { phone: { contains: q, mode: 'insensitive' as const } },
+        { email: { contains: q, mode: 'insensitive' as const } },
+        { registrationNumber: { contains: q, mode: 'insensitive' as const } },
+        { account: { registrationNumber: { contains: q, mode: 'insensitive' as const } } },
+        { contact: { nricPassport: { contains: q, mode: 'insensitive' as const } } },
+      ],
+    };
+
+    const profiles = await prisma.borrowerProfile.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        borrowerType: true,
+        nricPassport: true,
+        phone: true,
+        email: true,
+        registrationNumber: true,
+        kycVerifiedAt: true,
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return profiles.map((p) => ({
+      id: p.id,
+      name: p.name || 'Unknown',
+      borrowerType: p.borrowerType,
+      nricPassport: p.nricPassport,
+      phone: p.phone,
+      email: p.email,
+      registrationNumber: p.registrationNumber,
+      kycVerified: p.kycVerifiedAt != null,
+    }));
   }
 
   /**
@@ -407,6 +486,21 @@ class BorrowerProfileService {
       address: data.address ?? undefined,
       phone: data.phone ?? undefined,
       email: data.email ?? undefined,
+      gender: (data as any).gender ?? undefined,
+      nationality: (data as any).nationality ?? undefined,
+      // Borrower creation wizard — type-specific fields
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      dateOfIncorporation: data.dateOfIncorporation ? new Date(data.dateOfIncorporation) : undefined,
+      businessNature: data.businessNature ?? undefined,
+      businessType: data.businessType ?? undefined,
+      authorizedRepresentative: data.authorizedRepresentative ?? undefined,
+      preferredName: data.preferredName ?? undefined,
+      maritalStatus: data.maritalStatus ?? undefined,
+      educationLevel: data.educationLevel ?? undefined,
+      taxNumber: data.taxNumber ?? undefined,
+      officePhone: data.officePhone ?? undefined,
+      preferredContactMethod: data.preferredContactMethod ?? undefined,
+      mailingAddress: data.mailingAddress ?? undefined,
       creditRiskRating: (data.creditRiskRating as any) ?? undefined,
       amlRiskTier: (data.amlRiskTier as any) ?? undefined,
       exposureLimit: data.exposureLimit != null ? new Prisma.Decimal(data.exposureLimit as string | number) : undefined,
@@ -494,6 +588,21 @@ class BorrowerProfileService {
     if (data.address !== undefined) updateData.address = data.address;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;
+    if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.nationality !== undefined) updateData.nationality = data.nationality;
+    // Borrower creation wizard — type-specific fields
+    if (data.dateOfBirth !== undefined) updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+    if (data.dateOfIncorporation !== undefined) updateData.dateOfIncorporation = data.dateOfIncorporation ? new Date(data.dateOfIncorporation) : null;
+    if (data.businessNature !== undefined) updateData.businessNature = data.businessNature;
+    if (data.businessType !== undefined) updateData.businessType = data.businessType;
+    if (data.authorizedRepresentative !== undefined) updateData.authorizedRepresentative = data.authorizedRepresentative;
+    if (data.preferredName !== undefined) updateData.preferredName = data.preferredName;
+    if (data.maritalStatus !== undefined) updateData.maritalStatus = data.maritalStatus;
+    if (data.educationLevel !== undefined) updateData.educationLevel = data.educationLevel;
+    if (data.taxNumber !== undefined) updateData.taxNumber = data.taxNumber;
+    if (data.officePhone !== undefined) updateData.officePhone = data.officePhone;
+    if (data.preferredContactMethod !== undefined) updateData.preferredContactMethod = data.preferredContactMethod;
+    if (data.mailingAddress !== undefined) updateData.mailingAddress = data.mailingAddress;
     if (data.sourceOfWealth !== undefined) updateData.sourceOfWealth = data.sourceOfWealth;
     if (data.purposeOfAccount !== undefined) updateData.purposeOfAccount = data.purposeOfAccount;
     if (data.occupation !== undefined) updateData.occupation = data.occupation;

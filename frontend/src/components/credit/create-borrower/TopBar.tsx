@@ -4,18 +4,14 @@ interface TopBarProps {
   segmentLabel: string;
   onSaveDraft: () => void;
   onValidate: () => void;
-  onSubmit: () => void;
   saving?: boolean;
-  canSubmit?: boolean;
 }
 
 const TopBar: React.FC<TopBarProps> = ({
   segmentLabel,
   onSaveDraft,
   onValidate,
-  onSubmit,
   saving = false,
-  canSubmit = true,
 }) => {
   return (
     <div
@@ -120,32 +116,11 @@ const TopBar: React.FC<TopBarProps> = ({
           Validate
         </button>
 
-        <button
-          onClick={onSubmit}
-          disabled={!canSubmit || saving}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
-            fontSize: 'var(--cr-text-label-md, 12px)',
-            fontWeight: 700,
-            backgroundColor: !canSubmit || saving ? 'var(--cr-surface-container-high, #e6e8ea)' : 'var(--cr-primary, #000000)',
-            color: !canSubmit || saving ? 'var(--cr-outline, #76777d)' : 'var(--cr-on-primary, #ffffff)',
-            border: 'none',
-            borderRadius: 'var(--cr-radius, 0.25rem)',
-            cursor: !canSubmit || saving ? 'not-allowed' : 'pointer',
-            transition: 'background-color 0.15s',
-          }}
-        >
-          {saving && (
-            <span className="material-symbols-outlined" style={{ fontSize: 16, animation: 'spin 1s linear infinite' }}>
-              progress_activity
-            </span>
-          )}
-          Submit
-        </button>
+        {saving && (
+          <span className="material-symbols-outlined" style={{ fontSize: 18, animation: 'spin 1s linear infinite', color: 'var(--cr-secondary, #0051d5)' }}>
+            progress_activity
+          </span>
+        )}
       </div>
 
       <style>{`

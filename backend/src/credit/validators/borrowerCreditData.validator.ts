@@ -49,3 +49,11 @@ export const kycSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({}).strict(),
 });
+
+export const amlSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    result: z.enum(['CLEAR', 'REVIEW', 'PROHIBITED']),
+    notes: z.string().max(500).optional(),
+  }),
+});

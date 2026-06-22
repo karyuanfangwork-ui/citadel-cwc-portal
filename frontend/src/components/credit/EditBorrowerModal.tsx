@@ -39,6 +39,19 @@ interface FormState {
   // Corporate identity fields
   registrationNumber: string;
   industry: string;
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth: string;
+  dateOfIncorporation: string;
+  businessNature: string;
+  businessType: string;
+  authorizedRepresentative: string;
+  preferredName: string;
+  maritalStatus: string;
+  educationLevel: string;
+  taxNumber: string;
+  officePhone: string;
+  preferredContactMethod: string;
+  mailingAddress: string;
 }
 
 // ── Static Options ────────────────────────────────────────────────────────
@@ -96,6 +109,19 @@ const formStateFromProfile = (p: BorrowerProfile): FormState => ({
   address: p.address ?? '',
   registrationNumber: p.registrationNumber ?? '',
   industry: p.industry ?? '',
+  // Borrower creation wizard — type-specific fields
+  dateOfBirth: p.dateOfBirth ?? '',
+  dateOfIncorporation: p.dateOfIncorporation ?? '',
+  businessNature: p.businessNature ?? '',
+  businessType: p.businessType ?? '',
+  authorizedRepresentative: p.authorizedRepresentative ?? '',
+  preferredName: p.preferredName ?? '',
+  maritalStatus: p.maritalStatus ?? '',
+  educationLevel: p.educationLevel ?? '',
+  taxNumber: p.taxNumber ?? '',
+  officePhone: p.officePhone ?? '',
+  preferredContactMethod: p.preferredContactMethod ?? '',
+  mailingAddress: p.mailingAddress ?? '',
 });
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -139,6 +165,11 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
       // Phase 3: Identity fields
       'nricPassport', 'phone', 'email', 'address',
       'registrationNumber', 'industry',
+      // Borrower creation wizard — type-specific fields
+      'dateOfBirth', 'dateOfIncorporation', 'businessNature', 'businessType',
+      'authorizedRepresentative', 'preferredName', 'maritalStatus',
+      'educationLevel', 'taxNumber', 'officePhone', 'preferredContactMethod',
+      'mailingAddress',
     ];
     const booleanFields: (keyof FormState)[] = ['isActive', 'isSanctionedEntity'];
 
@@ -306,6 +337,66 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 {fieldErrors.nricPassport && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.nricPassport}</p>}
               </div>
               <div>
+                <label className={labelCls}>Date of Birth</label>
+                <input
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={e => set('dateOfBirth', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Preferred Name</label>
+                <input
+                  type="text"
+                  value={form.preferredName}
+                  onChange={e => set('preferredName', e.target.value)}
+                  placeholder="e.g. Ahmad"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Marital Status</label>
+                <select
+                  value={form.maritalStatus}
+                  onChange={e => set('maritalStatus', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Select</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Divorced">Divorced</option>
+                  <option value="Widowed">Widowed</option>
+                  <option value="Separated">Separated</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Education Level</label>
+                <select
+                  value={form.educationLevel}
+                  onChange={e => set('educationLevel', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Select</option>
+                  <option value="Secondary">Secondary / SPM</option>
+                  <option value="Diploma">Diploma</option>
+                  <option value="Bachelor">Bachelor's Degree</option>
+                  <option value="Master">Master's Degree</option>
+                  <option value="PhD">PhD</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Tax Identification Number</label>
+                <input
+                  type="text"
+                  value={form.taxNumber}
+                  onChange={e => set('taxNumber', e.target.value)}
+                  placeholder="e.g. SG123456780"
+                  className={inputCls}
+                />
+              </div>
+              <div>
                 <label className={labelCls}>Phone</label>
                 <input
                   type="tel"
@@ -327,12 +418,36 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 />
                 {fieldErrors.email && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.email}</p>}
               </div>
+              <div>
+                <label className={labelCls}>Preferred Contact Method</label>
+                <select
+                  value={form.preferredContactMethod}
+                  onChange={e => set('preferredContactMethod', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Select</option>
+                  <option value="MOBILE">Mobile</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="OFFICE_PHONE">Office Phone</option>
+                  <option value="POST">Post / Mail</option>
+                </select>
+              </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Address</label>
                 <textarea
                   value={form.address}
                   onChange={e => set('address', e.target.value)}
                   placeholder="Residential address"
+                  className={inputCls}
+                  rows={2}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Mailing Address</label>
+                <textarea
+                  value={form.mailingAddress}
+                  onChange={e => set('mailingAddress', e.target.value)}
+                  placeholder="Leave blank if same as residential address"
                   className={inputCls}
                   rows={2}
                 />
@@ -354,12 +469,67 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 />
               </div>
               <div>
+                <label className={labelCls}>Date of Incorporation</label>
+                <input
+                  type="date"
+                  value={form.dateOfIncorporation}
+                  onChange={e => set('dateOfIncorporation', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Business Type</label>
+                <select
+                  value={form.businessType}
+                  onChange={e => set('businessType', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Select</option>
+                  <option value="Sendirian Berhad">Sendirian Berhad (Sdn Bhd)</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="Sole Proprietorship">Sole Proprietorship</option>
+                  <option value="Public Listed">Public Listed Company (PLC)</option>
+                  <option value="Limited Liability Partnership">Limited Liability Partnership (LLP)</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
                 <label className={labelCls}>Industry / Sector</label>
                 <input
                   type="text"
                   value={form.industry}
                   onChange={e => set('industry', e.target.value)}
                   placeholder="e.g. Technology, Manufacturing"
+                  className={inputCls}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Business Nature</label>
+                <textarea
+                  value={form.businessNature}
+                  onChange={e => set('businessNature', e.target.value)}
+                  placeholder="Brief description of the business activities"
+                  className={inputCls}
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Authorized Representative</label>
+                <input
+                  type="text"
+                  value={form.authorizedRepresentative}
+                  onChange={e => set('authorizedRepresentative', e.target.value)}
+                  placeholder="e.g. Ahmad bin Abdullah (Director)"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Tax Number</label>
+                <input
+                  type="text"
+                  value={form.taxNumber}
+                  onChange={e => set('taxNumber', e.target.value)}
+                  placeholder="e.g. C 123456780"
                   className={inputCls}
                 />
               </div>
@@ -375,6 +545,16 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 {fieldErrors.phone && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.phone}</p>}
               </div>
               <div>
+                <label className={labelCls}>Office Phone</label>
+                <input
+                  type="tel"
+                  value={form.officePhone}
+                  onChange={e => set('officePhone', e.target.value)}
+                  placeholder="e.g. +60 3-1234 5678"
+                  className={inputCls}
+                />
+              </div>
+              <div>
                 <label className={labelCls}>Email</label>
                 <input
                   type="email"
@@ -385,12 +565,36 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 />
                 {fieldErrors.email && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.email}</p>}
               </div>
+              <div>
+                <label className={labelCls}>Preferred Contact Method</label>
+                <select
+                  value={form.preferredContactMethod}
+                  onChange={e => set('preferredContactMethod', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Select</option>
+                  <option value="MOBILE">Mobile</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="OFFICE_PHONE">Office Phone</option>
+                  <option value="POST">Post / Mail</option>
+                </select>
+              </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Registered Address</label>
                 <textarea
                   value={form.address}
                   onChange={e => set('address', e.target.value)}
                   placeholder="Registered business address"
+                  className={inputCls}
+                  rows={2}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Mailing Address</label>
+                <textarea
+                  value={form.mailingAddress}
+                  onChange={e => set('mailingAddress', e.target.value)}
+                  placeholder="Leave blank if same as registered address"
                   className={inputCls}
                   rows={2}
                 />

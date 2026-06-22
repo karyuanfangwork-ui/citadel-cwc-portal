@@ -2,13 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
-import ProgressTracker, { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
+import { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
 import TopBar from '../src/components/credit/create-borrower/TopBar';
+import DuplicateCheckStep from '../src/components/credit/create-borrower/DuplicateCheckStep';
 import BorrowerTypeStep from '../src/components/credit/create-borrower/BorrowerTypeStep';
 import BasicInfoStep, { FormData, initialFormData } from '../src/components/credit/create-borrower/BasicInfoStep';
-import PlaceholderStep from '../src/components/credit/create-borrower/PlaceholderStep';
+import ContactInfoStep from '../src/components/credit/create-borrower/ContactInfoStep';
+import EmploymentFinancialsStep from '../src/components/credit/create-borrower/EmploymentFinancialsStep';
+import ComplianceChecksStep from '../src/components/credit/create-borrower/ComplianceChecksStep';
+import DocumentUploadStep from '../src/components/credit/create-borrower/DocumentUploadStep';
+import ReviewStep from '../src/components/credit/create-borrower/ReviewStep';
 import CreateBorrowerActionPanel from '../src/components/credit/create-borrower/CreateBorrowerActionPanel';
 import DuplicateConflictModal from '../src/components/credit/create-borrower/DuplicateConflictModal';
+import ProgressTracker from '../src/components/credit/create-borrower/ProgressTracker';
 
 type BorrowerType = 'INDIVIDUAL' | 'CORPORATE' | 'SOLE_PROPRIETOR';
 
@@ -46,21 +52,39 @@ const CreateBorrowerPage: React.FC = () => {
   const isCorporateType = formData.borrowerType === 'CORPORATE' || formData.borrowerType === 'SOLE_PROPRIETOR';
 
   // ── Load draft on mount ──
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [hadSavedDraft, setHadSavedDraft] = useState(false);
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (saved) {
         const draft = JSON.parse(saved);
-        if (draft.formData) setFormData(draft.formData);
+        if (draft.formData) {
+          setFormData({ ...initialFormData(), ...draft.formData });
+          setHadSavedDraft(true);
+        }
         if (typeof draft.currentStep === 'number') setCurrentStep(draft.currentStep);
       }
     } catch { /* ignore corrupt draft */ }
+    // Mark draft load as complete even if no draft was found,
+    // so the save effect below can start persisting.
+    setDraftLoaded(true);
   }, []);
 
-  // ── Save draft on change ──
+  // ── Show toast when a saved draft is restored ──
   useEffect(() => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, currentStep }));
-  }, [formData, currentStep]);
+    if (draftLoaded && hadSavedDraft) {
+      toast('Draft restored from previous session', { icon: '📝' });
+    }
+  }, [draftLoaded, hadSavedDraft]);
+
+  // ── Save draft on change (skip until draft load is complete to avoid overwriting) ──
+  useEffect(() => {
+    if (!draftLoaded) return; // Don't save until draft load attempt is done
+    // Don't persist File objects in localStorage
+    const storable = { ...formData, documents: [] };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep }));
+  }, [formData, currentStep, draftLoaded]);
 
   // ── Handlers ──
 
@@ -77,6 +101,16 @@ const CreateBorrowerPage: React.FC = () => {
       nric: '',
       dateOfBirth: '',
       dateOfIncorporation: '',
+      businessNature: '',
+      businessType: '',
+      authorizedRepresentative: '',
+      preferredName: '',
+      maritalStatus: '',
+      educationLevel: '',
+      taxNumber: '',
+      officePhone: '',
+      preferredContactMethod: '',
+      mailingAddress: '',
       accountId: null,
       contactId: null,
     }));
@@ -109,7 +143,8 @@ const CreateBorrowerPage: React.FC = () => {
   }, []);
 
   const handleSaveDraft = useCallback(() => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, currentStep }));
+    const storable = { ...formData, documents: [] };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep }));
     toast.success('Draft saved');
   }, [formData, currentStep]);
 
@@ -119,9 +154,20 @@ const CreateBorrowerPage: React.FC = () => {
 
     const issues: string[] = [];
     if (!formData.name.trim()) issues.push(`${isInd ? 'Full Name' : 'Company Name'} is required`);
-    if (isCorp && !formData.ssm.trim()) issues.push('SSM Registration Number is required');
-    if (isInd && !formData.nric.trim()) issues.push('NRIC/Passport is required');
-    if (isInd && !formData.dateOfBirth) issues.push('Date of Birth is required');
+
+    // Individual mandatory fields
+    if (isInd) {
+      if (!formData.nric.trim()) issues.push('NRIC/Passport is required');
+      if (!formData.dateOfBirth) issues.push('Date of Birth is required');
+      if (!formData.nationality.trim()) issues.push('Nationality is required');
+    }
+
+    // Corporate/SME mandatory fields
+    if (isCorp) {
+      if (!formData.ssm.trim()) issues.push('SSM Registration Number is required');
+      if (!formData.dateOfIncorporation) issues.push('Date of Incorporation is required');
+      if (!formData.businessNature.trim()) issues.push('Business Nature is required');
+    }
 
     if (issues.length === 0) {
       toast.success('All required fields for current step are complete');
@@ -130,20 +176,94 @@ const CreateBorrowerPage: React.FC = () => {
     }
   }, [formData]);
 
+  // ── Post-create orchestration (best-effort, non-blocking) ──
+
+  const runPostCreateSteps = useCallback(async (borrowerId: string) => {
+    const tasks: Promise<void>[] = [];
+
+    // Income
+    if (formData.monthlyGrossIncome) {
+      const gross = Number(formData.monthlyGrossIncome) + Number(formData.fixedAllowances || 0);
+      tasks.push(
+        creditService.putIncome(borrowerId, {
+          employmentType: formData.employmentType || undefined,
+          employerName: formData.employerName || undefined,
+          monthlyGrossIncome: gross,
+          existingLoanCommitment: Number(formData.existingCommitments) || 0,
+        }).then(() => undefined)
+      );
+    }
+
+    // KYC
+    if (formData.kycVerified) {
+      tasks.push(creditService.runKyc(borrowerId).then(() => undefined));
+    }
+
+    // AML
+    if (formData.amlResult !== 'not_started') {
+      tasks.push(
+        creditService.runAml(borrowerId, {
+          result: formData.amlResult.toUpperCase(),
+          notes: formData.amlNotes || undefined,
+        }).then(() => undefined)
+      );
+    }
+
+    // Documents
+    for (const doc of formData.documents) {
+      tasks.push(creditService.uploadBorrowerDocument(borrowerId, doc.file, doc.documentClass).then(() => undefined));
+    }
+
+    const results = await Promise.allSettled(tasks);
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+      toast.success('Borrower created. Some post-create steps failed — complete them on the profile page.');
+    }
+  }, [formData]);
+
   const handleSubmit = useCallback(async (overrideDuplicate = false) => {
     setError(null);
     setSaving(true);
     try {
+      // Build address string from components
+      const addressParts = [formData.addressLine1, formData.addressLine2, formData.postcode, formData.city, formData.state]
+        .filter(Boolean);
+      const addressString = addressParts.length > 0 ? addressParts.join(', ') : undefined;
+
       const payload: CreateBorrowerProfilePayload = {
         borrowerType: formData.borrowerType,
         name: formData.name || null,
         accountId: formData.accountId,
         contactId: formData.contactId,
+        nricPassport: formData.nric || undefined,
+        registrationNumber: formData.ssm || undefined,
+        phone: formData.phone || undefined,
+        email: formData.email || undefined,
+        address: addressString,
+        gender: formData.gender || undefined,
+        nationality: formData.nationality || undefined,
+        // Type-specific fields — sent to backend for persistence
+        ...(formData.dateOfBirth ? { dateOfBirth: formData.dateOfBirth } : {}),
+        ...(formData.dateOfIncorporation ? { dateOfIncorporation: formData.dateOfIncorporation } : {}),
+        ...(formData.businessNature ? { businessNature: formData.businessNature } : {}),
+        ...(formData.businessType ? { businessType: formData.businessType } : {}),
+        ...(formData.authorizedRepresentative ? { authorizedRepresentative: formData.authorizedRepresentative } : {}),
+        ...(formData.preferredName ? { preferredName: formData.preferredName } : {}),
+        ...(formData.maritalStatus ? { maritalStatus: formData.maritalStatus } : {}),
+        ...(formData.educationLevel ? { educationLevel: formData.educationLevel } : {}),
+        ...(formData.taxNumber ? { taxNumber: formData.taxNumber } : {}),
+        ...(formData.officePhone ? { officePhone: formData.officePhone } : {}),
+        ...(formData.preferredContactMethod ? { preferredContactMethod: formData.preferredContactMethod as any } : {}),
+        ...(formData.mailingAddress ? { mailingAddress: formData.mailingAddress } : {}),
         ...(formData.industrySector ? { sicCode: formData.industrySector } : {}),
         ...(formData.estimatedAnnualRevenue ? { annualTurnover: formData.estimatedAnnualRevenue } : {}),
         ...(overrideDuplicate && { overrideDuplicate: true }),
       };
       const profile = await creditService.createBorrowerProfile(payload);
+
+      // Post-create orchestration (best-effort)
+      await runPostCreateSteps(profile.id);
+
       localStorage.removeItem(DRAFT_KEY);
       toast.success('Borrower created successfully');
       navigate(`/credit/borrowers/${profile.id}`);
@@ -159,12 +279,16 @@ const CreateBorrowerPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [formData, navigate]);
+  }, [formData, navigate, runPostCreateSteps]);
 
   // ── Can submit? ──
   const canSubmit = formData.name.trim() &&
     (isCorporateType ? formData.ssm.trim() : true) &&
+    (isCorporateType ? !!formData.dateOfIncorporation : true) &&
+    (isCorporateType ? formData.businessNature.trim() : true) &&
     (isIndividual ? formData.nric.trim() : true) &&
+    (isIndividual ? !!formData.dateOfBirth : true) &&
+    (isIndividual ? !!formData.nationality.trim() : true) &&
     dupCheck !== 'checking';
 
   // ── Mark step as completed when moving forward ──
@@ -182,12 +306,19 @@ const CreateBorrowerPage: React.FC = () => {
     switch (currentStep) {
       case 0:
         return (
+          <DuplicateCheckStep
+            onUseExisting={(borrowerId) => navigate(`/credit/borrowers/${borrowerId}`)}
+            onProceed={() => { setCompletedSteps(prev => new Set(prev).add(0)); setCurrentStep(1); }}
+          />
+        );
+      case 1:
+        return (
           <BorrowerTypeStep
             value={formData.borrowerType}
             onChange={handleBorrowerTypeChange}
           />
         );
-      case 1:
+      case 2:
         return (
           <BasicInfoStep
             formData={formData}
@@ -197,9 +328,47 @@ const CreateBorrowerPage: React.FC = () => {
             onDuplicateCheck={runDuplicateCheck}
           />
         );
+      case 3:
+        return (
+          <ContactInfoStep
+            formData={formData}
+            onFormDataChange={handleFormDataChange}
+          />
+        );
+      case 4:
+        return (
+          <EmploymentFinancialsStep
+            formData={formData}
+            onFormDataChange={handleFormDataChange}
+          />
+        );
+      case 5:
+        return (
+          <ComplianceChecksStep
+            formData={formData}
+            onFormDataChange={handleFormDataChange}
+          />
+        );
+      case 6:
+        return (
+          <DocumentUploadStep
+            formData={formData}
+            onFormDataChange={handleFormDataChange}
+          />
+        );
+      case 7:
+        return (
+          <ReviewStep
+            formData={formData}
+            duplicateStatus={dupCheck}
+            onSubmit={() => handleSubmit()}
+            onSaveDraft={handleSaveDraft}
+            saving={saving}
+            canSubmit={!!canSubmit}
+          />
+        );
       default:
-        // Steps 2-6: placeholder
-        return <PlaceholderStep step={STEPS[currentStep]} />;
+        return null;
     }
   };
 
@@ -222,9 +391,7 @@ const CreateBorrowerPage: React.FC = () => {
             segmentLabel={SEGMENT_LABELS[formData.borrowerType]}
             onSaveDraft={handleSaveDraft}
             onValidate={handleValidate}
-            onSubmit={() => handleSubmit()}
             saving={saving}
-            canSubmit={!!canSubmit}
           />
 
           {/* Error banner */}
@@ -267,7 +434,8 @@ const CreateBorrowerPage: React.FC = () => {
             <div style={{ maxWidth: 896, margin: '0 auto' }}>
               {renderStep()}
 
-              {/* ── Bottom navigation ── */}
+              {/* ── Bottom navigation (hidden on the final Review step — it has its own submit buttons) ── */}
+              {currentStep < STEPS.length - 1 && (
               <div
                 style={{
                   display: 'flex',
@@ -350,6 +518,7 @@ const CreateBorrowerPage: React.FC = () => {
                   </button>
                 )}
               </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,13 +1,14 @@
 import React from 'react';
 
 export const STEPS = [
-  { id: 'customer-type',    label: 'Borrower Type',        icon: 'category' },
-  { id: 'basic-info',       label: 'Basic Information',    icon: 'person' },
-  { id: 'contact-info',    label: 'Contact Details',      icon: 'contacts' },
-  { id: 'ownership',       label: 'Ownership',             icon: 'account_tree' },
-  { id: 'banking',         label: 'Banking',               icon: 'account_balance' },
-  { id: 'kyc',             label: 'KYC & Compliance',      icon: 'verified_user' },
-  { id: 'review',          label: 'Review & Submit',       icon: 'task_alt' },
+  { id: 'duplicate-check',  label: 'Duplicate Check',       icon: 'search' },
+  { id: 'customer-type',    label: 'Borrower Type',         icon: 'category' },
+  { id: 'basic-info',       label: 'Basic Information',     icon: 'person' },
+  { id: 'contact-info',    label: 'Contact Details',       icon: 'contacts' },
+  { id: 'employment',      label: 'Employment & Financials', icon: 'account_balance' },
+  { id: 'kyc',             label: 'KYC & Compliance',       icon: 'verified_user' },
+  { id: 'documents',       label: 'Documents',              icon: 'attachment' },
+  { id: 'review',          label: 'Review & Submit',        icon: 'task_alt' },
 ];
 
 interface ProgressTrackerProps {

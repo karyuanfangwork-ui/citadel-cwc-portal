@@ -13,6 +13,18 @@ class BorrowerProfileController {
   });
 
   /**
+   * GET /borrowers/search — Search borrowers by NRIC, phone, email, name, etc.
+   */
+  search = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const q = (req.query.q as string | undefined || '').trim();
+    if (q.length < 2) {
+      throw new AppError('Search query must be at least 2 characters', 400);
+    }
+    const results = await borrowerProfileService.searchBorrowers(q);
+    res.json({ status: 'success', data: results });
+  });
+
+  /**
    * GET /borrowers/check-duplicate — Check if a borrower exists for a given SSM or NRIC
    */
   checkDuplicate = asyncHandler(async (req: AuthRequest, res: Response) => {

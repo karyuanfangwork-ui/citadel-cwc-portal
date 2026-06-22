@@ -86,4 +86,48 @@ router.get(
   dashboardController.getExposureSummary,
 );
 
+/**
+ * GET /credit/dashboard/work-queue
+ * Dashboard cockpit — 6 operational buckets with per-bucket SLA compliance %
+ * Requires: credit:read
+ */
+router.get(
+  '/work-queue',
+  requirePermission('credit:read'),
+  dashboardController.getWorkQueue,
+);
+
+/**
+ * GET /credit/dashboard/alerts
+ * Dashboard cockpit — alert tiles: High DSR, Expired Bureau, AML Review
+ * Requires: credit:read
+ */
+router.get(
+  '/alerts',
+  requirePermission('credit:read'),
+  dashboardController.getDashboardAlerts,
+);
+
+/**
+ * GET /credit/dashboard/activity
+ * Dashboard cockpit — cross-application recent activity feed
+ * Requires: credit:read
+ */
+router.get(
+  '/activity',
+  requirePermission('credit:read'),
+  dashboardController.getActivityFeed,
+);
+
+/**
+ * GET /credit/dashboard/team-performance
+ * Dashboard cockpit — SLA compliance, approval turnaround, bottleneck stage
+ * Requires: credit:read
+ */
+router.get(
+  '/team-performance',
+  requirePermission('credit:read'),
+  dashboardController.getTeamPerformance,
+);
+
 export default router;

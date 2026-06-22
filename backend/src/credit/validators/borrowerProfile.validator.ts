@@ -15,6 +15,29 @@ export const createBorrowerProfileSchema = z.object({
     name: z.string().max(255).optional().nullable(),
     accountId: z.string().uuid().optional().nullable(),
     contactId: z.string().uuid().optional().nullable(),
+    // Identity fields — self-contained, no CRM dependency
+    registrationNumber: z.string().max(100).optional().nullable(),
+    industry: z.string().max(100).optional().nullable(),
+    nricPassport: z.string().max(50).optional().nullable(),
+    address: z.string().max(500).optional().nullable(),
+    phone: z.string().max(50).optional().nullable(),
+    email: z.string().email().optional().nullable(),
+    // Demographic fields
+    gender: z.string().max(20).optional().nullable(),
+    nationality: z.string().max(100).optional().nullable(),
+    // Borrower creation wizard — type-specific fields
+    dateOfBirth: z.union([z.string(), z.date()]).optional().nullable(),
+    dateOfIncorporation: z.union([z.string(), z.date()]).optional().nullable(),
+    businessNature: z.string().max(500).optional().nullable(),
+    businessType: z.string().max(50).optional().nullable(),
+    authorizedRepresentative: z.string().max(255).optional().nullable(),
+    preferredName: z.string().max(100).optional().nullable(),
+    maritalStatus: z.string().max(30).optional().nullable(),
+    educationLevel: z.string().max(50).optional().nullable(),
+    taxNumber: z.string().max(50).optional().nullable(),
+    officePhone: z.string().max(50).optional().nullable(),
+    preferredContactMethod: z.enum(['MOBILE', 'EMAIL', 'OFFICE_PHONE', 'POST']).optional().nullable(),
+    mailingAddress: z.string().max(500).optional().nullable(),
     creditRiskRating: riskRatingEnum.optional().nullable(),
     amlRiskTier: amlRiskTierEnum.optional().nullable(),
     exposureLimit: decimalField,
@@ -38,6 +61,34 @@ export const createBorrowerProfileSchema = z.object({
     sourceOfWealthEncrypted: z.string().optional().nullable(),
     // §2.3 Duplicate override — admin can set true to bypass duplicate check
     overrideDuplicate: z.boolean().default(false).optional(),
+  }).superRefine((data, ctx) => {
+    // Type-conditional mandatory field enforcement
+    const isIndividual = data.borrowerType === 'INDIVIDUAL';
+    const isCorporateType = data.borrowerType === 'CORPORATE' || data.borrowerType === 'SOLE_PROPRIETOR';
+
+    if (isIndividual) {
+      if (!data.nricPassport?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'nricPassport'], message: 'NRIC/Passport is required for Individual borrowers' });
+      }
+      if (!data.dateOfBirth) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'dateOfBirth'], message: 'Date of Birth is required for Individual borrowers' });
+      }
+      if (!data.nationality?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'nationality'], message: 'Nationality is required for Individual borrowers' });
+      }
+    }
+
+    if (isCorporateType) {
+      if (!data.registrationNumber?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'registrationNumber'], message: 'Registration Number is required for SME/Corporate borrowers' });
+      }
+      if (!data.dateOfIncorporation) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'dateOfIncorporation'], message: 'Date of Incorporation is required for SME/Corporate borrowers' });
+      }
+      if (!data.businessNature?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'businessNature'], message: 'Business Nature is required for SME/Corporate borrowers' });
+      }
+    }
   }),
 });
 
@@ -54,6 +105,22 @@ export const updateBorrowerProfileSchema = z.object({
     address: z.string().max(500).optional().nullable(),
     phone: z.string().max(50).optional().nullable(),
     email: z.string().email().optional().nullable(),
+    // Demographic fields
+    gender: z.string().max(20).optional().nullable(),
+    nationality: z.string().max(100).optional().nullable(),
+    // Borrower creation wizard — type-specific fields
+    dateOfBirth: z.union([z.string(), z.date()]).optional().nullable(),
+    dateOfIncorporation: z.union([z.string(), z.date()]).optional().nullable(),
+    businessNature: z.string().max(500).optional().nullable(),
+    businessType: z.string().max(50).optional().nullable(),
+    authorizedRepresentative: z.string().max(255).optional().nullable(),
+    preferredName: z.string().max(100).optional().nullable(),
+    maritalStatus: z.string().max(30).optional().nullable(),
+    educationLevel: z.string().max(50).optional().nullable(),
+    taxNumber: z.string().max(50).optional().nullable(),
+    officePhone: z.string().max(50).optional().nullable(),
+    preferredContactMethod: z.enum(['MOBILE', 'EMAIL', 'OFFICE_PHONE', 'POST']).optional().nullable(),
+    mailingAddress: z.string().max(500).optional().nullable(),
     creditRiskRating: riskRatingEnum.optional().nullable(),
     amlRiskTier: amlRiskTierEnum.optional().nullable(),
     exposureLimit: decimalField,

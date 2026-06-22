@@ -6,6 +6,7 @@ import { createBorrowerProfileSchema, updateBorrowerProfileSchema } from '../val
 import {
   createBureauReportSchema,
   kycSchema,
+  amlSchema,
   upsertCreditProfileSchema,
   upsertIncomeSchema,
 } from '../validators/borrowerCreditData.validator';
@@ -25,6 +26,17 @@ router.get(
   '/stats',
   requirePermission('credit:read'),
   borrowerProfileController.stats,
+);
+
+/**
+ * GET /borrowers/search
+ * Search borrowers by NRIC, passport, phone, email, name, or registration number.
+ * Requires: credit:read
+ */
+router.get(
+  '/search',
+  requirePermission('credit:read'),
+  borrowerProfileController.search,
 );
 
 /**
@@ -117,6 +129,13 @@ router.post(
   requirePermission('credit:write'),
   validate(kycSchema),
   borrowerCreditDataController.markKycVerified,
+);
+
+router.post(
+  '/:id/aml-screening',
+  requirePermission('credit:write'),
+  validate(amlSchema),
+  borrowerCreditDataController.runAml,
 );
 
 /**

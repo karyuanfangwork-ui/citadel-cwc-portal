@@ -303,6 +303,24 @@ const BorrowerProfileDetail: React.FC = () => {
                 { label: 'Net Worth', value: formatCurrency(profile.netWorth), icon: 'savings' },
                 { label: 'Source of Wealth', value: profile.sourceOfWealth ?? '—', icon: 'diamond' },
                 { label: 'Purpose of Account', value: profile.purposeOfAccount ?? '—', icon: 'flag' },
+                // Type-specific fields
+                ...(profile.borrowerType === 'INDIVIDUAL' ? [
+                  { label: 'Preferred Name', value: profile.preferredName ?? '—', icon: 'person' },
+                  { label: 'Date of Birth', value: formatDate(profile.dateOfBirth ?? null), icon: 'cake' },
+                  { label: 'Marital Status', value: profile.maritalStatus ?? '—', icon: 'favorite' },
+                  { label: 'Education Level', value: profile.educationLevel ?? '—', icon: 'school' },
+                  { label: 'Tax ID Number', value: profile.taxNumber ?? '—', icon: 'receipt' },
+                ] : []),
+                ...(profile.borrowerType !== 'INDIVIDUAL' ? [
+                  { label: 'Business Type', value: profile.businessType ?? '—', icon: 'apartment' },
+                  { label: 'Date of Incorporation', value: formatDate(profile.dateOfIncorporation ?? null), icon: 'event' },
+                  { label: 'Business Nature', value: profile.businessNature ?? '—', icon: 'description' },
+                  { label: 'Authorized Rep', value: profile.authorizedRepresentative ?? '—', icon: 'badge' },
+                  { label: 'Tax Number', value: profile.taxNumber ?? '—', icon: 'receipt' },
+                ] : []),
+                { label: 'Office Phone', value: profile.officePhone ?? '—', icon: 'call' },
+                { label: 'Preferred Contact', value: profile.preferredContactMethod ?? '—', icon: 'contact_page' },
+                { label: 'Mailing Address', value: profile.mailingAddress ?? '—', icon: 'mail' },
               ].filter(f => f.value !== '—' || ['Borrower Type', 'Occupation', 'Employer'].includes(f.label)).map(f => (
                 <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                   <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>

@@ -44,6 +44,9 @@ export interface MyWorkItem {
   riskGrade: string | null;
   slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
   entityType: string | null;
+  // Dashboard cockpit additions
+  slaRemainingHours: number | null;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 export interface MyWorkDashboardResult {
@@ -151,6 +154,63 @@ export interface TurnaroundResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// §Dashboard Cockpit — Work Queue / Alerts / Activity / Team Performance
+// ---------------------------------------------------------------------------
+
+export type WorkQueueBucketKey =
+  | 'pendingReview'
+  | 'inProgress'
+  | 'pendingDocs'
+  | 'returned'
+  | 'overdue'
+  | 'pendingApproval';
+
+export interface WorkQueueBucket {
+  key: WorkQueueBucketKey;
+  label: string;
+  count: number;
+  slaCompliancePct: number | null; // null = no SLA policy for this bucket
+  states: string[];
+}
+
+export interface WorkQueueResult {
+  buckets: WorkQueueBucket[];
+  totalApplications: number;
+}
+
+export interface DashboardAlerts {
+  highDsr: { count: number; thresholdPct: number; filterUrl: string };
+  expiredBureau: { count: number; maxAgeDays: number; filterUrl: string };
+  amlReview: { count: number; filterUrl: string };
+}
+
+export interface ActivityFeedItem {
+  id: string;
+  applicationId: string;
+  applicationNo: string;
+  eventType: string;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  newState: string | null;
+  createdAt: string;
+}
+
+export interface ActivityFeedResult {
+  items: ActivityFeedItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface TeamPerformanceResult {
+  slaCompliancePct: number;
+  avgApprovalTurnaroundDays: number | null;
+  bottleneckStage: { state: string; avgDays: number; pctSlowerThanAvg: number } | null;
+  totalDecisions: number;
+}
+
 // States that require approval action
 const APPROVAL_PENDING_STATES: ApplicationState[] = [
   'UNDERWRITING' as ApplicationState,
@@ -172,6 +232,52 @@ function classifyUrgency(daysWaiting: number): 'HIGH' | 'MEDIUM' | 'LOW' {
   if (daysWaiting >= 3) return 'MEDIUM';
   return 'LOW';
 }
+
+// ---------------------------------------------------------------------------
+// §Dashboard Cockpit — Priority derivation (no schema column)
+// ---------------------------------------------------------------------------
+
+/** Derive application priority from lane + amount band + SLA proximity. */
+export function derivePriority(app: {
+  lane: string;
+  requestedAmount: number;
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+}): 'HIGH' | 'MEDIUM' | 'LOW' {
+  // SLA breach or warning always dominates
+  if (app.slaStatus === 'OVERDUE') return 'HIGH';
+  if (app.slaStatus === 'WARNING') return 'MEDIUM';
+
+  // Amount bands (MYR)
+  const HIGH_AMOUNT = 5_000_000;
+  const MED_AMOUNT = 1_000_000;
+  if (app.requestedAmount >= HIGH_AMOUNT) return 'HIGH';
+  if (app.lane === 'SME' && app.requestedAmount >= MED_AMOUNT) return 'MEDIUM';
+  if (app.lane === 'CORPORATE' && app.requestedAmount >= MED_AMOUNT) return 'MEDIUM';
+  if (app.requestedAmount >= MED_AMOUNT) return 'MEDIUM';
+  return 'LOW';
+}
+
+// ---------------------------------------------------------------------------
+// §Dashboard Cockpit — State → operational bucket mapping
+// ---------------------------------------------------------------------------
+
+const BUCKET_MAP: Record<WorkQueueBucketKey, string[]> = {
+  pendingReview: ['SUBMITTED', 'KYC_REVIEW'],
+  inProgress: ['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'KYC_APPROVED', 'CONDITION_FULFILMENT'],
+  pendingDocs: ['COMPLIANCE_HOLD'],
+  returned: ['REFERRED_BACK'],
+  overdue: [], // populated dynamically from SLA breaches
+  pendingApproval: [], // populated dynamically from approval-inbox count
+};
+
+const BUCKET_LABELS: Record<WorkQueueBucketKey, string> = {
+  pendingReview: 'Pending Review',
+  inProgress: 'In Progress',
+  pendingDocs: 'Pending Docs',
+  returned: 'Returned',
+  overdue: 'Overdue',
+  pendingApproval: 'Pending Appr',
+};
 
 // ---------------------------------------------------------------------------
 // Service
@@ -339,6 +445,8 @@ class DashboardService {
       productType: true,
       updatedAt: true,
       requestedAmount: true,
+      lane: true,
+      createdAt: true,
       borrowerProfile: {
         select: {
           id: true,
@@ -394,6 +502,23 @@ class DashboardService {
         ? 'OVERDUE'
         : 'OK';
 
+      // Derive SLA remaining hours from the SLA due date
+      let slaRemainingHours: number | null = null;
+      // We compute this inline from the SLA service on demand — but to avoid
+      // N+1 queries we use a simpler heuristic: if breached, remaining = 0;
+      // otherwise we estimate from createdAt + slaHours (fetched per-bucket above).
+      // For the cockpit table we set it to null if no SLA policy applies.
+      if (slaStatus === 'OVERDUE') {
+        slaRemainingHours = 0;
+      }
+
+      const requestedAmount = app.requestedAmount != null ? Number(app.requestedAmount) : 0;
+      const priority = derivePriority({
+        lane: app.lane ?? 'CORPORATE',
+        requestedAmount,
+        slaStatus,
+      });
+
       return {
         id: app.id,
         applicationNo: app.applicationNo ?? '',
@@ -405,6 +530,8 @@ class DashboardService {
         riskGrade: bp?.creditRiskRating ?? null,
         slaStatus,
         entityType: bp?.borrowerType ?? null,
+        slaRemainingHours,
+        priority,
       };
     };
 
@@ -971,6 +1098,354 @@ class DashboardService {
         groups: groupResults,
         overall,
       },
+    };
+  }
+
+  // ===========================================================================
+  // §Dashboard Cockpit — Work Queue, Alerts, Activity, Team Performance
+  // ===========================================================================
+
+  /**
+   * GET /credit/dashboard/work-queue
+   * Returns 6 operational buckets with per-bucket SLA compliance %.
+   */
+  async getWorkQueue(filters?: { branchId?: string }): Promise<WorkQueueResult> {
+    const where: any = { deletedAt: null };
+    if (filters?.branchId) where.branchId = filters.branchId;
+
+    // Fetch all non-deleted, non-terminal applications
+    const TERMINAL_STATES = ['CLOSED', 'WITHDRAWN', 'KYC_REJECTED', 'REJECTED', 'DISBURSED', 'ACTIVE'];
+    const applications = await prisma.creditApplication.findMany({
+      where: { ...where, state: { notIn: TERMINAL_STATES as any[] } },
+      select: { id: true, state: true },
+    });
+
+    // Count unresolved SLA breaches for Overdue bucket
+    const slaBreachCount = await prisma.creditSlaBreach.count({
+      where: {
+        resolvedAt: null,
+        application: { ...where, state: { notIn: TERMINAL_STATES as any[] } },
+      },
+    });
+
+    // Count pending approvals (applications in approval-pending states)
+    const pendingApprovalCount = await prisma.creditApplication.count({
+      where: { ...where, state: { in: APPROVAL_PENDING_STATES } },
+    });
+
+    // Map applications to buckets
+    const appIdsByBucket: Record<WorkQueueBucketKey, Set<string>> = {
+      pendingReview: new Set(),
+      inProgress: new Set(),
+      pendingDocs: new Set(),
+      returned: new Set(),
+      overdue: new Set(),
+      pendingApproval: new Set(),
+    };
+
+    for (const app of applications) {
+      const st = app.state as string;
+      if (APPROVAL_PENDING_STATES.includes(st as ApplicationState)) {
+        appIdsByBucket.pendingApproval.add(app.id);
+      }
+      for (const key of Object.keys(BUCKET_MAP) as WorkQueueBucketKey[]) {
+        if (BUCKET_MAP[key].includes(st)) {
+          appIdsByBucket[key].add(app.id);
+        }
+      }
+    }
+
+    // Fetch SLA breach application IDs for overdue bucket
+    const breachedAppIds = await prisma.creditSlaBreach.findMany({
+      where: { resolvedAt: null, application: where },
+      select: { applicationId: true },
+    });
+    for (const b of breachedAppIds) {
+      appIdsByBucket.overdue.add(b.applicationId);
+    }
+
+    // Fetch per-bucket SLA compliance %
+    // For each non-empty bucket, count apps with active SLA policies and check breaches
+    const buckets: WorkQueueBucket[] = [];
+
+    for (const key of Object.keys(BUCKET_MAP) as WorkQueueBucketKey[]) {
+      const appIds = Array.from(appIdsByBucket[key]);
+      const count = key === 'overdue'
+        ? slaBreachCount
+        : key === 'pendingApproval'
+          ? pendingApprovalCount
+          : appIds.length;
+
+      let slaCompliancePct: number | null = null;
+
+      if (count > 0 && key !== 'overdue' && key !== 'pendingApproval') {
+        // Check SLA compliance for apps in this bucket
+        const bucketStates = BUCKET_MAP[key];
+        const bucketApps = applications.filter(a => bucketStates.includes(a.state as string));
+        const bucketAppIds = bucketApps.map(a => a.id);
+
+        if (bucketAppIds.length > 0) {
+          const breachedInBucket = await prisma.creditSlaBreach.count({
+            where: {
+              resolvedAt: null,
+              applicationId: { in: bucketAppIds },
+            },
+          });
+          const totalWithSla = bucketAppIds.length;
+          slaCompliancePct = totalWithSla > 0
+            ? Math.round(((totalWithSla - breachedInBucket) / totalWithSla) * 1000) / 10
+            : null;
+        }
+      }
+
+      // Overdue bucket: compliance is inverse (0% = all breached)
+      if (key === 'overdue' && count > 0) {
+        slaCompliancePct = 0;
+      }
+
+      buckets.push({
+        key,
+        label: BUCKET_LABELS[key],
+        count,
+        slaCompliancePct,
+        states: key === 'overdue' ? [] : key === 'pendingApproval' ? APPROVAL_PENDING_STATES.map(s => s as string) : BUCKET_MAP[key],
+      });
+    }
+
+    return {
+      buckets,
+      totalApplications: applications.length,
+    };
+  }
+
+  /**
+   * GET /credit/dashboard/alerts
+   * Returns counts for 3 alert tiles: High DSR, Expired Bureau, AML Review.
+   */
+  async getDashboardAlerts(filters?: { branchId?: string }): Promise<DashboardAlerts> {
+    const DSR_THRESHOLD_PCT = 60; // BNM guideline threshold
+    const BUREAU_MAX_AGE_DAYS = 30;
+
+    const appWhere: any = { deletedAt: null };
+    if (filters?.branchId) appWhere.branchId = filters.branchId;
+
+    // High DSR — borrowers with active credit profiles where dsrPercent >= threshold
+    // and who have active (non-terminal) applications
+    const activeApps = await prisma.creditApplication.findMany({
+      where: { ...appWhere, state: { notIn: ['CLOSED', 'WITHDRAWN', 'REJECTED', 'KYC_REJECTED', 'DISBURSED', 'ACTIVE'] as any[] } },
+      select: { borrowerProfileId: true },
+      distinct: ['borrowerProfileId'],
+    });
+    const activeBorrowerIds = activeApps.map(a => a.borrowerProfileId);
+
+    let highDsrCount = 0;
+    if (activeBorrowerIds.length > 0) {
+      const creditProfiles = await prisma.borrowerCreditProfile.findMany({
+        where: {
+          borrowerId: { in: activeBorrowerIds },
+          dsrPercent: { gte: DSR_THRESHOLD_PCT },
+        },
+        select: { id: true },
+      });
+      highDsrCount = creditProfiles.length;
+    }
+
+    // Expired Bureau — CreditBureauCheck where ccrisReportDate or ctosReportDate > 30 days old
+    let expiredBureauCount = 0;
+    if (activeBorrowerIds.length > 0) {
+      const activeAppIds = await prisma.creditApplication.findMany({
+        where: { ...appWhere, state: { notIn: ['CLOSED', 'WITHDRAWN', 'REJECTED', 'KYC_REJECTED'] as any[] } },
+        select: { id: true },
+      });
+      const appIds = activeAppIds.map(a => a.id);
+
+      if (appIds.length > 0) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - BUREAU_MAX_AGE_DAYS);
+
+        const expiredChecks = await prisma.creditBureauCheck.findMany({
+          where: {
+            applicationId: { in: appIds },
+            OR: [
+              { ccrisReportDate: { lt: cutoffDate } },
+              { ctosReportDate: { lt: cutoffDate } },
+            ],
+          },
+          select: { id: true },
+        });
+        expiredBureauCount = expiredChecks.length;
+      }
+    }
+
+    // AML Review — AmlRescreenEvents with outcome POTENTIAL_HIT or CONFIRMED_HIT that are not reviewed
+    let amlReviewCount = 0;
+    if (activeBorrowerIds.length > 0) {
+      const amlEvents = await prisma.amlRescreenEvent.findMany({
+        where: {
+          borrowerProfileId: { in: activeBorrowerIds },
+          outcome: { in: ['POTENTIAL_HIT', 'CONFIRMED_HIT'] },
+          reviewedAt: null,
+        },
+        select: { id: true },
+      });
+      amlReviewCount = amlEvents.length;
+    }
+
+    const filterBase = filters?.branchId ? `?branchId=${filters.branchId}` : '';
+
+    return {
+      highDsr: {
+        count: highDsrCount,
+        thresholdPct: DSR_THRESHOLD_PCT,
+        filterUrl: `/credit/applications?filter=highDsr${filterBase}`,
+      },
+      expiredBureau: {
+        count: expiredBureauCount,
+        maxAgeDays: BUREAU_MAX_AGE_DAYS,
+        filterUrl: `/credit/applications?filter=expiredBureau${filterBase}`,
+      },
+      amlReview: {
+        count: amlReviewCount,
+        filterUrl: `/credit/applications?filter=amlReview${filterBase}`,
+      },
+    };
+  }
+
+  /**
+   * GET /credit/dashboard/activity
+   * Cross-application recent activity feed from CreditAuditEvent.
+   * Scoped to all applications (or filtered by branch / assignedToMe).
+   */
+  async getActivityFeed(filters?: {
+    branchId?: string;
+    assignedToMe?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ActivityFeedResult> {
+    const page = Math.max(1, filters?.page ?? 1);
+    const limit = Math.min(50, Math.max(1, filters?.limit ?? 20));
+    const offset = (page - 1) * limit;
+
+    // Build application filter for joining
+    const appWhere: any = { deletedAt: null };
+    if (filters?.branchId) appWhere.branchId = filters.branchId;
+    if (filters?.assignedToMe) {
+      appWhere.OR = [
+        { assignedRmId: filters.assignedToMe },
+        { assignedAnalystId: filters.assignedToMe },
+      ];
+    }
+
+    // Fetch audit events joined with applications matching the filter
+    const [events, total] = await Promise.all([
+      prisma.creditAuditEvent.findMany({
+        where: {
+          application: appWhere,
+        },
+        include: {
+          application: {
+            select: { applicationNo: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.creditAuditEvent.count({
+        where: {
+          application: appWhere,
+        },
+      }),
+    ]);
+
+    // Resolve actor names in bulk
+    const actorIds = [...new Set(events.map(e => e.actorId).filter(Boolean))] as string[];
+    const actors = actorIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, firstName: true, lastName: true },
+        })
+      : [];
+    const actorMap = new Map(actors.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()]));
+
+    const items: ActivityFeedItem[] = events.map(e => ({
+      id: e.id,
+      applicationId: e.applicationId,
+      applicationNo: e.application?.applicationNo ?? '',
+      eventType: e.eventType,
+      action: e.action,
+      actorId: e.actorId,
+      actorName: e.actorId ? actorMap.get(e.actorId) ?? null : null,
+      newState: e.newState,
+      createdAt: e.createdAt.toISOString(),
+    }));
+
+    return { items, total, page, limit };
+  }
+
+  /**
+   * GET /credit/dashboard/team-performance
+   * SLA compliance %, avg approval turnaround, bottleneck stage.
+   */
+  async getTeamPerformance(filters?: {
+    branchId?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }): Promise<TeamPerformanceResult> {
+    const appWhere: any = { deletedAt: null };
+    if (filters?.branchId) appWhere.branchId = filters.branchId;
+
+    // SLA compliance — total non-terminal apps vs unresolved breaches
+    const totalActiveApps = await prisma.creditApplication.count({
+      where: { ...appWhere, state: { notIn: ['CLOSED', 'WITHDRAWN', 'REJECTED', 'KYC_REJECTED', 'DISBURSED', 'ACTIVE'] as any[] } },
+    });
+    const totalBreaches = await prisma.creditSlaBreach.count({
+      where: { resolvedAt: null, application: appWhere },
+    });
+    const slaCompliancePct = totalActiveApps > 0
+      ? Math.round(((totalActiveApps - totalBreaches) / totalActiveApps) * 1000) / 10
+      : 100;
+
+    // Avg approval turnaround — reuse getApprovalTurnaround
+    const turnaround = await this.getApprovalTurnaround({
+      branchId: filters?.branchId,
+      dateFrom: filters?.dateFrom,
+      dateTo: filters?.dateTo,
+      groupBy: 'month',
+    });
+    const avgTurnaroundDays = turnaround.summary.overall.count > 0
+      ? turnaround.summary.overall.avgDays
+      : null;
+
+    // Bottleneck — find the state with the highest avg days in state vs overall avg
+    const pipeline = await this.getPipelineDashboard({ branchId: filters?.branchId });
+    const allAvgDays = pipeline.states.map(s => s.avgDaysInState).filter(d => d > 0);
+    const overallAvg = allAvgDays.length > 0
+      ? allAvgDays.reduce((a, b) => a + b, 0) / allAvgDays.length
+      : 0;
+
+    let bottleneck: { state: string; avgDays: number; pctSlowerThanAvg: number } | null = null;
+    for (const s of pipeline.states) {
+      if (s.avgDaysInState <= 0) continue;
+      if (s.avgDaysInState > overallAvg) {
+        const pctSlower = overallAvg > 0
+          ? Math.round(((s.avgDaysInState - overallAvg) / overallAvg) * 100)
+          : 0;
+        if (!bottleneck || s.avgDaysInState > bottleneck.avgDays) {
+          bottleneck = {
+            state: s.state,
+            avgDays: s.avgDaysInState,
+            pctSlowerThanAvg: pctSlower,
+          };
+        }
+      }
+    }
+
+    return {
+      slaCompliancePct,
+      avgApprovalTurnaroundDays: avgTurnaroundDays,
+      bottleneckStage: bottleneck,
+      totalDecisions: turnaround.summary.overall.count,
     };
   }
 }
