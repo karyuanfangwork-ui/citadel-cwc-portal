@@ -8,6 +8,7 @@ import {
 } from '../../../../src/services/credit.service';
 import { formatCurrency, formatDate, formatDateTime, PRODUCT_LABELS } from '../../creditUtils';
 import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { getBorrowerDisplayName } from '../../../../src/components/credit/BorrowerSummaryCard';
 
 interface SummaryTabProps {
   app: CreditApplication;
@@ -76,7 +77,7 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, onRefresh }) =
           {[
             { label: 'Relationship Manager', value: app.rm ? `${app.rm.firstName} ${app.rm.lastName}` : '—', icon: 'person', sub: app.rm?.email },
             { label: 'Credit Analyst', value: app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}` : '—', icon: 'analytics', sub: app.analyst?.email },
-            { label: 'Borrower', value: app.borrowerProfile?.name || 'Unnamed Borrower', icon: 'account_circle', sub: app.borrowerProfile?.email },
+            { label: 'Borrower', value: getBorrowerDisplayName(app.borrowerProfile), icon: 'account_circle', sub: app.borrowerProfile?.email },
           ].map(f => (
             <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>

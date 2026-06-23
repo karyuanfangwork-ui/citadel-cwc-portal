@@ -9,6 +9,7 @@ import {
   updateCreditApplicationSchema,
   transitionApplicationSchema,
   evidenceMappingSchema,
+  saveCreditApplicationDraftSchema,
 } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,40 @@ router.get(
   requirePermission('credit:read'),
   applyRmScope(),
   creditApplicationController.getSummary,
+);
+
+/**
+ * GET /applications/draft
+ * Get the current user's in-progress credit application wizard draft
+ * Requires: credit:create
+ */
+router.get(
+  '/draft',
+  requirePermission('credit:create'),
+  creditApplicationController.getCurrentDraft,
+);
+
+/**
+ * PUT /applications/draft
+ * Save the current user's in-progress credit application wizard draft
+ * Requires: credit:create
+ */
+router.put(
+  '/draft',
+  requirePermission('credit:create'),
+  validate(saveCreditApplicationDraftSchema),
+  creditApplicationController.saveDraft,
+);
+
+/**
+ * DELETE /applications/draft
+ * Clear the current user's in-progress credit application wizard draft
+ * Requires: credit:create
+ */
+router.delete(
+  '/draft',
+  requirePermission('credit:create'),
+  creditApplicationController.deleteDraft,
 );
 
 /**

@@ -16,6 +16,7 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { sortApplications, type SortColumn, type SortDir } from '../src/utils/creditSort';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import {
   formatCurrency,
   STATE_COLORS,
@@ -119,13 +120,7 @@ function getSLAStrip(apps: CreditApplication[]) {
 }
 
 function getBorrowerName(app: CreditApplication): string {
-  return app.borrowerProfile
-    ? (app.borrowerProfile.account?.name ||
-      (app.borrowerProfile.contact
-        ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-        : app.borrowerProfile.name) ||
-      'Unnamed Borrower')
-    : '—';
+  return app.borrowerProfile ? getBorrowerDisplayName(app.borrowerProfile) : '—';
 }
 
 function getBorrowerType(app: CreditApplication): string {
@@ -342,7 +337,7 @@ const CreditApplicationList: React.FC = () => {
             visibleUrgent={summary?.overdueSla ?? visibleUrgent}
             pendingApprovalCount={pendingApprovalCount}
             canCreate={canCreate}
-            onCreate={() => setShowCreate(true)}
+            onCreate={() => navigate('/credit/applications/new')}
           />
 
           {borrowerFilter && (
@@ -557,7 +552,7 @@ const CreditApplicationList: React.FC = () => {
                       <option value="">— Select borrower —</option>
                       {borrowerProfiles.map(bp => (
                         <option key={bp.id} value={bp.id}>
-                          {bp.account?.name || (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : bp.name) || 'Unnamed Borrower'} {bp.borrowerType === 'INDIVIDUAL' ? '(Individual)' : '(Corporate)'}
+                          {getBorrowerDisplayName(bp)} {bp.borrowerType === 'INDIVIDUAL' ? '(Individual)' : '(Corporate)'}
                         </option>
                       ))}
                     </select>

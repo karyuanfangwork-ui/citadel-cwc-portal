@@ -12,6 +12,7 @@ import { hasPermission } from '../src/utils/permissions';
 import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
 import PartyFormModal, { PartyRole } from '../src/components/credit/PartyFormModal';
 import toast from 'react-hot-toast';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -87,7 +88,7 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
 type DetailTab = 'overview' | 'profile' | 'financials' | 'exposure' | 'risk' | 'bureau' | 'documents';
 
 // Derive display name from the independent borrower profile
-const displayName = (p: BorrowerProfile) => p.name || 'Unnamed Borrower';
+const displayName = (p: BorrowerProfile) => getBorrowerDisplayName(p);
 
 const getInitials = (p: BorrowerProfile) => {
   const name = displayName(p);

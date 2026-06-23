@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import creditService, { BorrowerProfile, trendApi, RatioCategory, TrendItem, TrendDataPoint } from '../src/services/credit.service';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 
 const CATEGORY_ORDER: RatioCategory[] = ['PROFITABILITY', 'LEVERAGE', 'LIQUIDITY', 'COVERAGE', 'ACTIVITY'];
 const CATEGORY_LABELS: Record<RatioCategory, string> = {
@@ -103,7 +104,7 @@ const FinancialAnalysis: React.FC = () => {
               className="border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
               <option value="">Select borrower...</option>
               {borrowers.map(b => (
-                <option key={b.id} value={b.id}>{b.name || 'Unnamed Borrower'}</option>
+                <option key={b.id} value={b.id}>{getBorrowerDisplayName(b)}</option>
               ))}
             </select>
           </div>

@@ -87,6 +87,7 @@ import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import CreateBorrowerPage from './pages/CreateBorrowerPage';
 import CreditApplicationList from './pages/CreditApplicationList';
 import CreditApplicationDetail from './pages/CreditApplicationDetail';
+import CreditApplicationCreate from './pages/credit/CreditApplicationCreate';
 import MyApprovals from './pages/MyApprovals';
 import FinancialSpreading from './pages/FinancialSpreading';
 import FinancialAnalysis from './pages/FinancialAnalysis';
@@ -302,6 +303,7 @@ const AppShell = () => {
                 <Route path="borrowers/new" element={<CreateBorrowerPage />} />
                 <Route path="borrowers/:id" element={<BorrowerProfileDetail />} />
                 <Route path="applications" element={<CreditApplicationList />} />
+                <Route path="applications/new" element={<ProtectedRoute requirePermission="credit:create"><CreditApplicationCreate /></ProtectedRoute>} />
                 <Route path="applications/:id" element={<CreditApplicationDetail />} />
                 <Route path="approvals" element={<ProtectedRoute requirePermission="credit:approve"><MyApprovals /></ProtectedRoute>} />
                 <Route path="financials" element={<FinancialSpreading />} />

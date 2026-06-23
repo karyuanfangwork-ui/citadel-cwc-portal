@@ -10,6 +10,7 @@ import { friendlyMessage } from '../src/utils/errorMessages';
 import StateBadge from '../src/components/ui/StateBadge';
 import RiskBadge from '../src/components/credit/RiskBadge';
 import ApprovalQuickView from '../src/components/credit/ApprovalQuickView';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import { formatDate as fmtDate, formatCurrency as fmtCurrency } from './credit/creditUtils';
 
 // ── Shared Types ──────────────────────────────────────────────────
@@ -416,7 +417,7 @@ const ApprovalCenter: React.FC = () => {
   const renderCreditCard = (app: CreditApplication) => {
     const state = (app.state || app.status) as ApplicationState;
     const urgency = getCreditUrgency(app.createdAt, state);
-    const borrowerName = app.borrowerProfile?.name || 'Unnamed Borrower';
+    const borrowerName = getBorrowerDisplayName(app.borrowerProfile);
 
     return (
       <div key={app.id}

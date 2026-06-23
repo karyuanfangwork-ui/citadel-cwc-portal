@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditApplicationService } from '../services/creditApplication.service';
+import { creditApplicationDraftService } from '../services/creditApplicationDraft.service';
 import { creditSlaService } from '../services/creditSla.service';
 import { requireUser } from '../utils/requireUser';
 import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
@@ -139,6 +140,34 @@ class CreditApplicationController {
     const actorId = requireUser(req).id;
     const application = await creditApplicationService.createApplication(req.body, actorId);
     res.status(201).json({ status: 'success', data: { application } });
+  });
+
+  /**
+   * GET /applications/draft — Get the current user's wizard draft
+   */
+  getCurrentDraft = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUser(req).id;
+    const draft = await creditApplicationDraftService.getCurrentDraft(userId);
+    res.json({ status: 'success', data: { draft } });
+  });
+
+  /**
+   * PUT /applications/draft — Save the current user's wizard draft
+   */
+  saveDraft = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUser(req).id;
+    const { payload } = req.body as { payload: unknown };
+    const draft = await creditApplicationDraftService.saveCurrentDraft(userId, payload as any);
+    res.json({ status: 'success', data: { draft } });
+  });
+
+  /**
+   * DELETE /applications/draft — Delete the current user's wizard draft
+   */
+  deleteDraft = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUser(req).id;
+    await creditApplicationDraftService.deleteCurrentDraft(userId);
+    res.json({ status: 'success', message: 'Draft cleared' });
   });
 
   /**

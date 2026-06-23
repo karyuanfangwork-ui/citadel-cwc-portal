@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { StatusPill } from './primitives';
 import type { BorrowerProfile, Borrower360Summary } from '../../../services/credit.service';
+import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
 
 const ActionBtn: React.FC<{
   icon: string;
@@ -33,7 +34,7 @@ export const Borrower360Header: React.FC<{
   onNewApp: () => void;
 }> = ({ profile, summary, canWrite, onEdit, onUploadBureau, onRunKyc, onNewApp }) => {
   const isRetail = profile.borrowerType !== 'CORPORATE';
-  const name = profile.name ?? 'Unnamed Borrower';
+  const name = getBorrowerDisplayName(profile);
 
   return (
     <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">

@@ -1190,6 +1190,20 @@ const creditService = {
     return normalizeApplication(res.data.data.application);
   },
 
+  async getApplicationDraft() {
+    const res = await apiClient.get('/credit/applications/draft');
+    return res.data.data.draft as { id: string; payload: unknown } | null;
+  },
+
+  async saveApplicationDraft(payload: unknown) {
+    const res = await apiClient.put('/credit/applications/draft', { payload });
+    return res.data.data.draft as { id: string; payload: unknown };
+  },
+
+  async deleteApplicationDraft() {
+    await apiClient.delete('/credit/applications/draft');
+  },
+
   async updateApplication(id: string, data: Partial<CreditApplication>) {
     // §F25 — Always send version for mandatory OCC
     const payload = { ...data, version: data.version };

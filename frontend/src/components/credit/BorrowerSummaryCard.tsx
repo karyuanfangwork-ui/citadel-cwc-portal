@@ -5,6 +5,11 @@ interface BorrowerProfile {
   id?: string;
   borrowerType?: string | null;
   name?: string | null;
+  account?: { name?: string | null } | null;
+  contact?: {
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
 }
 
 interface BorrowerSummaryCardProps {
@@ -17,7 +22,11 @@ interface BorrowerSummaryCardProps {
  * Resolve borrower display name from profile.
  */
 export function getBorrowerDisplayName(bp: BorrowerProfile | null | undefined): string {
-  return bp?.name ?? 'Unnamed Borrower';
+  if (!bp) return 'Unnamed Borrower';
+  return bp.account?.name
+    || (bp.contact ? `${bp.contact.firstName || ''} ${bp.contact.lastName || ''}`.trim() : '')
+    || bp.name
+    || 'Unnamed Borrower';
 }
 
 const BORROWER_TYPE_LABELS: Record<string, string> = {

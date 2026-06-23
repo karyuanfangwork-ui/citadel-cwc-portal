@@ -1,4 +1,5 @@
 import React from 'react';
+import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
 
 type BorrowerType = 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
 type RiskRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'CC' | 'C' | 'D' | 'NR';
@@ -28,7 +29,7 @@ interface BorrowerDataTableProps {
 
 // ── Helpers ──
 
-const displayName = (p: BorrowerProfileRow) => p.name || 'Unnamed Borrower';
+const displayName = (p: BorrowerProfileRow) => getBorrowerDisplayName(p);
 
 const formatCurrency = (val: string | number | null | undefined) => {
   if (val == null) return '—';

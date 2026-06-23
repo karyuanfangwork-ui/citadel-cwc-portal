@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from './credit/creditUtils';
 import StateBadge from '../src/components/credit/StateBadge';
 import RiskBadge from '../src/components/credit/RiskBadge';
 import ApprovalQuickView from '../src/components/credit/ApprovalQuickView';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import { useIsMobile } from '../src/hooks/useIsMobile';
 
 function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: boolean): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string; icon: string } {
@@ -99,7 +100,7 @@ const MyApprovals: React.FC = () => {
   const renderCard = (app: CreditApplication) => {
     const state = (app.state || app.status) as ApplicationState;
     const urgency = getUrgency(app.createdAt, state, (app as any)._slaBreached);
-    const borrowerName = app.borrowerProfile?.name || 'Unnamed Borrower';
+    const borrowerName = getBorrowerDisplayName(app.borrowerProfile);
     const analystName = app.analyst
       ? `${app.analyst.firstName} ${app.analyst.lastName}`
       : null;

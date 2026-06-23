@@ -11,6 +11,7 @@ import { CreditApplication, CreditFacility, ApplicationTransition, ApplicationSt
 import { formatCurrency, PRODUCT_LABELS } from '../../../../pages/credit/creditUtils';
 import StateBadge from '../StateBadge';
 import UserAssignChip from '../UserAssignChip';
+import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
 
 // ── Percentage pill badge (replaces ProgressRing) ──
 // Displayed next to the app number in the summary panel header.
@@ -40,10 +41,7 @@ const ApplicationSummaryPanel: React.FC<ApplicationSummaryPanelProps> = ({
   canAdmin,
   onNavigate,
 }) => {
-  const borrowerName = app.borrowerProfile?.account?.name
-    || (app.borrowerProfile?.contact ? `${app.borrowerProfile.contact.firstName || ''} ${app.borrowerProfile.contact.lastName || ''}`.trim() : null)
-    || app.borrowerProfile?.name
-    || 'Unnamed Borrower';
+  const borrowerName = getBorrowerDisplayName(app.borrowerProfile);
 
   const borrowerInitials = borrowerName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BorrowerProfileRow } from './BorrowerDataTable';
+import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
 
 interface BorrowerQuickPreviewProps {
   borrower: BorrowerProfileRow;
@@ -34,7 +35,7 @@ const formatCurrency = (val: string | number | null | undefined) => {
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(num);
 };
 
-const displayName = (p: BorrowerProfileRow) => p.name || 'Unnamed Borrower';
+const displayName = (p: BorrowerProfileRow) => getBorrowerDisplayName(p);
 
 const BorrowerQuickPreview: React.FC<BorrowerQuickPreviewProps> = ({ borrower, onClose, onOpen360, onNewApp }) => {
   const name = displayName(borrower);

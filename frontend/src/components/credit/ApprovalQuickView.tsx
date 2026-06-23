@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from '../../../pages/credit/creditUtils';
 import StateBadge from './StateBadge';
 import RiskBadge from './RiskBadge';
 import { useAuth } from '../../context/AuthContext';
+import { getBorrowerDisplayName } from './BorrowerSummaryCard';
 
 interface ApprovalQuickViewProps {
   open: boolean;
@@ -93,12 +94,7 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
 
   const app = fullApp || application;
   const state = (app.state || app.status) as ApplicationState;
-  const borrowerName = app.borrowerProfile
-    ? (app.borrowerProfile.account?.name ||
-      (app.borrowerProfile.contact
-        ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-        : app.borrowerProfile.name) || 'Unnamed Borrower')
-    : app.id.slice(0, 8);
+  const borrowerName = app.borrowerProfile ? getBorrowerDisplayName(app.borrowerProfile) : app.id.slice(0, 8);
   const analystName = app.analyst
     ? `${app.analyst.firstName} ${app.analyst.lastName}`
     : null;

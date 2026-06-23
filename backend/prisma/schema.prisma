@@ -3684,6 +3684,19 @@ model CreditApplication {
 }
 
 // ============================================================================
+// Credit Application Draft — durable wizard state per user
+// ============================================================================
+model CreditApplicationDraft {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  payload   Json     @map("payload") @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("credit_application_drafts")
+}
+
+// ============================================================================
 // Application Facility — the credit facility being requested
 // ============================================================================
 model ApplicationFacility {

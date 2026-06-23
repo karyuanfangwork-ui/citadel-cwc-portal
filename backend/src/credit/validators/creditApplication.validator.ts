@@ -108,6 +108,12 @@ export const createCreditApplicationSchema = z.object({
   }),
 });
 
+export const saveCreditApplicationDraftSchema = z.object({
+  body: z.object({
+    payload: z.unknown(),
+  }),
+});
+
 export const updateCreditApplicationSchema = z.object({
   body: z.object({
     productType: creditProductTypeEnum.optional(),

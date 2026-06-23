@@ -4,6 +4,7 @@ import creditService, {
   financialApi, trendApi, FinancialStatement, FinancialLineItem, FinancialStatus,
   FinancialStatementType, FinancialPeriod, CurrencyCode, FinancialRatio, TrendItem,
 } from '../src/services/credit.service';
+import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { useToast } from '../src/context/ToastContext';
@@ -194,7 +195,7 @@ const FinancialSpreading: React.FC = () => {
     if (!borrowerProfileId) return;
     try {
       const profile = await creditService.getBorrowerProfile(borrowerProfileId);
-      setBorrowerName(profile.name || 'Unnamed Borrower');
+      setBorrowerName(getBorrowerDisplayName(profile));
       setBorrowerType(profile.borrowerType ?? null);
     } catch (e) { console.error(e); }
   }, [borrowerProfileId]);

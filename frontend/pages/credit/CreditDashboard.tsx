@@ -528,7 +528,7 @@ const CreditDashboard: React.FC = () => {
   // ── Loading state ──
   if (loading) {
     return (
-      <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '32px 24px' }}>
+      <div className="credit-module" style={{ padding: '24px 32px 64px' }}>
         <div style={{ height: 32, background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', marginBottom: 24, width: 280 }} />
         <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
           {[...Array(6)].map((_, i) => (
@@ -547,7 +547,7 @@ const CreditDashboard: React.FC = () => {
   // ── Error state ──
   if (error && !workQueue) {
     return (
-      <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '32px 24px' }}>
+      <div className="credit-module" style={{ padding: '24px 32px 64px' }}>
         <div style={{ textAlign: 'center', padding: 48, color: 'var(--cr-on-surface-variant)' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--cr-error)', marginBottom: 16 }}>error</span>
           <p style={{ fontSize: 16, marginBottom: 8 }}>{error}</p>
@@ -577,7 +577,7 @@ const CreditDashboard: React.FC = () => {
   const myAssigned = myWork?.recentAssigned ?? [];
 
   return (
-    <div className="credit-module" style={{ maxWidth: 1680, margin: '0 auto', padding: '0 0 64px' }}>
+    <div className="credit-module" style={{ padding: '24px 32px 64px' }}>
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
