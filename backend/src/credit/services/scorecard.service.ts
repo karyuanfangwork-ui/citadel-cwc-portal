@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,7 +233,21 @@ class ScorecardService {
     });
 
     if (!version) {
-      throw new Error('Scorecard version not found');
+      throw new AppError('Scorecard version not found', 404);
+    }
+
+    // Ambiguity guard: only one scorecard may have an active version at a time.
+    // Deactivating other versions of the *same* scorecard (below) remains
+    // allowed, but activating a version of a different scorecard while another
+    // is already active would make scorecard selection non-deterministic.
+    const conflicting = await prisma.creditScorecardVersion.findFirst({
+      where: { isActive: true, scorecardId: { not: version.scorecardId } },
+    });
+    if (conflicting) {
+      throw new AppError(
+        'Another scorecard already has an active version. Deactivate it before activating this one.',
+        409,
+      );
     }
 
     // Deactivate all other versions of the same scorecard in a transaction
