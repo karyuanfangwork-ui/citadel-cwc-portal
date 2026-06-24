@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import prisma from '../../utils/prisma';
 import * as commentService from '../services/comment.service';
+import { scoringService } from '../services/scoring.service';
 
 /** GET /applications/:id/comments?page=1&limit=50 */
 export async function listComments(req: Request, res: Response) {
@@ -110,8 +111,14 @@ export async function rescoreApplication(req: Request, res: Response) {
     const app = await prisma.creditApplication.findUnique({ where: { id }, select: { id: true } });
     if (!app) return res.status(404).json({ error: 'Application not found' });
 
-    // TODO: Integrate with scorecard engine to create a new CreditScoreRun
-    res.json({ data: { message: 'Rescore triggered', applicationId: id } });
+    const result = await scoringService.executeScore(id);
+    res.json({
+      data: {
+        scoreRunId: result.scoreRun.id,
+        riskRating: result.riskRating,
+        totalScore: result.totalScore,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to trigger rescore' });
   }
