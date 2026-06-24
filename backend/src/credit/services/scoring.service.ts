@@ -3,8 +3,9 @@ import { Prisma, RiskRating } from '@prisma/client';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
-import { getBureauCapsForApplication, applyBureauCaps } from './bureauCheck.service';
+import { getBureauCapsForApplication, applyBureauCaps, isBureauCheckFresh } from './bureauCheck.service';
 import { getRetailIncome } from './retailIncome.service';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,8 @@ export interface ScoreResult {
   riskRating: RiskRating;
   baseRiskRating: RiskRating;
   bureauCapsApplied: string[];
+  bureauFresh: boolean;
+  staleBureauProviders: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +55,26 @@ export function mapTotalScoreToRiskRating(totalScore: number): RiskRating {
   if (totalScore >= 30) return 'CC';
   if (totalScore >= 20) return 'C';
   return 'D';
+}
+
+/**
+ * Resolve the DSR percentage to use for retail cashflow scoring.
+ *
+ * Honours `dsrBasis`: when the retail-income computation was able to derive
+ * a NET DSR (positive net income) the basis is 'NET' and the tighter net
+ * figure should drive scoring. Otherwise fall back to the gross DSR. This
+ * mirrors submissionReadiness.service.ts which already treats net/gross DSR
+ * consistently.
+ */
+export function resolveRetailDsr(ri: {
+  dsrPercent: number | null;
+  netDsrPercent: number | null;
+  dsrBasis?: string | null;
+}): number | null {
+  if (ri.dsrBasis === 'NET' && ri.netDsrPercent != null && Number(ri.netDsrPercent) > 0) {
+    return Number(ri.netDsrPercent);
+  }
+  return ri.dsrPercent != null ? Number(ri.dsrPercent) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,17 +226,26 @@ class ScoringService {
         throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
     } else {
-      // Find any scorecard with an active version
-      scorecardVersion = await prisma.creditScorecardVersion.findFirst({
+      // Find all currently-valid active versions. Activation only deactivates
+      // versions of the *same* scorecard, so multiple scorecards can each have
+      // an active version. Picking arbitrarily would bind scoring to a
+      // non-deterministic scorecard — instead, require the configuration to be
+      // unambiguous (a single active scorecard) or an explicit scorecardId.
+      const activeVersions = await prisma.creditScorecardVersion.findMany({
         where: {
           isActive: true,
           effectiveFrom: { lte: now },
         },
         orderBy: { version: 'desc' },
       });
-      if (!scorecardVersion) {
+      if (activeVersions.length === 0) {
         throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
+      const distinctScorecards = new Set(activeVersions.map((v) => v.scorecardId));
+      if (distinctScorecards.size > 1) {
+        throw new AppError('Multiple scorecards have an active version. Specify a scorecardId, or deactivate the others so exactly one scorecard is active.', 409);
+      }
+      scorecardVersion = activeVersions[0];
     }
 
     // Step 2: Get the application's borrowerProfileId
@@ -256,12 +288,18 @@ class ScoringService {
       ? (scorecardVersion.retailFactorWeights as any)
       : (scorecardVersion.factorWeights as any);
 
-    // Step 5a: For retail borrowers, fetch DSR for cashflow scoring
+    // Step 5a: For retail borrowers, fetch DSR for cashflow scoring.
+    // Honour dsrBasis (NET vs GROSS) so scoring uses the same DSR figure the
+    // readiness checks and CA memo present to the user.
     let dsrPercent: number | null = null;
     if (isRetail) {
       const retailIncome = await getRetailIncome(applicationId);
       if (retailIncome) {
-        dsrPercent = Number(retailIncome.dsrPercent);
+        dsrPercent = resolveRetailDsr({
+          dsrPercent: retailIncome.dsrPercent != null ? Number(retailIncome.dsrPercent) : null,
+          netDsrPercent: retailIncome.netDsrPercent != null ? Number(retailIncome.netDsrPercent) : null,
+          dsrBasis: (retailIncome as any).dsrBasis ?? 'GROSS',
+        });
       }
     }
 
@@ -344,6 +382,11 @@ class ScoringService {
     const bureauCaps = await getBureauCapsForApplication(applicationId);
     const { effectiveRating: riskRating, capsApplied: bureauCapsApplied } = applyBureauCaps(baseRiskRating, bureauCaps);
 
+    // Step 8c: Evaluate bureau data freshness (90-day window). Caps only ever
+    // worsen the rating, so stale data is not unsafe — but the run should flag
+    // it so officers know the score rests on out-of-date bureau information.
+    const { fresh: bureauFresh, staleProviders: staleBureauProviders } = await isBureauCheckFresh(applicationId);
+
     // Step 9: Create CreditScoreRun record
     const scoreRun = await prisma.creditScoreRun.create({
       data: {
@@ -378,12 +421,16 @@ class ScoringService {
       riskRating,
       baseRiskRating,
       bureauCapsApplied,
+      bureauFresh,
+      staleBureauProviders,
     };
   }
 
   /**
    * Override a score run's risk rating.
-   * Requires a second-person approval (overrideApprovedById must be different from the requester).
+   * Segregation of duties: the approver (overrideApprovedById) must be a
+   * different user from the requester. The override is recorded on the
+   * application's audit chain.
    */
   async overrideScore(
     scoreRunId: string,
@@ -391,6 +438,7 @@ class ScoringService {
       newRiskRating: RiskRating;
       overrideReason: string;
       overrideApprovedById: string;
+      requestedById: string;
     }
   ) {
     const existing = await prisma.creditScoreRun.findUnique({
@@ -401,7 +449,15 @@ class ScoringService {
       throw new Error('Score run not found');
     }
 
-    return prisma.creditScoreRun.update({
+    // Segregation of duties — the approver cannot be the requester.
+    if (data.overrideApprovedById === data.requestedById) {
+      throw new AppError(
+        'Score override requires approval by a different officer from the requester.',
+        400,
+      );
+    }
+
+    const updated = await prisma.creditScoreRun.update({
       where: { id: scoreRunId },
       data: {
         riskRating: data.newRiskRating,
@@ -422,6 +478,22 @@ class ScoringService {
         overrideApprovedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    await AuditChainService.appendEvent(
+      existing.applicationId,
+      'SCORE_RUN_OVERRIDDEN',
+      data.requestedById,
+      'override',
+      existing.riskRating,
+      data.newRiskRating,
+      {
+        scoreRunId,
+        overrideReason: data.overrideReason,
+        overrideApprovedById: data.overrideApprovedById,
+      },
+    );
+
+    return updated;
   }
 
   /**
