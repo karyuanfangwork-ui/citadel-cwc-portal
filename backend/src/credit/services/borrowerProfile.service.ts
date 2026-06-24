@@ -165,7 +165,10 @@ class BorrowerProfileService {
         { email: { contains: q, mode: 'insensitive' as const } },
         { registrationNumber: { contains: q, mode: 'insensitive' as const } },
         { account: { registrationNumber: { contains: q, mode: 'insensitive' as const } } },
+        { account: { name: { contains: q, mode: 'insensitive' as const } } },
         { contact: { nricPassport: { contains: q, mode: 'insensitive' as const } } },
+        { contact: { firstName: { contains: q, mode: 'insensitive' as const } } },
+        { contact: { lastName: { contains: q, mode: 'insensitive' as const } } },
       ],
     };
 
@@ -180,6 +183,7 @@ class BorrowerProfileService {
         email: true,
         registrationNumber: true,
         kycVerifiedAt: true,
+        _count: { select: { applications: true } },
       },
       take: limit,
       orderBy: { createdAt: 'desc' },
@@ -194,6 +198,7 @@ class BorrowerProfileService {
       email: p.email,
       registrationNumber: p.registrationNumber,
       kycVerified: p.kycVerifiedAt != null,
+      applicationCount: p._count.applications,
     }));
   }
 
@@ -577,7 +582,9 @@ class BorrowerProfileService {
     if (data.contactId !== undefined) {
       updateData.contact = data.contactId ? { connect: { id: data.contactId } } : { disconnect: true };
     }
-    if (data.creditRiskRating !== undefined) updateData.creditRiskRating = data.creditRiskRating as any;
+    // creditRiskRating is NOT accepted here — rating changes must flow through
+    // the scoring engine (scoringService.executeScore) or the audited override
+    // flow (scoreOverrideService), not a generic profile update.
     if (data.amlRiskTier !== undefined) updateData.amlRiskTier = data.amlRiskTier as any;
     if (data.exposureLimit !== undefined) updateData.exposureLimit = data.exposureLimit != null ? new Prisma.Decimal(data.exposureLimit as string | number) : null;
     if (data.totalExposure !== undefined) updateData.totalExposure = data.totalExposure != null ? new Prisma.Decimal(data.totalExposure as string | number) : null;
