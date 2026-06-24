@@ -6,6 +6,7 @@ import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessmen
 import { getBureauCapsForApplication, applyBureauCaps, isBureauCheckFresh } from './bureauCheck.service';
 import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
+import { ratingToOrdinal } from './approvalMatrix.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -489,6 +490,19 @@ class ScoringService {
       throw new AppError(
         'Score override requires approval by a different officer from the requester.',
         400,
+      );
+    }
+
+    // Material overrides (≥2 notches) must go through the dual-approval flow
+    // (ScoreOverrideApproval), not the direct override path. This prevents a
+    // single approver from making large rating jumps without a second approver.
+    const notchDelta = Math.abs(
+      ratingToOrdinal(existing.riskRating) - ratingToOrdinal(data.newRiskRating),
+    );
+    if (notchDelta >= 2) {
+      throw new AppError(
+        'Material overrides (>=2 notches) require the dual-approval flow.',
+        409,
       );
     }
 

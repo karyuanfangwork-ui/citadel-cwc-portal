@@ -129,27 +129,46 @@ export async function resolveScoreOverride(params: {
 
   const newStatus = approved ? ScoreOverrideStatus.APPROVED : ScoreOverrideStatus.REJECTED;
 
-  const override = await prisma.scoreOverrideApproval.update({
-    where: { id: overrideId },
-    data: {
-      secondApproverId,
-      secondApprovedAt: new Date(),
-      status: newStatus,
-    },
-  });
+  // Atomically flip the override status AND apply the override to the linked
+  // CreditScoreRun (when approved) in a single transaction, so the run and the
+  // approval record never diverge. The audit event is appended inside the same
+  // transaction so it shares the same all-or-nothing boundary.
+  const override = await prisma.$transaction(async (tx) => {
+    const updated = await tx.scoreOverrideApproval.update({
+      where: { id: overrideId },
+      data: {
+        secondApproverId,
+        secondApprovedAt: new Date(),
+        status: newStatus,
+      },
+    });
 
-  // Log audit event via chain service
-  await AuditChainService.appendEvent(
-    existing.applicationId,
-    approved ? 'SCORE_OVERRIDE_APPROVED' : 'SCORE_OVERRIDE_REJECTED',
-    secondApproverId,
-    approved
-      ? `Second approval granted: ${existing.originalRating} → ${existing.overrideRating}`
-      : `Second approval denied: ${existing.originalRating} → ${existing.overrideRating}`,
-    ScoreOverrideStatus.PENDING_SECOND_APPROVAL,
-    newStatus,
-    { overrideId, notchDelta: existing.notchDelta, firstApproverId: existing.firstApproverId, secondApproverId },
-  );
+    if (approved && existing.scoreRunId) {
+      await tx.creditScoreRun.update({
+        where: { id: existing.scoreRunId },
+        data: {
+          riskRating: existing.overrideRating as any,
+          isOverride: true,
+          overrideReason: existing.justification ?? undefined,
+          overrideApprovedById: secondApproverId,
+          overrideApprovedAt: new Date(),
+        },
+      });
+    }
+
+    await AuditChainService.appendEvent(
+      existing.applicationId,
+      approved ? 'SCORE_RUN_OVERRIDDEN' : 'SCORE_OVERRIDE_REJECTED',
+      secondApproverId,
+      'override',
+      existing.originalRating,
+      approved ? existing.overrideRating : existing.originalRating,
+      { overrideId, scoreRunId: existing.scoreRunId, notchDelta: existing.notchDelta },
+      tx as any,
+    );
+
+    return updated;
+  });
 
   logger.info(
     `[ScoreOverride] ${approved ? 'APPROVED' : 'REJECTED'} by second approver ${secondApproverId}: override ${overrideId}`,
