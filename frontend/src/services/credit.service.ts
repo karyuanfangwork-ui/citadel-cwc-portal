@@ -3374,9 +3374,9 @@ export const scoreStatusApi = {
     return res.data.data as ScoreStatus;
   },
 
-  /** Trigger rescore */
-  rescore: async (applicationId: string): Promise<{ message: string; applicationId: string }> => {
+  /** Trigger rescore — returns the new score run id + rating + total score */
+  rescore: async (applicationId: string): Promise<{ scoreRunId: string; riskRating: string; totalScore: number }> => {
     const res = await apiClient.post(`/credit/applications/${applicationId}/rescore`);
-    return res.data.data as { message: string; applicationId: string };
+    return res.data.data as { scoreRunId: string; riskRating: string; totalScore: number };
   },
 };
