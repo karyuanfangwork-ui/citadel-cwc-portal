@@ -209,7 +209,11 @@ class ScoringService {
    * 9. Create CreditScoreRun record
    * 10. Return results
    */
-  async executeScore(applicationId: string, scorecardId?: string): Promise<ScoreResult> {
+  async executeScore(
+    applicationId: string,
+    scorecardId?: string,
+    opts: { actorId?: string | null; source?: 'AUTO' | 'MANUAL' | 'RESCORE' } = {},
+  ): Promise<ScoreResult> {
     // Step 1: Find active scorecard version
     let scorecardVersion;
     const now = new Date();
@@ -387,7 +391,17 @@ class ScoringService {
     // it so officers know the score rests on out-of-date bureau information.
     const { fresh: bureauFresh, staleProviders: staleBureauProviders } = await isBureauCheckFresh(applicationId);
 
-    // Step 9: Create CreditScoreRun record
+    // Step 9: Create CreditScoreRun record (with provenance + input snapshot)
+    const inputSnapshot = {
+      factorScores,
+      totalScore,
+      dsrPercent,
+      bureauCapsApplied,
+      bureauFresh,
+      staleBureauProviders,
+      capturedAt: new Date().toISOString(),
+    };
+
     const scoreRun = await prisma.creditScoreRun.create({
       data: {
         applicationId,
@@ -398,6 +412,9 @@ class ScoringService {
         baseRiskRating,
         bureauCapsApplied: bureauCapsApplied.length > 0 ? bureauCapsApplied : Prisma.JsonNull,
         isOverride: false,
+        calculatedById: opts.actorId ?? null,
+        calculationSource: opts.source ?? 'MANUAL',
+        inputSnapshot: inputSnapshot as any,
         runAt: new Date(),
       },
       include: {
@@ -412,6 +429,24 @@ class ScoringService {
         overrideApprovedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+
+    // Step 9b: Append SCORE_RUN_CREATED to the tamper-evident audit chain
+    await AuditChainService.appendEvent(
+      applicationId,
+      'SCORE_RUN_CREATED',
+      opts.actorId ?? null,
+      'score',
+      null,
+      riskRating,
+      {
+        scoreRunId: scoreRun.id,
+        scorecardVersionId: scorecardVersion.id,
+        totalScore,
+        riskRating,
+        bureauCapsApplied,
+        bureauFresh,
+      },
+    );
 
     // Step 10: Return results
     return {

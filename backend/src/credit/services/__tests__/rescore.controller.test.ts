@@ -32,7 +32,11 @@ describe('rescoreApplication', () => {
 
     await rescoreApplication(req, res);
 
-    expect(scoringService.executeScore).toHaveBeenCalledWith('app-1');
+    expect(scoringService.executeScore).toHaveBeenCalledWith(
+      'app-1',
+      undefined,
+      expect.objectContaining({ source: 'RESCORE' }),
+    );
     expect(res.json).toHaveBeenCalledWith({
       data: { scoreRunId: 'run-9', riskRating: 'A', totalScore: 72 },
     });

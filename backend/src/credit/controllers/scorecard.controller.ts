@@ -144,7 +144,11 @@ class ScorecardController {
     const scorecardId = req.body.scorecardId as string | undefined;
 
     try {
-      const result = await scoringService.executeScore(applicationId, scorecardId);
+      const result = await scoringService.executeScore(
+        applicationId,
+        scorecardId,
+        { actorId: req.user?.id ?? null, source: 'MANUAL' },
+      );
       res.status(201).json({ status: 'success', data: result });
     } catch (err: any) {
       if (err.message.includes('not found') || err.message.includes('No active')) {
@@ -172,9 +176,13 @@ class ScorecardController {
   overrideScore = asyncHandler(async (req: AuthRequest, res: Response) => {
     const scoreRunId = String(req.params.id);
     const { newRiskRating, overrideReason, overrideApprovedById } = req.body;
+    const requestedById = req.user?.id;
 
     if (!newRiskRating || !overrideReason || !overrideApprovedById) {
       throw new AppError('newRiskRating, overrideReason, and overrideApprovedById are required', 400);
+    }
+    if (!requestedById) {
+      throw new AppError('Unauthenticated', 401);
     }
 
     try {
@@ -182,6 +190,7 @@ class ScorecardController {
         newRiskRating,
         overrideReason,
         overrideApprovedById,
+        requestedById,
       });
       res.json({ status: 'success', data: { scoreRun } });
     } catch (err: any) {

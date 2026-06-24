@@ -111,7 +111,11 @@ export async function rescoreApplication(req: Request, res: Response) {
     const app = await prisma.creditApplication.findUnique({ where: { id }, select: { id: true } });
     if (!app) return res.status(404).json({ error: 'Application not found' });
 
-    const result = await scoringService.executeScore(id);
+    const result = await scoringService.executeScore(
+      id,
+      undefined,
+      { actorId: (req as any).user?.id ?? null, source: 'RESCORE' },
+    );
     res.json({
       data: {
         scoreRunId: result.scoreRun.id,
