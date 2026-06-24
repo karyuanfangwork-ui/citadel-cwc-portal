@@ -8,6 +8,7 @@ import { validateSubmissionReadiness } from './submissionReadiness.service';
 import { approvalMatrixService } from './approvalMatrix.service';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
+import { getApplicationEffectiveRating } from './applicationRating.service';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
@@ -1102,7 +1103,7 @@ class CreditApplicationService {
       });
 
       if (appWithBorrower) {
-        const borrowerRating = appWithBorrower.borrowerProfile?.creditRiskRating ?? 'NR';
+        const borrowerRating = await getApplicationEffectiveRating(id);
         // §F2 — Use canonical exposure computation instead of stale totalExposure
         const { totalExposure: liveExposure } = await computeBorrowerExposure(appWithBorrower.borrowerProfileId);
         const totalExposure = formatCurrency(

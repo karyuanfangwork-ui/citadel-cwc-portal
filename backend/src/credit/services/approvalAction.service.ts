@@ -10,6 +10,7 @@ import { pushToUser } from '../../utils/sseClients';
 import { logger } from '../../utils/logger';
 import { computeBorrowerExposure } from './exposureCompute.service';
 import { AppError } from '../../middleware/error.middleware';
+import { getApplicationEffectiveRating } from './applicationRating.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -187,7 +188,9 @@ class ApprovalActionService {
 
     // 3. Lookup authority from approval matrix
     // §F2 — Use canonical exposure computation instead of stale BorrowerProfile.totalExposure
-    const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
+    // Use the latest application score run rating as the single source of truth
+    // (not borrowerProfile.creditRiskRating, which can drift from the scored rating).
+    const borrowerRating = await getApplicationEffectiveRating(application.id);
     const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
     const totalExposure = formatCurrency(liveExposure || application.requestedAmount) ?? 0;
 
