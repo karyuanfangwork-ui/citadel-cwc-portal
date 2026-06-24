@@ -194,6 +194,7 @@ model User {
   financialReviewedBy     FinancialStatement[]         @relation("FinancialReviewedBy")
   scorecardVersionApprovedBy CreditScorecardVersion[]  @relation("ScorecardVersionApprovedBy")
   scoreRunOverrideApprovedBy CreditScoreRun[]          @relation("ScoreRunOverrideApprovedBy")
+  scoreRunsCalculated        CreditScoreRun[]          @relation("CreditScoreRunCalculatedBy")
   // Committee Relations
   committeeMemberUser       CommitteeMember[]         @relation("CommitteeMemberUser")
   committeePresentedBy      CommitteeAgendaItem[]     @relation("AgendaItemPresentedBy")
@@ -4781,6 +4782,12 @@ model CreditScoreRun {
   bureauCapsApplied    Json?      @map("bureau_caps_applied")
   runAt                DateTime   @default(now()) @map("run_at") @db.Timestamp(6)
 
+  // Audit / provenance fields (Phase 1 remediation)
+  calculatedById       String?    @map("calculated_by_id") @db.Uuid
+  calculationSource    String?    @map("calculation_source") @db.VarChar(20)   // AUTO | MANUAL | RESCORE | OVERRIDE
+  inputSnapshot        Json?      @map("input_snapshot")                         // factorScores, dsr, bureau caps, etc.
+  policyVersion        String?    @map("policy_version") @db.VarChar(50)
+
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -4788,6 +4795,8 @@ model CreditScoreRun {
   application          CreditApplication     @relation(fields: [applicationId], references: [id])
   scorecardVersion     CreditScorecardVersion @relation(fields: [scorecardVersionId], references: [id])
   overrideApprovedBy   User?                 @relation("ScoreRunOverrideApprovedBy", fields: [overrideApprovedById], references: [id])
+  calculatedBy         User?                 @relation("CreditScoreRunCalculatedBy", fields: [calculatedById], references: [id])
+  appliedOverride      ScoreOverrideApproval? @relation("ScoreRunAppliedOverride")
 
   @@index([applicationId])
   @@index([scorecardVersionId])
@@ -5131,12 +5140,16 @@ model ScoreOverrideApproval {
 
   status          ScoreOverrideStatus @default(PENDING_SECOND_APPROVAL)
 
+  // Link to the score run this override was applied to (Phase 1 remediation)
+  scoreRunId      String?  @unique @map("score_run_id") @db.Uuid
+
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   firstApprover   User       @relation("ScoreOverride_FirstApprover", fields: [firstApproverId], references: [id])
   secondApprover  User?      @relation("ScoreOverride_SecondApprover", fields: [secondApproverId], references: [id])
+  appliedScoreRun CreditScoreRun? @relation("ScoreRunAppliedOverride", fields: [scoreRunId], references: [id])
 
   @@index([applicationId])
   @@index([status])
