@@ -9,6 +9,7 @@ import { approvalMatrixService } from './approvalMatrix.service';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 import { getApplicationEffectiveRating } from './applicationRating.service';
+import { getLatestScoreRunAt, getLatestMaterialUpdate } from './applicationRating.service';
 import { recalcScore } from './recalc.service';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
@@ -1081,10 +1082,23 @@ class CreditApplicationService {
         );
       }
 
+      // Committee gate: require at least one score run AND the latest run
+      // must be at least as fresh as the most recent material input change.
       const scoreRunCount = await prisma.creditScoreRun.count({ where: { applicationId: id } });
       if (scoreRunCount === 0) {
         throw Object.assign(
           new Error('Cannot submit to committee — at least one completed CreditScoreRun is required. A manually populated risk rating alone is not sufficient.'),
+          { statusCode: 400 },
+        );
+      }
+
+      const latestRunAt = await getLatestScoreRunAt(id);
+      const latestMaterialAt = await getLatestMaterialUpdate(id);
+      if (latestRunAt && latestMaterialAt > latestRunAt) {
+        throw Object.assign(
+          new Error(
+            `Cannot submit to committee — the latest score run (${latestRunAt.toISOString()}) is stale relative to material inputs updated at ${latestMaterialAt.toISOString()}. Trigger a rescore before submitting.`,
+          ),
           { statusCode: 400 },
         );
       }
