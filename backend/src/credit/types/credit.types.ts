@@ -41,18 +41,12 @@ export enum RiskRating {
   D = 'D',
 }
 
-/** Maps numeric score (0-100) to risk rating */
+/** Maps numeric score (0-100) to risk rating
+ * @deprecated use mapTotalScoreToRiskRating from scoring.service — kept as thin re-export */
 export function scoreToRating(score: number): RiskRating {
-  if (score >= 90) return RiskRating.AAA;
-  if (score >= 80) return RiskRating.AA;
-  if (score >= 70) return RiskRating.A;
-  if (score >= 60) return RiskRating.BBB;
-  if (score >= 50) return RiskRating.BB;
-  if (score >= 40) return RiskRating.B;
-  if (score >= 30) return RiskRating.CCC;
-  if (score >= 20) return RiskRating.CC;
-  if (score >= 10) return RiskRating.C;
-  return RiskRating.D;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { mapTotalScoreToRiskRating } = require('../services/scoring.service');
+  return mapTotalScoreToRiskRating(score) as RiskRating;
 }
 
 // ---- AML Risk Tiers ----
