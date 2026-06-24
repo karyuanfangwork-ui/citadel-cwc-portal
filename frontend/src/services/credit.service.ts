@@ -296,6 +296,7 @@ export interface BorrowerSearchResult {
   email: string | null;
   registrationNumber: string | null;
   kycVerified: boolean;
+  applicationCount: number;
 }
 
 export interface CreditDocument {
@@ -1126,6 +1127,9 @@ const creditService = {
   },
 
   async uploadApplicationDocument(borrowerProfileId: string, applicationId: string, formData: FormData) {
+    if (!applicationId) {
+      throw new Error('applicationId is required to upload an application document');
+    }
     formData.append('borrowerProfileId', borrowerProfileId);
     formData.append('applicationId', applicationId);
     const res = await apiClient.post(`/credit/credit-documents/upload`, formData, {
@@ -1529,7 +1533,10 @@ const creditService = {
     return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 
-  async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
+  async overrideScore(
+    scoreRunId: string,
+    data: { newRiskRating: RiskRating; overrideReason: string; overrideApprovedById: string },
+  ) {
     const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
     return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
@@ -1975,11 +1982,6 @@ export const scoringApi = {
   async listScores(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);
     return (res.data.data.scoreRuns as CreditScoreRun[]).map(normalizeScoreRun);
-  },
-
-  async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
-    const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
-    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 };
 

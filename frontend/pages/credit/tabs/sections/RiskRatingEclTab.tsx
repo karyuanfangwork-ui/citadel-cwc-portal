@@ -473,9 +473,9 @@ const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
     setOverriding(true);
     try {
       const sr = await creditService.overrideScore(overrideTarget.id, {
-        rating: overrideForm.rating,
-        reason: overrideForm.reason,
-        approverId: user!.id,
+        newRiskRating: overrideForm.rating,
+        overrideReason: overrideForm.reason,
+        overrideApprovedById: user!.id,
       });
       setScoreRuns(prev => prev.map(s => s.id === sr.id ? sr : s));
       setOverrideTarget(null);
