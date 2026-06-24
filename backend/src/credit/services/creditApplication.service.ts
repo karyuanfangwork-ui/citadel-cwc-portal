@@ -9,6 +9,7 @@ import { approvalMatrixService } from './approvalMatrix.service';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 import { getApplicationEffectiveRating } from './applicationRating.service';
+import { recalcScore } from './recalc.service';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
@@ -946,6 +947,15 @@ class CreditApplicationService {
           },
         });
       } catch { /* non-blocking */ }
+    }
+
+    // Phase 2 — event-driven recalc: amount/tenor/product changes affect
+    // exposure-based approval authority and retail DSR (proposedInstalment).
+    const materialFields = ['productType', 'requestedAmount', 'requestedTenor'];
+    if (materialFields.some((f) => (data as any)[f] !== undefined)) {
+      recalcScore(id, 'application_amount_tenor_product_update', {
+        sourceUpdatedAt: new Date(),
+      }).catch(() => {});
     }
 
     return application;

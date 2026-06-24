@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { recalcScore } from './recalc.service';
 
 export interface RetailIncomeInput {
   employmentType: 'SALARIED' | 'SELF_EMPLOYED' | 'COMMISSION_BASED' | 'PENSIONER';
@@ -145,11 +146,18 @@ export async function upsertRetailIncome(applicationId: string, input: RetailInc
     dsrBasis: netDsrResult.dsrBasis,
   };
 
-  return prisma.retailIncome.upsert({
+  const result = await prisma.retailIncome.upsert({
     where: { applicationId },
     create: { applicationId, ...data },
     update: data,
   });
+
+  // Phase 2 — event-driven recalc: retail income drives the DSR/cashflow factor
+  recalcScore(applicationId, 'retail_income_save', {
+    sourceUpdatedAt: new Date(),
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function getRetailIncome(applicationId: string) {

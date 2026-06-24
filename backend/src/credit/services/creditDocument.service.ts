@@ -6,6 +6,8 @@ import { AuditChainService } from './auditChain.service';
 import { requireEditableState, requireDeletableState } from './stateGuard.util';
 import { AppError } from '../../middleware/error.middleware';
 import { resolveRequiredDocuments } from './creditRuleEngine.service';
+import { recalcScore } from './recalc.service';
+import { CreditAuthUser, creditScopeService } from './creditScope.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +51,7 @@ export interface ListCreditDocumentsOptions {
   classification?: DocumentClass;
   isAvClean?: boolean | null;
   search?: string;
+  user?: CreditAuthUser;
 }
 
 export interface CreateDocumentRequirementData {
@@ -86,6 +89,12 @@ export function computeSha256(buffer: Buffer): string {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+function assertDocumentDownloadable(document: { isAvClean: boolean | null }): void {
+  if (document.isAvClean !== true) {
+    throw new AppError('Document is not available for download until antivirus scan is clean', 403);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -107,6 +116,7 @@ class CreditDocumentService {
       classification,
       isAvClean,
       search,
+      user,
     } = options;
 
     const skip = (page - 1) * limit;
@@ -134,9 +144,13 @@ class CreditDocumentService {
       ];
     }
 
+    const scopedWhere: Prisma.CreditDocumentWhereInput = user
+      ? { AND: [where, creditScopeService.buildDocumentScopeWhere(user)] }
+      : where;
+
     const [documents, total] = await Promise.all([
       prisma.creditDocument.findMany({
-        where,
+        where: scopedWhere,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -145,7 +159,7 @@ class CreditDocumentService {
           _count: { select: { versions: true } },
         },
       }),
-      prisma.creditDocument.count({ where }),
+      prisma.creditDocument.count({ where: scopedWhere }),
     ]);
 
     return {
@@ -494,11 +508,20 @@ class CreditDocumentService {
   async verifyDocument(id: string, verifiedById: string) {
     const existing = await prisma.creditDocument.findFirst({ where: { id, deletedAt: null } });
     if (!existing) return null;
-    return prisma.creditDocument.update({
+    const result = await prisma.creditDocument.update({
       where: { id },
       data: { verificationStatus: 'VERIFIED', verifiedById, verifiedAt: new Date(), rejectionReason: null },
       include: { uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } } },
     });
+
+    // Phase 2 — event-driven recalc: verified documents may unblock bureau caps
+    if (existing.applicationId) {
+      recalcScore(existing.applicationId, 'document_verified', {
+        sourceUpdatedAt: new Date(),
+      }).catch(() => {});
+    }
+
+    return result;
   }
 
   async rejectDocument(id: string, verifiedById: string, rejectionReason: string) {
@@ -538,10 +561,7 @@ class CreditDocumentService {
       return null;
     }
 
-    // Block downloads of documents that failed virus scan
-    if (doc.isAvClean === false) {
-      throw new AppError('Document failed virus scan', 403);
-    }
+    assertDocumentDownloadable(doc);
 
     const overrides: Record<string, string> = {
       'response-content-disposition': `attachment; filename="${doc.fileName}"`,
@@ -584,10 +604,7 @@ class CreditDocumentService {
       return null;
     }
 
-    // Block downloads of documents that failed virus scan
-    if (parentDoc.isAvClean === false) {
-      throw new AppError('Document failed virus scan', 403);
-    }
+    assertDocumentDownloadable(parentDoc);
 
     const ver = await prisma.creditDocumentVersion.findFirst({
       where: { documentId, version },

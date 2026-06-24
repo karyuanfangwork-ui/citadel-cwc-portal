@@ -1,4 +1,5 @@
 import prisma from '../../utils/prisma';
+import { recalcScore } from './recalc.service';
 
 export const SLIDER_TO_SCORE: Record<number, number> = {
   1: 10,
@@ -34,11 +35,18 @@ export async function upsertQualitativeAssessment(
   assessedById: string,
   scores: QualitativeScores,
 ) {
-  return prisma.qualitativeAssessment.upsert({
+  const result = await prisma.qualitativeAssessment.upsert({
     where: { applicationId },
     create: { applicationId, assessedById, assessedAt: new Date(), ...scores },
     update: { assessedById, assessedAt: new Date(), ...scores },
   });
+
+  // Phase 2 — event-driven recalc: qualitative scores feed 4 factor groups
+  recalcScore(applicationId, 'qualitative_assessment_save', {
+    sourceUpdatedAt: new Date(),
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function getQualitativeAssessment(applicationId: string) {

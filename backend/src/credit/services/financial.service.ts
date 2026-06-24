@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 import { getTemplateForType } from '../constants/financialStatementTemplates';
+import { recalcScore } from './recalc.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -640,6 +641,20 @@ class FinancialService {
 
         return stmt;
       });
+
+      // Phase 2 — event-driven recalc: financial statement approval changes
+      // the ratios that drive scoring, so fire a recalc (fire-and-log).
+      if (updated.borrowerProfileId) {
+        const apps = await prisma.creditApplication.findMany({
+          where: { borrowerProfileId: updated.borrowerProfileId },
+          select: { id: true },
+        });
+        for (const app of apps) {
+          recalcScore(app.id, 'financial_statement_approval', {
+            sourceUpdatedAt: new Date(),
+          }).catch(() => {});
+        }
+      }
 
       return updated;
     } else {

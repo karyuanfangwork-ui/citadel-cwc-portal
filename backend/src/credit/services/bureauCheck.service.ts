@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { BureauProvider, RiskRating } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
+import { recalcScore } from './recalc.service';
 
 // ── Bureau Rating Caps (Wave 3) ───────────────────────────────────────────────
 
@@ -160,7 +161,7 @@ export async function upsertBureauChecklist(
     amlScreeningDone,
   };
 
-  return prisma.bureauChecklist.upsert({
+  const result = await prisma.bureauChecklist.upsert({
     where: { applicationId },
     create: {
       applicationId,
@@ -176,6 +177,13 @@ export async function upsertBureauChecklist(
       ...(hasTickChange ? { verifiedById: null, verifiedAt: null } : {}),
     },
   });
+
+  // Phase 2 — event-driven recalc: bureau caps affect the final rating
+  recalcScore(applicationId, 'bureau_checklist_update', {
+    sourceUpdatedAt: new Date(),
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function getBureauChecklist(applicationId: string) {
