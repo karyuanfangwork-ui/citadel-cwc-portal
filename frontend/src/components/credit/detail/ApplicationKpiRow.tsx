@@ -134,7 +134,10 @@ const ApplicationKpiRow: React.FC<ApplicationKpiRowProps> = ({ app, segment }) =
 
   switch (segment) {
     case 'retail': {
-      const dsr = _app.dsr as number | undefined;
+      // Phase 4 — populate DSR from the score run's input snapshot
+      const dsr = _app.inputSnapshot?.dsrPercent != null
+        ? Number(_app.inputSnapshot.dsrPercent)
+        : (_app.dsr as number | undefined);
       card7Label = 'DSR';
       card7Value = dsr != null ? `${dsr}%` : '—';
       card7Traffic = dsr != null ? dsrTraffic(dsr) : undefined;
@@ -167,7 +170,8 @@ const ApplicationKpiRow: React.FC<ApplicationKpiRowProps> = ({ app, segment }) =
 
   switch (segment) {
     case 'retail': {
-      const score = _app.creditScore as number | null | undefined;
+      // Phase 4 — use the scorecard total score (0-100) when no external credit score
+      const score = (_app.totalScore as number | null | undefined) ?? (_app.creditScore as number | null | undefined);
       card8Label = 'Credit Score';
       card8Value = score != null ? String(score) : '—';
       card8Traffic = score != null ? creditScoreTraffic(score) : undefined;

@@ -318,12 +318,17 @@ const RiskSnapshotSection: React.FC<{
   const bp = app.borrowerProfile;
   const _app = app as any;
 
-  // Derive risk metrics
+  // Derive risk metrics — prefer the flattened score run fields from getApplication
   const riskGrade = app.riskRating || bp?.creditRiskRating || null;
-  const dscr = _app.dscr ?? null;
+  const snapshot = (app as any).inputSnapshot;
+  const dscr = snapshot?.dsrPercent != null
+    ? Number(snapshot.dsrPercent) >= 100
+      ? Number((Number(snapshot.dsrPercent) / 100).toFixed(2))
+      : null
+    : _app.dscr ?? null;
   const debtToEquity = _app.debtToEquity ?? null;
   const collateralCoverage = _app.collateralCoverage ?? null;
-  const internalRating = _app.internalRating ?? null;
+  const internalRating = app.riskRating ?? _app.internalRating ?? null;
 
   const riskColor = (() => {
     if (!riskGrade) return 'var(--cr-outline)';
@@ -383,7 +388,7 @@ const RiskSnapshotSection: React.FC<{
   return (
     <SectionCard icon="shield" title="Credit Risk Snapshot" onGoTo={() => onNavigate('risk-score')} goToLabel="Go to Risk →">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <RiskCard label="Risk Grade" value={riskGrade || 'NR'} sublabel={riskGrade ? 'External rating' : 'Not rated'} color={riskColor} />
+        <RiskCard label="Risk Grade" value={riskGrade || 'NR'} sublabel={riskGrade ? 'Internal scorecard rating' : 'Not rated'} color={riskColor} />
         <RiskCard label="DSCR" value={dscr != null ? `${dscr}x` : '—'} sublabel={dscr != null ? (dscr >= 1.5 ? 'Healthy' : dscr >= 1.25 ? 'Adequate' : 'Below threshold') : undefined} color={dscrColor} />
         <RiskCard label="Debt-to-Equity" value={debtToEquity != null ? `${debtToEquity}x` : '—'} sublabel={debtToEquity != null ? (debtToEquity <= 1 ? 'Low leverage' : debtToEquity <= 2 ? 'Moderate' : 'High leverage') : undefined} color={deColor} />
         <RiskCard label="Collateral Coverage" value={collateralCoverage != null ? `${collateralCoverage}%` : '—'} sublabel={collateralCoverage != null ? (collateralCoverage >= 150 ? 'Well covered' : collateralCoverage >= 100 ? 'Adequate' : 'Under-collateralised') : undefined} color={ccColor} />
