@@ -402,7 +402,10 @@ class ApprovalActionService {
         createdAt: creditDecision.createdAt,
       },
       applicationState: newState,
-      approvalsCollected: decision === 'APPROVE' ? approvalsCollected : 0,
+      // P0-2 — CONDITIONAL counts toward approvalsCollected (the in-tx query
+      // at :293-305 already includes it). Return the real count for both
+      // APPROVE and CONDITIONAL; 0 only for REJECT/RETURN/ESCALATE paths.
+      approvalsCollected: (decision === 'APPROVE' || decision === 'CONDITIONAL') ? approvalsCollected : 0,
       approvalsRequired: requiredApproverCount,
       isComplete,
     };
