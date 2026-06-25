@@ -4728,6 +4728,7 @@ model CreditScorecard {
   name        String   @unique @db.VarChar(200)
   description String?  @db.Text
   isActive    Boolean  @default(true) @map("is_active")
+  productType CreditProductType? @map("product_type")  // Phase 5 — product-specific scorecard selection
 
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -4735,6 +4736,7 @@ model CreditScorecard {
   // Relations
   versions    CreditScorecardVersion[]
 
+  @@index([productType])
   @@map("credit_scorecards")
 }
 

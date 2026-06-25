@@ -35,6 +35,7 @@ export interface FactorWeights {
 export interface CreateScorecardData {
   name: string;
   description?: string;
+  productType?: string;
 }
 
 export interface UpdateScorecardData {
@@ -141,6 +142,7 @@ class ScorecardService {
       data: {
         name: data.name,
         description: data.description,
+        ...(data.productType ? { productType: data.productType as any } : {}),
       },
     });
   }

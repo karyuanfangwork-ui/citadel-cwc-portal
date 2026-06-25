@@ -216,7 +216,20 @@ class ScoringService {
     scorecardId?: string,
     opts: { actorId?: string | null; source?: 'AUTO' | 'MANUAL' | 'RESCORE' } = {},
   ): Promise<ScoreResult> {
-    // Step 1: Find active scorecard version
+    // Step 1a: Get the application first (needed for product-type scorecard selection)
+    const application = await prisma.creditApplication.findUnique({
+      where: { id: applicationId },
+      select: {
+        borrowerProfileId: true,
+        productType: true,
+        borrowerProfile: { select: { borrowerType: true } },
+      },
+    });
+    if (!application) {
+      throw new Error('Credit application not found');
+    }
+
+    // Step 1b: Find active scorecard version
     let scorecardVersion;
     const now = new Date();
     if (scorecardId) {
@@ -232,18 +245,37 @@ class ScoringService {
         throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
     } else {
-      // Find all currently-valid active versions. Activation only deactivates
-      // versions of the *same* scorecard, so multiple scorecards can each have
-      // an active version. Picking arbitrarily would bind scoring to a
-      // non-deterministic scorecard — instead, require the configuration to be
-      // unambiguous (a single active scorecard) or an explicit scorecardId.
-      const activeVersions = await prisma.creditScorecardVersion.findMany({
-        where: {
-          isActive: true,
-          effectiveFrom: { lte: now },
-        },
-        orderBy: { version: 'desc' },
-      });
+      // Phase 5 — prefer product-specific scorecard. If the application has a
+      // productType, try to find an active scorecard version for that product
+      // first. Fall back to the generic (productType = null) scorecard set.
+      const productType = application.productType as string | null;
+
+      // Try product-specific active versions first
+      let activeVersions: any[] = [];
+      if (productType) {
+        activeVersions = await prisma.creditScorecardVersion.findMany({
+          where: {
+            isActive: true,
+            effectiveFrom: { lte: now },
+            scorecard: { productType: productType as any },
+          },
+          orderBy: { version: 'desc' },
+          include: { scorecard: { select: { id: true, name: true, productType: true } } },
+        });
+      }
+
+      // Fall back to generic (no product type filter) if no product-specific scorecard
+      if (activeVersions.length === 0) {
+        activeVersions = await prisma.creditScorecardVersion.findMany({
+          where: {
+            isActive: true,
+            effectiveFrom: { lte: now },
+          },
+          orderBy: { version: 'desc' },
+          include: { scorecard: { select: { id: true, name: true, productType: true } } },
+        });
+      }
+
       if (activeVersions.length === 0) {
         throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
@@ -254,17 +286,7 @@ class ScoringService {
       scorecardVersion = activeVersions[0];
     }
 
-    // Step 2: Get the application's borrowerProfileId
-    const application = await prisma.creditApplication.findUnique({
-      where: { id: applicationId },
-      select: {
-        borrowerProfileId: true,
-        borrowerProfile: { select: { borrowerType: true } },
-      },
-    });
-    if (!application) {
-      throw new Error('Credit application not found');
-    }
+    // Step 2: Application already fetched in step 1a
 
     // Step 3: Get the latest APPROVED financial statement for the borrower
     const latestStatement = await prisma.financialStatement.findFirst({
