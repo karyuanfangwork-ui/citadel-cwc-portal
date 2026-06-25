@@ -195,6 +195,7 @@ model User {
   scorecardVersionApprovedBy CreditScorecardVersion[]  @relation("ScorecardVersionApprovedBy")
   scoreRunOverrideApprovedBy CreditScoreRun[]          @relation("ScoreRunOverrideApprovedBy")
   scoreRunsCalculated        CreditScoreRun[]          @relation("CreditScoreRunCalculatedBy")
+  ratingBandConfigsApproved   RatingBandConfig[]        @relation("RatingBandConfigApprovedBy")
   // Committee Relations
   committeeMemberUser       CommitteeMember[]         @relation("CommitteeMemberUser")
   committeePresentedBy      CommitteeAgendaItem[]     @relation("AgendaItemPresentedBy")
@@ -4735,6 +4736,34 @@ model CreditScorecard {
   versions    CreditScorecardVersion[]
 
   @@map("credit_scorecards")
+}
+
+// ============================================================================
+// Rating Band Configuration — configurable score→rating bands (Phase 3)
+// Multiple versions can coexist with effectiveFrom/effectiveTo ranges; the
+// active set (effectiveTo IS NULL or >= now) drives mapTotalScoreToRiskRating.
+// Falls back to the hardcoded thresholds when no active band exists.
+// ============================================================================
+model RatingBandConfig {
+  id              String    @id @default(uuid()) @db.Uuid
+  scoreMin        Int       @map("score_min")
+  scoreMax        Int       @map("score_max")
+  rating          RiskRating
+  riskCategory    String    @map("risk_category") @db.VarChar(50)
+  effectiveFrom   DateTime  @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo     DateTime?  @map("effective_to") @db.Timestamp(6)
+  version         Int       @default(1)
+  approvedById    String?   @map("approved_by_id") @db.Uuid
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  approvedBy      User?     @relation("RatingBandConfigApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([effectiveFrom, effectiveTo])
+  @@index([rating])
+  @@map("rating_band_configs")
 }
 
 // ============================================================================
