@@ -119,9 +119,13 @@ class ScorecardController {
    */
   activateVersion = asyncHandler(async (req: AuthRequest, res: Response) => {
     const versionId = String(req.params.id);
+    const secondApproverId = req.user?.id;
+    if (!secondApproverId) {
+      throw new AppError('Authentication required to activate a scorecard version', 401);
+    }
 
     try {
-      const version = await scorecardService.activateVersion(versionId);
+      const version = await scorecardService.activateVersion(versionId, secondApproverId);
       res.json({ status: 'success', data: { version } });
     } catch (err: any) {
       if (err.message === 'Scorecard version not found') {

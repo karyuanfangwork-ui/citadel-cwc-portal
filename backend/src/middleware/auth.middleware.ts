@@ -5,6 +5,7 @@ import { config } from '../config';
 import { tokenService } from '../services/token.service';
 import { permissionService } from '../services/permission.service';
 import { runWithTenant } from '../lib/tenant-context';
+import { runWithUser } from '../lib/user-context';
 
 import prisma from '../utils/prisma';
 
@@ -112,13 +113,21 @@ export const authenticate = async (
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
 
-        // Wrap the remainder of the request in tenant context so all
-        // downstream Prisma queries are automatically scoped.
+        // Wrap the remainder of the request in tenant + user context so all
+        // downstream Prisma queries are automatically scoped and auto-audit
+        // can attribute writes to the real user.
         const tenantId = user.tenantId;
+        const userCtx = {
+          userId: user.id,
+          email: user.email,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent') ?? undefined,
+        };
+        const wrapNext = async () => next();
         if (tenantId) {
-            return runWithTenant(tenantId, async () => next());
+          return runWithTenant(tenantId, async () => runWithUser(userCtx, wrapNext));
         }
-        next();
+        return runWithUser(userCtx, wrapNext);
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {
             next(new AppError('Invalid token', 401));

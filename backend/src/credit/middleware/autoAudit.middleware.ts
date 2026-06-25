@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../../utils/logger';
+import { getUserContext } from '../../lib/user-context';
 
 /**
  * Auto-audit Prisma middleware for the Credit Module.
@@ -108,17 +109,19 @@ export function installCreditAuditMiddleware(prisma: PrismaClient): void {
     }
 
     // Write to AuditLog asynchronously — never block the main operation
+    // Phase 5 — attribute the write to the real user via AsyncLocalStorage
+    const userCtx = getUserContext();
     prisma.auditLog.create({
       data: {
-        userId: null, // Set by service layer if request context is available
-        userEmail: null,
+        userId: userCtx?.userId ?? null,
+        userEmail: userCtx?.email ?? null,
         action: `CREDIT_${action}`,
         resourceType: model,
         resourceId: result?.id ?? params.args?.where?.id ?? null,
         oldValues: oldValues ? (oldValues as any) : undefined,
         newValues: newValues ? (newValues as any) : undefined,
-        ipAddress: null,
-        userAgent: null,
+        ipAddress: userCtx?.ipAddress ?? null,
+        userAgent: userCtx?.userAgent ?? null,
       },
     }).catch((err: unknown) => {
       // Audit failures must NEVER break the main operation

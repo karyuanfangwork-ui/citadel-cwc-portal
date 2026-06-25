@@ -228,14 +228,31 @@ class ScorecardService {
 
   /**
    * Activate a specific version (deactivates all other versions of the same scorecard).
+   *
+   * Phase 5 maker/checker: activation requires a distinct second approver
+   * (checker) who is different from the version's approvedById (maker).
    */
-  async activateVersion(versionId: string) {
+  async activateVersion(versionId: string, secondApproverId: string) {
     const version = await prisma.creditScorecardVersion.findUnique({
       where: { id: versionId },
     });
 
     if (!version) {
       throw new AppError('Scorecard version not found', 404);
+    }
+
+    // Maker/checker — the second approver (checker) must differ from the maker
+    if (!version.approvedById) {
+      throw new AppError(
+        'Scorecard version must have an approvedById (maker) before it can be activated.',
+        409,
+      );
+    }
+    if (secondApproverId === version.approvedById) {
+      throw new AppError(
+        'Scorecard activation requires a second approver (checker) who is different from the version maker.',
+        409,
+      );
     }
 
     // Ambiguity guard: only one scorecard may have an active version at a time.
