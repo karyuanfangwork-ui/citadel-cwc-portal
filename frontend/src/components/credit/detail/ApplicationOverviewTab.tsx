@@ -37,6 +37,7 @@ import {
   SEGMENT_LABELS,
 } from '../../../../pages/credit/creditUtils';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
+import CreditDecisionSummaryCard from './CreditDecisionSummaryCard';
 
 // ── Readiness field → human-readable label mapping ──────────────────────
 
@@ -1100,6 +1101,9 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
     <div className="p-6 flex flex-col gap-6">
       {/* ── Section 1: Credit Risk Snapshot ── */}
       <RiskSnapshotSection app={app} onNavigate={onNavigate} />
+
+      {/* ── Section 1b: Credit Decision Summary (Phase 4 explainability) ── */}
+      <CreditDecisionSummaryCard application={app} />
 
       {/* ── Section 2: Financial Trend Analysis ── */}
       <FinancialTrendSection app={app} />
