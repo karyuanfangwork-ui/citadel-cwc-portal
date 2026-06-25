@@ -10,6 +10,7 @@ jest.mock('../../../utils/prisma', () => {
       creditApplication: { findUnique: mockFindUnique },
       financialStatement: { findFirst: jest.fn().mockResolvedValue(null) },
       creditScoreRun: { create: mockCreate },
+      ratingBandConfig: { findMany: jest.fn().mockResolvedValue([]) },
       $queryRaw: jest.fn(),
     },
   };

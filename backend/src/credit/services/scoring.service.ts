@@ -8,6 +8,7 @@ import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
+import { mapScoreToRatingFromBands } from './ratingBand.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -437,7 +438,10 @@ class ScoringService {
     totalScore = Math.round(totalScore * 100) / 100;
 
     // Step 8: Map totalScore to RiskRating
-    const baseRiskRating = mapTotalScoreToRiskRating(totalScore);
+    // Phase 5 — prefer configurable RatingBandConfig; fall back to hardcoded
+    // thresholds when no bands are active (unseeded DB behavior unchanged).
+    const bandRating = await mapScoreToRatingFromBands(totalScore);
+    const baseRiskRating = bandRating ?? mapTotalScoreToRiskRating(totalScore);
 
     // Step 8b: Apply bureau rating caps
     const bureauCaps = await getBureauCapsForApplication(applicationId);

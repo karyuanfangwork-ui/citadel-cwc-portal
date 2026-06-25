@@ -26,17 +26,18 @@ describe('RatingBandConfig fallback parity', () => {
   it.each([
     [90, 'AAA'], [85, 'AAA'], [80, 'AA'], [78, 'AA'], [75, 'A'], [70, 'A'],
     [62, 'BBB'], [55, 'BB'], [48, 'B'], [40, 'CCC'], [30, 'CC'], [20, 'C'], [10, 'D'], [0, 'D'],
-  ])('band-based mapScore(%i) matches canonical mapTotalScoreToRiskRating(%i)', async (score, expected) => {
+  ])('returns null on empty config (caller falls back) for score %i', async (score, expected) => {
     (prisma.ratingBandConfig.findMany as jest.Mock).mockResolvedValue([]);
-    expect(await mapScoreToRatingFromBands(score)).toBe(expected);
+    expect(await mapScoreToRatingFromBands(score)).toBeNull();
+    // Caller falls back to the hardcoded map
     expect(mapTotalScoreToRiskRating(score)).toBe(expected);
   });
 
   it('uses DB bands when they exist', async () => {
     (prisma.ratingBandConfig.findMany as jest.Mock).mockResolvedValue([
-      { scoreMin: 90, scoreMax: 100, rating: 'AAA', riskCategory: 'LOW' },
-      { scoreMin: 80, scoreMax: 89, rating: 'AA', riskCategory: 'LOW' },
-      { scoreMin: 0, scoreMax: 79, rating: 'BBB', riskCategory: 'MODERATE' },
+      { scoreMin: 90, scoreMax: 100, rating: 'AAA', riskCategory: 'LOW', version: 1 },
+      { scoreMin: 80, scoreMax: 89, rating: 'AA', riskCategory: 'LOW', version: 1 },
+      { scoreMin: 0, scoreMax: 79, rating: 'BBB', riskCategory: 'MODERATE', version: 1 },
     ]);
     expect(await mapScoreToRatingFromBands(95)).toBe('AAA');
     expect(await mapScoreToRatingFromBands(85)).toBe('AA');

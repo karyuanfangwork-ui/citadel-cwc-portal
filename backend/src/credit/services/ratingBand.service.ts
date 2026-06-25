@@ -57,18 +57,38 @@ export async function getActiveRatingBands(): Promise<RatingBand[]> {
 }
 
 /**
- * Map a total score to a risk rating using the active configured bands,
- * falling back to the hardcoded thresholds when no bands are active.
+ * Map a total score to a risk rating using the active configured bands.
+ * Returns null when no DB-configured bands exist, so callers can fall back
+ * to the hardcoded thresholds explicitly (preserving unseeded-DB behavior).
  */
-export async function mapScoreToRatingFromBands(totalScore: number): Promise<RiskRating> {
-  const bands = await getActiveRatingBands();
+export async function mapScoreToRatingFromBands(totalScore: number): Promise<RiskRating | null> {
+  const now = new Date();
+  const bands = await prisma.ratingBandConfig.findMany({
+    where: {
+      effectiveFrom: { lte: now },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+    },
+    orderBy: { scoreMin: 'desc' },
+    select: {
+      scoreMin: true,
+      scoreMax: true,
+      rating: true,
+      riskCategory: true,
+      version: true,
+    },
+  });
+
+  if (bands.length === 0) {
+    return null; // caller falls back to the hardcoded map
+  }
+
   for (const band of bands) {
     if (totalScore >= band.scoreMin && totalScore <= band.scoreMax) {
-      return band.rating;
+      return band.rating as RiskRating;
     }
   }
   // Score below all band minimums — return the worst rating
-  return bands[bands.length - 1]?.rating ?? ('D' as RiskRating);
+  return bands[bands.length - 1].rating as RiskRating;
 }
 
 /**

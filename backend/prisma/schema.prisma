@@ -3335,6 +3335,7 @@ model BorrowerRiskRun {
   bureauCapsApplied   Json?           @map("bureau_caps_applied")
   reasonCodes         Json?           @map("reason_codes")
   missingInputs       Json?           @map("missing_inputs")
+  ratingBandVersion   Int?            @map("rating_band_version")
 
   calculationSource   String          @default("SYSTEM") @map("calculation_source") @db.VarChar(20)
   calculatedById      String?         @map("calculated_by_id") @db.Uuid
@@ -4819,6 +4820,7 @@ model CreditScoreRun {
   inputSnapshot        Json?      @map("input_snapshot")                         // factorScores, dsr, bureau caps, etc.
   policyVersion        String?    @map("policy_version") @db.VarChar(50)
   missingInputs        Json?      @map("missing_inputs")                         // list of factors with missing data + policy applied
+  ratingBandVersion    Int?       @map("rating_band_version")                    // which RatingBandConfig version produced the rating
 
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)

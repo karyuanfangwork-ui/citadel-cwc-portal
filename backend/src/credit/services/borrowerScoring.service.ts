@@ -11,6 +11,7 @@ import {
   computeDsrCashflowScore,
 } from './scoring.service';
 import { applyBureauCaps, BureauCapInput } from './bureauCheck.service';
+import { mapScoreToRatingFromBands } from './ratingBand.service';
 import { logBorrowerActivity } from './borrowerActivity.service';
 
 const NEUTRAL_SCORE = 50;
@@ -219,7 +220,9 @@ export async function executeBorrowerScore(
     isRetail && retailWeights ? retailWeights : (scorecardVersion.factorWeights as any);
 
   const { totalScore, factorScores } = computeBorrowerTotalScore(inputs, weights);
-  const baseRiskRating = mapTotalScoreToRiskRating(totalScore);
+  // Phase 5 — prefer configurable RatingBandConfig; fall back to hardcoded
+  const bandRating = await mapScoreToRatingFromBands(totalScore);
+  const baseRiskRating = bandRating ?? mapTotalScoreToRiskRating(totalScore);
   const caps = deriveBorrowerBureauCaps(creditScore, facilityConductStatuses);
   const { effectiveRating, capsApplied } = applyBureauCaps(baseRiskRating, caps);
   const reasonCodes = deriveReasonCodes(inputs, baseRiskRating, capsApplied);
