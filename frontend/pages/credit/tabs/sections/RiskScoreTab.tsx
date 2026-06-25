@@ -63,6 +63,19 @@ const RATING_COLORS: Record<string, string> = {
   NR: 'bg-gray-100 text-gray-500',
 };
 
+// ── Phase 4: Factor source mapping for drilldown ──────────────────
+const FACTOR_SOURCES: Record<string, { fields: string; formula: string }> = {
+  financial_performance: { fields: 'ROS, ROA, ROE', formula: 'avg(scoreHigherIsBetter(ros,roa,roe))' },
+  leverage: { fields: 'Debt/Equity, Debt/Assets', formula: 'avg(scoreLowerIsBetter(d/e, d/a))' },
+  liquidity: { fields: 'Current Ratio, Quick Ratio', formula: 'avg(scoreHigherIsBetter(current, quick))' },
+  cashflow: { fields: 'DSCR / DSR', formula: 'scoreHigherIsBetter(dscr) or dsrCashflowScore(dsr)' },
+  management: { fields: 'Qualitative Assessment', formula: 'sliderScore(management)' },
+  industry: { fields: 'Qualitative Assessment', formula: 'sliderScore(industry)' },
+  collateral: { fields: 'Qualitative Assessment', formula: 'sliderScore(collateral)' },
+  relationship: { fields: 'Qualitative Assessment', formula: 'sliderScore(relationship)' },
+  market_conditions: { fields: 'Placeholder (50)', formula: 'constant(50) — not yet configured' },
+};
+
 type Props = {
   application: CreditApplication;
   onUpdated?: (next: CreditApplication) => void;
@@ -209,22 +222,67 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
               </div>
             </div>
 
-            {/* Factor Breakdown */}
+            {/* Factor Breakdown — Phase 4 enhanced drilldown */}
             {latestRun.factorBreakdown && latestRun.factorBreakdown.length > 0 && (
               <div className="mt-4">
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Score Factor Breakdown</h4>
                 <div className="space-y-2">
-                  {latestRun.factorBreakdown.map((f, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-semibold text-gray-700">{f.factorLabel || f.factorKey}</span>
+                  {latestRun.factorBreakdown.map((f, idx) => {
+                    const sourceInfo = FACTOR_SOURCES[f.factorKey];
+                    const isMissing = application.missingInputs?.some(
+                      (mi: any) => mi.factor === f.factorKey
+                    );
+                    const contribution = latestRun.totalScore > 0
+                      ? (f.weightedScore / latestRun.totalScore) * 100
+                      : 0;
+                    return (
+                      <div key={idx} className="bg-gray-50 rounded-lg px-3 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-700">
+                                {f.factorLabel || f.factorKey}
+                              </span>
+                              {isMissing && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
+                                  MISSING
+                                </span>
+                              )}
+                            </div>
+                            {sourceInfo && (
+                              <div className="text-[10px] text-gray-400 mt-0.5">
+                                Source: {sourceInfo.fields} · {sourceInfo.formula}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400">Weight: {(f.weight * 100).toFixed(0)}%</div>
+                          <div className="text-sm font-bold text-gray-900 w-12 text-right">
+                            {typeof f.score === 'number' ? f.score.toFixed(1) : f.score}
+                          </div>
+                          <div className="text-xs text-gray-400 w-16 text-right">
+                            ({f.weightedScore.toFixed(1)})
+                          </div>
+                        </div>
+                        {/* Contribution bar */}
+                        <div className="mt-1.5 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${isMissing ? 'bg-amber-400' : 'bg-brand-500'}`}
+                            style={{ width: `${Math.min(contribution, 100)}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-400">Weight: {(f.weight * 100).toFixed(0)}%</div>
-                      <div className="text-sm font-bold text-gray-900 w-12 text-right">{typeof f.score === 'number' ? f.score.toFixed(1) : f.score}</div>
-                      <div className="text-xs text-gray-400 w-16 text-right">({f.weightedScore.toFixed(1)})</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                {/* Source data timestamp */}
+                {application.inputSnapshot?.capturedAt && (
+                  <div className="text-[10px] text-gray-400 mt-2">
+                    Source data captured: {new Date(application.inputSnapshot.capturedAt).toLocaleString('en-MY')}
+                    {application.inputSnapshot.bureauFresh === false && (
+                      <span className="text-amber-600 ml-2">⚠ Bureau data stale</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
