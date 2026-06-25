@@ -441,6 +441,10 @@ export interface CreditApplication {
   calculationSource?: string | null;
   isOverride?: boolean;
   factorScores?: any | null;
+  // P3-7 — flattened financial ratios for KPI cards
+  dscr?: number | null;
+  currentRatio?: number | null;
+  debtToEquity?: number | null;
   slaTargetHours?: number | null;
   slaDueAt?: string | null;
   rmId: string | null;

@@ -188,11 +188,12 @@ const ApplicationKpiRow: React.FC<ApplicationKpiRowProps> = ({ app, segment }) =
     }
     case 'corporate':
     default: {
+      // P3-7 — no PD model exists; show "Not computed" instead of silent "—"
       const pd = _app.probabilityOfDefault as number | undefined;
       card8Label = 'Prob. of Default';
-      card8Value = pd != null ? `${pd}%` : '—';
+      card8Value = pd != null ? `${pd}%` : 'N/A';
       card8Traffic = pd != null ? probDefaultTraffic(pd) : undefined;
-      card8Benchmark = pd != null ? '≤1% ideal' : undefined;
+      card8Benchmark = pd != null ? '≤1% ideal' : 'Not computed';
       break;
     }
   }

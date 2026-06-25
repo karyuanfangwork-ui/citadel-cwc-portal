@@ -744,6 +744,11 @@ class CreditApplicationService {
                 currency: true,
                 status: true,
                 _count: { select: { lineItems: true, ratios: true } },
+                // P3-7 — expose key ratios so KPI cards can show DSCR / Current Ratio
+                ratios: {
+                  where: { ratioKey: { in: ['dscr', 'current_ratio', 'debt_to_equity'] } },
+                  select: { ratioKey: true, value: true },
+                },
               },
               orderBy: { fiscalYearEnd: 'desc' as const },
             },
@@ -808,6 +813,20 @@ class CreditApplicationService {
     // P1-5 — flatten the frozen assessment result if it exists
     const frozenAssessment = app.assessmentResults?.[0];
     app.frozenAssessment = frozenAssessment ?? null;
+    // P3-7 — flatten key financial ratios from the latest approved statement
+    // so KPI cards can show DSCR / Current Ratio / Debt-to-Equity
+    const latestApprovedStmt = app.borrowerProfile?.financialStatements?.find(
+      (s: any) => s.status === 'APPROVED',
+    ) ?? app.borrowerProfile?.financialStatements?.[0];
+    if (latestApprovedStmt?.ratios) {
+      const ratioMap: Record<string, number> = {};
+      for (const r of latestApprovedStmt.ratios) {
+        ratioMap[r.ratioKey] = Number(r.value);
+      }
+      app.dscr = ratioMap['dscr'] ?? null;
+      app.currentRatio = ratioMap['current_ratio'] ?? null;
+      app.debtToEquity = ratioMap['debt_to_equity'] ?? null;
+    }
 
     return app;
   }
