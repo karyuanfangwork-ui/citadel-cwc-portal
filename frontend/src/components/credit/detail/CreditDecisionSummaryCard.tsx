@@ -12,8 +12,9 @@
  * Props: the CreditApplication object (which now carries the flattened
  * explainability fields from getApplication).
  */
-import React from 'react';
-import { CreditApplication } from '../../../services/credit.service';
+import React, { useEffect, useState } from 'react';
+import { CreditApplication, CreditScoreRun } from '../../../services/credit.service';
+import creditService from '../../../services/credit.service';
 
 interface CreditDecisionSummaryCardProps {
   application: CreditApplication;
@@ -61,28 +62,63 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
     isOverride,
     latestScoreRunAt,
     inputSnapshot,
-  } = application;
+    frozenAssessment,
+  } = application as any;
+
+  // P3-8 — fetch score run history for the trend sparkline
+  const [scoreHistory, setScoreHistory] = useState<CreditScoreRun[]>([]);
+  useEffect(() => {
+    if (!application.id) return;
+    let mounted = true;
+    creditService.listScoreRuns(application.id)
+      .then((runs) => { if (mounted) setScoreHistory(runs); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [application.id]);
 
   // Derive bureau freshness from the input snapshot
   const bureauFresh = inputSnapshot?.bureauFresh;
   const staleProviders: string[] = inputSnapshot?.staleBureauProviders ?? [];
 
-  // Derive a recommendation from the available data
+  // P3-8 — prefer the frozen assessment's recommendation + reason codes when
+  // available; fall back to the live derivation otherwise
   const missingCount = missingInputs?.length ?? 0;
   let recommendation: 'APPROVE' | 'CONDITIONAL' | 'REJECT' = 'APPROVE';
-  if (!riskRating || riskRating === 'NR') {
-    recommendation = 'CONDITIONAL';
-  } else if (['CCC', 'CC', 'C', 'D'].includes(riskRating)) {
-    recommendation = 'REJECT';
-  } else if (['BBB', 'BB', 'B'].includes(riskRating)) {
-    recommendation = 'CONDITIONAL';
-  }
-  if (missingCount > 0 && recommendation === 'APPROVE') {
-    recommendation = 'CONDITIONAL';
+  let riskCategory: string | null = null;
+  let reasonCodes: string[] = [];
+
+  if (frozenAssessment) {
+    recommendation = frozenAssessment.decisionRecommendation ?? 'CONDITIONAL';
+    riskCategory = frozenAssessment.riskCategory ?? null;
+    reasonCodes = (frozenAssessment.reasonCodes as string[]) ?? [];
+  } else {
+    if (!riskRating || riskRating === 'NR') {
+      recommendation = 'CONDITIONAL';
+    } else if (['CCC', 'CC', 'C', 'D'].includes(riskRating)) {
+      recommendation = 'REJECT';
+    } else if (['BBB', 'BB', 'B'].includes(riskRating)) {
+      recommendation = 'CONDITIONAL';
+    }
+    if (missingCount > 0 && recommendation === 'APPROVE') {
+      recommendation = 'CONDITIONAL';
+    }
+    // Derive risk category from rating
+    if (riskRating) {
+      if (['AAA', 'AA', 'A'].includes(riskRating)) riskCategory = 'LOW';
+      else if (['BBB', 'BB', 'B'].includes(riskRating)) riskCategory = 'MODERATE';
+      else if (['CCC', 'CC', 'C'].includes(riskRating)) riskCategory = 'HIGH';
+      else if (riskRating === 'D') riskCategory = 'PROHIBITED';
+    }
   }
 
   const ratingColor = riskRating ? RATING_COLORS[riskRating] ?? 'bg-gray-100 text-gray-700 border-gray-300' : '';
   const recStyle = RECOMMENDATION_STYLES[recommendation] ?? '';
+
+  // P3-8 — compute score delta from the two most recent runs
+  const prevScore = scoreHistory.length >= 2 ? Number(scoreHistory[1].totalScore) : null;
+  const scoreDelta = (totalScore != null && prevScore != null)
+    ? Number(totalScore) - prevScore
+    : null;
 
   return (
     <div className={`bg-white rounded-xl border border-gray-200 p-5 space-y-4 ${className}`}>
@@ -107,12 +143,33 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
             <span className="text-3xl font-bold text-gray-900">
               {totalScore != null ? Number(totalScore).toFixed(1) : '—'}
             </span>
+            {scoreDelta != null && (
+              <span className={`text-xs font-semibold ${scoreDelta > 0 ? 'text-emerald-600' : scoreDelta < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                {scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '—'} {Math.abs(scoreDelta).toFixed(1)}
+              </span>
+            )}
             {isOverride && (
               <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">
                 Override
               </span>
             )}
           </div>
+          {/* P3-8 — score trend sparkline */}
+          {scoreHistory.length >= 2 && (
+            <div className="flex items-end gap-0.5 mt-1.5 h-6">
+              {[...scoreHistory].reverse().map((run, i) => {
+                const h = Math.max((Number(run.totalScore) / 100) * 100, 4);
+                return (
+                  <div
+                    key={i}
+                    className="w-1.5 bg-brand-400 rounded-sm"
+                    style={{ height: `${h}%` }}
+                    title={`Run ${i + 1}: ${Number(run.totalScore).toFixed(1)}`}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="flex-1">
           <p className="text-xs text-gray-500 mb-1">Risk Rating</p>
@@ -128,14 +185,42 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
               <span className="text-xs text-gray-400 line-through">{baseRiskRating}</span>
             )}
           </div>
+          {/* P3-8 — risk category chip */}
+          {riskCategory && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
+              riskCategory === 'LOW' ? 'bg-emerald-100 text-emerald-700' :
+              riskCategory === 'MODERATE' ? 'bg-amber-100 text-amber-700' :
+              riskCategory === 'HIGH' ? 'bg-orange-100 text-orange-700' :
+              'bg-red-100 text-red-700'
+            }`}>
+              {riskCategory}
+            </span>
+          )}
         </div>
         <div className="flex-1">
           <p className="text-xs text-gray-500 mb-1">Recommendation</p>
           <span className={`text-sm font-semibold px-3 py-1.5 rounded-lg border ${recStyle}`}>
             {recommendation}
           </span>
+          {frozenAssessment && (
+            <p className="text-[10px] text-gray-400 mt-1">Frozen (v{frozenAssessment.version})</p>
+          )}
         </div>
       </div>
+
+      {/* P3-8 — Reason codes */}
+      {reasonCodes.length > 0 && (
+        <div className="text-xs">
+          <p className="text-gray-500 mb-1">Reason Codes</p>
+          <div className="flex flex-wrap gap-1">
+            {reasonCodes.map((rc) => (
+              <span key={rc} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200 font-mono">
+                {rc}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bureau caps + freshness */}
       <div className="flex items-start gap-4 text-xs">
