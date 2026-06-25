@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { creditDocumentController } from '../controllers/creditDocument.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
+import {
+  assertApplicationDocumentAccess,
+  assertCreditDocumentAccess,
+} from '../middleware/assertCreditDocumentAccess.middleware';
 import {
   listCreditDocumentsSchema,
   updateCreditDocumentSchema,
@@ -45,6 +48,7 @@ router.get(
 router.get(
   '/credit-documents/:id',
   requirePermission('credit:read'),
+  assertCreditDocumentAccess({ action: 'read' }),
   creditDocumentController.getOne,
 );
 
@@ -67,6 +71,7 @@ router.post(
 router.patch(
   '/credit-documents/:id',
   requirePermission('credit:write'),
+  assertCreditDocumentAccess({ action: 'update' }),
   validate(updateCreditDocumentSchema),
   creditDocumentController.update,
 );
@@ -79,6 +84,7 @@ router.patch(
 router.delete(
   '/credit-documents/:id',
   requirePermission('credit:admin'),
+  assertCreditDocumentAccess({ action: 'delete' }),
   creditDocumentController.delete,
 );
 
@@ -94,6 +100,7 @@ router.delete(
 router.post(
   '/credit-documents/:id/replace',
   requirePermission('credit:write'),
+  assertCreditDocumentAccess({ action: 'update' }),
   validate(replaceCreditDocumentSchema),
   ...creditDocumentController.replace,
 );
@@ -106,6 +113,7 @@ router.post(
 router.get(
   '/credit-documents/:id/versions',
   requirePermission('credit:read'),
+  assertCreditDocumentAccess({ action: 'read' }),
   creditDocumentController.listVersions,
 );
 
@@ -117,6 +125,7 @@ router.get(
 router.get(
   '/credit-documents/:id/versions/:version',
   requirePermission('credit:read'),
+  assertCreditDocumentAccess({ action: 'read' }),
   creditDocumentController.getVersion,
 );
 
@@ -132,6 +141,7 @@ router.get(
 router.get(
   '/credit-documents/:id/hash',
   requirePermission('credit:read'),
+  assertCreditDocumentAccess({ action: 'read' }),
   creditDocumentController.getHash,
 );
 
@@ -147,6 +157,7 @@ router.get(
 router.post(
   '/credit-documents/:id/verify',
   requirePermission('credit:write'),
+  assertCreditDocumentAccess({ action: 'verify' }),
   creditDocumentController.verify,
 );
 
@@ -158,6 +169,7 @@ router.post(
 router.post(
   '/credit-documents/:id/reject',
   requirePermission('credit:write'),
+  assertCreditDocumentAccess({ action: 'verify' }),
   validate(rejectDocumentSchema),
   creditDocumentController.reject,
 );
@@ -174,7 +186,7 @@ router.post(
 router.get(
   '/credit-documents/:id/download',
   requirePermission('credit:read'),
-  assertBorrowerAccess(),
+  assertCreditDocumentAccess({ action: 'download' }),
   creditDocumentController.download,
 );
 
@@ -186,7 +198,7 @@ router.get(
 router.get(
   '/credit-documents/:id/versions/:version/download',
   requirePermission('credit:read'),
-  assertBorrowerAccess(),
+  assertCreditDocumentAccess({ action: 'download' }),
   creditDocumentController.downloadVersion,
 );
 
@@ -202,6 +214,7 @@ router.get(
 router.get(
   '/applications/:applicationId/document-requirements',
   requirePermission('credit:read'),
+  assertApplicationDocumentAccess(),
   validate(listDocumentRequirementsSchema),
   creditDocumentController.listRequirements,
 );
@@ -214,6 +227,7 @@ router.get(
 router.get(
   '/applications/:applicationId/document-requirements/summary',
   requirePermission('credit:read'),
+  assertApplicationDocumentAccess(),
   creditDocumentController.getChecklistSummary,
 );
 
@@ -225,6 +239,7 @@ router.get(
 router.post(
   '/applications/:applicationId/document-requirements/batch',
   requirePermission('credit:write'),
+  assertApplicationDocumentAccess(),
   validate(batchCreateDocumentRequirementsSchema),
   creditDocumentController.batchCreateRequirements,
 );
@@ -237,6 +252,7 @@ router.post(
 router.post(
   '/applications/:applicationId/document-requirements/seed',
   requirePermission('credit:write'),
+  assertApplicationDocumentAccess(),
   creditDocumentController.seedDefaultRequirements,
 );
 

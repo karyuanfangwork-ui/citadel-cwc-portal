@@ -148,6 +148,7 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
                 <th style={tableHeaderStyle}>Type</th>
                 <th style={tableHeaderStyle}>ID / Reg No</th>
                 <th style={tableHeaderStyle}>KYC Status</th>
+                <th style={{ ...tableHeaderStyle, textAlign: 'center' }}>Apps</th>
                 <th style={{ ...tableHeaderStyle, textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
@@ -170,6 +171,9 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
                         PENDING
                       </span>
                     )}
+                  </td>
+                  <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                    {r.applicationCount ?? 0}
                   </td>
                   <td style={{ ...tableCellStyle, textAlign: 'right' }}>
                     <button

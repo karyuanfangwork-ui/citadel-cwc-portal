@@ -10,13 +10,16 @@ import creditService, {
   CreditApplication,
   CreditProductType,
   CurrencyCode,
+  DuplicateMatch,
   financialApi,
   retailIncomeApi,
 } from '../../src/services/credit.service';
 import { friendlyMessage } from '../../src/utils/errorMessages';
+import { useDuplicateCheck } from '../../src/hooks/useDuplicateCheck';
 import WizardActions from '../../src/components/credit/new-application/WizardActions';
 import RightSummaryPanel from '../../src/components/credit/new-application/RightSummaryPanel';
 import WizardStepper from '../../src/components/credit/new-application/WizardStepper';
+import DuplicateConflictModal from '../../src/components/credit/create-borrower/DuplicateConflictModal';
 import {
   BUSINESS_DOCUMENTS,
   RETAIL_DOCUMENTS,
@@ -35,6 +38,8 @@ type DocumentState = {
   label: string;
   required: boolean;
   fileName: string | null;
+  file?: File | null;
+  uploadedDocumentId?: string | null;
   completed: boolean;
 };
 
@@ -215,6 +220,48 @@ function buildBusinessLineItems(financials: FinancialDraft) {
   };
 }
 
+function documentKeyToClass(key: string): string {
+  const map: Record<string, string> = {
+    'nric-front': 'NRIC_PASSPORT',
+    'nric-back': 'NRIC_PASSPORT',
+    payslip: 'PAYSLIP',
+    'bank-statement': 'BANK_STATEMENT',
+    'bank-statements': 'BANK_STATEMENT',
+    'epf-statement': 'OTHER',
+    'ea-form': 'TAX_RETURN',
+    'ssm-registration': 'SSM_CERT',
+    'financial-statements': 'AUDITED_FINANCIALS',
+    'director-id': 'NRIC_PASSPORT',
+  };
+  return map[key] ?? 'OTHER';
+}
+
+async function uploadWizardDocuments(applicationId: string, borrowerId: string, documents: DocumentState[]) {
+  const selectedDocs = documents.filter((doc) => doc.file);
+  if (selectedDocs.length === 0) return;
+
+  await creditService.seedDocumentRequirements(applicationId).catch(() => undefined);
+  let checklist = await creditService.listDocumentRequirements(applicationId).catch(() => null);
+
+  for (const doc of selectedDocs) {
+    if (!doc.file) continue;
+    const classification = documentKeyToClass(doc.key);
+    const fd = new FormData();
+    fd.append('file', doc.file);
+    fd.append('classification', classification);
+    fd.append('description', `Uploaded during application create wizard: ${doc.label}`);
+
+    const uploaded = await creditService.uploadApplicationDocument(borrowerId, applicationId, fd);
+    const match = checklist?.requirements.find(
+      (req) => req.isMandatory && !req.isCollected && req.documentClass === (uploaded.classification ?? classification),
+    );
+    if (match) {
+      await creditService.linkRequirementDoc(match.id, uploaded.id);
+      checklist = await creditService.listDocumentRequirements(applicationId).catch(() => checklist);
+    }
+  }
+}
+
 async function syncFinancialSnapshot(applicationId: string, borrower: BorrowerProfile, financials: FinancialDraft, currency: CurrencyCode) {
   if (!hasAnyFinancialInput(financials)) return;
 
@@ -271,6 +318,11 @@ export default function CreditApplicationCreate() {
   const [errors, setErrors] = useState<string[]>([]);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draft, setDraft] = useState<WizardDraft>(() => initialDraft());
+
+  // ── Inline create: duplicate pre-check + 409 conflict modal ──
+  const { dupCheck: inlineDupCheck, dupBorrowerId: inlineDupId, runCheck: runInlineDupCheck, reset: resetInlineDupCheck } = useDuplicateCheck();
+  const [duplicateConflicts, setDuplicateConflicts] = useState<DuplicateMatch[]>([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
 
   const currentStepIndex = getStepIndex(draft.currentStep);
   const selectedBorrower = draft.selectedBorrower;
@@ -344,7 +396,14 @@ export default function CreditApplicationCreate() {
 
     const payload = {
       ...draft,
-      documents: draft.documents.map(({ fileName, completed, key, label, required }) => ({ key, label, required, fileName, completed })),
+      documents: draft.documents.map(({ key, label, required, uploadedDocumentId }) => ({
+        key,
+        label,
+        required,
+        fileName: null,
+        uploadedDocumentId: uploadedDocumentId ?? null,
+        completed: Boolean(uploadedDocumentId),
+      })),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 
@@ -453,7 +512,14 @@ export default function CreditApplicationCreate() {
     try {
       const payload = {
         ...draft,
-        documents: draft.documents.map(({ key, label, required, fileName, completed }) => ({ key, label, required, fileName, completed })),
+        documents: draft.documents.map(({ key, label, required, uploadedDocumentId }) => ({
+          key,
+          label,
+          required,
+          fileName: null,
+          uploadedDocumentId: uploadedDocumentId ?? null,
+          completed: Boolean(uploadedDocumentId),
+        })),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       await creditService.saveApplicationDraft(payload);
@@ -516,6 +582,19 @@ export default function CreditApplicationCreate() {
     }));
   };
 
+  const buildApplicantPayload = (overrideDuplicate = false): CreateBorrowerProfilePayload => {
+    const applicant = draft.newApplicant;
+    return {
+      borrowerType: applicant.borrowerType,
+      name: applicant.name.trim(),
+      nricPassport: applicant.borrowerType === 'INDIVIDUAL' ? applicant.nricPassport.trim() : undefined,
+      registrationNumber: applicant.borrowerType === 'INDIVIDUAL' ? undefined : applicant.registrationNumber.trim(),
+      phone: applicant.phone.trim() || undefined,
+      email: applicant.email.trim() || undefined,
+      ...(overrideDuplicate && { overrideDuplicate: true }),
+    };
+  };
+
   const createNewBorrower = async () => {
     const applicant = draft.newApplicant;
     if (!applicant.name.trim()) {
@@ -532,18 +611,9 @@ export default function CreditApplicationCreate() {
       return;
     }
 
-    const payload: CreateBorrowerProfilePayload = {
-      borrowerType: applicant.borrowerType,
-      name: applicant.name.trim(),
-      nricPassport: applicant.borrowerType === 'INDIVIDUAL' ? applicant.nricPassport.trim() : undefined,
-      registrationNumber: applicant.borrowerType === 'INDIVIDUAL' ? undefined : applicant.registrationNumber.trim(),
-      phone: applicant.phone.trim() || undefined,
-      email: applicant.email.trim() || undefined,
-    };
-
     setCreatingApplicant(true);
     try {
-      const created = await creditService.createBorrowerProfile(payload);
+      const created = await creditService.createBorrowerProfile(buildApplicantPayload());
       setDraft((prev) => ({
         ...prev,
         applicantMode: 'new',
@@ -553,10 +623,31 @@ export default function CreditApplicationCreate() {
       toast.success('Applicant created and linked');
     } catch (err) {
       if ((err as any)?.response?.status === 409) {
-        toast.error('Duplicate applicant detected. Please select the existing record.');
+        const conflicts: DuplicateMatch[] = (err as any)?.response?.data?.data?.duplicates ?? (err as any)?.response?.data?.data ?? [];
+        setDuplicateConflicts(Array.isArray(conflicts) ? conflicts : []);
+        setShowConflictModal(true);
       } else {
         toast.error(friendlyMessage(err, 'Failed to create applicant'));
       }
+    } finally {
+      setCreatingApplicant(false);
+    }
+  };
+
+  const handleOverrideCreate = async () => {
+    setCreatingApplicant(true);
+    try {
+      const created = await creditService.createBorrowerProfile(buildApplicantPayload(true));
+      setDraft((prev) => ({
+        ...prev,
+        applicantMode: 'new',
+        selectedBorrower: created,
+        currentStep: 'applicant-selection',
+      }));
+      toast.success('Applicant created and linked');
+      setShowConflictModal(false);
+    } catch (err) {
+      toast.error(friendlyMessage(err, 'Failed to create applicant'));
     } finally {
       setCreatingApplicant(false);
     }
@@ -590,6 +681,12 @@ export default function CreditApplicationCreate() {
         assignedRmId: draft.assignedRmId || defaultRm.assignedRmId || null,
       };
       const created = await creditService.createApplication(payload);
+      try {
+        await uploadWizardDocuments(created.id, borrower.id, draft.documents);
+      } catch (uploadErr) {
+        console.error('Failed to upload wizard documents after application creation', uploadErr);
+        toast.error(friendlyMessage(uploadErr, 'Application created, but document upload could not be completed'));
+      }
       try {
         await syncFinancialSnapshot(created.id, borrower, draft.financials, draft.currency);
       } catch (syncErr) {
@@ -748,9 +845,10 @@ export default function CreditApplicationCreate() {
                         <label className="mb-1 block text-sm font-semibold">NRIC / Passport</label>
                         <input
                           value={draft.newApplicant.nricPassport}
-                          onChange={(e) => setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, nricPassport: e.target.value } }))}
+                          onChange={(e) => { setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, nricPassport: e.target.value } })); resetInlineDupCheck(); }}
+                          onBlur={() => { if (draft.newApplicant.nricPassport.trim()) void runInlineDupCheck({ nric: draft.newApplicant.nricPassport.trim() }); }}
                           className="w-full rounded border px-3 py-2 text-sm"
-                          style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
+                          style={{ borderColor: inlineDupCheck === 'duplicate' ? '#fca5a5' : 'var(--cr-outline-variant)', background: 'white' }}
                         />
                       </div>
                       <div />
@@ -761,9 +859,10 @@ export default function CreditApplicationCreate() {
                         <label className="mb-1 block text-sm font-semibold">Registration number</label>
                         <input
                           value={draft.newApplicant.registrationNumber}
-                          onChange={(e) => setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, registrationNumber: e.target.value } }))}
+                          onChange={(e) => { setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, registrationNumber: e.target.value } })); resetInlineDupCheck(); }}
+                          onBlur={() => { if (draft.newApplicant.registrationNumber.trim()) void runInlineDupCheck({ ssm: draft.newApplicant.registrationNumber.trim() }); }}
                           className="w-full rounded border px-3 py-2 text-sm"
-                          style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
+                          style={{ borderColor: inlineDupCheck === 'duplicate' ? '#fca5a5' : 'var(--cr-outline-variant)', background: 'white' }}
                         />
                       </div>
                       <div />
@@ -789,11 +888,36 @@ export default function CreditApplicationCreate() {
                   </div>
                 </div>
 
+                {/* Duplicate check feedback */}
+                {inlineDupCheck === 'checking' && (
+                  <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>
+                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                    Checking for duplicates…
+                  </div>
+                )}
+                {inlineDupCheck === 'clear' && (
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                    <span className="material-symbols-outlined text-base">check_circle</span>
+                    No duplicate found — safe to create.
+                  </div>
+                )}
+                {inlineDupCheck === 'duplicate' && inlineDupId && (
+                  <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2.5 rounded" style={{ background: '#fffbeb', border: '1px solid #fcd34d' }}>
+                    <div className="flex items-start gap-2">
+                      <span className="material-symbols-outlined text-base" style={{ color: '#d97706' }}>warning</span>
+                      <span className="text-xs font-semibold" style={{ color: '#92400e' }}>A borrower with this identifier already exists.</span>
+                    </div>
+                    <Link to={`/credit/borrowers/${inlineDupId}`} className="text-xs font-semibold whitespace-nowrap" style={{ color: '#0051d5', textDecoration: 'none' }}>
+                      View Existing →
+                    </Link>
+                  </div>
+                )}
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={createNewBorrower}
-                    disabled={creatingApplicant}
+                    disabled={creatingApplicant || inlineDupCheck === 'checking' || inlineDupCheck === 'duplicate'}
                     className="rounded px-4 py-2 text-sm font-semibold disabled:opacity-50"
                     style={{ background: 'var(--cr-primary)', color: 'var(--cr-on-primary)', border: 'none', cursor: 'pointer' }}
                   >
@@ -1024,18 +1148,10 @@ export default function CreditApplicationCreate() {
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              updateDocument(doc.key, { fileName: file?.name ?? null, completed: !!file });
+                              updateDocument(doc.key, { file: file ?? null, fileName: file?.name ?? null, completed: !!file });
                             }}
                           />
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => updateDocument(doc.key, { completed: !doc.completed })}
-                          className="rounded px-3 py-2 text-sm font-semibold"
-                          style={{ background: doc.completed ? 'var(--cr-secondary-fixed)' : 'var(--cr-surface-container-low)', color: 'var(--cr-on-surface)', border: 'none', cursor: 'pointer' }}
-                        >
-                          {doc.completed ? 'Mark Pending' : 'Mark Complete'}
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -1156,6 +1272,16 @@ export default function CreditApplicationCreate() {
           />
         </div>
       </div>
+
+      {/* Duplicate conflict modal for inline applicant creation */}
+      {showConflictModal && (
+        <DuplicateConflictModal
+          conflicts={duplicateConflicts}
+          onCancel={() => setShowConflictModal(false)}
+          onOverride={handleOverrideCreate}
+          saving={creatingApplicant}
+        />
+      )}
     </div>
   );
 }

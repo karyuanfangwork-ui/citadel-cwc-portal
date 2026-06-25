@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
+import { useDuplicateCheck } from '../src/hooks/useDuplicateCheck';
 import { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
 import TopBar from '../src/components/credit/create-borrower/TopBar';
 import DuplicateCheckStep from '../src/components/credit/create-borrower/DuplicateCheckStep';
@@ -37,8 +38,7 @@ const CreateBorrowerPage: React.FC = () => {
   const [formData, setFormData] = useState<FormData>(initialFormData());
 
   // ── Duplicate check ──
-  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'clear' | 'duplicate'>('idle');
-  const [dupBorrowerId, setDupBorrowerId] = useState<string | null>(null);
+  const { dupCheck, dupBorrowerId, runCheck: runDuplicateCheck, reset: resetDupCheck } = useDuplicateCheck();
 
   // ── Submission ──
   const [saving, setSaving] = useState(false);
@@ -114,29 +114,14 @@ const CreateBorrowerPage: React.FC = () => {
       accountId: null,
       contactId: null,
     }));
-    setDupCheck('idle');
-    setDupBorrowerId(null);
-  }, []);
+    resetDupCheck();
+  }, [resetDupCheck]);
 
-  const runDuplicateCheck = useCallback(async () => {
+  const runDuplicateCheckCb = useCallback(() => {
     const identifier = isIndividual ? formData.nric : formData.ssm;
     if (!identifier?.trim()) return;
-    setDupCheck('checking');
-    try {
-      const result = await creditService.checkDuplicateBorrower(
-        isIndividual ? { nric: identifier } : { ssm: identifier }
-      );
-      if (result.exists && result.borrowerId) {
-        setDupCheck('duplicate');
-        setDupBorrowerId(result.borrowerId);
-      } else {
-        setDupCheck('clear');
-        setDupBorrowerId(null);
-      }
-    } catch {
-      setDupCheck('idle');
-    }
-  }, [isIndividual, formData.nric, formData.ssm]);
+    void runDuplicateCheck(isIndividual ? { nric: identifier } : { ssm: identifier });
+  }, [isIndividual, formData.nric, formData.ssm, runDuplicateCheck]);
 
   const handleStepClick = useCallback((stepIndex: number) => {
     setCurrentStep(stepIndex);
@@ -325,7 +310,7 @@ const CreateBorrowerPage: React.FC = () => {
             onFormDataChange={handleFormDataChange}
             duplicateStatus={dupCheck}
             duplicateBorrowerId={dupBorrowerId}
-            onDuplicateCheck={runDuplicateCheck}
+            onDuplicateCheck={runDuplicateCheckCb}
           />
         );
       case 3:

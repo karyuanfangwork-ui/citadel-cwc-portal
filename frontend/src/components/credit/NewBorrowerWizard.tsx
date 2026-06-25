@@ -4,6 +4,7 @@ import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
 import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../../services/credit.service';
 import crmService from '../../services/crm.service';
+import { useDuplicateCheck } from '../../hooks/useDuplicateCheck';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,8 +55,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
   const [s1, setS1] = useState<Step1Data>({
     borrowerType: 'CORPORATE', name: '', ssm: '', nric: '', dateOfBirth: '',
   });
-  const [dupCheck, setDupCheck] = useState<'idle' | 'checking' | 'clear' | 'duplicate'>('idle');
-  const [dupBorrowerId, setDupBorrowerId] = useState<string | null>(null);
+  const { dupCheck, dupBorrowerId, runCheck, reset: resetDupCheck } = useDuplicateCheck();
 
   // Step 2 state
   const [crmSearch, setCrmSearch] = useState('');
@@ -74,24 +74,10 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
 
   // ── Duplicate check ────────────────────────────────────────────────────────
 
-  const runDuplicateCheck = async () => {
+  const runDuplicateCheck = () => {
     const identifier = isIndividual ? s1.nric : s1.ssm;
     if (!identifier) return;
-    setDupCheck('checking');
-    try {
-      const result = await creditService.checkDuplicateBorrower(
-        isIndividual ? { nric: identifier } : { ssm: identifier }
-      );
-      if (result.exists && result.borrowerId) {
-        setDupCheck('duplicate');
-        setDupBorrowerId(result.borrowerId);
-      } else {
-        setDupCheck('clear');
-        setDupBorrowerId(null);
-      }
-    } catch {
-      setDupCheck('idle');
-    }
+    void runCheck(isIndividual ? { nric: identifier } : { ssm: identifier });
   };
 
   // ── CRM typeahead ──────────────────────────────────────────────────────────
@@ -187,8 +173,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
   const handleClose = () => {
     setStep(1);
     setS1({ borrowerType: 'CORPORATE', name: '', ssm: '', nric: '', dateOfBirth: '' });
-    setDupCheck('idle');
-    setDupBorrowerId(null);
+    resetDupCheck();
     setCrmSearch('');
     setCrmResults([]);
     setSelectedCrm(null);
@@ -278,7 +263,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
                 <button
                   key={btn.value}
                   type="button"
-                  onClick={() => { setS1(p => ({ ...p, borrowerType: btn.value })); setDupCheck('idle'); }}
+                  onClick={() => { setS1(p => ({ ...p, borrowerType: btn.value })); resetDupCheck(); }}
                   className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-cwc-md border-[1.5px] transition-colors cursor-pointer font-sans ${
                     s1.borrowerType === btn.value
                       ? 'border-brand-700 bg-brand-50 text-brand-700'
@@ -319,7 +304,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
                 <input
                   type="text"
                   value={s1.ssm}
-                  onChange={e => { setS1(p => ({ ...p, ssm: e.target.value })); setDupCheck('idle'); }}
+                  onChange={e => { setS1(p => ({ ...p, ssm: e.target.value })); resetDupCheck(); }}
                   onBlur={runDuplicateCheck}
                   placeholder="e.g. 202301012345"
                   className={`w-full px-3 py-2 border rounded-cwc-md text-sm outline-none focus:ring-2 focus:ring-brand-300 bg-surface transition-all ${
@@ -338,7 +323,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
                   <input
                     type="text"
                     value={s1.nric}
-                    onChange={e => { setS1(p => ({ ...p, nric: e.target.value })); setDupCheck('idle'); }}
+                    onChange={e => { setS1(p => ({ ...p, nric: e.target.value })); resetDupCheck(); }}
                     onBlur={runDuplicateCheck}
                     placeholder="e.g. 901231-14-5678"
                     className={`w-full px-3 py-2 border rounded-cwc-md text-sm outline-none focus:ring-2 focus:ring-brand-300 bg-surface transition-all ${

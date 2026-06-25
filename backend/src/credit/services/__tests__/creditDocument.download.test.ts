@@ -2,7 +2,7 @@
  * Tests for document download gating and audit logging (Task 11 — F10).
  * Covers:
  *   - AV-flagged documents are blocked (isAvClean === false → 403)
- *   - Unscanned documents are allowed (isAvClean === null)
+ *   - Unscanned documents are blocked (isAvClean === null)
  *   - Clean documents are allowed (isAvClean === true)
  *   - Successful downloads are audit-logged via AuditChainService
  *   - Version downloads also enforce AV gating and audit logging
@@ -118,7 +118,10 @@ describe('getDownloadUrl — AV gating and audit logging (F10)', () => {
 
     await expect(
       creditDocumentService.getDownloadUrl('doc-flagged', 'user-1'),
-    ).rejects.toMatchObject({ statusCode: 403, message: 'Document failed virus scan' });
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Document is not available for download until antivirus scan is clean',
+    });
 
     expect(mockedS3GetPresignedUrl).not.toHaveBeenCalled();
     expect(mockedAppendEvent).not.toHaveBeenCalled();
@@ -142,22 +145,18 @@ describe('getDownloadUrl — AV gating and audit logging (F10)', () => {
     );
   });
 
-  it('allows download when isAvClean === null (unscanned)', async () => {
+  it('blocks download when isAvClean === null (unscanned)', async () => {
     mockedDocFindFirst.mockResolvedValue(unscannedDoc);
 
-    const result = await creditDocumentService.getDownloadUrl('doc-unscanned', 'user-1');
+    await expect(
+      creditDocumentService.getDownloadUrl('doc-unscanned', 'user-1'),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Document is not available for download until antivirus scan is clean',
+    });
 
-    expect(result).toBe('https://s3.example.com/presigned-url');
-    expect(mockedS3GetPresignedUrl).toHaveBeenCalled();
-    expect(mockedAppendEvent).toHaveBeenCalledWith(
-      'app-1',
-      'DOCUMENT_DOWNLOADED',
-      'user-1',
-      'DOWNLOAD',
-      null,
-      null,
-      { docId: 'doc-unscanned', filename: 'unscanned.doc' },
-    );
+    expect(mockedS3GetPresignedUrl).not.toHaveBeenCalled();
+    expect(mockedAppendEvent).not.toHaveBeenCalled();
   });
 
   it('uses borrowerProfileId as scope when applicationId is null', async () => {
@@ -222,7 +221,10 @@ describe('getVersionDownloadUrl — AV gating and audit logging (F10)', () => {
 
     await expect(
       creditDocumentService.getVersionDownloadUrl('doc-flagged', 1, 'user-1'),
-    ).rejects.toMatchObject({ statusCode: 403, message: 'Document failed virus scan' });
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Document is not available for download until antivirus scan is clean',
+    });
 
     expect(mockedS3GetPresignedUrl).not.toHaveBeenCalled();
     expect(mockedAppendEvent).not.toHaveBeenCalled();
@@ -246,14 +248,19 @@ describe('getVersionDownloadUrl — AV gating and audit logging (F10)', () => {
     );
   });
 
-  it('allows version download when parent doc isAvClean === null (unscanned)', async () => {
+  it('blocks version download when parent doc isAvClean === null (unscanned)', async () => {
     mockedDocFindFirst.mockResolvedValue(unscannedDoc);
     mockedVersionFindFirst.mockResolvedValue(versionRow);
 
-    const result = await creditDocumentService.getVersionDownloadUrl('doc-1', 2, 'user-1');
+    await expect(
+      creditDocumentService.getVersionDownloadUrl('doc-1', 2, 'user-1'),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Document is not available for download until antivirus scan is clean',
+    });
 
-    expect(result).toBe('https://s3.example.com/presigned-url');
-    expect(mockedAppendEvent).toHaveBeenCalled();
+    expect(mockedS3GetPresignedUrl).not.toHaveBeenCalled();
+    expect(mockedAppendEvent).not.toHaveBeenCalled();
   });
 
   it('uses borrowerProfileId as scope when applicationId is null for version download', async () => {

@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditDocumentService, computeSha256 } from '../services/creditDocument.service';
 import { requireUser } from '../utils/requireUser';
 import { uploadSingleFile } from '../../middleware/upload.middleware';
+import { creditScopeService } from '../services/creditScope.service';
 
 // ---------------------------------------------------------------------------
 // Controller
@@ -28,6 +29,7 @@ class CreditDocumentController {
       search,
     } = req.query as any;
 
+    const user = requireUser(req);
     const result = await creditDocumentService.listDocuments({
       page: Number(page) || 1,
       limit: Number(limit) || 20,
@@ -36,6 +38,7 @@ class CreditDocumentController {
       classification: classification as any,
       isAvClean: isAvClean !== undefined ? isAvClean === 'true' : undefined,
       search: search as string | undefined,
+      user,
     });
 
     res.json({ status: 'success', data: result });
@@ -75,6 +78,12 @@ class CreditDocumentController {
       }
       if (!classification) {
         throw new AppError('classification is required', 400);
+      }
+
+      if (applicationId) {
+        await creditScopeService.assertCanAccessApplication(user, applicationId);
+      } else {
+        await creditScopeService.assertCanAccessBorrower(user, borrowerProfileId);
       }
 
       const sha256Hash = req.file.buffer ? computeSha256(req.file.buffer) : null;

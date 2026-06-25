@@ -5,6 +5,7 @@ import { friendlyMessage } from '../../utils/errorMessages';
 
 interface BulkDocumentUploadProps {
   borrowerProfileId: string | null | undefined;
+  applicationId: string;
   onUploaded?: () => void;
 }
 
@@ -50,7 +51,7 @@ function guessClassification(fileName: string): string {
   return 'OTHER';
 }
 
-const BulkDocumentUpload: React.FC<BulkDocumentUploadProps> = ({ borrowerProfileId, onUploaded }) => {
+const BulkDocumentUpload: React.FC<BulkDocumentUploadProps> = ({ borrowerProfileId, applicationId, onUploaded }) => {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -76,6 +77,10 @@ const BulkDocumentUpload: React.FC<BulkDocumentUploadProps> = ({ borrowerProfile
       updateItem(item.id, { status: 'error', error: 'No borrower profile linked' });
       return;
     }
+    if (!applicationId) {
+      updateItem(item.id, { status: 'error', error: 'No application linked' });
+      return;
+    }
     try {
       updateItem(item.id, { status: 'uploading', progress: 10 });
       const fd = new FormData();
@@ -86,12 +91,12 @@ const BulkDocumentUpload: React.FC<BulkDocumentUploadProps> = ({ borrowerProfile
       // Simulate progress for UX (real progress would need XHR/fetch with ReadableStream)
       updateItem(item.id, { progress: 30 });
 
-      await creditService.uploadApplicationDocument(borrowerProfileId, '', fd);
+      await creditService.uploadApplicationDocument(borrowerProfileId, applicationId, fd);
       updateItem(item.id, { status: 'done', progress: 100 });
     } catch (e) {
       updateItem(item.id, { status: 'error', error: friendlyMessage(e, 'Upload failed') });
     }
-  }, [borrowerProfileId, updateItem]);
+  }, [applicationId, borrowerProfileId, updateItem]);
 
   const uploadAll = useCallback(async () => {
     const pending = items.filter(i => i.status === 'pending' || i.status === 'error');

@@ -298,7 +298,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
         {showBulkUpload ? (
           <BulkDocumentUpload
             borrowerProfileId={app.borrowerProfileId}
-            onUploaded={() => fetchDocs()}
+            applicationId={app.id}
+            onUploaded={() => { void Promise.all([fetchDocs(), fetchChecklist()]); }}
           />
         ) : (
         <form onSubmit={handleUpload} className="space-y-3">

@@ -3,6 +3,7 @@ import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { financialService } from '../services/financial.service';
 import { requireUser } from '../utils/requireUser';
+import prisma from '../../utils/prisma';
 
 class FinancialController {
   // ===========================================================================
@@ -52,11 +53,29 @@ class FinancialController {
   /**
    * POST /borrowers/:borrowerProfileId/financials
    * Create a new financial statement
+   * Not allowed for INDIVIDUAL borrowers — financial spreading is a corporate/SME concept.
+   * Retail income assessment is handled via the income & credit-profile endpoints.
    */
   createStatement = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const borrowerProfileId = String(req.params.borrowerProfileId);
+
+    const borrower = await prisma.borrowerProfile.findUnique({
+      where: { id: borrowerProfileId },
+      select: { borrowerType: true },
+    });
+    if (!borrower) {
+      throw new AppError('Borrower profile not found', 404);
+    }
+    if (borrower.borrowerType === 'INDIVIDUAL') {
+      throw new AppError(
+        'Financial spreading is not available for individual borrowers. Use the income & credit-profile endpoints for retail financial assessment.',
+        422,
+      );
+    }
+
     const data = {
       ...req.body,
-      borrowerProfileId: String(req.params.borrowerProfileId),
+      borrowerProfileId,
       enteredById: requireUser(req).id,
     };
     const statement = await financialService.createStatement(data);

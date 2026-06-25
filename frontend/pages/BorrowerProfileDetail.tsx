@@ -199,9 +199,11 @@ const BorrowerProfileDetail: React.FC = () => {
           <BorrowerKpiBand summary={borrower360Summary} isRetail={isRetail} />
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — 'financials' tab (Financial Spreading) only applies to non-INDIVIDUAL borrowers */}
         <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
-          {(['overview', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'] as DetailTab[]).map(tab => (
+          {(['overview', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'] as DetailTab[])
+            .filter(tab => tab !== 'financials' || profile.borrowerType !== 'INDIVIDUAL')
+            .map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
