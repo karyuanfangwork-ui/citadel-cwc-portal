@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG, RESOLVED_STATUSES_LIST } from '../constants';
+import { stripHtml } from '../src/utils/format';
 import { useAuth } from '../src/context/AuthContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
@@ -432,7 +433,7 @@ const MyRequests = () => {
                                 {req.referenceNumber}
                               </span>
                             </td>
-                            <td className="px-6 py-4 font-semibold">{req.summary}</td>
+                            <td className="px-6 py-4 font-semibold">{stripHtml(req.summary)}</td>
                             <td className="px-6 py-4 text-[#44546f]">
                               {req.requestType?.name || '—'}
                             </td>

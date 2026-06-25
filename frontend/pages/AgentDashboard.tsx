@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
 import Breadcrumbs from '../src/components/Breadcrumbs';
+import { stripHtml } from '../src/utils/format';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
 import SkeletonRow from '../src/components/SkeletonRow';
@@ -475,7 +476,7 @@ export default function AgentDashboard() {
                       />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600 font-medium">{ticket.reference}</td>
-                    <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{ticket.summary}</td>
+                    <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{stripHtml(ticket.summary)}</td>
                     <td className="px-4 py-3 text-gray-500">{ticket.requestType?.name || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityCfg.bg} ${priorityCfg.color}`}>

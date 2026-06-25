@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
+import { stripHtml } from '../src/utils/format';
 import approvalService from '../src/services/approval.service';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import StateBadge from '../src/components/ui/StateBadge';
@@ -303,7 +304,7 @@ const ApprovalQueue: React.FC = () => {
                           {r.referenceNumber}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{r.summary}</td>
+                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{stripHtml(r.summary)}</td>
                       <td className="px-4 py-3 text-sm text-text-secondary">{r.requestType?.name || '—'}</td>
                       <td className="px-4 py-3">
                         <StateBadge state={r.priority} size="sm" />

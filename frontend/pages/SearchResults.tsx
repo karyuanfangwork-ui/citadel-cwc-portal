@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import searchService, { SearchResult } from '../src/services/search.service';
+import { stripHtml } from '../src/utils/format';
 
 const typeIcon: Record<string, string> = {
   request: 'confirmation_number',
@@ -44,7 +45,7 @@ const SearchResults: React.FC = () => {
           flat.push(...data.requests.map((r: any) => ({
             type: 'request' as const,
             id: r.id,
-            title: r.summary || r.referenceNumber,
+            title: stripHtml(r.summary || r.referenceNumber),
             excerpt: r.description || '',
             url: `/request/${r.referenceNumber || r.id}`,
             meta: { ref: r.referenceNumber, status: r.status, desk: r.serviceDesk?.name || '' },

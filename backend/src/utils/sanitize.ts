@@ -65,6 +65,25 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
   a: ['href', 'target', 'rel'],
 };
 
+/**
+ * Strip all HTML tags from a string, returning plain text.
+ * Used when rich-text content needs to appear in a plain-text context (e.g. summary).
+ */
+export function stripHtml(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  // Remove HTML tags, then decode common HTML entities
+  return str
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
 export function sanitizeRichText(value: unknown): string {
   if (value === null || value === undefined) return '';
   const str = String(value);

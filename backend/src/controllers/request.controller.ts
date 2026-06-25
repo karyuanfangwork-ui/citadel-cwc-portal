@@ -5,7 +5,7 @@ import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
 import { s3Service } from '../services/s3.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
-import { sanitizeString, sanitizeComment, sanitizeRichText } from '../utils/sanitize';
+import { sanitizeString, sanitizeComment, sanitizeRichText, stripHtml } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
@@ -961,7 +961,8 @@ class RequestController {
             }
         }
         if (!finalSummary && requestType?.code === 'GET_IT_HELP') {
-            const desc = (rawDescription || '').trim();
+            // Strip HTML tags from rich-text description before building plain-text summary
+            const desc = stripHtml(rawDescription || '').trim();
             if (desc) {
                 const firstLine = desc.split('\n')[0].trim();
                 const maxLen = 120;
@@ -989,7 +990,7 @@ class RequestController {
                 finalSummary = `System Problem: ${summary}`.substring(0, 120);
             } else {
                 // Fallback to description first line
-                const desc = (rawDescription || '').trim();
+                const desc = stripHtml(rawDescription || '').trim();
                 if (desc) {
                     const firstLine = desc.split('\n')[0].trim();
                     const maxLen = 120;
@@ -1007,7 +1008,7 @@ class RequestController {
             }
         }
         if (!finalSummary && requestType?.code === 'EMAIL_MANAGEMENT') {
-            const desc = (rawDescription || '').trim();
+            const desc = stripHtml(rawDescription || '').trim();
             if (desc) {
                 const firstLine = desc.split('\n')[0].trim();
                 const maxLen = 120;

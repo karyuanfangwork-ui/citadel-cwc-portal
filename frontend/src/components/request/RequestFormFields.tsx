@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import DOMPurify from 'dompurify';
+import { stripHtml } from '@/src/utils/format';
 import CustomFieldsPanel from '@/src/components/request-detail/CustomFieldsPanel';
 import AssignAgentModal from '@/src/components/request-detail/AssignAgentModal';
 
@@ -107,7 +108,7 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
           <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
             Case Summary
           </span>
-          <h1 className="text-3xl font-bold text-[#101418] mt-1">{request.summary}</h1>
+          <h1 className="text-3xl font-bold text-[#101418] mt-1">{stripHtml(request.summary)}</h1>
         </div>
 
         {/* ─── Request Metadata Card ─── */}

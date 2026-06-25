@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import { stripHtml } from '../src/utils/format';
 import { requestService } from '../src/services/request.service';
 import announcementService, { DashboardAnnouncement } from '../src/services/announcement.service';
 import { STATUS_CONFIG, RESOLVED_STATUSES } from '../constants';
@@ -419,7 +420,7 @@ const Dashboard = () => {
                         {req.referenceNumber}
                       </td>
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                        {req.summary}
+                        {stripHtml(req.summary)}
                       </td>
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
                         {req.serviceDesk?.name || 'N/A'}

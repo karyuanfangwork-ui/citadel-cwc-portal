@@ -3,6 +3,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
+import { stripHtml } from '../src/utils/format';
 import { hasPermission } from '../src/utils/permissions';
 import approvalService from '../src/services/approval.service';
 import creditService, { CreditApplication, ApplicationState } from '../src/services/credit.service';
@@ -354,7 +355,7 @@ const ApprovalCenter: React.FC = () => {
                       <td className="px-4 py-3">
                         <Link to={`/request/${r.referenceNumber || r.id}`} className="text-brand-700 font-semibold text-sm hover:underline">{r.referenceNumber}</Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{r.summary}</td>
+                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{stripHtml(r.summary)}</td>
                       <td className="px-4 py-3 text-sm text-text-secondary">{r.requestType?.name || '—'}</td>
                       <td className="px-4 py-3"><StateBadge state={r.priority} size="sm" /></td>
                       <td className="px-4 py-3 text-sm text-text-secondary">{r.requester ? `${r.requester.firstName} ${r.requester.lastName}` : '—'}</td>
@@ -560,7 +561,7 @@ const ApprovalCenter: React.FC = () => {
                   >
                     <StateBadge state={r.priority} size="sm" />
                     <span className="text-sm font-semibold text-brand-700 group-hover:underline">{r.referenceNumber}</span>
-                    <span className="text-sm text-text-primary flex-1 truncate">{r.summary}</span>
+                    <span className="text-sm text-text-primary flex-1 truncate">{stripHtml(r.summary)}</span>
                     <span className="text-xs text-text-secondary">{r.requestType?.name}</span>
                     <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-full ${sla.cls}`}>{sla.label}</span>
                     {sla.label === 'Overdue' && (
