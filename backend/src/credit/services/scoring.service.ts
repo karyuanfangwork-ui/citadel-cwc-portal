@@ -426,6 +426,13 @@ class ScoringService {
       missingInputs.push(record);
     }
 
+    // market_conditions: always placeholder (no source data yet) — apply policy
+    {
+      const { score, record } = resolveMissingFactorScore('market_conditions', 'placeholder', missingDataPolicies);
+      factorScores.market_conditions.score = score;
+      missingInputs.push(record);
+    }
+
     // Step 6: Compute weighted scores
     let totalScore = 0;
     for (const key of FACTOR_GROUPS) {
