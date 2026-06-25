@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../../utils/prisma';
 import { computeNetDsr } from './retailIncome.service';
 import { logBorrowerActivity } from './borrowerActivity.service';
+import { recalcScore } from './recalc.service';
 
 export interface IncomeInput {
   employmentType?: string | null;
@@ -169,6 +170,17 @@ export async function upsertIncome(borrowerId: string, input: IncomeInput) {
     'Income profile updated',
     `Monthly gross income set to ${input.monthlyGrossIncome}`,
   );
+
+  // P2-6 — fire recalc for all applications linked to this borrower
+  const apps = await prisma.creditApplication.findMany({
+    where: { borrowerProfileId: borrowerId, deletedAt: null },
+    select: { id: true },
+  });
+  for (const app of apps) {
+    recalcScore(app.id, 'borrower_income_save', {
+      sourceUpdatedAt: new Date(),
+    }).catch(() => {});
+  }
 
   return { ...income, dsrPercent: dsr.dsrPercent, netDsrPercent: dsr.netDsrPercent };
 }

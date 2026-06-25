@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../utils/logger';
+import { recalcScore } from './recalc.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,7 +159,23 @@ class CollateralService {
     if (data.valuer !== undefined) updateData.valuer = data.valuer;
     if (data.insuranceCoverRequired !== undefined) updateData.insuranceCoverRequired = data.insuranceCoverRequired;
 
-    return prisma.collateral.update({ where: { id }, data: updateData });
+    const result = await prisma.collateral.update({ where: { id }, data: updateData });
+
+    // P2-6 — fire recalc for the linked application (collateral affects the
+    // collateral factor score). Collateral links via facilityId → applicationId.
+    if (existing.facilityId) {
+      const facility = await prisma.applicationFacility.findUnique({
+        where: { id: existing.facilityId },
+        select: { applicationId: true },
+      });
+      if (facility?.applicationId) {
+        recalcScore(facility.applicationId, 'collateral_update', {
+          sourceUpdatedAt: new Date(),
+        }).catch(() => {});
+      }
+    }
+
+    return result;
   }
 
   /**
