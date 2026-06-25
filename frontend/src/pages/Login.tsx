@@ -14,7 +14,7 @@ interface Module {
 
 const MODULES: Module[] = [
   { icon: 'devices',    name: 'IT Support',       desc: 'Hardware, software & access requests', color: '#60a5fa' },
-  { icon: 'groups',     name: 'HR Services',       desc: 'Leave, onboarding & people requests',  color: '#34d399' },
+  { icon: 'groups',     name: 'Group HR',          desc: 'Leave, onboarding & people requests',  color: '#34d399' },
   { icon: 'payments',   name: 'Group Finance',     desc: 'Reimbursements & payment requests',    color: '#f59e0b' },
   { icon: 'handshake',  name: 'CRM',               desc: 'Customer relationship management',     color: '#a78bfa' },
   { icon: 'monitoring', name: 'Credit Assessment', desc: 'Risk scoring & credit decisions',      color: '#f87171' },

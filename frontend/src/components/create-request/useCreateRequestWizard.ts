@@ -394,7 +394,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const getDeskName = () => {
     switch (deskType) {
       case 'it': return 'IT Support';
-      case 'hr': return 'HR Services';
+      case 'hr': return 'Group HR';
       case 'finance': return 'Group Finance';
       default: return 'Service Desk';
     }

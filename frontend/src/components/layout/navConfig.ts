@@ -20,7 +20,7 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
 
   // ── Service Desks ─────────────────────────────────────────────────
   { to: '/it',      label: 'IT Support',    icon: 'computer',       group: 'service-desks', show: true },
-  { to: '/hr',      label: 'HR Services',   icon: 'groups',         group: 'service-desks', show: true },
+  { to: '/hr',      label: 'Group HR',      icon: 'groups',         group: 'service-desks', show: true },
   { to: '/finance', label: 'Group Finance', icon: 'payments',       group: 'service-desks', show: true },
 
   // ── Tools ─────────────────────────────────────────────────────────

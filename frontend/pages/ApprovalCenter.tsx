@@ -35,7 +35,7 @@ interface PendingRequest {
 const DESK_OPTIONS = [
   { value: '', label: 'All Desks' },
   { value: 'IT', label: 'IT Support' },
-  { value: 'HR', label: 'HR Services' },
+  { value: 'HR', label: 'Group HR' },
   { value: 'FINANCE', label: 'Group Finance' },
 ];
 

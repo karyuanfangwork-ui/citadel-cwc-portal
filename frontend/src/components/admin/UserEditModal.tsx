@@ -185,7 +185,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               value={formData.agentTeam}
               onChange={(e) => setFormData({ ...formData, agentTeam: e.target.value })}
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
-              placeholder="e.g., IT Support, HR Services"
+              placeholder="e.g., IT Support, Group HR"
             />
           </div>
 
