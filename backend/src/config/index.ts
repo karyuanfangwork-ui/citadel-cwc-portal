@@ -161,6 +161,8 @@ export const config = {
     // Credit
     credit: {
         encryptionKey: process.env.CREDIT_ENCRYPTION_KEY || '',
+        // P1-3 — absolute staleness ceiling for committee submission (days)
+        scoreMaxAgeDays: parseInt(process.env.SCORE_MAX_AGE_DAYS || '30', 10),
     },
 };
 

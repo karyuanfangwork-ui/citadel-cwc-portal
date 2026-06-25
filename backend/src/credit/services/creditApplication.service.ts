@@ -11,6 +11,7 @@ import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } fro
 import { getApplicationEffectiveRating } from './applicationRating.service';
 import { getLatestScoreRunAt, getLatestMaterialUpdate } from './applicationRating.service';
 import { recalcScore } from './recalc.service';
+import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
 // ---------------------------------------------------------------------------
@@ -1129,6 +1130,22 @@ class CreditApplicationService {
           ),
           { statusCode: 400 },
         );
+      }
+
+      // P1-3 — absolute staleness ceiling: even if no material input changed,
+      // a run older than the configurable ceiling (default 30 days) is blocked.
+      if (latestRunAt) {
+        const maxAgeDays = config.credit.scoreMaxAgeDays;
+        const ageMs = Date.now() - latestRunAt.getTime();
+        const ageDays = ageMs / (1000 * 60 * 60 * 24);
+        if (ageDays > maxAgeDays) {
+          throw Object.assign(
+            new Error(
+              `Cannot submit to committee — the latest score run is ${Math.round(ageDays)} days old, exceeding the ${maxAgeDays}-day staleness ceiling. Trigger a rescore before submitting.`,
+            ),
+            { statusCode: 400 },
+          );
+        }
       }
 
       const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
