@@ -291,11 +291,13 @@ class ApprovalActionService {
 
       // 7. Determine the resulting application state
       if (decision === 'APPROVE' || decision === 'CONDITIONAL') {
-        // Re-count distinct approvers inside the transaction to avoid race conditions
+        // Re-count distinct approvers inside the transaction to avoid race conditions.
+        // Both APPROVE and CONDITIONAL decisions count toward the required approver
+        // count — a conditional approval is still an approval with conditions attached.
         const approveDecisions = await tx.creditDecision.findMany({
           where: {
             applicationId,
-            decisionType: ApprovalDecisionType.APPROVE,
+            decisionType: { in: [ApprovalDecisionType.APPROVE, ApprovalDecisionType.CONDITIONAL] },
           },
           select: { decisionById: true },
         });
