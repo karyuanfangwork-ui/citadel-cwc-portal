@@ -781,37 +781,57 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
    * ────────────────────────────────────────────────────────────────── */
 
   ROUTE_TO_CEO_HR: {
-    title: 'Route to CEO',
-    subtitle: 'HR Workflow · Select CEO and forward for approval',
+    title: 'Route to Executive Approval',
+    subtitle: 'HR Workflow · Select CEO or Group Deputy CEO and forward for approval',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
     fields: [
       {
-        name: 'ceoId',
-        label: 'Select CEO',
+        name: 'executiveId',
+        label: 'Select Approver',
         type: 'select',
         required: true,
-        placeholder: 'Choose a CEO…',
+        placeholder: 'Choose a CEO or Group Deputy CEO…',
         asyncOptions: async () => {
-          const users = await itWorkflowService.getUsersByRole('CEO');
-          return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
+          const [ceos, groupDceos] = await Promise.all([
+            itWorkflowService.getUsersByRole('CEO'),
+            itWorkflowService.getUsersByRole('GROUP_DCEO'),
+          ]);
+          const options: { value: string; label: string }[] = [];
+          ceos.forEach(u => options.push({ value: `CEO:${u.id}`, label: `${u.firstName} ${u.lastName} (CEO)` }));
+          groupDceos.forEach(u => options.push({ value: `GROUP_DCEO:${u.id}`, label: `${u.firstName} ${u.lastName} (Group Deputy CEO)` }));
+          return options;
         },
       },
       {
         name: 'notes',
         label: 'Notes',
         type: 'textarea',
-        placeholder: 'Optional notes for CEO…',
+        placeholder: 'Optional notes for the approver…',
         required: false,
         rows: 3,
       },
     ],
-    submitLabel: 'Route to CEO',
+    submitLabel: 'Route for Approval',
     submitColor: 'primary',
     loadingLabel: 'Routing…',
-    onSubmit: (requestId, values) =>
-      approvalService.routeToCEO(requestId, (values.ceoId as string) || undefined, (values.notes as string) || undefined),
+    validation: (values) => {
+      const executiveId = (values.executiveId as string) || '';
+      if (!executiveId) {
+        return { executiveId: 'Please select an approver' };
+      }
+      return {};
+    },
+    onSubmit: (requestId, values) => {
+      const executiveId = (values.executiveId as string) || '';
+      const [role, userId] = executiveId.includes(':') ? executiveId.split(':') : ['', ''];
+      if (role === 'GROUP_DCEO' && userId) {
+        return approvalService.routeToGroupDceoHR(requestId, (values.notes as string) || undefined, userId);
+      }
+      // Default: route to CEO (handles both CEO:userId and legacy plain userId)
+      return approvalService.routeToCEO(requestId, userId || undefined, (values.notes as string) || undefined);
+    },
   },
 
   ROUTE_TO_GROUP_DCEO_HR: {

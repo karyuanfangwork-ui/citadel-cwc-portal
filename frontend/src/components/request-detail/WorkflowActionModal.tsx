@@ -319,6 +319,20 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
       }
     }
 
+    // Custom validation (field-level error map)
+    if (config.validation) {
+      const values: Record<string, unknown> = {};
+      for (const field of config.fields) {
+        values[field.name] = formData[field.name] ?? '';
+      }
+      const fieldErrors = config.validation(values);
+      const firstError = Object.values(fieldErrors)[0];
+      if (firstError) {
+        setError(firstError);
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       setError(null);

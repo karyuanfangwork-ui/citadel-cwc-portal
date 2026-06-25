@@ -897,8 +897,8 @@ export const routeToGroupDceoHr = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'CEO_APPROVED') {
-            res.status(400).json({ status: 'error', message: 'Request must be CEO approved before routing to Group Deputy CEO' });
+        if (request.status !== 'CEO_APPROVED' && request.status !== 'SUBMITTED' && request.status !== 'IN_REVIEW') {
+            res.status(400).json({ status: 'error', message: 'Request must be in SUBMITTED, IN_REVIEW, or CEO_APPROVED status to route to Group Deputy CEO' });
             return;
         }
 
@@ -955,10 +955,10 @@ export const routeToGroupDceoHr = async (req: Request, res: Response) => {
 
         await auditLog(req as any, 'APPROVAL_ROUTED', 'request', id, {
             status: 'PENDING_GROUP_DCEO_APPROVAL',
-            previousStatus: 'CEO_APPROVED',
+            previousStatus: request.status,
             approverType: 'GROUP_DCEO',
             groupDceoId: groupDceo.id,
-        }, { status: 'CEO_APPROVED' });
+        }, { status: request.status });
 
         await pauseSla(id);
 

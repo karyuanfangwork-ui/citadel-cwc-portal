@@ -235,10 +235,31 @@ const STATUS_ORDER: string[] = [
   'APPROVED', 'REJECTED', 'RESOLVED', 'COMPLETED',
 ];
 
+/**
+ * Approval-based step statuses: if a step key maps to an approverType,
+ * it should only be marked "completed" when an APPROVED approval record exists.
+ * Steps without an entry fall back to position-based completion.
+ */
+const APPROVAL_STEP_TYPES: Record<string, string> = {
+  PENDING_CEO_APPROVAL: 'CEO',
+  CEO_APPROVED: 'CEO',
+  PENDING_GROUP_DCEO_APPROVAL: 'GROUP_DCEO',
+  GROUP_DCEO_APPROVED: 'GROUP_DCEO',
+  PENDING_CTO_APPROVAL_IT: 'CTO',
+  CEO_APPROVED_IT: 'CEO',
+  PENDING_CFO_APPROVAL_IT: 'CFO',
+  CFO_APPROVED_IT: 'CFO',
+  PENDING_CFO_APPROVAL_FIN: 'CFO',
+  CFO_APPROVED_FIN: 'CFO',
+  PENDING_MANAGER_REVIEW: 'HIRING_MANAGER',
+  MANAGER_APPROVED: 'HIRING_MANAGER',
+};
+
 function buildSteps(
   status: string,
   workflowSteps?: { step: string; label: string; order: number; isFinal?: boolean }[],
   resolvedAt?: string | null,
+  approvals?: { approverType: string; status: string }[],
 ): StepItem[] {
   const isTerminal = TERMINAL_STATUSES.has(status);
   const isResolved = !!resolvedAt;
@@ -266,13 +287,32 @@ function buildSteps(
     }
 
     if (currentIdx !== -1) {
-      // Exact match — straightforward marking
-      return sorted.map((s, i) => ({
-        step: s.step,
-        label: s.label,
-        order: s.order,
-        state: i < currentIdx ? 'completed' : i === currentIdx ? 'current' : 'upcoming',
-      }));
+      // Exact match — use approval records to determine which steps are truly completed
+      // For approval-based steps (CEO, GROUP_DCEO, etc.), a step is only "completed"
+      // if there's an APPROVED approval record for that approver type, OR if a later
+      // step in the same approval chain has an APPROVED record (proving the earlier one passed).
+      const approvedTypes = new Set<string>();
+      if (approvals) {
+        for (const a of approvals) {
+          if (a.status === 'APPROVED') approvedTypes.add(a.approverType);
+        }
+      }
+
+      return sorted.map((s, i) => {
+        const approvalType = APPROVAL_STEP_TYPES[s.step];
+        // If this step is approval-gated and there's no matching approved record,
+        // it hasn't been completed yet.
+        if (approvalType && !approvedTypes.has(approvalType)) {
+          // Is this the current step?
+          if (i === currentIdx) return { step: s.step, label: s.label, order: s.order, state: 'current' as StepState };
+          // It's a future step (not yet reached)
+          return { step: s.step, label: s.label, order: s.order, state: 'upcoming' as StepState };
+        }
+        // Non-approval step or approval already granted — position-based logic
+        if (i < currentIdx) return { step: s.step, label: s.label, order: s.order, state: 'completed' as StepState };
+        if (i === currentIdx) return { step: s.step, label: s.label, order: s.order, state: 'current' as StepState };
+        return { step: s.step, label: s.label, order: s.order, state: 'upcoming' as StepState };
+      });
     }
 
     // Status not in steps — use STATUS_ORDER to infer which steps are completed.
@@ -354,7 +394,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   const [expanded, setExpanded] = useState(false);
   const [popoverStep, setPopoverStep] = useState<string | null>(null);
 
-  const steps = useMemo(() => buildSteps(request.status, workflowSteps, request.resolvedAt), [request.status, workflowSteps, request.resolvedAt]);
+  const steps = useMemo(() => buildSteps(request.status, workflowSteps, request.resolvedAt, approvals), [request.status, workflowSteps, request.resolvedAt, approvals]);
 
   // Whether the entire workflow is in a terminal state (all steps resolved — completed or rejected)
   const workflowDone = steps.length > 0 && steps.every(s => s.state === 'completed' || s.state === 'rejected');

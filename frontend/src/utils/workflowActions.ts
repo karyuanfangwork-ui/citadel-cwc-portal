@@ -624,8 +624,8 @@ export function getWorkflowActions(
   if (canActOnDesk && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
     actions.push({
       type: 'ROUTE_TO_CEO_HR',
-      label: 'Route to CEO for Approval',
-      description: 'Route this hiring request to the CEO for sign-off.',
+      label: 'Route to Executive Approval',
+      description: 'Route this hiring request to the CEO or Group Deputy CEO for approval.',
       variant: 'primary',
     });
   }
