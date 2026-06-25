@@ -432,6 +432,15 @@ export interface CreditApplication {
   scoreRunCount?: number;
   latestScoreRunAt?: string | null;
   latestScoreRunStatus?: string | null;
+  // Phase 4 — explainability fields from the latest score run
+  baseRiskRating?: string | null;
+  totalScore?: number | null;
+  bureauCapsApplied?: string[] | null;
+  missingInputs?: any[] | null;
+  inputSnapshot?: any | null;
+  calculationSource?: string | null;
+  isOverride?: boolean;
+  factorScores?: any | null;
   slaTargetHours?: number | null;
   slaDueAt?: string | null;
   rmId: string | null;

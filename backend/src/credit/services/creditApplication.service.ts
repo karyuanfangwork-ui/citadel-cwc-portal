@@ -755,7 +755,26 @@ class CreditApplicationService {
         // §2.3 — Include related records needed for section completion checks
         retailIncome: true,
         bureauChecklist: true,
-        scoreRuns: { orderBy: { createdAt: 'desc' as const }, take: 1 },
+        scoreRuns: {
+          orderBy: { runAt: 'desc' as const },
+          take: 1,
+          select: {
+            id: true,
+            riskRating: true,
+            baseRiskRating: true,
+            totalScore: true,
+            isOverride: true,
+            runAt: true,
+            createdAt: true,
+            bureauCapsApplied: true,
+            inputSnapshot: true,
+            missingInputs: true,
+            calculationSource: true,
+            calculatedById: true,
+            factorScores: true,
+            scorecardVersionId: true,
+          },
+        },
         bureauChecks: true,
         _count: { select: { scoreRuns: true } },
       },
@@ -767,9 +786,18 @@ class CreditApplicationService {
     // so the frontend can check `app.riskRating` for section S4 completion
     const latestScoreRun = app.scoreRuns?.[0];
     app.riskRating = latestScoreRun?.riskRating ?? null;
+    app.baseRiskRating = latestScoreRun?.baseRiskRating ?? null;
+    app.totalScore = latestScoreRun ? Number(latestScoreRun.totalScore) : null;
     app.scoreRunCount = app._count?.scoreRuns ?? app.scoreRuns?.length ?? 0;
     app.latestScoreRunAt = latestScoreRun?.runAt ?? latestScoreRun?.createdAt ?? null;
     app.latestScoreRunStatus = latestScoreRun ? 'COMPLETED' : null;
+    // Phase 4 — expose explainability fields from the latest score run
+    app.bureauCapsApplied = latestScoreRun?.bureauCapsApplied ?? null;
+    app.missingInputs = latestScoreRun?.missingInputs ?? null;
+    app.inputSnapshot = latestScoreRun?.inputSnapshot ?? null;
+    app.calculationSource = latestScoreRun?.calculationSource ?? null;
+    app.isOverride = latestScoreRun?.isOverride ?? false;
+    app.factorScores = latestScoreRun?.factorScores ?? null;
 
     return app;
   }
