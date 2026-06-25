@@ -196,6 +196,8 @@ model User {
   scoreRunOverrideApprovedBy CreditScoreRun[]          @relation("ScoreRunOverrideApprovedBy")
   scoreRunsCalculated        CreditScoreRun[]          @relation("CreditScoreRunCalculatedBy")
   ratingBandConfigsApproved   RatingBandConfig[]        @relation("RatingBandConfigApprovedBy")
+  assessmentResultsCreated    ApplicationAssessmentResult[] @relation("AssessmentResultCreatedBy")
+  assessmentResultsReviewed    ApplicationAssessmentResult[] @relation("AssessmentResultReviewedBy")
   // Committee Relations
   committeeMemberUser       CommitteeMember[]         @relation("CommitteeMemberUser")
   committeePresentedBy      CommitteeAgendaItem[]     @relation("AgendaItemPresentedBy")
@@ -3644,6 +3646,7 @@ model CreditApplication {
   conditions       Condition[]
   decisions        CreditDecision[]
   scoreRuns        CreditScoreRun[]
+  assessmentResults ApplicationAssessmentResult[]
   committeeAgendaItems CommitteeAgendaItem[]
   health          FacilityHealth?
   covenants       CovenantDefinition[]
@@ -4831,10 +4834,47 @@ model CreditScoreRun {
   overrideApprovedBy   User?                 @relation("ScoreRunOverrideApprovedBy", fields: [overrideApprovedById], references: [id])
   calculatedBy         User?                 @relation("CreditScoreRunCalculatedBy", fields: [calculatedById], references: [id])
   appliedOverride      ScoreOverrideApproval? @relation("ScoreRunAppliedOverride")
+  assessmentResults    ApplicationAssessmentResult[] @relation("AssessmentResultScoreRun")
 
   @@index([applicationId])
   @@index([scorecardVersionId])
   @@map("credit_score_runs")
+}
+
+// ============================================================================
+// Application Assessment Result — frozen governed record (Phase 5 P1-5)
+// Populated at committee submission. Once frozen, later input changes do not
+// mutate it; a new assessment requires an explicit new record/version.
+// ============================================================================
+model ApplicationAssessmentResult {
+  id                     String   @id @default(uuid()) @db.Uuid
+  applicationId           String   @map("application_id") @db.Uuid
+  scoreRunId             String?  @map("score_run_id") @db.Uuid
+  finalRiskRating        String?  @map("final_risk_rating") @db.VarChar(20)
+  riskCategory           String?  @map("risk_category") @db.VarChar(50)    // LOW | MODERATE | HIGH | PROHIBITED
+  decisionRecommendation  String?  @map("decision_recommendation") @db.VarChar(20) // APPROVE | CONDITIONAL | REJECT
+  reasonCodes            Json?    @map("reason_codes")
+  missingInputs          Json?    @map("missing_inputs")
+  modelVersion            String?  @map("model_version") @db.VarChar(50)
+  policyVersion           String?  @map("policy_version") @db.VarChar(50)
+  ratingBandVersion       Int?     @map("rating_band_version")
+  totalScore             Decimal? @db.Decimal(10, 2)
+  status                  String   @default("FROZEN") @db.VarChar(20)       // FROZEN | SUPERSEDED
+  version                 Int      @default(1)
+  createdById             String?  @map("created_by_id") @db.Uuid
+  reviewedById            String?  @map("reviewed_by_id") @db.Uuid
+
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  application             CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scoreRun                CreditScoreRun?   @relation("AssessmentResultScoreRun", fields: [scoreRunId], references: [id])
+  createdBy               User?             @relation("AssessmentResultCreatedBy", fields: [createdById], references: [id])
+  reviewedBy              User?             @relation("AssessmentResultReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([applicationId])
+  @@map("application_assessment_results")
 }
 
 // ============================================================================

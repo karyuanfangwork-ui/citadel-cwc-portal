@@ -11,6 +11,7 @@ import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } fro
 import { getApplicationEffectiveRating } from './applicationRating.service';
 import { getLatestScoreRunAt, getLatestMaterialUpdate } from './applicationRating.service';
 import { recalcScore } from './recalc.service';
+import { freezeAssessmentResult } from './assessmentResult.service';
 import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
@@ -778,6 +779,11 @@ class CreditApplicationService {
         },
         bureauChecks: true,
         _count: { select: { scoreRuns: true } },
+        assessmentResults: {
+          where: { status: 'FROZEN' },
+          orderBy: { version: 'desc' },
+          take: 1,
+        },
       },
     }) as any;
 
@@ -799,6 +805,9 @@ class CreditApplicationService {
     app.calculationSource = latestScoreRun?.calculationSource ?? null;
     app.isOverride = latestScoreRun?.isOverride ?? false;
     app.factorScores = latestScoreRun?.factorScores ?? null;
+    // P1-5 — flatten the frozen assessment result if it exists
+    const frozenAssessment = app.assessmentResults?.[0];
+    app.frozenAssessment = frozenAssessment ?? null;
 
     return app;
   }
@@ -1147,6 +1156,10 @@ class CreditApplicationService {
           );
         }
       }
+
+      // P1-5 — freeze the assessment result at committee submission so the
+      // rating/recommendation/reason-codes are immutable from this point forward
+      await freezeAssessmentResult(id, actorId ?? 'system');
 
       const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
       if (!readiness.ready) {
