@@ -67,6 +67,7 @@ import retailIncomeRoutes from './retailIncome.routes';
 import bureauChecklistRoutes from './bureauChecklist.routes';
 import industryAssessmentRoutes from './industryAssessment.routes';
 import riskAssessmentRoutes from './riskAssessment.routes';
+import ratingBandConfigRoutes from './ratingBandConfig.routes';
 import rmdIssueRoutes from './rmdIssue.routes';
 import esgRoutes from './esg.routes';
 import sicrRoutes from './sicr.routes';
@@ -264,6 +265,8 @@ router.use('/applications', retailIncomeRoutes);
 router.use('/applications', bureauChecklistRoutes);
 router.use('/applications', industryAssessmentRoutes);
 router.use('/applications', riskAssessmentRoutes);
+// Phase 5 — admin config for rating bands + risk factor matrices
+router.use('/rating-bands', ratingBandConfigRoutes);
 router.use('/applications', rmdIssueRoutes);
 router.use('/applications', esgRoutes);
 router.use('/applications', sicrRoutes);
