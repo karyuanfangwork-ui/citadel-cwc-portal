@@ -4816,6 +4816,7 @@ model CreditScoreRun {
   calculationSource    String?    @map("calculation_source") @db.VarChar(20)   // AUTO | MANUAL | RESCORE | OVERRIDE
   inputSnapshot        Json?      @map("input_snapshot")                         // factorScores, dsr, bureau caps, etc.
   policyVersion        String?    @map("policy_version") @db.VarChar(50)
+  missingInputs        Json?      @map("missing_inputs")                         // list of factors with missing data + policy applied
 
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)

@@ -7,6 +7,7 @@ import { getBureauCapsForApplication, applyBureauCaps, isBureauCheckFresh } from
 import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
+import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -369,6 +370,39 @@ class ScoringService {
       },
     };
 
+    // Step 5b: Apply missing-data policy to factors that had no source data.
+    // Factors with all sub-fields missing get a policy-based score instead of
+    // the blanket 50. Collect missingInputs records for the audit trail.
+    const missingInputs: MissingInputRecord[] = [];
+    const missingDataPolicies = await getMissingDataPolicies();
+
+    // Detect which financial-ratio-based factors had missing data (all sub-fields null)
+    const hasAnyRatio = Object.keys(ratioMap).length > 0;
+    if (!hasAnyRatio) {
+      // No ratios at all — financial_performance, leverage, liquidity, cashflow all missing
+      for (const f of ['financial_performance', 'leverage', 'liquidity', 'cashflow'] as (keyof FactorScores)[]) {
+        const { score, record } = resolveMissingFactorScore(f, 'all_ratios', missingDataPolicies);
+        factorScores[f].score = score;
+        missingInputs.push(record);
+      }
+    }
+
+    // Qualitative factors: if no QA was submitted, all 4 got the default 50
+    if (!qa) {
+      for (const f of ['management', 'industry', 'collateral', 'relationship'] as (keyof FactorScores)[]) {
+        const { score, record } = resolveMissingFactorScore(f, 'qualitative_assessment', missingDataPolicies);
+        factorScores[f].score = score;
+        missingInputs.push(record);
+      }
+    }
+
+    // Retail cashflow: if retail borrower but no DSR data
+    if (isRetail && dsrPercent === null) {
+      const { score, record } = resolveMissingFactorScore('cashflow', 'dsr_percent', missingDataPolicies);
+      factorScores.cashflow.score = score;
+      missingInputs.push(record);
+    }
+
     // Step 6: Compute weighted scores
     let totalScore = 0;
     for (const key of FACTOR_GROUPS) {
@@ -400,6 +434,7 @@ class ScoringService {
       bureauCapsApplied,
       bureauFresh,
       staleBureauProviders,
+      missingInputs,
       capturedAt: new Date().toISOString(),
     };
 
@@ -416,6 +451,7 @@ class ScoringService {
         calculatedById: opts.actorId ?? null,
         calculationSource: opts.source ?? 'MANUAL',
         inputSnapshot: inputSnapshot as any,
+        missingInputs: missingInputs.length > 0 ? (missingInputs as any) : Prisma.JsonNull,
         runAt: new Date(),
       },
       include: {
