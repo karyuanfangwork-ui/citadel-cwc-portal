@@ -7,6 +7,7 @@ import { requireUser } from '../utils/requireUser';
 import prisma from '../../utils/prisma';
 import { computeBorrowerExposure } from '../services/exposureCompute.service';
 import { formatCurrency } from '../utils/formatCurrency';
+import { getApplicationEffectiveRating } from '../services/applicationRating.service';
 
 class ApprovalController {
   // ===========================================================================
@@ -124,7 +125,6 @@ class ApprovalController {
         branchId: true,
         lane: true,
         borrowerProfileId: true,
-        borrowerProfile: { select: { creditRiskRating: true } },
         decisions: {
           where: { decisionType: 'APPROVE' },
           select: { decisionById: true, authorityLevel: true, createdAt: true },
@@ -137,7 +137,9 @@ class ApprovalController {
       throw new AppError('Application not found', 404);
     }
 
-    const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
+    // P1-4 — use the latest application score run rating as source of truth,
+    // not BorrowerProfile.creditRiskRating (which can lag the application run)
+    const borrowerRating = await getApplicationEffectiveRating(applicationId);
     const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
     const totalExposure = formatCurrency(liveExposure || application.requestedAmount) ?? 0;
 
