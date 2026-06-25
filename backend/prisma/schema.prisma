@@ -5349,6 +5349,29 @@ model IndustryAssessment {
 // ============================================================================
 // Risk Assessment (Phase 5 — Section 16)
 // ============================================================================
+// ============================================================================
+// Risk Factor Matrix — configurable weighted risk engine (Phase 5)
+// Defines weights, thresholds, and reason codes for each risk dimension.
+// RiskAssessment records reference the active matrix to compute a weighted
+// risk category alongside the quantitative score.
+// ============================================================================
+model RiskFactorMatrix {
+  id              String   @id @default(uuid()) @db.Uuid
+  factor          String   @db.VarChar(50)    // APPLICANT | INDUSTRY | PRODUCT | DOCUMENTATION | BEHAVIOUR | FRAUD
+  weight          Decimal  @db.Decimal(5, 2)  // e.g. 20.00
+  threshold       String?  @db.VarChar(100)   // e.g. ">= 3 adverse findings"
+  reasonCodes     Json?                       // list of applicable reason codes
+  isActive        Boolean  @default(true) @map("is_active")
+  effectiveFrom   DateTime @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo     DateTime? @map("effective_to") @db.Timestamp(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([factor, isActive])
+  @@map("risk_factor_matrices")
+}
+
 model RiskAssessment {
   id            String       @id @default(uuid()) @db.Uuid
   applicationId String       @map("application_id") @db.Uuid
@@ -5356,6 +5379,12 @@ model RiskAssessment {
   description   String?      @db.Text
   mitigation    String?      @db.Text
   sortOrder     Int          @default(0) @map("sort_order")
+
+  // Phase 5 — weighted risk engine fields
+  factorScores  Json?        @map("factor_scores")     // per-factor score: { factor: { score, weight, weightedScore, reasonCode } }
+  weightedScore Decimal?     @map("weighted_score") @db.Decimal(10, 2)
+  riskLevel     String?      @map("risk_level") @db.VarChar(20)  // LOW | MODERATE | HIGH | PROHIBITED
+  reasonCodes   Json?        @map("reason_codes")      // aggregated reason codes
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
