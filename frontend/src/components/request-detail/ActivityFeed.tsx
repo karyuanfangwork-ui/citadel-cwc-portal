@@ -162,18 +162,42 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     setSubmitting(true);
 
     try {
-      // Upload all pending files in parallel
+      // Upload all pending files in parallel.
+      // Auth errors (401) are handled by the axios interceptor (silent refresh + retry),
+      // so if we still get an error here the session is truly expired — surface it clearly.
       if (filesToUpload.length > 0) {
         setUploadingFiles(true);
-        const uploadPromises = filesToUpload.map(file =>
-          requestService.uploadAttachment(requestId, file).catch(err => {
-            console.error('Failed to upload file:', file.name, err);
-            toast.error('Upload Failed', `Failed to upload ${file.name}`);
-            return null;
-          })
+        const uploadResults = await Promise.all(
+          filesToUpload.map(file =>
+            requestService.uploadAttachment(requestId, file)
+              .then(res => ({ ok: true as const, res }))
+              .catch(err => ({ ok: false as const, err, file }))
+          )
         );
-        await Promise.all(uploadPromises);
         setUploadingFiles(false);
+
+        const failures = uploadResults.filter(r => !r.ok);
+        if (failures.length > 0) {
+          const isAuthError = failures.some(f => (f as any).err?.status === 401);
+          if (isAuthError) {
+            toast.error('Session Expired', 'Your session has expired. Please refresh the page and try again.');
+            setOptimisticIds(prev => { const next = new Set(prev); next.delete(tempId); return next; });
+            setOptimisticMessages(prev => { const next = { ...prev }; delete next[tempId]; return next; });
+            setSubmitting(false);
+            return;
+          }
+          failures.forEach(f => {
+            console.error('Failed to upload file:', (f as any).file?.name, (f as any).err);
+            toast.error('Upload Failed', `Failed to upload ${(f as any).file?.name}`);
+          });
+          // If all files failed, don't submit the empty comment
+          if (failures.length === uploadResults.length) {
+            setOptimisticIds(prev => { const next = new Set(prev); next.delete(tempId); return next; });
+            setOptimisticMessages(prev => { const next = { ...prev }; delete next[tempId]; return next; });
+            setSubmitting(false);
+            return;
+          }
+        }
       }
 
       // Submit the comment — backend auto-links pending attachments
