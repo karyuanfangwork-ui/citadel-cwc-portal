@@ -9,6 +9,8 @@ import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
 import { mapScoreToRatingFromBands } from './ratingBand.service';
+import { persistApplicationRiskRating } from './applicationRating.service';
+import { getNumberPolicy } from './policyParameter.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +43,131 @@ export interface ScoreResult {
   bureauCapsApplied: string[];
   bureauFresh: boolean;
   staleBureauProviders: string[];
+}
+
+interface RatioThreshold {
+  good: number;
+  bad: number;
+}
+
+export interface FinancialPerformanceThresholds {
+  ros: RatioThreshold;
+  roa: RatioThreshold;
+  roe: RatioThreshold;
+}
+
+export interface LeverageThresholds {
+  debtToEquity: RatioThreshold;
+  debtToAssets: RatioThreshold;
+}
+
+export interface LiquidityThresholds {
+  currentRatio: RatioThreshold;
+  quickRatio: RatioThreshold;
+}
+
+export interface CashflowThresholds {
+  dscr: RatioThreshold;
+  interestCoverage: RatioThreshold;
+}
+
+export interface RetailDsrThresholds {
+  passMax: number;
+  warnMax: number;
+  hardFailAt: number;
+  passScoreFloor: number;
+  warnScoreFloor: number;
+}
+
+export interface ScoringThresholds {
+  financialPerformance: FinancialPerformanceThresholds;
+  leverage: LeverageThresholds;
+  liquidity: LiquidityThresholds;
+  cashflow: CashflowThresholds;
+  retailDsr: RetailDsrThresholds;
+}
+
+const DEFAULT_SCORING_THRESHOLDS: ScoringThresholds = {
+  financialPerformance: {
+    ros: { good: 0.15, bad: 0 },
+    roa: { good: 0.10, bad: 0 },
+    roe: { good: 0.15, bad: 0 },
+  },
+  leverage: {
+    debtToEquity: { good: 1.0, bad: 3.0 },
+    debtToAssets: { good: 0.4, bad: 0.8 },
+  },
+  liquidity: {
+    currentRatio: { good: 2.0, bad: 1.0 },
+    quickRatio: { good: 1.5, bad: 0.5 },
+  },
+  cashflow: {
+    dscr: { good: 2.0, bad: 1.0 },
+    interestCoverage: { good: 5.0, bad: 1.5 },
+  },
+  retailDsr: {
+    passMax: 60,
+    warnMax: 70,
+    hardFailAt: 80,
+    passScoreFloor: 80,
+    warnScoreFloor: 20,
+  },
+};
+
+export async function getScoringThresholds(): Promise<ScoringThresholds> {
+  const d = DEFAULT_SCORING_THRESHOLDS;
+  const [
+    rosGood, rosBad, roaGood, roaBad, roeGood, roeBad,
+    debtToEquityGood, debtToEquityBad, debtToAssetsGood, debtToAssetsBad,
+    currentRatioGood, currentRatioBad, quickRatioGood, quickRatioBad,
+    dscrGood, dscrBad, interestCoverageGood, interestCoverageBad,
+    passMax, warnMax, hardFailAt, passScoreFloor, warnScoreFloor,
+  ] = await Promise.all([
+    getNumberPolicy('scoring.financial_performance.ros.good', d.financialPerformance.ros.good),
+    getNumberPolicy('scoring.financial_performance.ros.bad', d.financialPerformance.ros.bad),
+    getNumberPolicy('scoring.financial_performance.roa.good', d.financialPerformance.roa.good),
+    getNumberPolicy('scoring.financial_performance.roa.bad', d.financialPerformance.roa.bad),
+    getNumberPolicy('scoring.financial_performance.roe.good', d.financialPerformance.roe.good),
+    getNumberPolicy('scoring.financial_performance.roe.bad', d.financialPerformance.roe.bad),
+    getNumberPolicy('scoring.leverage.debt_to_equity.good', d.leverage.debtToEquity.good),
+    getNumberPolicy('scoring.leverage.debt_to_equity.bad', d.leverage.debtToEquity.bad),
+    getNumberPolicy('scoring.leverage.debt_to_assets.good', d.leverage.debtToAssets.good),
+    getNumberPolicy('scoring.leverage.debt_to_assets.bad', d.leverage.debtToAssets.bad),
+    getNumberPolicy('scoring.liquidity.current_ratio.good', d.liquidity.currentRatio.good),
+    getNumberPolicy('scoring.liquidity.current_ratio.bad', d.liquidity.currentRatio.bad),
+    getNumberPolicy('scoring.liquidity.quick_ratio.good', d.liquidity.quickRatio.good),
+    getNumberPolicy('scoring.liquidity.quick_ratio.bad', d.liquidity.quickRatio.bad),
+    getNumberPolicy('scoring.cashflow.dscr.good', d.cashflow.dscr.good),
+    getNumberPolicy('scoring.cashflow.dscr.bad', d.cashflow.dscr.bad),
+    getNumberPolicy('scoring.cashflow.interest_coverage.good', d.cashflow.interestCoverage.good),
+    getNumberPolicy('scoring.cashflow.interest_coverage.bad', d.cashflow.interestCoverage.bad),
+    getNumberPolicy('scoring.retail_dsr.pass_max', d.retailDsr.passMax),
+    getNumberPolicy('scoring.retail_dsr.warn_max', d.retailDsr.warnMax),
+    getNumberPolicy('scoring.retail_dsr.hard_fail_at', d.retailDsr.hardFailAt),
+    getNumberPolicy('scoring.retail_dsr.pass_score_floor', d.retailDsr.passScoreFloor),
+    getNumberPolicy('scoring.retail_dsr.warn_score_floor', d.retailDsr.warnScoreFloor),
+  ]);
+
+  return {
+    financialPerformance: {
+      ros: { good: rosGood, bad: rosBad },
+      roa: { good: roaGood, bad: roaBad },
+      roe: { good: roeGood, bad: roeBad },
+    },
+    leverage: {
+      debtToEquity: { good: debtToEquityGood, bad: debtToEquityBad },
+      debtToAssets: { good: debtToAssetsGood, bad: debtToAssetsBad },
+    },
+    liquidity: {
+      currentRatio: { good: currentRatioGood, bad: currentRatioBad },
+      quickRatio: { good: quickRatioGood, bad: quickRatioBad },
+    },
+    cashflow: {
+      dscr: { good: dscrGood, bad: dscrBad },
+      interestCoverage: { good: interestCoverageGood, bad: interestCoverageBad },
+    },
+    retailDsr: { passMax, warnMax, hardFailAt, passScoreFloor, warnScoreFloor },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,57 +242,60 @@ function scoreLowerIsBetter(value: number | null, good: number, bad: number): nu
 /**
  * Compute factor score for a group from financial ratios.
  */
-export function computeFinancialPerformanceScore(ratioMap: Record<string, number>): number {
+export function computeFinancialPerformanceScore(
+  ratioMap: Record<string, number>,
+  thresholds: FinancialPerformanceThresholds = DEFAULT_SCORING_THRESHOLDS.financialPerformance,
+): number {
   const ros = ratioMap['ros'] ?? null;
   const roa = ratioMap['roa'] ?? null;
   const roe = ratioMap['roe'] ?? null;
 
   const scores: number[] = [];
-  // ROS: >15% is good, <0% is bad
-  if (ros !== null) scores.push(scoreHigherIsBetter(ros, 0.15, 0));
-  // ROA: >10% is good, <0% is bad
-  if (roa !== null) scores.push(scoreHigherIsBetter(roa, 0.10, 0));
-  // ROE: >15% is good, <0% is bad
-  if (roe !== null) scores.push(scoreHigherIsBetter(roe, 0.15, 0));
+  if (ros !== null) scores.push(scoreHigherIsBetter(ros, thresholds.ros.good, thresholds.ros.bad));
+  if (roa !== null) scores.push(scoreHigherIsBetter(roa, thresholds.roa.good, thresholds.roa.bad));
+  if (roe !== null) scores.push(scoreHigherIsBetter(roe, thresholds.roe.good, thresholds.roe.bad));
 
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-export function computeLeverageScore(ratioMap: Record<string, number>): number {
+export function computeLeverageScore(
+  ratioMap: Record<string, number>,
+  thresholds: LeverageThresholds = DEFAULT_SCORING_THRESHOLDS.leverage,
+): number {
   const debtToEquity = ratioMap['debt_to_equity'] ?? null;
   const debtToAssets = ratioMap['debt_to_assets'] ?? null;
 
   const scores: number[] = [];
-  // Debt/Equity: <1.0 is good, >3.0 is bad
-  if (debtToEquity !== null) scores.push(scoreLowerIsBetter(debtToEquity, 1.0, 3.0));
-  // Debt/Assets: <0.4 is good, >0.8 is bad
-  if (debtToAssets !== null) scores.push(scoreLowerIsBetter(debtToAssets, 0.4, 0.8));
+  if (debtToEquity !== null) scores.push(scoreLowerIsBetter(debtToEquity, thresholds.debtToEquity.good, thresholds.debtToEquity.bad));
+  if (debtToAssets !== null) scores.push(scoreLowerIsBetter(debtToAssets, thresholds.debtToAssets.good, thresholds.debtToAssets.bad));
 
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-export function computeLiquidityScore(ratioMap: Record<string, number>): number {
+export function computeLiquidityScore(
+  ratioMap: Record<string, number>,
+  thresholds: LiquidityThresholds = DEFAULT_SCORING_THRESHOLDS.liquidity,
+): number {
   const currentRatio = ratioMap['current_ratio'] ?? null;
   const quickRatio = ratioMap['quick_ratio'] ?? null;
 
   const scores: number[] = [];
-  // Current Ratio: >2.0 is good, <1.0 is bad
-  if (currentRatio !== null) scores.push(scoreHigherIsBetter(currentRatio, 2.0, 1.0));
-  // Quick Ratio: >1.5 is good, <0.5 is bad
-  if (quickRatio !== null) scores.push(scoreHigherIsBetter(quickRatio, 1.5, 0.5));
+  if (currentRatio !== null) scores.push(scoreHigherIsBetter(currentRatio, thresholds.currentRatio.good, thresholds.currentRatio.bad));
+  if (quickRatio !== null) scores.push(scoreHigherIsBetter(quickRatio, thresholds.quickRatio.good, thresholds.quickRatio.bad));
 
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
-export function computeCashflowScore(ratioMap: Record<string, number>): number {
+export function computeCashflowScore(
+  ratioMap: Record<string, number>,
+  thresholds: CashflowThresholds = DEFAULT_SCORING_THRESHOLDS.cashflow,
+): number {
   const dscr = ratioMap['dscr'] ?? null;
   const interestCoverage = ratioMap['interest_coverage'] ?? null;
 
   const scores: number[] = [];
-  // DSCR: >2.0 is good, <1.0 is bad
-  if (dscr !== null) scores.push(scoreHigherIsBetter(dscr, 2.0, 1.0));
-  // Interest Coverage: >5.0 is good, <1.5 is bad
-  if (interestCoverage !== null) scores.push(scoreHigherIsBetter(interestCoverage, 5.0, 1.5));
+  if (dscr !== null) scores.push(scoreHigherIsBetter(dscr, thresholds.dscr.good, thresholds.dscr.bad));
+  if (interestCoverage !== null) scores.push(scoreHigherIsBetter(interestCoverage, thresholds.interestCoverage.good, thresholds.interestCoverage.bad));
 
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
@@ -175,18 +305,22 @@ export function computeCashflowScore(ratioMap: Record<string, number>): number {
  * DSR 0% → 100, DSR 60% → 80, DSR 70% → 20, DSR ≥80% → 0
  * Uses a two-segment linear scale: 0-60% maps to 80-100, 60-70% maps to 20-80, >70% clamps at 0.
  */
-export function computeDsrCashflowScore(dsrPercent: number): number {
+export function computeDsrCashflowScore(
+  dsrPercent: number,
+  thresholds: RetailDsrThresholds = DEFAULT_SCORING_THRESHOLDS.retailDsr,
+): number {
   if (dsrPercent <= 0) return 100;
-  if (dsrPercent <= 60) {
-    // Linear: 0% → 100, 60% → 80
-    return 100 - (dsrPercent / 60) * 20;
+  if (dsrPercent <= thresholds.passMax) {
+    return 100 - (dsrPercent / thresholds.passMax) * (100 - thresholds.passScoreFloor);
   }
-  if (dsrPercent <= 70) {
-    // Linear: 60% → 80, 70% → 20
-    return 80 - ((dsrPercent - 60) / 10) * 60;
+  if (dsrPercent <= thresholds.warnMax) {
+    return thresholds.passScoreFloor -
+      ((dsrPercent - thresholds.passMax) / (thresholds.warnMax - thresholds.passMax)) *
+        (thresholds.passScoreFloor - thresholds.warnScoreFloor);
   }
-  // >70%: linear to 0 at 80%, clamp at 0
-  return Math.max(0, 20 - ((dsrPercent - 70) / 10) * 20);
+  return Math.max(0, thresholds.warnScoreFloor -
+    ((dsrPercent - thresholds.warnMax) / (thresholds.hardFailAt - thresholds.warnMax)) *
+      thresholds.warnScoreFloor);
 }
 
 // Qualitative factors — placeholder scores
@@ -343,27 +477,29 @@ class ScoringService {
         })
       : { management: 50, relationship: 50, industry: 50, collateral: 50 };
 
+    const scoringThresholds = await getScoringThresholds();
+
     const factorScores: FactorScores = {
       financial_performance: {
         weight: factorWeights.financial_performance,
-        score: computeFinancialPerformanceScore(ratioMap),
+        score: computeFinancialPerformanceScore(ratioMap, scoringThresholds.financialPerformance),
         weightedScore: 0,
       },
       leverage: {
         weight: factorWeights.leverage,
-        score: computeLeverageScore(ratioMap),
+        score: computeLeverageScore(ratioMap, scoringThresholds.leverage),
         weightedScore: 0,
       },
       liquidity: {
         weight: factorWeights.liquidity,
-        score: computeLiquidityScore(ratioMap),
+        score: computeLiquidityScore(ratioMap, scoringThresholds.liquidity),
         weightedScore: 0,
       },
       cashflow: {
         weight: factorWeights.cashflow,
         score: (isRetail && dsrPercent !== null)
-          ? computeDsrCashflowScore(dsrPercent)
-          : computeCashflowScore(ratioMap),
+          ? computeDsrCashflowScore(dsrPercent, scoringThresholds.retailDsr)
+          : computeCashflowScore(ratioMap, scoringThresholds.cashflow),
         weightedScore: 0,
       },
       management: {
@@ -500,6 +636,8 @@ class ScoringService {
       },
     });
 
+    await persistApplicationRiskRating(applicationId, riskRating, scoreRun.runAt);
+
     // Step 9b: Append SCORE_RUN_CREATED to the tamper-evident audit chain
     await AuditChainService.appendEvent(
       applicationId,
@@ -558,7 +696,8 @@ class ScoringService {
     if (data.overrideApprovedById === data.requestedById) {
       throw new AppError(
         'Score override requires approval by a different officer from the requester.',
-        400,
+        403,
+        { code: 'SCORE_OVERRIDE_SOD_VIOLATION' },
       );
     }
 
@@ -596,6 +735,12 @@ class ScoringService {
         overrideApprovedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    await persistApplicationRiskRating(
+      existing.applicationId,
+      data.newRiskRating,
+      updated.overrideApprovedAt ?? new Date(),
+    );
 
     await AuditChainService.appendEvent(
       existing.applicationId,

@@ -37,6 +37,10 @@ jest.mock('../auditChain.service', () => ({
   AuditChainService: { appendEvent: jest.fn().mockResolvedValue('evt-1') },
 }));
 
+jest.mock('../applicationRating.service', () => ({
+  persistApplicationRiskRating: jest.fn().mockResolvedValue(undefined),
+}));
+
 import { scoringService } from '../scoring.service';
 import prisma from '../../../utils/prisma';
 import { AuditChainService } from '../auditChain.service';

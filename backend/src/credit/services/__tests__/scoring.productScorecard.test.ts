@@ -37,6 +37,10 @@ jest.mock('../auditChain.service', () => ({
   AuditChainService: { appendEvent: jest.fn().mockResolvedValue('evt-1') },
 }));
 
+jest.mock('../applicationRating.service', () => ({
+  persistApplicationRiskRating: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../missingDataPolicy.service', () => ({
   resolveMissingFactorScore: jest.fn().mockImplementation((factor: string) => ({
     score: 50, record: { factor, subField: 'test', policy: 'NEUTRAL', appliedScore: 50 },

@@ -2,20 +2,7 @@ import prisma from '../../utils/prisma';
 import { DeviationStatus, DeviationSeverity, Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../utils/logger';
-
-// ── Authority level hierarchy (same as approval matrix) ──────────────────────
-const AUTHORITY_HIERARCHY: Record<string, number> = {
-  RM: 1,
-  MANAGER: 2,
-  SENIOR_MANAGER: 2,
-  COMMITTEE: 3,
-  BOARD: 4,
-  CREDIT_RM: 1,
-  CREDIT_MANAGER: 2,
-  SENIOR_CREDIT_OFFICER: 3,
-  CREDIT_COMMITTEE: 4,
-  BOARD_RISK_COMMITTEE: 5,
-};
+import { AUTHORITY_HIERARCHY } from './authority.service';
 
 // Severity → minimum authority required to approve
 const SEVERITY_AUTHORITY_MAP: Record<string, string> = {
@@ -63,7 +50,7 @@ class DeviationService {
    * Create a new policy deviation record.
    * Throws if the rule is non-waivable.
    */
-  async createDeviation(data: CreateDeviationData, _actorId?: string) {
+  async createDeviation(data: CreateDeviationData, actorId?: string) {
     // Check if this is a non-waivable rule
     if (data.isNonWaivable) {
       throw new AppError(
@@ -90,6 +77,7 @@ class DeviationService {
         status: DeviationStatus.PENDING,
         isNonWaivable: data.isNonWaivable ?? false,
         requiredAuthorityLevel,
+        createdById: actorId ?? null,
         reviewDate: data.reviewDate ?? null,
         sunsetDate: data.sunsetDate ?? null,
       },
@@ -140,6 +128,13 @@ class DeviationService {
     }
     if (existing.isNonWaivable) {
       throw new AppError('Non-waivable deviations cannot be approved.', 403, { code: 'NON_WAIVABLE_RULE' });
+    }
+    if (existing.createdById && existing.createdById === approverId) {
+      throw new AppError(
+        'Deviation approval requires approval by a different officer from the requester.',
+        403,
+        { code: 'DEVIATION_SOD_VIOLATION' }
+      );
     }
 
     // Check authority level
@@ -201,6 +196,7 @@ class DeviationService {
     const deviation = await prisma.deviationApproval.findUnique({
       where: { id },
       include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         rejectedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
@@ -218,6 +214,7 @@ class DeviationService {
     return prisma.deviationApproval.findMany({
       where: { applicationId },
       include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         rejectedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
@@ -244,6 +241,7 @@ class DeviationService {
         where,
         include: {
           application: { select: { id: true, applicationNo: true, state: true } },
+          createdBy: { select: { id: true, firstName: true, lastName: true } },
           approvedBy: { select: { id: true, firstName: true, lastName: true } },
           rejectedBy: { select: { id: true, firstName: true, lastName: true } },
         },

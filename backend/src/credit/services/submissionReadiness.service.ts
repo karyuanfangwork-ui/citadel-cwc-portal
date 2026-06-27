@@ -8,11 +8,12 @@
 import prisma from '../../utils/prisma';
 import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor.job';
 import { hasPendingScoreOverride } from './scoreOverride.service';
-import { isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
+import { getBureauFreshnessDays, isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
 import { fatcaCrsService } from './fatcaCrs.service';
 import { checkRequiredFields } from './creditFieldCheck.service';
 import { collateralService } from './collateral.service';
 import { smeFinancialService } from './smeFinancial.service';
+import { getNumberPolicy } from './policyParameter.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -130,6 +131,26 @@ export async function validateSubmissionReadiness(
     lane: (application.lane as string) ?? 'PERSONAL_FAST',
     borrowerType: application.borrowerProfile.borrowerType as string,
   };
+
+  const [
+    bureauFreshnessDays,
+    netDsrPassMax,
+    netDsrWarnMax,
+    grossDsrPassMax,
+    grossDsrWarnMax,
+    dscrFailBelow,
+    dscrWarnBelow,
+    exposureWarningUtilisationPct,
+  ] = await Promise.all([
+    getBureauFreshnessDays(),
+    getNumberPolicy('readiness.retail.net_dsr.pass_max', 50, ruleScope),
+    getNumberPolicy('readiness.retail.net_dsr.warn_max', 60, ruleScope),
+    getNumberPolicy('readiness.retail.gross_dsr.pass_max', 60, ruleScope),
+    getNumberPolicy('readiness.retail.gross_dsr.warn_max', 70, ruleScope),
+    getNumberPolicy('readiness.dscr.fail_below', 1.0, ruleScope),
+    getNumberPolicy('readiness.dscr.warn_below', 1.1, ruleScope),
+    getNumberPolicy('readiness.exposure.warning_utilisation_pct', 90, ruleScope),
+  ]);
 
   if (stage === 'submission') {
     const fieldCheck = await checkRequiredFields(ruleScope, application as Record<string, any>);
@@ -262,7 +283,7 @@ export async function validateSubmissionReadiness(
     if (!freshnessCheck.fresh) {
       errors.push({
         field: 'bureauChecks',
-        message: `Bureau reports are older than 90 days and must be refreshed: ${freshnessCheck.staleProviders.join(', ')}`,
+        message: `Bureau reports are older than ${bureauFreshnessDays} days and must be refreshed: ${freshnessCheck.staleProviders.join(', ')}`,
         severity: 'error',
       });
     }
@@ -329,7 +350,7 @@ export async function validateSubmissionReadiness(
         if (!dscrWaived) {
           errors.push({
             field: 'dscr',
-            message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is below the minimum (1.00). An approved policy deviation is required.`,
+            message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is below the minimum (${dscrFailBelow.toFixed(2)}). An approved policy deviation is required.`,
             severity: 'error',
           });
         } else {
@@ -342,7 +363,7 @@ export async function validateSubmissionReadiness(
       } else if (dscrAssessment.overallStatus === 'warn') {
         warnings.push({
           field: 'dscr',
-          message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is in the warning band (1.00–1.10).`,
+          message: `Business DSCR${dscrValue != null ? ` of ${dscrValue.toFixed(2)}` : ''} is in the warning band (${dscrFailBelow.toFixed(2)}–${dscrWarnBelow.toFixed(2)}).`,
           severity: 'warning',
         });
       }
@@ -368,32 +389,32 @@ export async function validateSubmissionReadiness(
       const grossDsr = Number(retailIncome.dsrPercent ?? 0);
 
       if (dsrBasis === 'NET' && netDsr > 0) {
-        // Net-DSR thresholds: pass ≤50%, warning ≤60%, fail >60%
-        if (netDsr > 60) {
+        // Net-DSR thresholds: pass ≤ pass_max, warning ≤ warn_max, fail > warn_max
+        if (netDsr > netDsrWarnMax) {
           errors.push({
             field: 'retailIncome',
-            message: `Net DSR of ${netDsr.toFixed(1)}% exceeds 60% threshold — application is high risk`,
+            message: `Net DSR of ${netDsr.toFixed(1)}% exceeds ${netDsrWarnMax}% threshold — application is high risk`,
             severity: 'error',
           });
-        } else if (netDsr > 50) {
+        } else if (netDsr > netDsrPassMax) {
           warnings.push({
             field: 'retailIncome',
-            message: `Net DSR of ${netDsr.toFixed(1)}% is in the warning band (50-60%)`,
+            message: `Net DSR of ${netDsr.toFixed(1)}% is in the warning band (${netDsrPassMax}-${netDsrWarnMax}%)`,
             severity: 'warning',
           });
         }
       } else {
-        // Fallback to gross-DSR thresholds: pass ≤60%, warning ≤70%, fail >70%
-        if (grossDsr > 70) {
+        // Fallback to gross-DSR thresholds: pass ≤ pass_max, warning ≤ warn_max, fail > warn_max
+        if (grossDsr > grossDsrWarnMax) {
           errors.push({
             field: 'retailIncome',
-            message: `DSR of ${grossDsr.toFixed(1)}% exceeds 70% threshold — application is high risk`,
+            message: `DSR of ${grossDsr.toFixed(1)}% exceeds ${grossDsrWarnMax}% threshold — application is high risk`,
             severity: 'error',
           });
-        } else if (grossDsr > 60) {
+        } else if (grossDsr > grossDsrPassMax) {
           warnings.push({
             field: 'retailIncome',
-            message: `DSR of ${grossDsr.toFixed(1)}% is in the warning band (60-70%)`,
+            message: `DSR of ${grossDsr.toFixed(1)}% is in the warning band (${grossDsrPassMax}-${grossDsrWarnMax}%)`,
             severity: 'warning',
           });
         }
@@ -414,7 +435,7 @@ export async function validateSubmissionReadiness(
         message: `Projected exposure (MYR ${projectedExposure.toLocaleString()}) would breach borrower limit (MYR ${exposureLimit.toLocaleString()}). Override required.`,
         severity: 'warning',
       });
-    } else if (projectedExposure > exposureLimit * 0.9) {
+    } else if (projectedExposure > exposureLimit * (exposureWarningUtilisationPct / 100)) {
       warnings.push({
         field: 'exposureLimit',
         message: `Projected exposure (MYR ${projectedExposure.toLocaleString()}) is approaching the borrower limit (MYR ${exposureLimit.toLocaleString()}).`,

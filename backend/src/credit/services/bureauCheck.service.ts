@@ -3,6 +3,7 @@ import { BureauProvider, RiskRating } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
 import { recalcScore } from './recalc.service';
+import { getNumberPolicy, getStringPolicy } from './policyParameter.service';
 
 // ── Bureau Rating Caps (Wave 3) ───────────────────────────────────────────────
 
@@ -18,6 +19,10 @@ export interface BureauCapInput {
 export interface BureauCapResult {
   effectiveRating: RiskRating;
   capsApplied: string[];
+}
+
+function asRiskRating(value: string, fallback: RiskRating): RiskRating {
+  return RATING_ORDER.includes(value as RiskRating) ? value as RiskRating : fallback;
 }
 
 export function applyBureauCaps(baseRating: RiskRating, caps: BureauCapInput[]): BureauCapResult {
@@ -39,27 +44,60 @@ export async function getBureauCapsForApplication(applicationId: string): Promis
   const checks = await prisma.creditBureauCheck.findMany({ where: { applicationId } });
   const caps: BureauCapInput[] = [];
 
+  const [
+    ccrisSaaMaxRating,
+    ccrisMissedThreshold,
+    ccrisMissedMaxRating,
+    ccrisLegalMaxRating,
+    ccrisBankruptcyMaxRating,
+    ctosAdverseMaxRating,
+    ctosBankruptcyMaxRating,
+    ctosLt300Threshold,
+    ctosLt300MaxRating,
+    ctosLt500Threshold,
+    ctosLt500MaxRating,
+  ] = await Promise.all([
+    getStringPolicy('bureau.cap.ccris_saa.max_rating', 'BBB'),
+    getNumberPolicy('bureau.cap.ccris_missed_payments.threshold', 3),
+    getStringPolicy('bureau.cap.ccris_missed_payments.max_rating', 'BB'),
+    getStringPolicy('bureau.cap.ccris_legal_action.max_rating', 'B'),
+    getStringPolicy('bureau.cap.ccris_bankruptcy.max_rating', 'C'),
+    getStringPolicy('bureau.cap.ctos_adverse.max_rating', 'BB'),
+    getStringPolicy('bureau.cap.ctos_bankruptcy.max_rating', 'C'),
+    getNumberPolicy('bureau.cap.ctos_score_lt_300.threshold', 300),
+    getStringPolicy('bureau.cap.ctos_score_lt_300.max_rating', 'B'),
+    getNumberPolicy('bureau.cap.ctos_score_lt_500.threshold', 500),
+    getStringPolicy('bureau.cap.ctos_score_lt_500.max_rating', 'BB'),
+  ]);
+
   for (const check of checks) {
-    if (check.ccrisSaaFlag) caps.push({ reason: 'ccris_saa', maxRating: 'BBB' });
-    if ((check.ccrisMissedPayments12Months ?? 0) >= 3) caps.push({ reason: 'ccris_missed_3', maxRating: 'BB' });
-    if (check.ccrisLegalActionFlag) caps.push({ reason: 'ccris_legal_action', maxRating: 'B' });
-    if (check.ccrisBankruptcyFlag) caps.push({ reason: 'ccris_bankruptcy', maxRating: 'C' });
-    if (check.ctosAdverseFlag) caps.push({ reason: 'ctos_adverse', maxRating: 'BB' });
-    if (check.ctosBankruptcyFlag) caps.push({ reason: 'ctos_bankruptcy', maxRating: 'C' });
+    if (check.ccrisSaaFlag) caps.push({ reason: 'ccris_saa', maxRating: asRiskRating(ccrisSaaMaxRating, 'BBB') });
+    if ((check.ccrisMissedPayments12Months ?? 0) >= ccrisMissedThreshold) {
+      caps.push({ reason: `ccris_missed_${ccrisMissedThreshold}`, maxRating: asRiskRating(ccrisMissedMaxRating, 'BB') });
+    }
+    if (check.ccrisLegalActionFlag) caps.push({ reason: 'ccris_legal_action', maxRating: asRiskRating(ccrisLegalMaxRating, 'B') });
+    if (check.ccrisBankruptcyFlag) caps.push({ reason: 'ccris_bankruptcy', maxRating: asRiskRating(ccrisBankruptcyMaxRating, 'C') });
+    if (check.ctosAdverseFlag) caps.push({ reason: 'ctos_adverse', maxRating: asRiskRating(ctosAdverseMaxRating, 'BB') });
+    if (check.ctosBankruptcyFlag) caps.push({ reason: 'ctos_bankruptcy', maxRating: asRiskRating(ctosBankruptcyMaxRating, 'C') });
     const score = check.ctosScore;
     if (score !== null && score !== undefined) {
-      if (score < 300) caps.push({ reason: 'ctos_score_lt_300', maxRating: 'B' });
-      else if (score < 500) caps.push({ reason: 'ctos_score_lt_500', maxRating: 'BB' });
+      if (score < ctosLt300Threshold) caps.push({ reason: `ctos_score_lt_${ctosLt300Threshold}`, maxRating: asRiskRating(ctosLt300MaxRating, 'B') });
+      else if (score < ctosLt500Threshold) caps.push({ reason: `ctos_score_lt_${ctosLt500Threshold}`, maxRating: asRiskRating(ctosLt500MaxRating, 'BB') });
     }
   }
 
   return caps;
 }
 
+export async function getBureauFreshnessDays(): Promise<number> {
+  return getNumberPolicy('bureau.freshness_days', 90);
+}
+
 export async function isBureauCheckFresh(applicationId: string): Promise<{ fresh: boolean; staleProviders: string[] }> {
   const checks = await prisma.creditBureauCheck.findMany({ where: { applicationId } });
+  const freshnessDays = await getBureauFreshnessDays();
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 90);
+  cutoff.setDate(cutoff.getDate() - freshnessDays);
 
   const staleProviders: string[] = [];
   for (const check of checks) {

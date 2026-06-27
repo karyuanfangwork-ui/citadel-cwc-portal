@@ -6,6 +6,7 @@ import { DeviationStatus, DeviationSeverity } from '@prisma/client';
 let testApplicationId: string;
 let testBorrowerId: string;
 let createdDeviationIds: string[] = [];
+let requesterUserId: string;
 
 beforeAll(async () => {
   // Create a borrower profile + application for testing
@@ -30,6 +31,15 @@ beforeAll(async () => {
   });
 
   testApplicationId = application.id;
+
+  const requester = await prisma.user.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  if (!requester) {
+    throw new Error('No active test user found for deviation creator attribution');
+  }
+  requesterUserId = requester.id;
 });
 
 afterAll(async () => {
@@ -94,6 +104,19 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       expect(deviation.severity).toBe(DeviationSeverity.MEDIUM);
       expect(deviation.requiredAuthorityLevel).toBe('SENIOR_MANAGER');
     });
+
+    it('should persist the requester for SOD enforcement', async () => {
+      const deviation = await deviationService.createDeviation({
+        applicationId: testApplicationId,
+        policyRule: 'CREATOR_ATTRIBUTION',
+        description: 'Creator attribution test',
+        severity: DeviationSeverity.LOW,
+        justification: 'Test creator attribution',
+      }, requesterUserId);
+
+      createdDeviationIds.push(deviation.id);
+      expect(deviation.createdById).toBe(requesterUserId);
+    });
   });
 
   // ── Get deviation ───────────────────────────────────────────────────────
@@ -152,7 +175,7 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       createdDeviationIds.push(created.id);
 
       // Approve it first
-      await deviationService.approveDeviation(created.id, 'd116ac9e-80de-426f-bdc2-93dd869e51c8', 'COMMITTEE', 'Approved');
+      await deviationService.approveDeviation(created.id, requesterUserId, 'COMMITTEE', 'Approved');
 
       await expect(
         deviationService.updateDeviation(created.id, { justification: 'Should fail' })
@@ -176,13 +199,13 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
 
       const approved = await deviationService.approveDeviation(
         created.id,
-        'd116ac9e-80de-426f-bdc2-93dd869e51c8',
+        requesterUserId,
         'MANAGER',
         'Approved — compensating factors present'
       );
 
       expect(approved.status).toBe(DeviationStatus.APPROVED);
-      expect(approved.approvedById).toBe('d116ac9e-80de-426f-bdc2-93dd869e51c8');
+      expect(approved.approvedById).toBe(requesterUserId);
       expect(approved.approvalComments).toBe('Approved — compensating factors present');
     });
 
@@ -198,8 +221,23 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
 
       // CRITICAL severity requires BOARD authority, MANAGER should fail
       await expect(
-        deviationService.approveDeviation(created.id, '82d2f5f4-08c6-46c2-b018-cbfb63d3af49', 'MANAGER', 'Trying to approve')
+        deviationService.approveDeviation(created.id, requesterUserId, 'MANAGER', 'Trying to approve')
       ).rejects.toThrow(/below the required level/i);
+    });
+
+    it('should reject self-approval by the deviation requester', async () => {
+      const created = await deviationService.createDeviation({
+        applicationId: testApplicationId,
+        policyRule: 'SELF_APPROVAL_TEST',
+        description: 'Requester cannot approve own deviation',
+        severity: DeviationSeverity.LOW,
+        justification: 'Test self approval SOD',
+      }, requesterUserId);
+      createdDeviationIds.push(created.id);
+
+      await expect(
+        deviationService.approveDeviation(created.id, requesterUserId, 'MANAGER', 'Self approve')
+      ).rejects.toThrow(/different officer/i);
     });
 
     it('should not approve a non-waivable deviation', async () => {
@@ -219,7 +257,7 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       createdDeviationIds.push(created.id);
 
       await expect(
-        deviationService.approveDeviation(created.id, 'd116ac9e-80de-426f-bdc2-93dd869e51c8', 'BOARD', 'Try approve')
+        deviationService.approveDeviation(created.id, requesterUserId, 'BOARD', 'Try approve')
       ).rejects.toThrow(/non-waivable/i);
     });
 
@@ -233,10 +271,10 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       });
       createdDeviationIds.push(created.id);
 
-      await deviationService.approveDeviation(created.id, 'd116ac9e-80de-426f-bdc2-93dd869e51c8', 'MANAGER', 'First approve');
+      await deviationService.approveDeviation(created.id, requesterUserId, 'MANAGER', 'First approve');
 
       await expect(
-        deviationService.approveDeviation(created.id, 'd116ac9e-80de-426f-bdc2-93dd869e51c8', 'MANAGER', 'Second approve')
+        deviationService.approveDeviation(created.id, requesterUserId, 'MANAGER', 'Second approve')
       ).rejects.toThrow(/only pending/i);
     });
   });
@@ -255,13 +293,13 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
 
       const rejected = await deviationService.rejectDeviation(
         created.id,
-        '82d2f5f4-08c6-46c2-b018-cbfb63d3af49',
+        requesterUserId,
         'Breach is too significant — restructure the facility'
       );
 
       expect(rejected.status).toBe(DeviationStatus.REJECTED);
       expect(rejected.rejectionReason).toBe('Breach is too significant — restructure the facility');
-      expect(rejected.rejectedById).toBe('82d2f5f4-08c6-46c2-b018-cbfb63d3af49');
+      expect(rejected.rejectedById).toBe(requesterUserId);
     });
 
     it('should not reject a non-pending deviation', async () => {
@@ -274,10 +312,10 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       });
       createdDeviationIds.push(created.id);
 
-      await deviationService.rejectDeviation(created.id, '82d2f5f4-08c6-46c2-b018-cbfb63d3af49', 'First rejection');
+      await deviationService.rejectDeviation(created.id, requesterUserId, 'First rejection');
 
       await expect(
-        deviationService.rejectDeviation(created.id, '82d2f5f4-08c6-46c2-b018-cbfb63d3af49', 'Second rejection')
+        deviationService.rejectDeviation(created.id, requesterUserId, 'Second rejection')
       ).rejects.toThrow(/only pending/i);
     });
   });
@@ -404,6 +442,41 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
       });
       createdDeviationIds.push(d.id);
       expect(d.requiredAuthorityLevel).toBe('SENIOR_MANAGER');
+    });
+
+    it('MEDIUM severity cannot be approved by MANAGER authority', async () => {
+      const d = await deviationService.createDeviation({
+        applicationId: testApplicationId,
+        policyRule: 'SEV_MED_MANAGER_REJECT',
+        description: 'Medium severity manager reject',
+        severity: DeviationSeverity.MEDIUM,
+        justification: 'Test',
+      });
+      createdDeviationIds.push(d.id);
+
+      await expect(
+        deviationService.approveDeviation(d.id, requesterUserId, 'MANAGER', 'Manager attempt')
+      ).rejects.toThrow(/below the required level/i);
+    });
+
+    it('MEDIUM severity can be approved by SENIOR_MANAGER authority', async () => {
+      const d = await deviationService.createDeviation({
+        applicationId: testApplicationId,
+        policyRule: 'SEV_MED_SENIOR_APPROVE',
+        description: 'Medium severity senior approve',
+        severity: DeviationSeverity.MEDIUM,
+        justification: 'Test',
+      });
+      createdDeviationIds.push(d.id);
+
+      const approved = await deviationService.approveDeviation(
+        d.id,
+        requesterUserId,
+        'SENIOR_MANAGER',
+        'Senior approval',
+      );
+
+      expect(approved.status).toBe(DeviationStatus.APPROVED);
     });
 
     it('HIGH severity requires COMMITTEE approval', async () => {

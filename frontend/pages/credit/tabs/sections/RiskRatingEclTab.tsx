@@ -469,20 +469,7 @@ const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
   };
 
   const handleOverride = async () => {
-    if (!overrideTarget || !overrideForm.rating || !overrideForm.reason.trim()) return;
-    setOverriding(true);
-    try {
-      const sr = await creditService.overrideScore(overrideTarget.id, {
-        newRiskRating: overrideForm.rating,
-        overrideReason: overrideForm.reason,
-        overrideApprovedById: user!.id,
-      });
-      setScoreRuns(prev => prev.map(s => s.id === sr.id ? sr : s));
-      setOverrideTarget(null);
-      setOverrideForm({ rating: 'BBB', reason: '' });
-      toast.success('Override', 'Rating overridden successfully');
-    } catch (e) { toast.error('Override Error', friendlyMessage(e, 'Failed to override rating')); }
-    finally { setOverriding(false); }
+    toast.error('Override Approval Required', 'Score overrides require approval by a different officer. Use the score override approval workflow.');
   };
 
   const handleCrudAction = () => {
@@ -615,12 +602,15 @@ const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
                     placeholder="Justification for overriding the risk rating..." />
                 </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Score overrides require approval by a different officer. The direct self-approved override path is disabled; use the score override approval workflow.
+                </div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setOverrideTarget(null)} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-50 transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={handleOverride} disabled={!overrideForm.rating || !overrideForm.reason.trim() || overriding}
+                <button onClick={handleOverride} disabled
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {overriding ? 'Overriding...' : 'Override Rating'}
+                  Request Separate Approval
                 </button>
               </div>
             </div>

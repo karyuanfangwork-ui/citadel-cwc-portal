@@ -233,7 +233,8 @@ model User {
   fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
   // §6.2 — Credit Policy Limits
   createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
-  // P1-6 — Deviation approvals (approved/rejected by)
+  // P1-6 — Deviation approvals (created/approved/rejected by)
+  createdDeviations           DeviationApproval[]    @relation("DeviationCreatedBy")
   approvedDeviations          DeviationApproval[]    @relation("DeviationApprovedBy")
   rejectedDeviations          DeviationApproval[]    @relation("DeviationRejectedBy")
   // P1-2 — PDPA consent records
@@ -2954,6 +2955,7 @@ model DeviationApproval {
   rejectedById     String?           @map("rejected_by_id") @db.Uuid
   rejectedAt       DateTime?         @map("rejected_at") @db.Timestamp(6)
   rejectionReason  String?           @map("rejection_reason")
+  createdById      String?           @map("created_by_id") @db.Uuid
 
   reviewDate       DateTime?         @map("review_date") @db.Timestamp(6)   // When deviation should be reviewed
   sunsetDate       DateTime?         @map("sunset_date") @db.Timestamp(6)   // When deviation expires
@@ -2961,12 +2963,14 @@ model DeviationApproval {
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application      CreditApplication  @relation(fields: [applicationId], references: [id])
+  createdBy        User?             @relation("DeviationCreatedBy", fields: [createdById], references: [id])
   approvedBy       User?             @relation("DeviationApprovedBy", fields: [approvedById], references: [id])
   rejectedBy       User?             @relation("DeviationRejectedBy", fields: [rejectedById], references: [id])
 
   @@index([applicationId, status])
   @@index([status, reviewDate])
   @@index([policyRule])
+  @@index([createdById])
   @@map("deviation_approvals")
 }
 
@@ -3565,6 +3569,12 @@ model CreditApplication {
   
   // P2-2: Processing lane — determined by borrowerType × requestedAmount × annualTurnover
   lane            ProcessingLane    @default(CORPORATE) @map("lane")
+
+  // G-09 — canonical denormalised application rating.
+  // Updated from the latest score run/override so dashboards and approval
+  // lookups do not drift between borrower-level and application-level ratings.
+  riskRating      RiskRating?        @map("risk_rating")
+  riskRatingUpdatedAt DateTime?      @map("risk_rating_updated_at") @db.Timestamp(6)
   
   // Assignment
   assignedRmId    String?           @map("assigned_rm_id") @db.Uuid
@@ -3685,6 +3695,7 @@ model CreditApplication {
   @@index([productType])
   @@index([submittedAt])
   @@index([branchId])
+  @@index([riskRating])
   @@index([tenantId])
   @@map("credit_applications")
 }
@@ -4063,6 +4074,35 @@ model DocumentRequirement {
   
   @@index([applicationId])
   @@map("document_requirements")
+}
+
+// ============================================================================
+// G-12 — Generic credit policy parameters
+// ============================================================================
+model CreditPolicyParameter {
+  id           String             @id @default(uuid()) @db.Uuid
+  key          String             @db.VarChar(150)
+  value        Json
+  category     String             @db.VarChar(80)
+  description  String?            @db.Text
+
+  // Optional scope; null means wildcard for that dimension.
+  productType  CreditProductType? @map("product_type")
+  lane         ProcessingLane?    @map("lane")
+  borrowerType BorrowerType?      @map("borrower_type")
+
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamp(6)
+  isActive      Boolean   @default(true) @map("is_active")
+
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([key, productType, lane, borrowerType, effectiveFrom])
+  @@index([key, isActive])
+  @@index([category, isActive])
+  @@index([productType, lane, borrowerType])
+  @@map("credit_policy_parameters")
 }
 
 model CreditRuleConfig {

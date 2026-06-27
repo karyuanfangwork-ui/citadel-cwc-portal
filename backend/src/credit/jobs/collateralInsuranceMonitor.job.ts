@@ -19,10 +19,15 @@
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { SignalType, EarlyWarningSeverity } from '@prisma/client';
+import { getNumberPolicy } from '../services/policyParameter.service';
 
-const NINE_MONTHS_MS = 9 * 30.44 * 24 * 60 * 60 * 1000;
-const TWELVE_MONTHS_MS = 12 * 30.44 * 24 * 60 * 60 * 1000;
-const THIRTY_DAYS_MS = 30.44 * 24 * 60 * 60 * 1000;
+function monthsToMs(months: number): number {
+  return months * 30.44 * 24 * 60 * 60 * 1000;
+}
+
+function daysToMs(days: number): number {
+  return days * 24 * 60 * 60 * 1000;
+}
 
 // Tangible collateral types that require fresh valuations
 const TANGIBLE_COLLATERAL_TYPES = [
@@ -57,13 +62,18 @@ export async function checkCollateralValuationFreshness(): Promise<StaleValuatio
   logger.info('[CollateralMonitor] Checking collateral valuation freshness...');
 
   const now = new Date();
-  const nineMonthsAgo = new Date(now.getTime() - NINE_MONTHS_MS);
+  const [warningMonths, blockMonths] = await Promise.all([
+    getNumberPolicy('collateral.valuation.warning_months', 9),
+    getNumberPolicy('collateral.valuation.block_months', 12),
+  ]);
+  const warningMonthsAgo = new Date(now.getTime() - monthsToMs(warningMonths));
+  const blockMonthsMs = monthsToMs(blockMonths);
 
-  // Find collaterals with valuations older than 9 months (or no valuation date)
+  // Find collaterals with valuations older than the warning window (or no valuation date)
   const staleCollaterals = await prisma.collateral.findMany({
     where: {
       collateralType: { in: TANGIBLE_COLLATERAL_TYPES },
-      valuationDate: { lt: nineMonthsAgo },
+      valuationDate: { lt: warningMonthsAgo },
     },
     include: {
       facility: {
@@ -108,7 +118,7 @@ export async function checkCollateralValuationFreshness(): Promise<StaleValuatio
       : null;
 
     const ageMs = valuationDate ? now.getTime() - valuationDate.getTime() : Infinity;
-    const severity: 'MEDIUM' | 'HIGH' = ageMs >= TWELVE_MONTHS_MS ? 'HIGH' : 'MEDIUM';
+    const severity: 'MEDIUM' | 'HIGH' = ageMs >= blockMonthsMs ? 'HIGH' : 'MEDIUM';
 
     results.push({
       collateralId: collateral.id,
@@ -122,13 +132,13 @@ export async function checkCollateralValuationFreshness(): Promise<StaleValuatio
     // Upsert EarlyWarningSignal (deduplicate by applicationId + signalType + open)
     await prisma.earlyWarningSignal.upsert({
       where: { id: `${collateral.id}-stale-valuation` },
-      update: { severity, description: `Collateral valuation stale: ${ageMonths ?? 'N/A'} months old (threshold: 9 months). Collateral: ${collateral.description ?? collateral.collateralType}` },
+      update: { severity, description: `Collateral valuation stale: ${ageMonths ?? 'N/A'} months old (threshold: ${warningMonths} months). Collateral: ${collateral.description ?? collateral.collateralType}` },
       create: {
         id: `${collateral.id}-stale-valuation`,
         applicationId: collateral.facility.applicationId,
         signalType: SignalType.COLLATERAL_VALUATION_STALE,
         severity: severity === 'HIGH' ? EarlyWarningSeverity.HIGH : EarlyWarningSeverity.MEDIUM,
-        description: `Collateral valuation stale: ${ageMonths ?? 'N/A'} months old (threshold: 9 months). Collateral: ${collateral.description ?? collateral.collateralType}`,
+        description: `Collateral valuation stale: ${ageMonths ?? 'N/A'} months old (threshold: ${warningMonths} months). Collateral: ${collateral.description ?? collateral.collateralType}`,
       },
     });
   }
@@ -185,13 +195,17 @@ export async function checkInsuranceExpiry(): Promise<InsuranceExpiryResult[]> {
   logger.info('[InsuranceMonitor] Checking insurance expiry...');
 
   const now = new Date();
+  const [warningDays, highSeverityDays] = await Promise.all([
+    getNumberPolicy('insurance.expiry.warning_days', 30),
+    getNumberPolicy('insurance.expiry.high_severity_days', 7),
+  ]);
 
-  // Find insurance covers expiring within 30 days or already expired
-  const thirtyDaysFromNow = new Date(now.getTime() + THIRTY_DAYS_MS);
+  // Find insurance covers expiring within configured warning days or already expired
+  const warningDaysFromNow = new Date(now.getTime() + daysToMs(warningDays));
 
   const expiringInsurance = await prisma.insuranceCover.findMany({
     where: {
-      expiryDate: { lte: thirtyDaysFromNow },
+      expiryDate: { lte: warningDaysFromNow },
     },
     include: {
       collateral: {
@@ -213,7 +227,7 @@ export async function checkInsuranceExpiry(): Promise<InsuranceExpiryResult[]> {
 
   for (const insurance of expiringInsurance) {
     const daysUntilExpiry = Math.ceil((insurance.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-    const severity: 'MEDIUM' | 'HIGH' = daysUntilExpiry <= 7 || daysUntilExpiry <= 0 ? 'HIGH' : 'MEDIUM';
+    const severity: 'MEDIUM' | 'HIGH' = daysUntilExpiry <= highSeverityDays || daysUntilExpiry <= 0 ? 'HIGH' : 'MEDIUM';
 
     results.push({
       insuranceId: insurance.id,
@@ -261,7 +275,8 @@ export async function hasStaleCollateralValuations(applicationId: string): Promi
   blocked: boolean;
   staleCollaterals: Array<{ id: string; type: string; valuationDate: Date | null; ageMonths: number | null }>;
 }> {
-  const twelveMonthsAgo = new Date(Date.now() - TWELVE_MONTHS_MS);
+  const blockMonths = await getNumberPolicy('collateral.valuation.block_months', 12);
+  const blockMonthsAgo = new Date(Date.now() - monthsToMs(blockMonths));
 
   const facilities = await prisma.applicationFacility.findMany({
     where: { applicationId },
@@ -275,7 +290,7 @@ export async function hasStaleCollateralValuations(applicationId: string): Promi
       facilityId: { in: facilityIds },
       collateralType: { in: TANGIBLE_COLLATERAL_TYPES },
       OR: [
-        { valuationDate: { lt: twelveMonthsAgo } },
+        { valuationDate: { lt: blockMonthsAgo } },
         { valuationDate: null },
       ],
     },
@@ -298,7 +313,7 @@ export async function hasStaleCollateralValuations(applicationId: string): Promi
       results.push({ id: c.id, type: c.collateralType, valuationDate: null, ageMonths: null });
     } else {
       const ageMonths = Math.floor((Date.now() - latestValuation.getTime()) / (30.44 * 24 * 60 * 60 * 1000));
-      if (latestValuation < twelveMonthsAgo) {
+      if (latestValuation < blockMonthsAgo) {
         results.push({ id: c.id, type: c.collateralType, valuationDate: latestValuation, ageMonths });
       }
     }

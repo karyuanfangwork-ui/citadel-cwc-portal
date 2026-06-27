@@ -41,6 +41,7 @@ const makeApp = (overrides: Record<string, any> = {}) => ({
   submittedAt: new Date('2026-01-01'),
   createdAt: new Date('2026-01-01'),
   branchId: null,
+  riskRating: overrides.riskRating ?? null,
   assignedRmId: 'rm-other',
   assignedAnalystId: null,
   borrowerProfile: {
@@ -192,6 +193,37 @@ describe('Approval Inbox — authority scoping (F6)', () => {
     );
 
     expect(result.totalPending).toBe(1);
+  });
+
+  it('uses canonical application riskRating before borrower profile rating for authority lookup', async () => {
+    const app = makeApp({
+      id: 'app-canonical-rating',
+      riskRating: 'BB',
+      borrowerProfile: {
+        id: 'bp-1',
+        creditRiskRating: 'A',
+        account: { name: 'Canonical Rating Borrower' },
+        contact: { firstName: 'J', lastName: 'D' },
+      },
+    });
+
+    mockedFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([app]);
+    mockedLookupAuthority.mockResolvedValueOnce({ authorityLevel: 'MANAGER', requiredApproverCount: 1, matrixId: 'm1', matrixName: 'Manager Matrix' });
+
+    await dashboardService.getApprovalInbox(
+      'user-mgr',
+      ['CREDIT_MANAGER'],
+      ['credit:approve'],
+    );
+
+    expect(mockedLookupAuthority).toHaveBeenCalledWith(
+      100000,
+      'BB',
+      null,
+      null,
+    );
   });
 
   it('still respects SOD exclusion (user as RM is excluded from second query)', async () => {

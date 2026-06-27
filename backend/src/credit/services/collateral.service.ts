@@ -4,6 +4,7 @@ import { AuditChainService } from './auditChain.service';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../utils/logger';
 import { recalcScore } from './recalc.service';
+import { getNumberPolicy } from './policyParameter.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -368,7 +369,8 @@ class CollateralService {
    * Compute Loan-to-Value for a facility, applying haircut by security category.
    * Flags stale valuations and checks against LTV cap.
    */
-  async computeLtv(facilityId: string, ltvCap: number = LTV_CAP_DEFAULT): Promise<LtvResult> {
+  async computeLtv(facilityId: string, ltvCap?: number): Promise<LtvResult> {
+    const effectiveLtvCap = ltvCap ?? await getNumberPolicy('collateral.ltv_cap.default_pct', LTV_CAP_DEFAULT);
     const facility = await prisma.applicationFacility.findUnique({
       where: { id: facilityId },
       select: { id: true, amount: true },
@@ -456,7 +458,7 @@ class CollateralService {
       totalMarketValue,
       totalAdjustedValue,
       ltvPercent: Math.round(ltvPercent * 100) / 100,
-      exceedsCap: ltvPercent > ltvCap,
+      exceedsCap: ltvPercent > effectiveLtvCap,
       staleValuations,
       haircutDetails,
     };

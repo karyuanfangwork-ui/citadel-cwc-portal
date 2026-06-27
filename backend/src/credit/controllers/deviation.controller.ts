@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { deviationService } from '../services/deviation.service';
+import { AUTHORITY_HIERARCHY, getHighestAuthorityLevelName } from '../services/authority.service';
 
 class DeviationController {
   // ===========================================================================
@@ -112,11 +113,24 @@ class DeviationController {
  * This maps user roles to approval matrix authority levels.
  */
 function getApproverAuthorityLevel(req: AuthRequest): string {
-  // Check user's permissions to determine authority level
+  const roles: string[] = req.user?.roles ?? [];
   const permissions: string[] = (req.user as any).permissions ?? [];
 
+  const roleAuthority = getHighestAuthorityLevelName(roles);
+  if ((AUTHORITY_HIERARCHY[roleAuthority] ?? 0) > AUTHORITY_HIERARCHY.RM) {
+    return roleAuthority;
+  }
+
   if (permissions.includes('credit:admin') || permissions.includes('admin:full')) {
+    return 'BOARD';
+  }
+
+  if (permissions.includes('credit:committee')) {
     return 'COMMITTEE';
+  }
+
+  if (permissions.includes('credit:senior_approve')) {
+    return 'SENIOR_MANAGER';
   }
 
   if (permissions.includes('credit:approve')) {

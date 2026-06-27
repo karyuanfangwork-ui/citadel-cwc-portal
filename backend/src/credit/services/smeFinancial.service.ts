@@ -9,6 +9,7 @@
 
 import prisma from '../../utils/prisma';
 import { BorrowerType, SmeFinancialStatementType } from '@prisma/client';
+import { getNumberPolicy } from './policyParameter.service';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,12 @@ const SME_DSCR_CORPORATE_BENCHMARK: SmeBenchmark = {
   direction: 'higher_is_better',
 };
 
+const SME_DEBT_TO_EQUITY_BENCHMARK: SmeBenchmark = {
+  passThreshold: 1.5,
+  warnThreshold: 2.0,
+  direction: 'lower_is_better',
+};
+
 // ── SME Simplified Ratio Set ─────────────────────────────────────────────────
 // Fewer ratios than corporate — focus on key credit metrics
 
@@ -144,7 +151,7 @@ class SmeFinancialService {
     const sicCode = profile.sicCode;
 
     // Determine financial statement type requirements
-    const requiresAudited = this.requiresAuditedAccounts(yearsTrading, annualTurnover);
+    const requiresAudited = await this.requiresAuditedAccountsConfigured(yearsTrading, annualTurnover);
     const acceptsManagement = this.acceptsManagementAccounts(yearsTrading);
 
     // Get simplified ratios from financial statements
@@ -184,6 +191,20 @@ class SmeFinancialService {
     return annualAmount !== null && annualAmount >= 500_000;
   }
 
+  async requiresAuditedAccountsConfigured(
+    yearsTrading: number | null,
+    annualAmount: number | null,
+  ): Promise<boolean> {
+    const [yearsTradingMin, amountMin] = await Promise.all([
+      getNumberPolicy('sme.audited_accounts.years_trading_min', 3),
+      getNumberPolicy('sme.audited_accounts.amount_min', 500_000),
+    ]);
+
+    if (yearsTrading === null) return false;
+    if (yearsTrading < yearsTradingMin) return false;
+    return annualAmount !== null && annualAmount >= amountMin;
+  }
+
   /**
    * Compute simplified ratios for an SME borrower.
    * Uses the corporate financial statement data but applies SME-calibrated benchmarks.
@@ -215,9 +236,9 @@ class SmeFinancialService {
 
     const ratioMap = new Map(ratios.map(r => [r.ratioKey, Number(r.value)]));
 
-    return SME_SIMPLIFIED_RATIO_KEYS.map(rk => {
+    return Promise.all(SME_SIMPLIFIED_RATIO_KEYS.map(async (rk) => {
       const value = ratioMap.get(rk) ?? null;
-      const benchmark = this.getSmeBenchmark(rk);
+      const benchmark = await this.getSmeBenchmark(rk);
       const status = this.evaluateRatio(rk, value, benchmark);
       return {
         key: rk,
@@ -227,7 +248,7 @@ class SmeFinancialService {
         benchmark,
         status,
       };
-    });
+    }));
   }
 
   /**
@@ -269,7 +290,7 @@ class SmeFinancialService {
           ? (totalCommitments / monthlyNet) * 100
           : null;
 
-        const dsrStatus = this.evaluateDsr(dsrPercent);
+        const dsrStatus = this.evaluateDsr(dsrPercent, await this.getSmeBenchmark('dsr'));
 
         ownerDsr = {
           monthlyGrossIncome: monthlyGross,
@@ -313,7 +334,7 @@ class SmeFinancialService {
         ? ebitda / (interest + principal)
         : null;
 
-      const dscrStatus = this.evaluateDscr(dscr);
+      const dscrStatus = this.evaluateDscr(dscr, await this.getSmeBenchmark('dscr'));
 
       businessDscr = {
         netIncome,
@@ -391,22 +412,76 @@ class SmeFinancialService {
     return { acceptable: true, reason: 'No specific requirement' };
   }
 
+  async validateFinancialStatementTypeConfigured(
+    smeFinancialStatementType: SmeFinancialStatementType | null,
+    yearsTrading: number | null,
+    annualAmount: number | null,
+  ): Promise<{ acceptable: boolean; reason: string }> {
+    const [requiresAudited, yearsTradingMin, amountMin] = await Promise.all([
+      this.requiresAuditedAccountsConfigured(yearsTrading, annualAmount),
+      getNumberPolicy('sme.audited_accounts.years_trading_min', 3),
+      getNumberPolicy('sme.audited_accounts.amount_min', 500_000),
+    ]);
+
+    if (requiresAudited) {
+      if (smeFinancialStatementType !== 'AUDITED') {
+        return {
+          acceptable: false,
+          reason: `Audited accounts required (yearsTrading >= ${yearsTradingMin} and amount >= RM${amountMin}). Got: ${smeFinancialStatementType ?? 'not specified'}`,
+        };
+      }
+      return { acceptable: true, reason: 'Audited accounts provided — requirement met' };
+    }
+
+    if (smeFinancialStatementType === 'MANAGEMENT') {
+      if (yearsTrading === null || yearsTrading < yearsTradingMin) {
+        return { acceptable: true, reason: `Management accounts accepted (< ${yearsTradingMin} years trading)` };
+      }
+      return {
+        acceptable: false,
+        reason: `Management accounts not accepted for >= ${yearsTradingMin} years trading without audited accounts`,
+      };
+    }
+
+    if (smeFinancialStatementType === 'COMPILED') {
+      return { acceptable: true, reason: 'Compiled accounts accepted for SME' };
+    }
+
+    if (smeFinancialStatementType === 'AUDITED') {
+      return { acceptable: true, reason: 'Audited accounts always acceptable' };
+    }
+
+    return { acceptable: true, reason: 'No specific requirement' };
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────────────
 
-  private getSmeBenchmark(ratioKey: string): SmeBenchmark {
+  private async getSmeBenchmark(ratioKey: string): Promise<SmeBenchmark> {
+    const withPolicy = async (
+      base: SmeBenchmark,
+      passKey: string,
+      warnKey: string,
+    ): Promise<SmeBenchmark> => ({
+      ...base,
+      passThreshold: await getNumberPolicy(passKey, base.passThreshold),
+      warnThreshold: await getNumberPolicy(warnKey, base.warnThreshold),
+    });
+
     switch (ratioKey) {
       case 'dscr':
-        return SME_DSCR_BENCHMARK;
+        return withPolicy(SME_DSCR_BENCHMARK, 'sme.dscr.pass_min', 'sme.dscr.warn_min');
+      case 'dsr':
+        return withPolicy(SME_DSR_BENCHMARK, 'sme.dsr.pass_max', 'sme.dsr.warn_max');
       case 'current_ratio':
-        return SME_CURRENT_RATIO_BENCHMARK;
+        return withPolicy(SME_CURRENT_RATIO_BENCHMARK, 'sme.current_ratio.pass_min', 'sme.current_ratio.warn_min');
       case 'gearing_ratio':
-        return SME_GEARING_BENCHMARK;
+        return withPolicy(SME_GEARING_BENCHMARK, 'sme.gearing.pass_max', 'sme.gearing.warn_max');
       case 'ros':
-        return SME_ROS_BENCHMARK;
+        return withPolicy(SME_ROS_BENCHMARK, 'sme.ros.pass_min', 'sme.ros.warn_min');
       case 'debt_to_equity':
-        return { passThreshold: 1.5, warnThreshold: 2.0, direction: 'lower_is_better' };
+        return withPolicy(SME_DEBT_TO_EQUITY_BENCHMARK, 'sme.debt_to_equity.pass_max', 'sme.debt_to_equity.warn_max');
       default:
-        return SME_DSCR_CORPORATE_BENCHMARK;
+        return withPolicy(SME_DSCR_CORPORATE_BENCHMARK, 'sme.dscr.pass_min', 'sme.dscr.warn_min');
     }
   }
 
@@ -429,17 +504,17 @@ class SmeFinancialService {
     }
   }
 
-  private evaluateDsr(dsrPercent: number | null): 'pass' | 'warn' | 'fail' {
+  private evaluateDsr(dsrPercent: number | null, benchmark: SmeBenchmark): 'pass' | 'warn' | 'fail' {
     if (dsrPercent === null) return 'fail';
-    if (dsrPercent <= SME_DSR_BENCHMARK.passThreshold) return 'pass';
-    if (dsrPercent <= SME_DSR_BENCHMARK.warnThreshold) return 'warn';
+    if (dsrPercent <= benchmark.passThreshold) return 'pass';
+    if (dsrPercent <= benchmark.warnThreshold) return 'warn';
     return 'fail';
   }
 
-  private evaluateDscr(dscr: number | null): 'pass' | 'warn' | 'fail' {
+  private evaluateDscr(dscr: number | null, benchmark: SmeBenchmark): 'pass' | 'warn' | 'fail' {
     if (dscr === null) return 'fail';
-    if (dscr >= SME_DSCR_BENCHMARK.passThreshold) return 'pass';
-    if (dscr >= SME_DSCR_BENCHMARK.warnThreshold) return 'warn';
+    if (dscr >= benchmark.passThreshold) return 'pass';
+    if (dscr >= benchmark.warnThreshold) return 'warn';
     return 'fail';
   }
 
@@ -477,12 +552,20 @@ class SmeFinancialService {
   }
 
   private getDefaultSimplifiedRatios(): SmeFinancialRatio[] {
+    const fallbackBenchmarks: Record<string, SmeBenchmark> = {
+      dscr: SME_DSCR_BENCHMARK,
+      current_ratio: SME_CURRENT_RATIO_BENCHMARK,
+      gearing_ratio: SME_GEARING_BENCHMARK,
+      ros: SME_ROS_BENCHMARK,
+      debt_to_equity: SME_DEBT_TO_EQUITY_BENCHMARK,
+    };
+
     return SME_SIMPLIFIED_RATIO_KEYS.map(key => ({
       key,
       label: this.getRatioLabel(key),
       value: null,
       unit: this.getRatioUnit(key),
-      benchmark: this.getSmeBenchmark(key),
+      benchmark: fallbackBenchmarks[key] ?? SME_DSCR_CORPORATE_BENCHMARK,
       status: 'fail' as const,
     }));
   }

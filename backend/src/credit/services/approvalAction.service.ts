@@ -11,6 +11,17 @@ import { logger } from '../../utils/logger';
 import { computeBorrowerExposure } from './exposureCompute.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getApplicationEffectiveRating } from './applicationRating.service';
+export {
+  AUTHORITY_HIERARCHY,
+  hasSufficientAuthority,
+  getRoleNamesForAuthorityLevel,
+  getUserAuthorityLevel,
+} from './authority.service';
+import {
+  AUTHORITY_HIERARCHY,
+  hasSufficientAuthority,
+  getRoleNamesForAuthorityLevel,
+} from './authority.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,65 +54,6 @@ interface CreditDecisionRow {
   authorityLevel: string | null;
   comments: string | null;
   createdAt: Date;
-}
-
-// Authority level hierarchy — higher number = higher authority
-export const AUTHORITY_HIERARCHY: Record<string, number> = {
-  // New authority levels
-  RM: 1,
-  MANAGER: 2,
-  COMMITTEE: 3,
-  BOARD: 4,
-  // Legacy aliases (remove after full DB migration)
-  CREDIT_RM: 1,
-  CREDIT_MANAGER: 2,
-  SENIOR_CREDIT_OFFICER: 3,
-  CREDIT_COMMITTEE: 4,
-  BOARD_RISK_COMMITTEE: 5,
-};
-
-export function hasSufficientAuthority(userAuthority: string, requiredAuthority: string): boolean {
-  const userLevel = AUTHORITY_HIERARCHY[userAuthority] ?? 0;
-  const requiredLevel = AUTHORITY_HIERARCHY[requiredAuthority] ?? 0;
-  return userLevel >= requiredLevel;
-}
-
-/**
- * Map authority level number to the role names that hold that authority.
- * Used by autoRouteNextApprover to find next-level approvers.
- */
-export function getRoleNamesForAuthorityLevel(level: number): string[] {
-  // Committee-level approval: find all CREDIT_MANAGER users
-  // Board-level approval: find CREDIT_ADMIN and ADMIN users
-  const mapping: Record<number, string[]> = {
-    1: ['CREDIT_RM'],         // Tier 1: RM self-approval
-    2: ['CREDIT_MANAGER'],    // Tier 2: Single manager approval
-    3: ['CREDIT_MANAGER'],    // Tier 3: Committee (multiple managers)
-    4: ['CREDIT_ADMIN'],      // Tier 4: Board/admin override
-  };
-  return mapping[level] ?? ['CREDIT_ADMIN'];
-}
-
-/**
- * Reverse mapping: given a set of user role names, return the highest
- * authority hierarchy numeric level the user holds.
- * Returns 0 if no recognised authority role is found.
- */
-export function getUserAuthorityLevel(userRoles: string[]): number {
-  let maxLevel = 0;
-  for (const role of userRoles) {
-    // Check if the role name itself is an authority key (e.g. CREDIT_MANAGER)
-    if (AUTHORITY_HIERARCHY[role] !== undefined) {
-      maxLevel = Math.max(maxLevel, AUTHORITY_HIERARCHY[role]);
-    }
-    // Also check level-to-role mapping (CREDIT_RM → level 1, CREDIT_MANAGER → level 2, etc.)
-    for (let lvl = 1; lvl <= 4; lvl++) {
-      if (getRoleNamesForAuthorityLevel(lvl).includes(role)) {
-        maxLevel = Math.max(maxLevel, lvl);
-      }
-    }
-  }
-  return maxLevel;
 }
 
 // ---------------------------------------------------------------------------

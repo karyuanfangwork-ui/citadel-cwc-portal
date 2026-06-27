@@ -26,6 +26,7 @@ jest.mock('../../jobs/collateralInsuranceMonitor.job', () => ({
 }));
 
 jest.mock('../bureauCheck.service', () => ({
+  getBureauFreshnessDays: jest.fn().mockResolvedValue(90),
   isBureauCheckFresh: jest.fn().mockResolvedValue({ fresh: true, staleProviders: [] }),
   isBureauChecklistComplete: jest.fn().mockResolvedValue(true),
   isBureauChecklistVerified: jest.fn().mockResolvedValue(true),
@@ -35,6 +36,10 @@ jest.mock('../fatcaCrs.service', () => ({
   fatcaCrsService: {
     checkExpiry: jest.fn().mockResolvedValue({ exists: false, expired: false, expiryDate: null }),
   },
+}));
+
+jest.mock('../policyParameter.service', () => ({
+  getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
 }));
 
 import prisma from '../../../utils/prisma';

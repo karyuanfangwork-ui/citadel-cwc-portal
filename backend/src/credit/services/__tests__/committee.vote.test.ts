@@ -1,5 +1,5 @@
 import { committeeService } from '../committee.service';
-import { CommitteeAttendance } from '@prisma/client';
+import { AgendaItemDecisionType, ApplicationState, CommitteeAttendance } from '@prisma/client';
 import prisma from '../../../utils/prisma';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
@@ -14,14 +14,33 @@ jest.mock('../../../utils/prisma', () => ({
     },
     committeeAgendaItem: {
       findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    committeeMeeting: {
+      findUnique: jest.fn(),
     },
     $disconnect: jest.fn(),
+  },
+}));
+
+jest.mock('../creditApplication.service', () => ({
+  creditApplicationService: {
+    transitionApplication: jest.fn(),
+  },
+}));
+
+jest.mock('../auditChain.service', () => ({
+  AuditChainService: {
+    appendEvent: jest.fn(),
   },
 }));
 
 jest.mock('../../../utils/logger', () => ({
   logger: { warn: jest.fn(), debug: jest.fn(), info: jest.fn(), error: jest.fn() },
 }));
+
+import { creditApplicationService } from '../creditApplication.service';
+import { AuditChainService } from '../auditChain.service';
 
 const MEMBER_ID = 'member-001';
 const USER_ID = 'user-001';
@@ -141,5 +160,87 @@ describe('committeeService.castVote — security checks', () => {
     ).rejects.toThrow('Agenda item not found');
 
     expect(prisma.committeeVote.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('committeeService.finalizeDecision — transition consistency', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const agendaItem = {
+    id: AGENDA_ITEM_ID,
+    meetingId: MEETING_ID,
+    applicationId: 'app-001',
+    decisionResult: null,
+    votes: [
+      { vote: AgendaItemDecisionType.APPROVE },
+      { vote: AgendaItemDecisionType.APPROVE },
+      { vote: AgendaItemDecisionType.REJECT },
+    ],
+    application: {
+      id: 'app-001',
+      applicationNo: 'CA-001',
+      state: ApplicationState.COMMITTEE_REVIEW,
+    },
+    meeting: { members: [] },
+  };
+
+  const presentMeeting = {
+    id: MEETING_ID,
+    quorumMin: 1,
+    members: [
+      {
+        attendance: CommitteeAttendance.PRESENT,
+        user: { jobTitle: 'Risk Manager', department: 'Risk', roles: [] },
+      },
+    ],
+  };
+
+  it('does not update agenda item when linked application transition fails', async () => {
+    (prisma.committeeAgendaItem.findUnique as jest.Mock).mockResolvedValue(agendaItem);
+    (prisma.committeeMeeting.findUnique as jest.Mock).mockResolvedValue(presentMeeting);
+    (creditApplicationService.transitionApplication as jest.Mock).mockRejectedValue(new Error('transition failed'));
+
+    await expect(
+      committeeService.finalizeDecision(AGENDA_ITEM_ID, USER_ID),
+    ).rejects.toThrow('transition failed');
+
+    expect(creditApplicationService.transitionApplication).toHaveBeenCalledWith(
+      'app-001',
+      'approve',
+      USER_ID,
+      undefined,
+      { skipApprovalChainCheck: true },
+    );
+    expect(prisma.committeeAgendaItem.update).not.toHaveBeenCalled();
+    expect(AuditChainService.appendEvent).not.toHaveBeenCalled();
+  });
+
+  it('updates agenda item after linked application transition succeeds', async () => {
+    (prisma.committeeAgendaItem.findUnique as jest.Mock).mockResolvedValue(agendaItem);
+    (prisma.committeeMeeting.findUnique as jest.Mock).mockResolvedValue(presentMeeting);
+    (creditApplicationService.transitionApplication as jest.Mock).mockResolvedValue({ id: 'app-001' });
+    (prisma.committeeAgendaItem.update as jest.Mock).mockResolvedValue({
+      ...agendaItem,
+      decisionResult: AgendaItemDecisionType.APPROVE,
+    });
+
+    const result = await committeeService.finalizeDecision(AGENDA_ITEM_ID, USER_ID, 'Approved by committee');
+
+    expect(result?.decisionResult).toBe(AgendaItemDecisionType.APPROVE);
+    expect(prisma.committeeAgendaItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: AGENDA_ITEM_ID },
+      data: expect.objectContaining({ decisionResult: AgendaItemDecisionType.APPROVE }),
+    }));
+    expect(AuditChainService.appendEvent).toHaveBeenCalledWith(
+      'app-001',
+      'COMMITTEE_FINALIZE',
+      USER_ID,
+      'finalize_approve',
+      undefined,
+      undefined,
+      { comment: 'Approved by committee' },
+    );
   });
 });

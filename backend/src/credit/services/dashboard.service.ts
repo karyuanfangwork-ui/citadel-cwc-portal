@@ -527,7 +527,7 @@ class DashboardService {
         productType: app.productType ?? '',
         updatedAt: app.updatedAt.toISOString(),
         requestedAmount: app.requestedAmount != null ? Number(app.requestedAmount) : null,
-        riskGrade: bp?.creditRiskRating ?? null,
+        riskGrade: app.riskRating ?? bp?.creditRiskRating ?? null,
         slaStatus,
         entityType: bp?.borrowerType ?? null,
         slaRemainingHours,
@@ -637,7 +637,7 @@ class DashboardService {
       // F6 — Scope to actual authority: resolve required authority via matrix lookup
       // and keep only apps the user's authority level can approve
       const exposure = Number((app as any).requestedAmount) || 0;
-      const riskRating = (app.borrowerProfile as any)?.creditRiskRating ?? 'NR';
+      const riskRating = (app as any).riskRating ?? (app.borrowerProfile as any)?.creditRiskRating ?? 'NR';
       const branchId = (app as any).branchId ?? null;
       const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
         exposure,
@@ -724,11 +724,6 @@ class DashboardService {
           },
           include: {
             facilities: true,
-            scoreRuns: {
-              orderBy: { runAt: 'desc' },
-              take: 1,
-              select: { riskRating: true },
-            },
           },
         },
       },
@@ -739,7 +734,9 @@ class DashboardService {
     const borrowerExposures: ExposureByBorrower[] = borrowers.map(bp => {
       const borrowerName = bp.name ?? 'Unknown';
       const industry = bp.industry ?? null;
-      const rating = bp.creditRiskRating ?? (bp.applications[0]?.scoreRuns[0]?.riskRating as string | null) ?? null;
+      const rating = (bp.applications.find(app => app.riskRating)?.riskRating as string | null)
+        ?? bp.creditRiskRating
+        ?? null;
 
       let totalExposure = 0;
       for (const app of bp.applications) {
@@ -816,7 +813,12 @@ class DashboardService {
     // Build borrower filter
     const where: any = { isActive: true, deletedAt: null };
     if (filters?.rmId) where.relationshipManagerId = filters.rmId;
-    if (filters?.riskRating) where.creditRiskRating = filters.riskRating;
+    if (filters?.riskRating) {
+      where.OR = [
+        { applications: { some: { deletedAt: null, riskRating: filters.riskRating as any } } },
+        { creditRiskRating: filters.riskRating },
+      ];
+    }
     if (filters?.branchId) where.branchId = filters.branchId;
 
     const borrowers = await prisma.borrowerProfile.findMany({

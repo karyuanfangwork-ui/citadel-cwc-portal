@@ -20,6 +20,7 @@ jest.mock('../../jobs/collateralInsuranceMonitor.job', () => ({
 }));
 jest.mock('../scoreOverride.service', () => ({ hasPendingScoreOverride: jest.fn().mockResolvedValue(false) }));
 jest.mock('../bureauCheck.service', () => ({
+  getBureauFreshnessDays: jest.fn().mockResolvedValue(90),
   isBureauCheckFresh: jest.fn().mockResolvedValue({ fresh: true, staleProviders: [] }),
   isBureauChecklistComplete: jest.fn().mockResolvedValue(true),
   isBureauChecklistVerified: jest.fn().mockResolvedValue(true),
@@ -32,10 +33,16 @@ jest.mock('../collateral.service', () => ({
 jest.mock('../smeFinancial.service', () => ({
   smeFinancialService: { computeDualAssessment: jest.fn().mockResolvedValue({ ownerDsr: null, businessDscr: null, overallStatus: 'pass', smeLane: 'SME' }) },
 }));
+jest.mock('../policyParameter.service', () => ({
+  getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
+}));
 
 import { validateSubmissionReadiness } from '../submissionReadiness.service';
 import { collateralService } from '../collateral.service';
 import { smeFinancialService } from '../smeFinancial.service';
+import { getNumberPolicy } from '../policyParameter.service';
+
+const mockedGetNumberPolicy = getNumberPolicy as jest.Mock;
 
 function baseApp(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,7 +66,10 @@ function baseApp(overrides: Record<string, unknown> = {}) {
 }
 
 describe('validateSubmissionReadiness — mandatory purpose (submission stage)', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+  });
 
   it('blocks submission when purpose is blank', async () => {
     mockFindUnique.mockResolvedValue(baseApp({ purpose: '   ' }));
@@ -81,8 +91,31 @@ describe('validateSubmissionReadiness — mandatory purpose (submission stage)',
   });
 });
 
+describe('validateSubmissionReadiness — configurable retail DSR thresholds', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+  });
+
+  it('uses configured net DSR warning maximum', async () => {
+    mockedGetNumberPolicy.mockImplementation(async (key: string, fallback: number) =>
+      key === 'readiness.retail.net_dsr.warn_max' ? 55 : fallback,
+    );
+    mockFindUnique.mockResolvedValue(baseApp());
+    mockRetailFindUnique.mockResolvedValue({ dsrPercent: 10, netDsrPercent: 56, dsrBasis: 'NET' });
+
+    const r = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+
+    expect(r.errors.some((e) => e.field === 'retailIncome')).toBe(true);
+    expect(r.errors.find((e) => e.field === 'retailIncome')?.message).toContain('55% threshold');
+  });
+});
+
 describe('validateSubmissionReadiness — LTV cap (committee stage)', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+  });
 
   it('blocks committee when a collateralised facility exceeds LTV cap and no deviation approved', async () => {
     mockFindUnique.mockResolvedValue(baseApp({ borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } }));
@@ -115,7 +148,10 @@ describe('validateSubmissionReadiness — LTV cap (committee stage)', () => {
 });
 
 describe('validateSubmissionReadiness — DSCR minimum (committee stage)', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+  });
 
   function corpApp() {
     return baseApp({ borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } });

@@ -20,6 +20,7 @@ import { getUserContext } from '../../lib/user-context';
  *   - Guarantee
  *   - CommitteeMeeting / CommitteeMember / CommitteeAgendaItem / CommitteeVote
  *   - ApprovalMatrix / ApprovalMatrixVersion
+ *   - CreditRuleConfig / RatingBandConfig / RiskFactorMatrix / CreditSlaPolicy
  *   - Condition
  *   - FacilityHealth / CovenantDefinition / CovenantTest
  *   - PaymentEvent / EarlyWarningSignal
@@ -55,6 +56,12 @@ const CREDIT_MODELS = new Set([
   'CommitteeVote',
   'ApprovalMatrix',
   'ApprovalMatrixVersion',
+  'CreditRuleConfig',
+  'RatingBandConfig',
+  'RiskFactorMatrix',
+  'CreditSlaPolicy',
+  'CreditSlaPolicyBranchOverride',
+  'CreditBureauCheck',
   'CreditDecision',
   'Condition',
   'FacilityHealth',
@@ -108,29 +115,32 @@ export function installCreditAuditMiddleware(prisma: PrismaClient): void {
       newValues = result;
     }
 
-    // Write to AuditLog asynchronously — never block the main operation
-    // Phase 5 — attribute the write to the real user via AsyncLocalStorage
+    // Phase 5 — attribute the write to the real user via AsyncLocalStorage.
+    // P1 audit hardening: fail closed instead of letting audit loss disappear
+    // from the business operation.
     const userCtx = getUserContext();
-    prisma.auditLog.create({
-      data: {
-        userId: userCtx?.userId ?? null,
-        userEmail: userCtx?.email ?? null,
-        action: `CREDIT_${action}`,
-        resourceType: model,
-        resourceId: result?.id ?? params.args?.where?.id ?? null,
-        oldValues: oldValues ? (oldValues as any) : undefined,
-        newValues: newValues ? (newValues as any) : undefined,
-        ipAddress: userCtx?.ipAddress ?? null,
-        userAgent: userCtx?.userAgent ?? null,
-      },
-    }).catch((err: unknown) => {
-      // Audit failures must NEVER break the main operation
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: userCtx?.userId ?? null,
+          userEmail: userCtx?.email ?? null,
+          action: `CREDIT_${action}`,
+          resourceType: model,
+          resourceId: result?.id ?? params.args?.where?.id ?? null,
+          oldValues: oldValues ? (oldValues as any) : undefined,
+          newValues: newValues ? (newValues as any) : undefined,
+          ipAddress: userCtx?.ipAddress ?? null,
+          userAgent: userCtx?.userAgent ?? null,
+        },
+      });
+    } catch (err: unknown) {
       logger.error('Credit auto-audit write failed', {
         model,
         action,
         err,
       });
-    });
+      throw err;
+    }
 
     return result;
   });

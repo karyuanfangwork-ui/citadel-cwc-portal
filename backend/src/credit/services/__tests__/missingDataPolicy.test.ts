@@ -1,4 +1,13 @@
+jest.mock('../policyParameter.service', () => ({
+  getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
+  getStringPolicy: jest.fn(async (_key: string, fallback: string) => fallback),
+}));
+
+import { getNumberPolicy, getStringPolicy } from '../policyParameter.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingDataPolicyConfig } from '../missingDataPolicy.service';
+
+const mockedGetNumberPolicy = getNumberPolicy as jest.Mock;
+const mockedGetStringPolicy = getStringPolicy as jest.Mock;
 
 describe('resolveMissingFactorScore', () => {
   const policies: Record<string, MissingDataPolicyConfig> = {
@@ -35,10 +44,54 @@ describe('resolveMissingFactorScore', () => {
 });
 
 describe('getMissingDataPolicies', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+    mockedGetStringPolicy.mockImplementation(async (_key: string, fallback: string) => fallback);
+  });
+
   it('returns default policies for all 9 factor groups', async () => {
     const policies = await getMissingDataPolicies();
     expect(Object.keys(policies)).toHaveLength(9);
     expect(policies.financial_performance.policy).toBe('NEUTRAL');
     expect(policies.cashflow.policy).toBe('NEUTRAL');
+  });
+
+  it('reads PENALTY policy and penalty score from policy parameters', async () => {
+    mockedGetStringPolicy.mockImplementation(async (key: string, fallback: string) =>
+      key === 'missing_data.cashflow.policy' ? 'PENALTY' : fallback,
+    );
+    mockedGetNumberPolicy.mockImplementation(async (key: string, fallback: number) =>
+      key === 'missing_data.cashflow.penalty_score' ? 10 : fallback,
+    );
+
+    const policies = await getMissingDataPolicies();
+    const { score, record } = resolveMissingFactorScore('cashflow', 'dscr', policies);
+
+    expect(policies.cashflow.policy).toBe('PENALTY');
+    expect(score).toBe(10);
+    expect(record.appliedScore).toBe(10);
+  });
+
+  it('reads BLOCK policy from policy parameters', async () => {
+    mockedGetStringPolicy.mockImplementation(async (key: string, fallback: string) =>
+      key === 'missing_data.liquidity.policy' ? 'BLOCK' : fallback,
+    );
+
+    const policies = await getMissingDataPolicies();
+
+    expect(() => resolveMissingFactorScore('liquidity', 'current_ratio', policies)).toThrow(/BLOCK/);
+  });
+
+  it('reads configured neutral score from policy parameters', async () => {
+    mockedGetNumberPolicy.mockImplementation(async (key: string, fallback: number) =>
+      key === 'missing_data.neutral_score' ? 55 : fallback,
+    );
+
+    const policies = await getMissingDataPolicies();
+    const { score, record } = resolveMissingFactorScore('cashflow', 'dscr', policies);
+
+    expect(score).toBe(55);
+    expect(record.appliedScore).toBe(55);
   });
 });

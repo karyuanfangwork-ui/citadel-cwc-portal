@@ -482,6 +482,9 @@ class CommitteeService {
       where: { id: agendaItemId },
       include: {
         votes: true,
+        application: {
+          select: { id: true, applicationNo: true, state: true },
+        },
         meeting: {
           include: {
             members: true,
@@ -535,7 +538,33 @@ class CommitteeService {
       }
     }
 
-    // Update agenda item with decision
+    // Transition the linked application state before recording the agenda
+    // decision. If the state transition fails, fail the finalise request and
+    // leave the agenda item undecided to avoid committee/application divergence.
+    const application = agendaItem.application;
+    if (application && application.state === ApplicationState.COMMITTEE_REVIEW) {
+      if (decisionResult === AgendaItemDecisionType.APPROVE) {
+        await creditApplicationService.transitionApplication(
+          application.id,
+          'approve',
+          actorId,
+          undefined,
+          { skipApprovalChainCheck: true },
+        );
+      } else if (decisionResult === AgendaItemDecisionType.REJECT) {
+        await creditApplicationService.transitionApplication(
+          application.id,
+          'reject',
+          actorId,
+          'Rejected by committee',
+          { skipApprovalChainCheck: true },
+        );
+      }
+      // DEFER: no state change
+    }
+
+    // Update agenda item with decision only after any required linked
+    // application transition succeeds.
     const updated = await prisma.committeeAgendaItem.update({
       where: { id: agendaItemId },
       data: {
@@ -548,37 +577,6 @@ class CommitteeService {
         },
       },
     });
-
-    // Transition the linked application state if applicable
-    const application = updated.application;
-    if (application && application.state === ApplicationState.COMMITTEE_REVIEW) {
-      try {
-        if (decisionResult === AgendaItemDecisionType.APPROVE) {
-          await creditApplicationService.transitionApplication(
-            application.id,
-            'approve',
-            actorId,
-            undefined,
-            { skipApprovalChainCheck: true },
-          );
-        } else if (decisionResult === AgendaItemDecisionType.REJECT) {
-          await creditApplicationService.transitionApplication(
-            application.id,
-            'reject',
-            actorId,
-            'Rejected by committee',
-            { skipApprovalChainCheck: true },
-          );
-        }
-        // DEFER: no state change
-      } catch (err) {
-        // Log but don't fail the decision if transition fails
-        console.error(
-          `Failed to transition application ${application.id} after committee decision:`,
-          err,
-        );
-      }
-    }
 
     // Record finalize comment as an audit event if provided
     if (comment) {

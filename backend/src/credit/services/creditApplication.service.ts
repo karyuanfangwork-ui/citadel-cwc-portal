@@ -794,10 +794,10 @@ class CreditApplicationService {
 
     if (!app) return null;
 
-    // Flatten latest risk rating from score run onto the application object
-    // so the frontend can check `app.riskRating` for section S4 completion
+    // Prefer canonical denormalised application rating; retain latest-score fallback
+    // for older records that have not been backfilled yet.
     const latestScoreRun = app.scoreRuns?.[0];
-    app.riskRating = latestScoreRun?.riskRating ?? null;
+    app.riskRating = app.riskRating ?? latestScoreRun?.riskRating ?? null;
     app.baseRiskRating = latestScoreRun?.baseRiskRating ?? null;
     app.totalScore = latestScoreRun ? Number(latestScoreRun.totalScore) : null;
     app.scoreRunCount = app._count?.scoreRuns ?? app.scoreRuns?.length ?? 0;
@@ -1135,6 +1135,12 @@ class CreditApplicationService {
       if (signedBy.get('REVIEWED_BY') === signedBy.get('CONCURRED_BY')) {
         throw Object.assign(
           new Error('Cannot submit to committee — segregation of duties violation: Reviewed By and Concurred By cannot be the same user.'),
+          { statusCode: 400 },
+        );
+      }
+      if (signedBy.get('PREPARED_BY') === signedBy.get('CONCURRED_BY')) {
+        throw Object.assign(
+          new Error('Cannot submit to committee — segregation of duties violation: Prepared By and Concurred By cannot be the same user.'),
           { statusCode: 400 },
         );
       }

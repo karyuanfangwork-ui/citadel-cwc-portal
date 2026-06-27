@@ -1,9 +1,12 @@
 export type MissingDataPolicy = 'NEUTRAL' | 'PENALTY' | 'BLOCK';
 
+import { getNumberPolicy, getStringPolicy } from './policyParameter.service';
+
 export interface MissingDataPolicyConfig {
   factor: string;
   policy: MissingDataPolicy;
   penaltyScore: number;  // score used when PENALTY (default 25)
+  neutralScore?: number; // score used when NEUTRAL (default 50)
 }
 
 // Default policies per factor group. NEUTRAL = 50 (current behavior),
@@ -33,9 +36,20 @@ export interface MissingInputRecord {
  * defaults (all NEUTRAL — current behavior).
  */
 export async function getMissingDataPolicies(): Promise<Record<string, MissingDataPolicyConfig>> {
-  // For now, return the defaults. Phase 5 will add DB-backed config via
-  // CreditRuleConfig or a dedicated MissingDataPolicyConfig table.
-  return DEFAULT_POLICIES;
+  const neutralScore = await getNumberPolicy('missing_data.neutral_score', 50);
+  const entries = await Promise.all(
+    Object.entries(DEFAULT_POLICIES).map(async ([factor, fallback]) => {
+      const policyValue = await getStringPolicy(`missing_data.${factor}.policy`, fallback.policy);
+      const policy = ['NEUTRAL', 'PENALTY', 'BLOCK'].includes(policyValue)
+        ? policyValue as MissingDataPolicy
+        : fallback.policy;
+      const penaltyScore = await getNumberPolicy(`missing_data.${factor}.penalty_score`, fallback.penaltyScore);
+
+      return [factor, { factor, policy, penaltyScore, neutralScore }] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries) as Record<string, MissingDataPolicyConfig>;
 }
 
 /**
@@ -51,7 +65,7 @@ export function resolveMissingFactorScore(
   subField: string,
   policies: Record<string, MissingDataPolicyConfig>,
 ): { score: number; record: MissingInputRecord } {
-  const config = policies[factor] ?? { factor, policy: 'NEUTRAL' as MissingDataPolicy, penaltyScore: 25 };
+  const config = policies[factor] ?? { factor, policy: 'NEUTRAL' as MissingDataPolicy, penaltyScore: 25, neutralScore: 50 };
   const policy = config.policy;
 
   let score: number;
@@ -65,7 +79,7 @@ export function resolveMissingFactorScore(
       );
     case 'NEUTRAL':
     default:
-      score = 50;
+      score = config.neutralScore ?? 50;
       break;
   }
 

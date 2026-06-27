@@ -1,23 +1,64 @@
 import prisma from '../../utils/prisma';
-import { RiskRating } from '../types/credit.types';
+import { RiskRating } from '@prisma/client';
 
 /**
- * Returns the effective risk rating for an application — the rating of the
- * most recent CreditScoreRun, or 'NR' (Not Rated) if no score run exists.
+ * Persist the canonical denormalised application-level risk rating.
  *
- * This is the single source of truth for approval-authority lookups. It
- * replaces direct reads of borrowerProfile.creditRiskRating, which can drift
- * from the actual scored rating on the application.
+ * CreditScoreRun remains the immutable/provenance record. CreditApplication.riskRating
+ * is a read-optimised source of truth for dashboards, authority lookups, and detail DTOs.
+ */
+export async function persistApplicationRiskRating(
+  applicationId: string,
+  riskRating: RiskRating,
+  riskRatingUpdatedAt: Date = new Date(),
+): Promise<void> {
+  await prisma.creditApplication.update({
+    where: { id: applicationId },
+    data: {
+      riskRating,
+      riskRatingUpdatedAt,
+    },
+  });
+}
+
+/**
+ * Backfill/sync the application-level rating from the latest CreditScoreRun.
+ * Returns the resolved rating or null when the application has never been scored.
+ */
+export async function syncApplicationRiskRatingFromLatestScoreRun(
+  applicationId: string,
+): Promise<RiskRating | null> {
+  const latest = await prisma.creditScoreRun.findFirst({
+    where: { applicationId },
+    orderBy: [{ runAt: 'desc' }, { createdAt: 'desc' }],
+    select: { riskRating: true, runAt: true },
+  });
+
+  if (!latest) return null;
+
+  await persistApplicationRiskRating(applicationId, latest.riskRating, latest.runAt);
+  return latest.riskRating;
+}
+
+/**
+ * Returns the effective risk rating for an application.
+ *
+ * Prefer the canonical denormalised CreditApplication.riskRating. For older records
+ * that have score runs but have not been backfilled yet, fall back to the latest
+ * score run, opportunistically sync the application field, and return that rating.
  */
 export async function getApplicationEffectiveRating(
   applicationId: string,
 ): Promise<RiskRating | 'NR'> {
-  const latest = await prisma.creditScoreRun.findFirst({
-    where: { applicationId },
-    orderBy: { runAt: 'desc' },
+  const app = await prisma.creditApplication.findUnique({
+    where: { id: applicationId },
     select: { riskRating: true },
   });
-  return (latest?.riskRating as RiskRating) ?? 'NR';
+
+  if (app?.riskRating) return app.riskRating;
+
+  const synced = await syncApplicationRiskRatingFromLatestScoreRun(applicationId);
+  return synced ?? 'NR';
 }
 
 /**
