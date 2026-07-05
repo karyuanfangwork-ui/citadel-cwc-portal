@@ -165,6 +165,7 @@ class ServiceDeskService {
                 serviceDeskId: deskId,
             },
             isActive: true,
+            lifecycleStatus: 'PUBLISHED', // P5-01: Portal only shows published catalog items
         };
 
         if (categoryId) {
@@ -175,6 +176,7 @@ class ServiceDeskService {
             where,
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
                 workflow: {
                     include: {
                         steps: {
@@ -201,6 +203,7 @@ class ServiceDeskService {
             where,
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
                 workflow: {
                     include: {
                         steps: {
@@ -217,6 +220,7 @@ class ServiceDeskService {
             where: { id: typeId },
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
             },
         });
 
@@ -236,6 +240,9 @@ class ServiceDeskService {
         slaHours?: number | null;
         formConfig?: any;
         requiredRole?: string | null;
+        ownerId?: string | null;
+        lifecycleStatus?: string;
+        reviewDate?: Date | null;
     }) {
         return prisma.requestType.create({
             data: {
@@ -248,6 +255,9 @@ class ServiceDeskService {
                 formConfig: data.formConfig || [],
                 requiredRole: data.requiredRole || null,
                 isActive: true,
+                ownerId: data.ownerId || null,
+                lifecycleStatus: (data.lifecycleStatus as any) || 'DRAFT',
+                reviewDate: data.reviewDate ?? null,
             },
         });
     }
@@ -262,6 +272,9 @@ class ServiceDeskService {
         isActive?: boolean;
         requiredRole?: string | null;
         workflowTypeId?: string | null;
+        ownerId?: string | null;
+        lifecycleStatus?: string;
+        reviewDate?: Date | null;
     }) {
         return prisma.requestType.update({
             where: { id: typeId },
@@ -275,6 +288,9 @@ class ServiceDeskService {
                 isActive: data.isActive,
                 requiredRole: data.requiredRole !== undefined ? (data.requiredRole || null) : undefined,
                 workflowTypeId: data.workflowTypeId !== undefined ? (data.workflowTypeId || null) : undefined,
+                ownerId: data.ownerId !== undefined ? (data.ownerId || null) : undefined,
+                lifecycleStatus: data.lifecycleStatus as any,
+                reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
             },
         });
     }

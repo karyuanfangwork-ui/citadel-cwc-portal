@@ -137,7 +137,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-| P5-01 | Add catalog item owner, lifecycle status, review date | ⏳ | — | |
+|| P5-01 | Add catalog item owner, lifecycle status, review date | ✅ | — | CatalogLifecycleStatus enum (DRAFT/PUBLISHED/DEPRECATED/RETIRED); ownerId, lifecycleStatus, reviewDate on RequestType; portal filters PUBLISHED only; admin sees all; validator + controller + service updated; migration created |
 | P5-02 | Add catalog entitlement/audience rules | ⏳ | — | |
 | P5-03 | Add catalog item detail page | ⏳ | — | |
 | P5-04 | Version dynamic form config | ⏳ | — | |
@@ -208,12 +208,12 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 || P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
-| P5 — Catalog/approval | 8 | 0 | 8 | 0% |
+| P5 — Catalog/approval | 8 | 1 | 7 | 12% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-|| **Overall (excl. P8)** | **93** | **58** | **35** | **62%** |
+|| **Overall (excl. P8)** | **93** | **59** | **34** | **63%** |
 
 ### Recommended Next Batch
 

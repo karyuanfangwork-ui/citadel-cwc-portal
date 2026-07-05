@@ -59,6 +59,10 @@ export const createRequestTypeSchema = z.object({
         slaHours: z.number().positive('SLA hours must be positive').optional(),
         requiredRole: z.string().optional(),
         formConfig: z.array(z.any()).optional(),
+        // P5-01: Catalog governance fields
+        ownerId: z.string().uuid('Invalid owner ID').optional(),
+        lifecycleStatus: z.enum(['DRAFT', 'PUBLISHED', 'DEPRECATED', 'RETIRED']).default('DRAFT'),
+        reviewDate: z.string().datetime('Invalid review date').optional(),
     }),
 });
 
@@ -72,5 +76,9 @@ export const updateRequestTypeSchema = z.object({
         slaHours: z.number().positive('SLA hours must be positive').optional(),
         requiredRole: z.string().optional(),
         formConfig: z.array(z.any()).optional(),
+        // P5-01: Catalog governance fields
+        ownerId: z.string().uuid('Invalid owner ID').optional(),
+        lifecycleStatus: z.enum(['DRAFT', 'PUBLISHED', 'DEPRECATED', 'RETIRED']).optional(),
+        reviewDate: z.string().datetime('Invalid review date').optional(),
     }),
 });

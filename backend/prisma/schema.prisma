@@ -131,6 +131,7 @@ model User {
   notifications             Notification[]
   itHardwareApprovals       ITHardwareRequest[]    @relation("HardwareManagerApproval")
   requestApprovals          RequestApproval[]
+  catalogItemsOwned         RequestType[]          @relation("CatalogItemOwner") // P5-01
   uploadedResumes           CandidateResume[]
   scheduledInterviews       InterviewSchedule[]
   submittedFeedbacks        InterviewFeedback[]
@@ -412,11 +413,16 @@ model RequestType {
   formConfig        Json?    @map("form_config") @db.JsonB
   requiredRole      String?  @map("required_role") @db.VarChar(50)
   workflowTypeId    String?  @map("workflow_type_id") @db.Uuid
+  // P5-01: Catalog governance fields
+  ownerId           String?  @map("owner_id") @db.Uuid
+  lifecycleStatus   CatalogLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  reviewDate        DateTime? @map("review_date") @db.Timestamp(6)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   serviceCategory ServiceCategory            @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
   workflow        WorkflowType?              @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
+  owner           User?                      @relation("CatalogItemOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   requests        Request[]
   entityRoutings  RequestTypeEntityRouting[]
   escalationRules EscalationRule[]
@@ -424,6 +430,8 @@ model RequestType {
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
   @@index([tenantId])
+  @@index([ownerId])
+  @@index([lifecycleStatus])
   @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@map("request_types")
 }
@@ -5808,4 +5816,12 @@ model RequestCounter {
   @@unique([tenantId, prefix]) // P2-09: tenant-local unique
   @@index([tenantId])
   @@map("request_counters")
+}
+
+// P5-01: Catalog lifecycle status for RequestType governance.
+enum CatalogLifecycleStatus {
+  DRAFT
+  PUBLISHED
+  DEPRECATED
+  RETIRED
 }
