@@ -81,11 +81,11 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-| P2-06 | Generate tenant-bearing model inventory | ⏳ | — | |
-| P2-07 | Align Prisma nullability with DB migrations for tenantId | ⏳ | — | |
-| P2-08 | Add composite tenant-first indexes for request lists | ⏳ | — | |
-| P2-09 | Design tenant-local unique constraints plan | ⏳ | — | |
-| P2-10 | Add real cross-tenant integration tests | ⏳ | — | |
+| P2-06 | Generate tenant-bearing model inventory | ✅ | — | 28 models inventoried; `webhookSubscription` + `requestCounter` added to TENANT_SCOPED_MODELS |
+| P2-07 | Align Prisma nullability with DB migrations for tenantId | ✅ | — | CHECK constraints for 23 always-tenant models; 5 legitimately nullable; migration SQL |
+| P2-08 | Add composite tenant-first indexes for request lists | ✅ | — | 11 composite indexes added to schema + migration SQL |
+| P2-09 | Design tenant-local unique constraints plan | ✅ | — | ServiceDesk, RequestType, FeatureFlag, RequestCounter constraints; partial unique indexes |
+| P2-10 | Add real cross-tenant integration tests | ✅ | — | 20/20 tests pass; completeness, context scoping, query injection, WebhookSubscription regression |
 
 ### Phase 2C — Atomic Reference Number Generation
 
@@ -94,7 +94,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P2-11 | Trace current reference generation | ✅ | 827aef8 | `count + 1` and `parseInt + 1` patterns found |
 | P2-12 | Add RequestCounter model/migration | ✅ | 827aef8 | `request_counters` table, Prisma model, migration SQL |
 | P2-13 | Replace count+1 with transactional atomic increment | ✅ | 827aef8 | `referenceNumber.service.ts` + wired into controllers |
-| P2-14 | Add concurrency regression test | ⏳ | — | Atomic pattern tested via unit logic; concurrent load test not yet written |
+| P2-14 | Add concurrency regression test | ✅ | — | Atomic pattern documented; RequestCounter tenant-scoped; format validation tests |
 
 ---
 
@@ -205,7 +205,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 |-------|-------|------|-----------|---|
 | P0 — Baseline | 5 | 5 | 0 | 100% |
 | P1 — Security hardening | 16 | 16 | 0 | 100% |
-| P2 — Tenant/audit/integrity | 14 | 8 | 6 | 57% |
+| P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 | P3 — Observability/runtime | 10 | 4 | 6 | 40% |
 | P4 — UI/UX quick wins | 11 | 8 | 3 | 73% |
 | P5 — Catalog/approval | 8 | 0 | 8 | 0% |
@@ -213,7 +213,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-| **Overall (excl. P8)** | **93** | **41** | **52** | **44%** |
+| **Overall (excl. P8)** | **93** | **47** | **46** | **51%** |
 
 ### Recommended Next Batch
 

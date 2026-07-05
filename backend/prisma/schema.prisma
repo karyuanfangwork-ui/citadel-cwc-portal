@@ -256,6 +256,7 @@ model User {
   applicationComments       ApplicationComment[]         @relation("CommentAuthor")
 
   @@index([tenantId])
+  @@index([tenantId, agentTeam]) // P2-08: composite for role-based queries
   @@index([email])
   @@index([managerId])
   @@index([entityId])
@@ -353,8 +354,8 @@ model PasswordResetToken {
 model ServiceDesk {
   id          String   @id @default(uuid()) @db.Uuid
   tenantId  String?  @map("tenant_id") @db.Uuid
-  name        String   @unique @db.VarChar(100)
-  code        String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100) // P2-09: removed @unique, replaced with @@unique([tenantId, name])
+  code        String   @db.VarChar(20) // P2-09: removed @unique, replaced with @@unique([tenantId, code])
   description String?  @db.Text
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
@@ -369,6 +370,8 @@ model ServiceDesk {
   requests   Request[]
   kbArticles KnowledgeBaseArticle[]
 
+  @@unique([tenantId, name]) // P2-09: tenant-local unique
+  @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@index([tenantId])
   @@map("service_desks")
 }
@@ -399,7 +402,7 @@ model RequestType {
   id                String   @id @default(uuid()) @db.Uuid
   tenantId  String?  @map("tenant_id") @db.Uuid
   serviceCategoryId String   @map("service_category_id") @db.Uuid
-  code              String?  @unique @db.VarChar(100)
+  code              String?  @db.VarChar(100) // P2-09: removed @unique, replaced with @@unique([tenantId, code])
   name              String   @db.VarChar(150)
   description       String?  @db.Text
   icon              String?  @db.VarChar(50)
@@ -421,6 +424,7 @@ model RequestType {
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
   @@index([tenantId])
+  @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@map("request_types")
 }
 
@@ -672,6 +676,10 @@ model Request {
   @@index([assignedToId])
   @@index([createdAt(sort: Desc)])
   @@index([tenantId])
+  @@index([tenantId, status]) // P2-08: composite for agent dashboard / list filters
+  @@index([tenantId, createdAt(sort: Desc)]) // P2-08: composite for pagination
+  @@index([tenantId, assignedToId]) // P2-08: composite for "my tickets" view
+  @@index([tenantId, serviceDeskId]) // P2-08: composite for service desk filtering
   @@map("requests")
 }
 
@@ -1006,6 +1014,7 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
   @@index([tenantId])
+  @@index([tenantId, readAt]) // P2-08: composite for inbox queries
   @@map("notifications")
 }
 
@@ -1047,6 +1056,7 @@ model KnowledgeBaseArticle {
   @@index([serviceDeskId])
   @@index([isPublished, publishedAt(sort: Desc)])
   @@index([tenantId])
+  @@index([tenantId, isPublished]) // P2-08: composite for published article queries
   @@map("kb_articles")
 }
 
@@ -1080,6 +1090,7 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([createdAt(sort: Desc)])
   @@index([tenantId])
+  @@index([tenantId, createdAt(sort: Desc)]) // P2-08: composite for chronological audit queries
   @@map("audit_logs")
 }
 
@@ -1812,6 +1823,7 @@ model CrmLead {
   @@index([territoryId])
   customFields     Json?              @map("custom_fields")
   @@index([tenantId])
+  @@index([tenantId, status]) // P2-08: composite for lead pipeline queries
   @@map("crm_leads")
 }
 
@@ -1984,6 +1996,7 @@ model CrmOpportunity {
   @@index([expectedCloseDate])
   customFields     Json?              @map("custom_fields")
   @@index([tenantId])
+  @@index([tenantId, stageId]) // P2-08: composite for opportunity pipeline queries
   @@map("crm_opportunities")
 }
 
@@ -2490,7 +2503,7 @@ model RequestParticipant {
 model FeatureFlag {
   id          String   @id @default(uuid()) @db.Uuid
   tenantId  String?  @map("tenant_id") @db.Uuid
-  key         String   @unique @db.VarChar(100)
+  key         String   @db.VarChar(100) // P2-09: removed @unique, see migration SQL for partial unique indexes
   description String?  @db.Text
   enabled     Boolean  @default(false)
   rolloutPct  Int      @default(0) @map("rollout_pct") // 0-100 for gradual rollout
@@ -3697,6 +3710,7 @@ model CreditApplication {
   @@index([branchId])
   @@index([riskRating])
   @@index([tenantId])
+  @@index([tenantId, state]) // P2-08: composite for application pipeline queries
   @@map("credit_applications")
 }
 
@@ -5787,8 +5801,11 @@ enum RepaymentFrequency {
 // Prevents duplicate reference numbers under concurrent creates.
 model RequestCounter {
   id      Int    @id @default(1)
-  prefix  String @unique @db.VarChar(10) // e.g. "IT", "HR", "FIN"
+  prefix  String @db.VarChar(10) // P2-09: removed @unique, added @@unique([tenantId, prefix])
   lastSeq Int    @default(0)
+  tenantId String? @map("tenant_id") @db.Uuid // P2-06: tenant-scoped counter isolation
 
+  @@unique([tenantId, prefix]) // P2-09: tenant-local unique
+  @@index([tenantId])
   @@map("request_counters")
 }

@@ -12,6 +12,8 @@ const TENANT_SCOPED_MODELS = new Set([
   'announcement', 'announcementRead', 'onboardingRequest', 'offboardingRequest',
   'candidate', 'branch', 'entity', 'serviceDesk', 'serviceCategory', 'requestType',
   'escalationRule', 'systemSetting', 'featureFlag', 'notificationTemplate',
+  'webhookSubscription', // P2-06: was missing — webhook data was unfiltered by tenant
+  'requestCounter',      // P2-06: added — counter must be scoped per tenant
 ]);
 
 // P1-09: Gate Prisma query/info logging by environment config.
