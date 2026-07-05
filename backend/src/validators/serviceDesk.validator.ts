@@ -1,5 +1,31 @@
 import { z } from 'zod';
 
+// P5-05: Conditional-field rule validation
+const conditionSchema = z.object({
+    fieldId: z.string().min(1, 'Condition fieldId is required'),
+    operator: z.enum(['eq', 'neq', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty', 'in']),
+    value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]).optional(),
+});
+
+const conditionalRuleSchema = z.object({
+    operator: z.enum(['and', 'or']).default('and'),
+    conditions: z.array(conditionSchema).min(1, 'At least one condition is required'),
+});
+
+const formFieldSchema = z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    type: z.enum(['text', 'textarea', 'select', 'date', 'number', 'currency', 'file', 'entity']),
+    required: z.boolean().default(false),
+    options: z.array(z.string()).optional(),
+    showWhen: conditionalRuleSchema.optional(), // P5-05: conditional visibility
+});
+
+const formConfigSchema = z.array(formFieldSchema);
+
+// P5-05: Export conditional rule schemas for reuse
+export { conditionSchema, conditionalRuleSchema, formFieldSchema, formConfigSchema };
+
 export const createServiceDeskSchema = z.object({
     body: z.object({
         name: z.string().min(1, 'Name is required').max(100, 'Name must be at most 100 characters'),
@@ -58,7 +84,7 @@ export const createRequestTypeSchema = z.object({
         requiresApproval: z.boolean().default(false),
         slaHours: z.number().positive('SLA hours must be positive').optional(),
         requiredRole: z.string().optional(),
-        formConfig: z.array(z.any()).optional(),
+        formConfig: formConfigSchema.optional(),
         // P5-01: Catalog governance fields
         ownerId: z.string().uuid('Invalid owner ID').optional(),
         lifecycleStatus: z.enum(['DRAFT', 'PUBLISHED', 'DEPRECATED', 'RETIRED']).default('DRAFT'),
@@ -75,7 +101,7 @@ export const updateRequestTypeSchema = z.object({
         requiresApproval: z.boolean().optional(),
         slaHours: z.number().positive('SLA hours must be positive').optional(),
         requiredRole: z.string().optional(),
-        formConfig: z.array(z.any()).optional(),
+        formConfig: formConfigSchema.optional(),
         // P5-01: Catalog governance fields
         ownerId: z.string().uuid('Invalid owner ID').optional(),
         lifecycleStatus: z.enum(['DRAFT', 'PUBLISHED', 'DEPRECATED', 'RETIRED']).optional(),

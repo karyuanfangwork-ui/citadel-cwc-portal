@@ -141,7 +141,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 || P5-02 | Add catalog entitlement/audience rules | ✅ | — | CatalogEntitlement model (targetType: ROLE/DEPARTMENT/ENTITY/ALL); service + controller + routes; portal filtering by entitlement; entityId added to AuthRequest; Zod validation; tests |
 || P5-03 | Add catalog item detail page | ✅ | — | CatalogItemDetail modal: lifecycle badge+transitions, owner/reviewDate/SLA, entitlement rules list with delete; shield button in ServiceDesksTab; wired in AdminSettings |
 || P5-04 | Version dynamic form config | ✅ | — | formConfigVersion on RequestType (auto-increment on update); formConfigSnapshot + formConfigVersion on Request (preserved at submission); frontend prefers snapshot; PDF service prefers snapshot; migration backfill |
-| P5-05 | Define conditional-field rule format | ⏳ | — | |
+|| P5-05 | Define conditional-field rule format | ✅ | — | showWhen ConditionalRule spec; Zod validation in serviceDesk.validator.ts; FormBuilder UI editor with field selector, operator, value; conditional badge in preview; backend conditionalRules.service.ts (self-ref, circular dep, invalid ref validators); frontend evaluateShowWhile/filterVisibleFields runtime evaluator; spec doc at docs/plans/esm/conditional-field-rules.md |
 | P5-06 | Build generic approval policy model | ⏳ | — | |
 | P5-07 | Migrate one finance approval path to policy engine | ⏳ | — | |
 | P5-08 | Add approval delegation/fallback/reminders | ⏳ | — | |
@@ -208,12 +208,12 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 || P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
-| P5 — Catalog/approval | 8 | 4 | 4 | 50% |
+| P5 — Catalog/approval | 8 | 5 | 3 | 63% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-|| **Overall (excl. P8)** | **93** | **62** | **31** | **67%** |
+|| **Overall (excl. P8)** | **93** | **63** | **30** | **68%** |
 
 ### Recommended Next Batch
 
