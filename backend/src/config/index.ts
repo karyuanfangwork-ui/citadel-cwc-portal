@@ -106,6 +106,13 @@ export const config = {
         prismaLogQueries: process.env.PRISMA_LOG_QUERIES === 'true',
     },
 
+    // P3-03: Prometheus metrics endpoint
+    // When enabled, /metrics is served at root level (no auth).
+    // Restrict via network policy in production (e.g. only Prometheus namespace).
+    metrics: {
+        enabled: process.env.METRICS_ENABLED !== 'false', // enabled by default
+    },
+
     // S3/MinIO Storage
     s3: {
         endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
@@ -140,6 +147,15 @@ export const config = {
         mode: (process.env.SLA_SCHEDULE_MODE || 'cron') as 'interval' | 'cron',
         intervalMs: parseInt(process.env.SLA_CHECK_INTERVAL_MS || '60000', 10),
         cronExpression: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5',
+    },
+
+    // Scheduler distributed lock (P3-05)
+    // When SCHEDULER_SINGLETON_MODE=true, only one instance runs each cron job.
+    // Requires Redis. If Redis is unavailable in singleton mode, jobs are SKIPPED
+    // to prevent duplicates. When false (default), jobs run on all instances if
+    // Redis is down — matches pre-P3-05 behavior.
+    scheduler: {
+        singletonMode: process.env.SCHEDULER_SINGLETON_MODE === 'true',
     },
 
     // CRM Automation Schedule

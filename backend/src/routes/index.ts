@@ -37,6 +37,7 @@ import announcementRoutes from './announcement.routes';
 import creditRoutes from '../credit/routes/credit.routes';
 import tenantRoutes from './tenant.routes';
 import schedulerRoutes from './scheduler.routes';
+import queueRoutes from './queue.routes';
 import insightsRoutes from './insights.routes';
 import pdfJobRoutes from './pdfJob.routes';
 
@@ -86,6 +87,7 @@ router.use('/announcements', announcementRoutes);
 router.use('/credit', creditRoutes);
 router.use('/admin/tenants', tenantRoutes);
 router.use('/admin/scheduler', schedulerRoutes);
+router.use('/admin/queues', queueRoutes);
 router.use('/insights', insightsRoutes);
 router.use('/pdf-jobs', pdfJobRoutes);
 

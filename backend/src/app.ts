@@ -11,6 +11,7 @@ import prisma from './utils/prisma';
 import { errorHandler } from './middleware/error.middleware';
 import { notFoundHandler } from './middleware/notFound.middleware';
 import { correlationId } from './middleware/correlationId.middleware';
+import { metricsMiddleware, metricsHandler, collectDefaultMetrics } from './middleware/metrics';
 import routes from './routes';
 
 // Load environment variables
@@ -46,6 +47,14 @@ app.use(helmet({
 // P3-02: Correlation ID — must be early in the stack so all downstream
 // handlers and log entries include the request-scoped ID.
 app.use(correlationId);
+
+// P3-03: Prometheus metrics — collect HTTP durations & request counts.
+// Must be before routes so res.on('finish') fires after the response.
+// Gated by METRICS_ENABLED env var (default: true).
+if (config.metrics.enabled) {
+    collectDefaultMetrics();
+    app.use(metricsMiddleware);
+}
 
 // Cookie parsing
 app.use(cookieParser());
@@ -184,6 +193,13 @@ if (config.serveLocalUploads) {
     logger.info('Local /uploads static serving ENABLED (SERVE_LOCAL_UPLOADS=true)');
 } else {
     logger.info('Local /uploads static serving DISABLED (production mode). Files served via S3 presigned URLs.');
+}
+
+// ============================================================================
+// METRICS (P3-03) — unauthenticated, network-restrict in production
+// ============================================================================
+if (config.metrics.enabled) {
+    app.get('/metrics', metricsHandler);
 }
 
 // ============================================================================

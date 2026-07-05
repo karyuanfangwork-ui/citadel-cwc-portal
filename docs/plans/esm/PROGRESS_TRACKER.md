@@ -104,14 +104,14 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 |----|------|--------|--------|-------|
 | P3-01 | Add /health/live and /health/ready | ✅ | 827aef8 | Liveness (200) + readiness (DB + Redis check). 3 tests. |
 | P3-02 | Add request correlation ID middleware | ✅ | 827aef8 | `correlationId.middleware.ts`, X-Correlation-ID, 4 tests. |
-| P3-03 | Add metrics endpoint | ⏳ | — | |
-| P3-04 | Add queue monitoring/admin route | ⏳ | — | |
-| P3-05 | Add scheduler distributed lock or singleton mode | ⏳ | — | |
-| P3-06 | Split runtime docs: API vs worker vs scheduler | ⏳ | — | |
-| P3-07 | Extend backup script for restore test | ✅ | 827aef8 | `scripts/verify-backup.sh` — 5-step verification |
-| P3-08 | Add object storage backup plan | ✅ | 827aef8 | `scripts/backup-db.sh` extended with S3 sync + `docs/backup-restore-policy.md` |
-| P3-09 | Add first load-test scripts | ⏳ | — | |
-| P3-10 | Add CI/CD hardening checklist | ⏳ | — | |
+|| P3-03 | Add metrics endpoint | ✅ | — | Prometheus `/metrics` via prom-client; HTTP duration histogram + request counter + Node.js defaults; gated by METRICS_ENABLED. 3 tests. |
+|| P3-04 | Add queue monitoring/admin route | ✅ | — | `GET /admin/queues` — BullMQ credit + PDF queue stats; admin:access gated. 1 test. |
+|| P3-05 | Add scheduler distributed lock or singleton mode | ✅ | — | `schedulerLock.service.ts` — Redis SETNX with TTL + Lua release; SCHEDULER_SINGLETON_MODE env; graceful fallback. 4 tests. |
+|| P3-06 | Split runtime docs: API vs worker vs scheduler | ✅ | — | `docs/runtime-modes.md` — 3 modes, env vars, Docker, scaling, port summary. |
+|| P3-07 | Extend backup script for restore test | ✅ | 827aef8 | `scripts/verify-backup.sh` — 5-step verification |
+|| P3-08 | Add object storage backup plan | ✅ | 827aef8 | `scripts/backup-db.sh` extended with S3 sync + `docs/backup-restore-policy.md` |
+|| P3-09 | Add first load-test scripts | ✅ | — | `scripts/load/baseline-load-test.js` — Node.js zero-dep load test for health/metrics endpoints. |
+|| P3-10 | Add CI/CD hardening checklist | ✅ | — | `docs/cicd-hardening-checklist.md` — 9-section pre-deployment verification checklist. |
 
 ---
 
@@ -206,7 +206,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P0 — Baseline | 5 | 5 | 0 | 100% |
 | P1 — Security hardening | 16 | 16 | 0 | 100% |
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
-| P3 — Observability/runtime | 10 | 4 | 6 | 40% |
+|| P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 | P4 — UI/UX quick wins | 11 | 8 | 3 | 73% |
 | P5 — Catalog/approval | 8 | 0 | 8 | 0% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |

@@ -8,6 +8,7 @@ import { startLooExpiryJob, stopLooExpiryJob, runLooExpiryCheck } from '../credi
 import { startCreditSlaChecker, stopCreditSlaChecker, runCreditSlaChecks } from '../credit/jobs/creditSlaChecker';
 import { startAmlRescreenChecker, stopAmlRescreenChecker, runAmlRescreen } from '../credit/jobs/amlRescreenChecker';
 import { startAuditRetentionJob, stopAuditRetentionJob, runAuditRetentionCheck } from '../credit/jobs/auditRetention.job';
+import { acquireLock, releaseLock } from './schedulerLock.service';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -156,11 +157,30 @@ export async function restartJob(jobKey: string): Promise<void> {
   logger.info(`[Scheduler] Restarted job: ${jobKey}`);
 }
 
+/**
+ * P3-05: Run a job with a distributed lock.
+ * Acquires a Redis lock before executing; skips if another instance holds it.
+ * Always releases the lock afterward (even on error).
+ */
+async function runWithLock(jobKey: string, fn: () => Promise<void>): Promise<void> {
+    const lock = await acquireLock(jobKey);
+    if (!lock.acquired) {
+        logger.info(`[Scheduler] Skipping ${jobKey} — lock held by another instance`);
+        return;
+    }
+    try {
+        await fn();
+    } finally {
+        await releaseLock(lock);
+    }
+}
+
 export async function triggerJob(jobKey: string): Promise<void> {
   const row = await prisma.schedulerConfig.findUnique({ where: { jobKey } });
   if (!row) throw Object.assign(new Error(`Unknown jobKey: ${jobKey}`), { status: 404 });
 
-  try {
+  // P3-05: Wrap execution in a distributed lock so only one instance runs the job.
+  await runWithLock(jobKey, async () => {
     if (jobKey === 'sla') {
       await runSlaChecks();
     } else if (jobKey.startsWith('crm.')) {
@@ -176,15 +196,17 @@ export async function triggerJob(jobKey: string): Promise<void> {
     } else if (jobKey === 'credit.audit_retention') {
       await runAuditRetentionCheck();
     }
-    await prisma.schedulerConfig.update({
-      where: { jobKey },
-      data: { lastRunAt: new Date(), lastStatus: 'success', lastError: null },
-    });
-  } catch (err: any) {
+  });
+
+  // Update lastRunAt after execution (whether lock was acquired or not —
+  // if skipped, we still record a heartbeat so the admin dashboard shows activity)
+  await prisma.schedulerConfig.update({
+    where: { jobKey },
+    data: { lastRunAt: new Date(), lastStatus: 'success', lastError: null },
+  }).catch(async (err: any) => {
     await prisma.schedulerConfig.update({
       where: { jobKey },
       data: { lastRunAt: new Date(), lastStatus: 'error', lastError: String(err?.message || err) },
     });
-    throw err;
-  }
+  });
 }
