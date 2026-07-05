@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
 import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
+import { generateRequestRefNum } from '../services/referenceNumber.service';
 
 import prisma from '../utils/prisma';
 
@@ -699,12 +700,11 @@ class RequestController {
             ? (serviceDesk.code === 'IT' ? sanitizeRichText(rawDescription) : sanitizeComment(rawDescription))
             : undefined;
 
-        // Get count for reference number
-        const count = await prisma.request.count({
-            where: { serviceDeskId },
-        });
-
-        const referenceNumber = `${serviceDesk.code}-${count + 1}`;
+        // Get count for reference number — P2-11: use atomic counter
+        // OLD: const count = await prisma.request.count({ where: { serviceDeskId } });
+        //      const referenceNumber = `${serviceDesk.code}-${count + 1}`;
+        // This was not safe under concurrent requests.
+        const referenceNumber = await generateRequestRefNum(serviceDesk.code);
 
         // Calculate SLA due date from request type
         let slaDueAt: Date | undefined;

@@ -92,12 +92,18 @@ export const config = {
     rateLimit: {
         windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10), // 1 minute
         maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200', 10),
+        // P1-05: Enable Redis-backed rate limiting for cluster-safe counters.
+        // When false (default), falls back to in-memory store.
+        redisEnabled: process.env.RATE_LIMIT_REDIS_ENABLED === 'true',
     },
 
     // Logging
     logging: {
         level: process.env.LOG_LEVEL || 'debug',
         format: process.env.LOG_FORMAT || 'json',
+        // P1-09: Gate Prisma query/info logging. Only enable in development or
+        // when explicitly requested — never in production by default.
+        prismaLogQueries: process.env.PRISMA_LOG_QUERIES === 'true',
     },
 
     // S3/MinIO Storage
@@ -109,6 +115,11 @@ export const config = {
         secretKey: process.env.S3_SECRET_KEY || '',
         forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     },
+
+    // P1-15: Static file serving — disabled in production by default.
+    // Set SERVE_LOCAL_UPLOADS=true to re-enable (legacy migration / dev only).
+    // In production, files should be served through S3 presigned URLs via /api/v1/files/download/:key.
+    serveLocalUploads: process.env.SERVE_LOCAL_UPLOADS === 'true',
 
     // Session
     session: {

@@ -5782,3 +5782,13 @@ enum RepaymentFrequency {
   ANNUAL
   LUMP_SUM
 }
+
+// P2-11: Atomic reference number counter for requests.
+// Prevents duplicate reference numbers under concurrent creates.
+model RequestCounter {
+  id      Int    @id @default(1)
+  prefix  String @unique @db.VarChar(10) // e.g. "IT", "HR", "FIN"
+  lastSeq Int    @default(0)
+
+  @@map("request_counters")
+}

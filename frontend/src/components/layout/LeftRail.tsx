@@ -95,6 +95,7 @@ export default function LeftRail({ navLinks, isActive, className = '' }: LeftRai
                     key={link.to}
                     to={link.to}
                     title={link.label}
+                    aria-current={active ? 'page' : undefined}
                     className={`flex items-center gap-3 mx-2 my-0.5 rounded-cwc-md transition-colors text-sm font-semibold h-9 ${
                       expanded ? 'px-3' : 'px-0 justify-center'
                     } ${

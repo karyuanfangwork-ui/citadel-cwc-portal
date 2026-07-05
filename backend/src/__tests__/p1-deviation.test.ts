@@ -237,7 +237,10 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
 
       await expect(
         deviationService.approveDeviation(created.id, requesterUserId, 'MANAGER', 'Self approve')
-      ).rejects.toThrow(/different officer/i);
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        details: { code: 'DEVIATION_SOD_VIOLATION' },
+      });
     });
 
     it('should not approve a non-waivable deviation', async () => {

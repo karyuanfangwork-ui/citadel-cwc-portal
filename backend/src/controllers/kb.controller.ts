@@ -3,6 +3,7 @@ import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 import prisma from '../utils/prisma';
+import { sanitizeKBContent, sanitizeString } from '../utils/sanitize';
 
 class KBController {
     getAllArticles = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -125,12 +126,13 @@ class KBController {
     createArticle = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { title, slug, content, excerpt, serviceDeskId, category, tags } = req.body;
 
+        // P1-12: Sanitize KB content server-side before persistence
         const article = await prisma.knowledgeBaseArticle.create({
             data: {
-                title,
+                title: sanitizeString(title),
                 slug,
-                content,
-                excerpt,
+                content: sanitizeKBContent(content),
+                excerpt: excerpt ? sanitizeString(excerpt) : undefined,
                 serviceDeskId,
                 category,
                 tags,
@@ -148,9 +150,18 @@ class KBController {
         const id = String(req.params.id);
         const { title, slug, content, excerpt, category, tags } = req.body;
 
+        // P1-12: Sanitize KB content server-side before persistence
+        const data: Record<string, unknown> = {};
+        if (title !== undefined) data.title = sanitizeString(title);
+        if (slug !== undefined) data.slug = slug;
+        if (content !== undefined) data.content = sanitizeKBContent(content);
+        if (excerpt !== undefined) data.excerpt = excerpt ? sanitizeString(excerpt) : null;
+        if (category !== undefined) data.category = category;
+        if (tags !== undefined) data.tags = tags;
+
         const article = await prisma.knowledgeBaseArticle.update({
             where: { id },
-            data: { title, slug, content, excerpt, category, tags },
+            data,
         });
 
         res.json({

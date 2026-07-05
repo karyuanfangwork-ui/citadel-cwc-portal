@@ -59,6 +59,8 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   }, []);
 
   // Open/close SSE stream based on auth state
+  // P1-02: Use cookie-based auth (withCredentials) instead of ?token= query param
+  // to avoid logging JWTs in server access logs and browser history.
   useEffect(() => {
     if (!userId || !accessToken) {
       esRef.current?.close();
@@ -66,8 +68,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       return;
     }
 
-    const esUrl = `${SSE_URL}?token=${encodeURIComponent(accessToken)}`;
-    const es = new EventSource(esUrl);
+    const es = new EventSource(SSE_URL, { withCredentials: true });
     esRef.current = es;
 
     es.addEventListener('notification', (e: MessageEvent) => {

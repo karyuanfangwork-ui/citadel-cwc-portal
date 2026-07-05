@@ -711,6 +711,7 @@ class ScoringService {
       throw new AppError(
         'Material overrides (>=2 notches) require the dual-approval flow.',
         409,
+        { code: 'SCORE_OVERRIDE_MATERIAL_APPROVAL_REQUIRED' },
       );
     }
 

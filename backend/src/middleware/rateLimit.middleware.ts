@@ -2,11 +2,28 @@ import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { AuthRequest } from './auth.middleware';
+import { createRedisRateLimitStore } from './rateLimitStore';
+
+// P1-05/P1-06: Create Redis-backed stores when enabled, otherwise undefined
+// (express-rate-limit falls back to in-memory store).
+//
+// Auth and password-reset limiters use a dedicated prefix to isolate their
+// keys from general API traffic.
+const apiStore = createRedisRateLimitStore({ prefix: 'rl:api:' });
+const authStore = createRedisRateLimitStore({ prefix: 'rl:auth:' });
+const uploadStore = createRedisRateLimitStore({ prefix: 'rl:upload:' });
+const pwResetStore = createRedisRateLimitStore({ prefix: 'rl:pwreset:' });
+const bureauStore = createRedisRateLimitStore({ prefix: 'rl:bureau:' });
+const exportStore = createRedisRateLimitStore({ prefix: 'rl:export:' });
+const piiReadStore = createRedisRateLimitStore({ prefix: 'rl:pii:' });
+const scoreOverrideStore = createRedisRateLimitStore({ prefix: 'rl:score:' });
+const crmAiStore = createRedisRateLimitStore({ prefix: 'rl:crm-ai:' });
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
     windowMs: config.rateLimit.windowMs,
     max: config.rateLimit.maxRequests,
+    store: apiStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -41,6 +58,7 @@ export const apiLimiter = rateLimit({
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: process.env.NODE_ENV === 'development' ? 1000 : 20,
+    store: authStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     keyGenerator: (_req) => {
         // Derive key from email (if present in body) + IP.
         // For login this is the email field; for refresh there's no body so fall back to IP only.
@@ -70,6 +88,7 @@ export const authLimiter = rateLimit({
 export const uploadLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: process.env.NODE_ENV === 'development' ? 500 : 300, // 300 uploads per hour
+    store: uploadStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -83,6 +102,7 @@ export const uploadLimiter = rateLimit({
 export const passwordResetLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: process.env.NODE_ENV === 'development' ? 100 : 20,
+    store: pwResetStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -109,6 +129,7 @@ export const passwordResetLimiter = rateLimit({
 export const creditBureauLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    store: bureauStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -134,6 +155,7 @@ export const creditBureauLimiter = rateLimit({
 export const creditExportLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    store: exportStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -159,6 +181,7 @@ export const creditExportLimiter = rateLimit({
 export const creditPiiReadLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: process.env.NODE_ENV === 'development' ? 200 : 10,
+    store: piiReadStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -184,6 +207,7 @@ export const creditPiiReadLimiter = rateLimit({
 export const creditScoreOverrideLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    store: scoreOverrideStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,
@@ -208,6 +232,7 @@ export const creditScoreOverrideLimiter = rateLimit({
 export const crmAiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: process.env.NODE_ENV === 'development' ? 100 : 10,
+    store: crmAiStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',
         statusCode: 429,

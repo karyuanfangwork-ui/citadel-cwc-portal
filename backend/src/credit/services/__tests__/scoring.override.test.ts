@@ -57,6 +57,29 @@ describe('scoringService.overrideScore', () => {
     expect(persistApplicationRiskRating).not.toHaveBeenCalled();
   });
 
+  it('rejects material direct overrides with a machine-readable dual-approval code', async () => {
+    mockPrisma.creditScoreRun.findUnique.mockResolvedValue({
+      id: 'score-run-1',
+      applicationId: 'app-1',
+      riskRating: 'BBB',
+    });
+
+    await expect(
+      scoringService.overrideScore('score-run-1', {
+        newRiskRating: 'B',
+        overrideReason: 'Material override test',
+        overrideApprovedById: 'approver-1',
+        requestedById: 'requester-1',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      details: { code: 'SCORE_OVERRIDE_MATERIAL_APPROVAL_REQUIRED' },
+    });
+
+    expect(mockPrisma.creditScoreRun.update).not.toHaveBeenCalled();
+    expect(persistApplicationRiskRating).not.toHaveBeenCalled();
+  });
+
   it('syncs canonical application rating after an allowed direct override', async () => {
     const approvedAt = new Date('2026-01-02T00:00:00Z');
     mockPrisma.creditScoreRun.findUnique.mockResolvedValue({

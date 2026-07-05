@@ -34,22 +34,25 @@ describe('credit auto-audit middleware', () => {
     installCreditAuditMiddleware(prisma);
   });
 
-  it('audits newly covered credit configuration models', async () => {
-    const next = jest.fn(async () => ({ id: 'rule-1', kind: 'REQUIRED_FIELD' }));
+  it.each([
+    'CreditRuleConfig',
+    'RatingBandConfig',
+    'RiskFactorMatrix',
+    'CreditSlaPolicy',
+    'CreditBureauCheck',
+  ])('audits newly covered credit configuration model %s', async (model) => {
+    const next = jest.fn(async () => ({ id: `${model}-1`, kind: 'REQUIRED_FIELD' }));
 
-    const result = await middleware(
-      { model: 'CreditRuleConfig', action: 'create', args: { data: {} } },
-      next,
-    );
+    const result = await middleware({ model, action: 'create', args: { data: {} } }, next);
 
-    expect(result).toEqual({ id: 'rule-1', kind: 'REQUIRED_FIELD' });
+    expect(result).toEqual({ id: `${model}-1`, kind: 'REQUIRED_FIELD' });
     expect(next).toHaveBeenCalledTimes(1);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'CREDIT_CREATE',
-        resourceType: 'CreditRuleConfig',
-        resourceId: 'rule-1',
-        newValues: { id: 'rule-1', kind: 'REQUIRED_FIELD' },
+        resourceType: model,
+        resourceId: `${model}-1`,
+        newValues: { id: `${model}-1`, kind: 'REQUIRED_FIELD' },
       }),
     });
   });

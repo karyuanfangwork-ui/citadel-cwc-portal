@@ -8,6 +8,7 @@ import { runWithTenant } from '../lib/tenant-context';
 import { runWithUser } from '../lib/user-context';
 
 import prisma from '../utils/prisma';
+import { logger } from '../utils/logger';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -240,9 +241,16 @@ export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
 }
 
 /**
- * SSE authentication middleware — accepts token from ?token= query param.
- * EventSource cannot send HTTP-only cookies or custom headers,
- * so SSE connections authenticate via ?token=<jwt> query parameter.
+ * SSE authentication middleware.
+ *
+ * P1-02: Cookie-based auth is now the primary method (withCredentials).
+ * Query-param ?token= is retained as a fallback for non-browser clients but
+ * is deprecated — it leaks JWTs into server logs and browser history.
+ *
+ * Priority order:
+ *   1. HttpOnly cookie (access_token)  — browser SSE with withCredentials
+ *   2. Authorization header            — curl/API clients
+ *   3. Query param (?token=)           — deprecated fallback
  */
 export const sseAuth = async (
     req: AuthRequest,
@@ -252,20 +260,18 @@ export const sseAuth = async (
     try {
         let token: string | undefined;
 
-        // 1. Query param (for SSE EventSource connections)
-        if ((req.query as Record<string, unknown>).token) {
-            token = String((req.query as Record<string, unknown>).token);
-        }
-        // 2. Cookie (standard browser sessions)
-        else if (req.cookies?.access_token) {
+        // 1. Cookie (preferred — browser SSE with withCredentials)
+        if (req.cookies?.access_token) {
             token = req.cookies.access_token;
         }
-        // 3. Authorization header (API clients / curl)
-        else {
-            const authHeader = req.headers.authorization;
-            if (authHeader?.startsWith('Bearer ')) {
-                token = authHeader.substring(7);
-            }
+        // 2. Authorization header (API clients / curl)
+        else if (req.headers.authorization?.startsWith('Bearer ')) {
+            token = req.headers.authorization.substring(7);
+        }
+        // 3. Query param (deprecated — leaks into logs/history)
+        else if ((req.query as Record<string, unknown>).token) {
+            token = String((req.query as Record<string, unknown>).token);
+            logger.warn('SSE auth via query token is deprecated; use cookie or Authorization header instead');
         }
 
         if (!token) {

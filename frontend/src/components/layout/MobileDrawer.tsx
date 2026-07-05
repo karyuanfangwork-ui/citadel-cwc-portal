@@ -42,7 +42,8 @@ type MobileDrawerProps = {
 
 const groupLabels: Record<string, string> = {
   primary: 'Main',
-  secondary: 'Modules',
+  'service-desks': 'Service Desks',
+  tools: 'Modules',
   admin: 'Admin',
 };
 
@@ -51,7 +52,7 @@ export default function MobileDrawer({ isOpen, onClose, navLinks, isActive, user
   const navigate = useNavigate();
   const location = useLocation();
   const visibleLinks = navLinks.filter((l) => l.show);
-  const groups = ['primary', 'secondary', 'admin'] as const;
+  const groups = ['primary', 'service-desks', 'tools', 'admin'] as const;
 
   // Escape closes drawer
   React.useEffect(() => {
@@ -148,6 +149,7 @@ export default function MobileDrawer({ isOpen, onClose, navLinks, isActive, user
                     key={link.to}
                     to={link.to}
                     onClick={onClose}
+                    aria-current={isActive(link.to) ? 'page' : undefined}
                     className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
                       isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
                     }`}

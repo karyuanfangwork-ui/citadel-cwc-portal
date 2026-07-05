@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { installCreditAuditMiddleware } from '../credit/middleware/autoAudit.middleware';
 import { getTenantId } from './tenant-context';
+import { config } from '../config';
 
 // Models that carry a tenantId column (root models only — child models are
 // isolated through their FK to a root model and don't need tenantId).
@@ -13,8 +14,19 @@ const TENANT_SCOPED_MODELS = new Set([
   'escalationRule', 'systemSetting', 'featureFlag', 'notificationTemplate',
 ]);
 
+// P1-09: Gate Prisma query/info logging by environment config.
+// Production default: warn + error only (no query logging).
+// Enable PRISMA_LOG_QUERIES=true in .env to log queries (dev/debug only).
+function getPrismaLogLevels(): Array<'query' | 'info' | 'warn' | 'error'> {
+  const levels: Array<'query' | 'info' | 'warn' | 'error'> = ['warn', 'error'];
+  if (config.logging.prismaLogQueries) {
+    levels.unshift('query', 'info');
+  }
+  return levels;
+}
+
 const baseClient = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
+  log: getPrismaLogLevels(),
 });
 
 // Install credit module auto-audit middleware

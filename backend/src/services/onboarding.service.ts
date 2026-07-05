@@ -1,6 +1,7 @@
 import { autoAssignRequest } from './autoAssignment.service';
 import { notifyMultiple } from './notification.service';
 import { logger } from '../utils/logger';
+import { generateRequestRefNum } from './referenceNumber.service';
 
 import prisma from '../utils/prisma';
 
@@ -65,15 +66,8 @@ export const createOnboardingFromHiring = async (request: any) => {
             where: { name: { contains: 'Onboard', mode: 'insensitive' } },
         });
 
-        // Generate next HR-N reference number
-        const lastHrRequest = await prisma.request.findFirst({
-            where: { referenceNumber: { startsWith: 'HR-' } },
-            orderBy: { createdAt: 'desc' },
-        });
-        const nextNum = lastHrRequest
-            ? parseInt(lastHrRequest.referenceNumber.split('-')[1], 10) + 1
-            : 1;
-        const referenceNumber = `HR-${nextNum}`;
+        // Generate next HR-N reference number — P2-11: use atomic counter
+        const referenceNumber = await generateRequestRefNum('HR');
 
         // Create a separate onboarding ticket linked back to the hiring request
         const onboardingTicket = await prisma.request.create({

@@ -91,7 +91,7 @@ class RejectionService {
 
     const newApp = await prisma.creditApplication.create({
       data: {
-        applicationNo: `CA-${Date.now().toString(36).toUpperCase()}`,
+        applicationNo: `CA-CLONE-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
         borrowerProfileId: source.borrowerProfileId,
         productType: source.productType,
         currency: source.currency,

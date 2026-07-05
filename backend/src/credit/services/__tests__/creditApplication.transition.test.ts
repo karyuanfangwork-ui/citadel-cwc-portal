@@ -13,6 +13,7 @@ jest.mock('../../../utils/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    applicationSignoff: { findMany: jest.fn() },
     creditDecision: { findMany: jest.fn() },
     creditDocument: { findFirst: jest.fn() },
     disbursementOrder: { findUnique: jest.fn() },
@@ -58,6 +59,7 @@ import { AppError } from '../../../middleware/error.middleware';
 const mockedFindFirst = prisma.creditApplication.findFirst as jest.Mock;
 const mockedUpdate = prisma.creditApplication.update as jest.Mock;
 const mockedUpdateMany = prisma.creditApplication.updateMany as jest.Mock;
+const mockedFindManySignoffs = prisma.applicationSignoff.findMany as jest.Mock;
 
 describe('Race-safe state transitions + mandatory OCC (F25)', () => {
   beforeEach(() => {
@@ -68,6 +70,31 @@ describe('Race-safe state transitions + mandatory OCC (F25)', () => {
   // transition — state guard
   // ────────────────────────────────────────────────────────────────────────
   describe('transitionApplication — state-guarded write', () => {
+    it.each([
+      ['PREPARED_BY', 'REVIEWED_BY', 'Prepared By and Reviewed By'],
+      ['REVIEWED_BY', 'CONCURRED_BY', 'Reviewed By and Concurred By'],
+      ['PREPARED_BY', 'CONCURRED_BY', 'Prepared By and Concurred By'],
+    ])('rejects submit_to_committee when %s and %s are signed by the same user', async (firstRole, secondRole, label) => {
+      mockedFindFirst.mockResolvedValue({
+        id: 'app-1',
+        state: 'CREDIT_ASSESSMENT',
+        version: 3,
+        borrowerProfileId: 'bp-1',
+        deletedAt: null,
+      });
+      mockedFindManySignoffs.mockResolvedValue([
+        { role: 'PREPARED_BY', signedAt: new Date('2026-01-01T00:00:00Z'), signedById: firstRole === 'PREPARED_BY' || secondRole === 'PREPARED_BY' ? 'same-user' : 'prepared-user' },
+        { role: 'REVIEWED_BY', signedAt: new Date('2026-01-01T00:00:00Z'), signedById: firstRole === 'REVIEWED_BY' || secondRole === 'REVIEWED_BY' ? 'same-user' : 'reviewed-user' },
+        { role: 'CONCURRED_BY', signedAt: new Date('2026-01-01T00:00:00Z'), signedById: firstRole === 'CONCURRED_BY' || secondRole === 'CONCURRED_BY' ? 'same-user' : 'concurred-user' },
+      ]);
+
+      await expect(
+        creditApplicationService.transitionApplication('app-1', 'submit_to_committee', 'actor-1'),
+      ).rejects.toThrow(`segregation of duties violation: ${label} cannot be the same user`);
+
+      expect(mockedUpdateMany).not.toHaveBeenCalled();
+    });
+
     it('throws 409 if state changed since read (updateMany count=0)', async () => {
       // Simulate: read returns app in DRAFT, but by the time we write,
       // another process has already moved it to SUBMITTED.

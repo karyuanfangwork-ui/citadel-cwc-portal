@@ -97,3 +97,59 @@ export function sanitizeRichText(value: unknown): string {
     disallowedTagsMode: 'discard',
   });
 }
+
+// ---------------------------------------------------------------------------
+// P1-12: Knowledge Base content sanitizer
+//
+// TipTap / ProseMirror editors produce rich HTML. We allow a broad set of
+// formatting and structural tags but strip all dangerous content:
+//   - No <script>, <iframe>, <object>, <embed>, <applet>
+//   - No on* event handlers
+//   - No javascript: / vbscript: / data: URLs in href/src
+// ---------------------------------------------------------------------------
+const KB_ALLOWED_TAGS = [
+  // Text formatting
+  'b', 'i', 'strong', 'em', 'u', 's', 'del', 'ins', 'mark', 'sub', 'sup', 'abbr',
+  // Structure
+  'p', 'br', 'hr', 'div', 'span', 'pre', 'blockquote', 'code',
+  // Headings
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  // Lists
+  'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  // Tables
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+  // Media
+  'img', 'a', 'figure', 'figcaption',
+  // Details/summary
+  'details', 'summary',
+];
+
+const KB_ALLOWED_ATTRS: Record<string, string[]> = {
+  '*': ['class', 'id', 'style'],
+  a: ['href', 'target', 'rel', 'title'],
+  img: ['src', 'alt', 'title', 'width', 'height'],
+  td: ['colspan', 'rowspan'],
+  th: ['colspan', 'rowspan'],
+  ol: ['start', 'type'],
+  code: ['language'],
+};
+
+/**
+ * Sanitize Knowledge Base article content.
+ * Allows TipTap-compatible rich HTML but strips XSS vectors.
+ */
+export function sanitizeKBContent(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  return sanitizeHtml(str, {
+    allowedTags: KB_ALLOWED_TAGS,
+    allowedAttributes: KB_ALLOWED_ATTRS,
+    // Block all URL schemes except http/https/mailto/tel
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesAppliedToAttributes: ['href', 'src'],
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
+    },
+    disallowedTagsMode: 'discard',
+  });
+}
