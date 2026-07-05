@@ -283,7 +283,7 @@ const MyRequests = () => {
                 search
               </span>
               <input
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
                 placeholder="Search requests..."
                 type="text"
                 value={searchTerm}
@@ -294,7 +294,7 @@ const MyRequests = () => {
               />
             </div>
             <select
-              className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
+              className="pl-3 pr-8 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
               value={selectedRequestTypeId || ''}
               onChange={(e) => {
                 setSelectedRequestTypeId(e.target.value || null);
@@ -359,7 +359,7 @@ const MyRequests = () => {
               <p className="text-sm">{error}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
               {requests.length === 0 ? (
                 <div className="p-12 text-center text-[#44546f]">
                   <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
@@ -379,14 +379,14 @@ const MyRequests = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-gray-50 text-[#44546f] text-[11px] uppercase tracking-widest font-bold">
+                        <tr className="bg-gray-50 dark:bg-gray-800 text-[#44546f] text-[11px] uppercase tracking-widest font-bold">
                           {canExport && (
                             <th className="px-4 py-4 w-10 text-center">
                               <input
                                 type="checkbox"
                                 checked={requests.length > 0 && selectedIds.size === requests.length}
                                 onChange={toggleSelectAll}
-                                className="rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                                className="rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                               />
                             </th>
                           )}
@@ -403,7 +403,7 @@ const MyRequests = () => {
                         {requests.map((req) => (
                           <tr
                             key={req.id}
-                            className={`hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
                             tabIndex={0}
                             role="link"
                             aria-label={`View request ${req.referenceNumber || req.id}`}
@@ -416,7 +416,7 @@ const MyRequests = () => {
                                   type="checkbox"
                                   checked={selectedIds.has(req.id)}
                                   onChange={() => toggleSelect(req.id)}
-                                  className="rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                                  className="rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                                 />
                               </td>
                             )}
@@ -455,7 +455,7 @@ const MyRequests = () => {
                                   </span>
                                 )}
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100 dark:bg-gray-700'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600 dark:text-gray-400'}`}
                                 >
                                   {STATUS_CONFIG[req.status]?.icon && (
                                     <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
@@ -474,13 +474,13 @@ const MyRequests = () => {
                       </tbody>
                     </table>
                   </div>
-                  <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
+                  <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/30">
                     <span className="text-xs text-[#44546f]">
                       Showing {requests.length} of {total} requests
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
+                        className="p-1 rounded hover:bg-white dark:hover:bg-gray-700 dark:bg-gray-900 disabled:opacity-30 border border-transparent hover:border-gray-200 dark:border-gray-700"
                         disabled={page === 1}
                         onClick={() => setPage(page - 1)}
                         aria-label="Previous page"
@@ -491,7 +491,7 @@ const MyRequests = () => {
                         Page {page} of {totalPages}
                       </span>
                       <button
-                        className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
+                        className="p-1 rounded hover:bg-white dark:hover:bg-gray-700 dark:bg-gray-900 disabled:opacity-30 border border-transparent hover:border-gray-200 dark:border-gray-700"
                         disabled={page === totalPages}
                         onClick={() => setPage(page + 1)}
                         aria-label="Next page"

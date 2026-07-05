@@ -120,16 +120,16 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
 | P4-01 | Fix mobile drawer nav group mismatch | ✅ | 827aef8 | Groups now match `navConfig.ts` |
-| P4-02 | Remove or route unused ApprovalQueue | ⏳ | — | |
-| P4-03 | Add visible error state to Reports | ✅ | — | Error banner + retry, `friendlyMessage` integration |
-| P4-04 | Add visible error state to AgentDashboard | ✅ | — | Inline error banner + retry button |
-| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ✅ | — | Error state + retry, no longer silently empty |
-| P4-06 | Make MyRequests rows keyboard accessible | ✅ | — | `tabIndex=0 role=link aria-label onKeyDown focus-visible:ring` |
-| P4-07 | Make AgentDashboard rows keyboard accessible | ✅ | — | Same pattern as P4-06 |
-| P4-08 | Make KB cards semantic links/buttons | ✅ | — | `role=link tabIndex=0 aria-label onKeyDown focus-visible:ring` |
-| P4-09 | Add aria-current to active nav links | ✅ | 827aef8 | LeftRail + MobileDrawer |
-| P4-10 | Dark-mode token cleanup for top 5 screens | ⏳ | — | |
-| P4-11 | Playwright/axe accessibility smoke tests | ⏳ | — | |
+|| P4-02 | Remove or route unused ApprovalQueue | ✅ | — | Dead import removed from App.tsx; file kept for reference |
+|| P4-03 | Add visible error state to Reports | ✅ | — | Error banner + retry, `friendlyMessage` integration |
+|| P4-04 | Add visible error state to AgentDashboard | ✅ | — | Inline error banner + retry button |
+|| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ✅ | — | Error state + retry, no longer silently empty |
+|| P4-06 | Make MyRequests rows keyboard accessible | ✅ | — | `tabIndex=0 role=link aria-label onKeyDown focus-visible:ring` |
+|| P4-07 | Make AgentDashboard rows keyboard accessible | ✅ | — | Same pattern as P4-06 |
+|| P4-08 | Make KB cards semantic links/buttons | ✅ | — | `role=link tabIndex=0 aria-label onKeyDown focus-visible:ring` |
+|| P4-09 | Add aria-current to active nav links | ✅ | 827aef8 | LeftRail + MobileDrawer |
+|| P4-10 | Dark-mode token cleanup for top 5 screens | ✅ | — | 90 dark: tokens added across Dashboard, MyRequests, AgentDashboard, KnowledgeBase, Reports |
+|| P4-11 | Playwright/axe accessibility smoke tests | ✅ | — | Playwright + @axe-core/playwright; 5-screen a11y audit + route smoke tests; `npm run test:e2e:a11y` |
 
 ---
 
@@ -207,13 +207,13 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P1 — Security hardening | 16 | 16 | 0 | 100% |
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
-| P4 — UI/UX quick wins | 11 | 8 | 3 | 73% |
+|| P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
 | P5 — Catalog/approval | 8 | 0 | 8 | 0% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-| **Overall (excl. P8)** | **93** | **47** | **46** | **51%** |
+|| **Overall (excl. P8)** | **93** | **58** | **35** | **62%** |
 
 ### Recommended Next Batch
 

@@ -432,7 +432,7 @@ const Dashboard = () => {
                           borderRadius: 'var(--radius-full)',
                           fontSize: 'var(--text-xs)', fontWeight: 700,
                         }}
-                          className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
+                          className={`${statusCfg?.bg || 'bg-gray-100 dark:bg-gray-700'} ${statusCfg?.color || 'text-gray-600 dark:text-gray-400'}`}
                         >
                           {statusCfg?.label || req.status}
                         </span>

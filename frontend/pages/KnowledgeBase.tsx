@@ -117,7 +117,7 @@ export default function KnowledgeBase() {
                   aria-label={`Read article: ${article.title}`}
                   onClick={() => navigate(`/kb/${article.slug}`)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/kb/${article.slug}`); } }}
-                  className="bg-white border border-cwc-border rounded-cwc-md p-5 pb-4 cursor-pointer transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc]"
+                  className="bg-white dark:bg-gray-900 border border-cwc-border rounded-cwc-md p-5 pb-4 cursor-pointer transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc]"
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.boxShadow =
                       '0 4px 16px rgba(0,0,0,0.10)';

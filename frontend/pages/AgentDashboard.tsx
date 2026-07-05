@@ -259,7 +259,7 @@ export default function AgentDashboard() {
          </div>
          <button
            onClick={() => { setError(null); setRefreshKey(k => k + 1); }}
-           className="px-3 py-1.5 text-xs font-medium rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+           className="px-3 py-1.5 text-xs font-medium rounded-md bg-white dark:bg-gray-900 border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
          >
            Retry
          </button>
@@ -269,13 +269,13 @@ export default function AgentDashboard() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agent Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back, {user?.firstName}. Here's your queue overview.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Agent Dashboard</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {user?.firstName}. Here's your queue overview.</p>
         </div>
         <button
           onClick={() => setRefreshKey(k => k + 1)}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 disabled:opacity-50 transition-colors"
         >
           <span className={`material-symbols-outlined text-base ${loading ? 'animate-spin' : ''}`}>refresh</span>
           Refresh
@@ -285,13 +285,13 @@ export default function AgentDashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {cards.map(card => (
-          <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div key={card.label} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center flex-shrink-0`}>
               <span className={`material-symbols-outlined ${card.color} text-2xl`}>{card.icon}</span>
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{loading ? '—' : card.value}</p>
-              <p className="text-sm text-gray-500">{card.label}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{loading ? '—' : card.value}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
             </div>
           </div>
         ))}
@@ -300,7 +300,7 @@ export default function AgentDashboard() {
       {/* Request Type Filter */}
       <div className="mb-4">
         <select
-          className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-gray-500"
+          className="pl-3 pr-8 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-gray-500 dark:text-gray-400"
           value={selectedRequestTypeId || ''}
           onChange={(e) => setSelectedRequestTypeId(e.target.value || null)}
         >
@@ -312,7 +312,7 @@ export default function AgentDashboard() {
       </div>
 
       {/* Tab Toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 w-fit mb-6">
         <button
           onClick={() => setActiveTab('mine')}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -400,27 +400,27 @@ export default function AgentDashboard() {
       )}
 
       {/* Ticket Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         {loading ? (
           <div className="overflow-x-auto -mx-6 px-6">
           <table className="min-w-[800px] w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <tr>
                 <th className="text-left px-4 py-3 w-10">
                   <input
                     type="checkbox"
                     checked={tickets.length > 0 && selectedIds.size === tickets.length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                   />
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Priority</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">SLA</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-44">Requester</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-28">Ref</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Summary</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">Request Type</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-28">Priority</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">SLA</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-44">Requester</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -435,7 +435,7 @@ export default function AgentDashboard() {
             <span className="material-symbols-outlined text-5xl opacity-40">
               {selectedRequestTypeId ? 'filter_alt_off' : 'inbox'}
             </span>
-            <p className="text-base font-semibold text-gray-500">
+            <p className="text-base font-semibold text-gray-500 dark:text-gray-400">
               {selectedRequestTypeId ? 'No tickets match this filter' : 'No tickets here'}
             </p>
             <p className="text-sm text-center max-w-xs">
@@ -453,23 +453,23 @@ export default function AgentDashboard() {
         ) : (
           <div className="overflow-x-auto -mx-6 px-6">
           <table className="min-w-[800px] w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <tr>
                 <th className="text-left px-4 py-3 w-10">
                   <input
                     type="checkbox"
                     checked={tickets.length > 0 && selectedIds.size === tickets.length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                   />
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Priority</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">SLA</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-44">Requester</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-28">Ref</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Summary</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">Request Type</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-28">Priority</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-36">SLA</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400 w-44">Requester</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -489,19 +489,19 @@ export default function AgentDashboard() {
                     role="link"
                     aria-label={`View request ${ticket.reference || ticket.id}`}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/request/${ticket.reference || ticket.id}`); } }}
-                    className={`cursor-pointer transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''} ${selectedIds.has(ticket.id) ? 'bg-blue-50 hover:bg-blue-100' : ''}`}
+                    className={`cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''} ${selectedIds.has(ticket.id) ? 'bg-blue-50 hover:bg-blue-100' : ''}`}
                   >
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(ticket.id)}
                         onChange={() => toggleSelect(ticket.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                       />
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600 font-medium">{ticket.reference}</td>
-                    <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{stripHtml(ticket.summary)}</td>
-                    <td className="px-4 py-3 text-gray-500">{ticket.requestType?.name || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400 font-medium">{ticket.reference}</td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-gray-100 max-w-xs truncate">{stripHtml(ticket.summary)}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{ticket.requestType?.name || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityCfg.bg} ${priorityCfg.color}`}>
                         {priorityCfg.label}
@@ -526,7 +526,7 @@ export default function AgentDashboard() {
                         {sla.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 truncate max-w-[11rem]">{requesterName}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 truncate max-w-[11rem]">{requesterName}</td>
                   </tr>
                 );
               })}

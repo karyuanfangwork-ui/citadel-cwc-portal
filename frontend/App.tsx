@@ -50,7 +50,6 @@ import Insights from './pages/Insights';
 import SearchResults from './pages/SearchResults';
 import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
-import ApprovalQueue from './pages/ApprovalQueue';
 import ApprovalCenter from './pages/ApprovalCenter';
 import AssetManagement from './pages/AssetManagement';
 import CrmAccountDetail from './pages/CrmAccountDetail';
