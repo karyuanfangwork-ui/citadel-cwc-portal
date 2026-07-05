@@ -40,6 +40,7 @@ import schedulerRoutes from './scheduler.routes';
 import queueRoutes from './queue.routes';
 import insightsRoutes from './insights.routes';
 import pdfJobRoutes from './pdfJob.routes';
+import catalogEntitlementRoutes from './catalogEntitlement.routes';
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.use('/admin/scheduler', schedulerRoutes);
 router.use('/admin/queues', queueRoutes);
 router.use('/insights', insightsRoutes);
 router.use('/pdf-jobs', pdfJobRoutes);
+router.use('/admin/catalog-entitlements', catalogEntitlementRoutes);
 
 export default router;
 

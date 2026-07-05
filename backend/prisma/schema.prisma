@@ -426,6 +426,7 @@ model RequestType {
   requests        Request[]
   entityRoutings  RequestTypeEntityRouting[]
   escalationRules EscalationRule[]
+  entitlements     CatalogEntitlement[] // P5-02
 
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
@@ -1531,6 +1532,35 @@ model RequestTypeEntityRouting {
 
   @@index([requestTypeId])
   @@map("request_type_entity_routings")
+}
+
+// P5-02: Catalog entitlement/audience rules
+// Controls which users can see which catalog items based on role, department, or entity.
+model CatalogEntitlement {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  requestTypeId  String   @map("request_type_id") @db.Uuid
+  // Entitlement target — one of role, department (agentTeam), or entity
+  targetType     CatalogEntitlementTarget @map("target_type")
+  targetId       String?  @map("target_id") @db.VarChar(100) // roleId, agentTeam name, or entityId; null = all
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  requestType    RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+
+  @@index([requestTypeId])
+  @@index([tenantId])
+  @@index([targetType, targetId])
+  @@map("catalog_entitlements")
+}
+
+enum CatalogEntitlementTarget {
+  ROLE
+  DEPARTMENT
+  ENTITY
+  ALL
 }
 
 // ============================================================================

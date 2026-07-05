@@ -20,6 +20,7 @@ export interface AuthRequest extends Request {
         permissions: string[];
         agentTeam?: string | null;
         tenantId?: string;
+        entityId?: string | null; // P5-02: catalog entitlement filtering
         // P1-8 — MFA fields for requireMfa middleware
         mfaEnabled?: boolean;
         mustEnrollMfa?: boolean;
@@ -105,6 +106,7 @@ export const authenticate = async (
             permissions,
             agentTeam: user.agentTeam,
             tenantId: user.tenantId ?? undefined,
+            entityId: user.entityId ?? undefined, // P5-02
             // P1-8 — MFA fields for requireMfa middleware
             mfaEnabled: user.mfaEnabled,
             mustEnrollMfa: user.mustEnrollMfa,
