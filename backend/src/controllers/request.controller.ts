@@ -1289,6 +1289,25 @@ class RequestController {
             await pauseSla(request.id);
         }
 
+        // P5-07: Use approval policy engine for expense claims
+        // If an active ApprovalPolicy exists for this request type, create approvals from it
+        if (isExpenseClaim && requestTypeId) {
+            try {
+                const { approvalPolicyService } = await import('../services/approvalPolicy.service');
+                const policyApprovals = await approvalPolicyService.createApprovalsFromPolicy(
+                    request.id,
+                    requestTypeId,
+                    request.requesterId,
+                );
+                if (policyApprovals.length > 0) {
+                    console.log(`[P5-07] Created ${policyApprovals.length} approval(s) from policy for expense claim ${request.id}`);
+                }
+            } catch (err) {
+                // Fallback: if no policy is configured, the old hardcoded path still works
+                console.log(`[P5-07] No approval policy found for expense claim ${request.id}, falling back to entity routing`);
+            }
+        }
+
         // Apply entity-based approval routing if configured for this request type
         if (requestTypeId) {
             await applyEntityRouting({

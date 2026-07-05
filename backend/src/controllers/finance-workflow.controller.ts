@@ -539,9 +539,23 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
             data: { status: RequestStatus.MANAGER_APPROVED_FIN },
         });
 
-        await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'APPROVED', comments: comments || null },
+        // P5-07: If a policy-based approval exists for this manager step, update it instead of creating a duplicate
+        const existingManagerApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, policyId: { not: null }, stepOrder: 1, status: 'PENDING' },
         });
+
+        if (existingManagerApproval) {
+            // Policy-based: update the existing PENDING record
+            await prisma.requestApproval.update({
+                where: { id: existingManagerApproval.id },
+                data: { approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        } else {
+            // Legacy: create a new approval record
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        }
 
         await logActivity(id, `Manager approved expense claim — routed to Finance Head${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_MANAGER_APPROVED', 'request', id, {
@@ -640,9 +654,23 @@ export const financeHeadApproveExpense = async (req: Request, res: Response) => 
             data: { status: RequestStatus.FINANCE_HEAD_APPROVED },
         });
 
-        await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'APPROVED', comments: comments || null },
+        // P5-07: If a policy-based approval exists for this finance head step, update it instead of creating a duplicate
+        const existingFinHeadApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, policyId: { not: null }, stepOrder: 2, status: 'PENDING' },
         });
+
+        if (existingFinHeadApproval) {
+            // Policy-based: update the existing PENDING record
+            await prisma.requestApproval.update({
+                where: { id: existingFinHeadApproval.id },
+                data: { approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        } else {
+            // Legacy: create a new approval record
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        }
 
         await logActivity(id, `Finance Head approved expense claim — routed to payment processing${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_FINANCE_HEAD_APPROVED', 'request', id, {
