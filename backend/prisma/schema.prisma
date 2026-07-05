@@ -132,6 +132,11 @@ model User {
   itHardwareApprovals       ITHardwareRequest[]    @relation("HardwareManagerApproval")
   requestApprovals          RequestApproval[]
   catalogItemsOwned         RequestType[]          @relation("CatalogItemOwner") // P5-01
+  delegatedApprovalsFrom    RequestApproval[]     @relation("ApprovalDelegator") // P5-08
+  delegatedApprovalsTo      RequestApproval[]     @relation("ApprovalDelegate")  // P5-08
+  delegationsFrom            ApprovalDelegation[]  @relation("DelegationFrom")    // P5-08
+  delegationsTo              ApprovalDelegation[]  @relation("DelegationTo")      // P5-08
+  approvalReminders          ApprovalReminder[]    // P5-08
   uploadedResumes           CandidateResume[]
   scheduledInterviews       InterviewSchedule[]
   submittedFeedbacks        InterviewFeedback[]
@@ -974,6 +979,18 @@ model RequestApproval {
   policyId   String?  @map("policy_id") @db.Uuid
   stepOrder  Int?     @map("step_order")
 
+  // P5-08: Delegation — if this approval was delegated, who delegated to whom
+  delegatedBy   String?  @map("delegated_by") @db.Uuid   // Original approver who delegated
+  delegatedTo   String?  @map("delegated_to") @db.Uuid   // User who received the delegation
+  delegatedAt   DateTime? @map("delegated_at") @db.Timestamp(6)
+
+  // P5-08: Reminder tracking
+  reminderCount   Int      @default(0) @map("reminder_count")
+  lastReminderAt  DateTime? @map("last_reminder_at") @db.Timestamp(6)
+
+  // P5-08: Timeout tracking — when this approval step is due
+  dueAt   DateTime? @map("due_at") @db.Timestamp(6) // Calculated from policy step timeoutHours
+
   status   ApprovalStatus @default(PENDING)
   comments String?        @db.Text
 
@@ -981,16 +998,60 @@ model RequestApproval {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  request  Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  approver User?           @relation(fields: [approverId], references: [id])
-  entity   Entity?         @relation("ApprovalEntity", fields: [entityId], references: [id])
-  policy   ApprovalPolicy? @relation(fields: [policyId], references: [id])
+  request      Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver     User?           @relation(fields: [approverId], references: [id])
+  entity       Entity?         @relation("ApprovalEntity", fields: [entityId], references: [id])
+  policy       ApprovalPolicy? @relation(fields: [policyId], references: [id])
+  delegator    User?           @relation("ApprovalDelegator", fields: [delegatedBy], references: [id])
+  delegate     User?           @relation("ApprovalDelegate", fields: [delegatedTo], references: [id])
+  delegations  ApprovalDelegation[]
+  reminders    ApprovalReminder[]
 
   @@index([requestId])
   @@index([approverId])
   @@index([entityId])
   @@index([policyId])
+  @@index([delegatedBy])
+  @@index([delegatedTo])
+  @@index([status, dueAt])  // For timeout queries
   @@map("request_approvals")
+}
+
+// P5-08: Approval delegation log — records each delegation action
+model ApprovalDelegation {
+  id              String   @id @default(uuid()) @db.Uuid
+  approvalId      String   @map("approval_id") @db.Uuid  // The RequestApproval being delegated
+  fromUserId      String   @map("from_user_id") @db.Uuid  // Original approver
+  toUserId        String   @map("to_user_id") @db.Uuid    // Delegate receiving the approval
+  reason          String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  approval    RequestApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  fromUser    User            @relation("DelegationFrom", fields: [fromUserId], references: [id])
+  toUser      User            @relation("DelegationTo", fields: [toUserId], references: [id])
+
+  @@index([approvalId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("approval_delegations")
+}
+
+// P5-08: Approval reminder log — tracks reminders sent for pending approvals
+model ApprovalReminder {
+  id              String   @id @default(uuid()) @db.Uuid
+  approvalId      String   @map("approval_id") @db.Uuid  // The RequestApproval being reminded
+  recipientUserId String   @map("recipient_user_id") @db.Uuid  // Who received the reminder
+  type            String   @db.VarChar(20)  // 'FIRST', 'SECOND', 'ESCALATION'
+  sentAt          DateTime @default(now()) @map("sent_at") @db.Timestamp(6)
+
+  // Relations
+  approval        RequestApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  recipient       User            @relation(fields: [recipientUserId], references: [id])
+
+  @@index([approvalId])
+  @@index([recipientUserId])
+  @@map("approval_reminders")
 }
 
 model Candidate {

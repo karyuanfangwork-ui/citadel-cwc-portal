@@ -1,6 +1,7 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { checkSlaBreaches, checkEscalations } from '../services/sla.service';
 import { checkStalePauses } from '../services/sla-pause.service';
+import { checkApprovalTimeouts, checkAndSendReminders } from '../services/approvalDelegation.service';
 import { logger } from '../utils/logger';
 
 export interface JobConfig {
@@ -17,6 +18,9 @@ export async function runSlaChecks(): Promise<void> {
   await checkStalePauses().catch((err) => logger.error('Stale SLA pause check failed', { error: err }));
   await checkSlaBreaches().catch((err) => logger.error('SLA breach check failed', { error: err }));
   await checkEscalations().catch((err) => logger.error('SLA escalation check failed', { error: err }));
+  // P5-08: Check approval timeouts and send reminders
+  await checkApprovalTimeouts().catch((err) => logger.error('Approval timeout check failed', { error: err }));
+  await checkAndSendReminders().catch((err) => logger.error('Approval reminder check failed', { error: err }));
 }
 
 export function startSlaChecker(cfg: JobConfig): void {

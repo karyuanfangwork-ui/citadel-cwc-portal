@@ -155,6 +155,8 @@ class ApprovalPolicyService {
                             stepOrder: step.stepOrder,
                             status: 'APPROVED',
                             comments: step.autoApproveIf || 'Auto-approved by policy',
+                            // P5-08: Set dueAt for timeout tracking even for auto steps
+                            ...(step.timeoutHours ? { dueAt: new Date(Date.now() + step.timeoutHours * 60 * 60 * 1000) } : {}),
                         },
                     }),
                 );
@@ -223,6 +225,8 @@ class ApprovalPolicyService {
                         policyId: policy.id,
                         stepOrder: step.stepOrder,
                         status: 'PENDING',
+                        // P5-08: Set dueAt based on policy step timeoutHours
+                        ...(step.timeoutHours ? { dueAt: new Date(Date.now() + step.timeoutHours * 60 * 60 * 1000) } : {}),
                     },
                 }),
             );

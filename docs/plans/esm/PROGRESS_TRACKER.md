@@ -144,7 +144,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 || P5-05 | Define conditional-field rule format | ✅ | — | showWhen ConditionalRule spec; Zod validation in serviceDesk.validator.ts; FormBuilder UI editor with field selector, operator, value; conditional badge in preview; backend conditionalRules.service.ts (self-ref, circular dep, invalid ref validators); frontend evaluateShowWhile/filterVisibleFields runtime evaluator; spec doc at docs/plans/esm/conditional-field-rules.md |
 || P5-06 | Build generic approval policy model | ✅ | — | ApprovalPolicy + ApprovalPolicyStep models (Prisma); PolicyApproverType enum (ROLE/DEPARTMENT/ENTITY/USER/TEAM/AUTO); RequestApproval gains policyId + stepOrder; approvalPolicy.service.ts (CRUD + resolvePolicy + createApprovalsFromPolicy); controller + routes at /admin/approval-policies; migration SQL; tests |
 || P5-07 | Migrate one finance approval path to policy engine | ✅ | — | Expense claim approval (Manager→CFO) migrated to ApprovalPolicy engine; request creation uses createApprovalsFromPolicy with fallback; managerApproveExpense + financeHeadApproveExpense update policy records instead of creating duplicates; seed migration for EXPENSE_CLAIM policy |
-| P5-08 | Add approval delegation/fallback/reminders | ⏳ | — | |
+| P5-08 | Add approval delegation/fallback/reminders | ✅ | — | RequestApproval extended with delegation/reminders/timeout fields; ApprovalDelegation + ApprovalReminder models; delegation API (POST/GET); timeout checker auto-rejects overdue approvals; reminder scheduler (24h/48h/72h escalation); dueAt set from policy step timeoutHours; SLA checker integrated |
 
 ---
 
@@ -208,12 +208,12 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 || P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
-| P5 — Catalog/approval | 8 | 7 | 1 | 88% |
+| P5 — Catalog/approval | 8 | 8 | 0 | 100% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-|| **Overall (excl. P8)** | **93** | **65** | **28** | **70%** |
+|| **Overall (excl. P8)** | **93** | **66** | **27** | **71%** |
 
 ### Recommended Next Batch
 
