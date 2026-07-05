@@ -29,6 +29,7 @@ import { AgentTeamModal } from '../src/components/admin/AgentTeamModal';
 import { ResetPasswordModal } from '../src/components/admin';
 import { RequestTypeEditModal } from '../src/components/admin/RequestTypeEditModal';
 import { FormBuilderModal } from '../src/components/admin/FormBuilderModal';
+import { CatalogItemDetail } from '../src/components/admin/CatalogItemDetail';
 import { entityService, Entity } from '../src/services/entity.service';
 
 const AdminSettings = () => {
@@ -166,6 +167,7 @@ const AdminSettings = () => {
                             onEditService={admin.openEditServiceModal}
                             onEditTypeName={admin.openEditTypeName}
                             onOpenFormBuilder={admin.openFormBuilder}
+                            onOpenCatalogDetail={admin.openCatalogDetail}
                             onAddDesk={admin.openAddDeskModal}
                             onEditDesk={admin.openEditDeskModal}
                             onDeleteDesk={admin.handleDeleteDesk}
@@ -448,6 +450,18 @@ const AdminSettings = () => {
                 selectedType={admin.selectedType}
                 onSave={admin.handleSaveFormConfig}
                 onClose={() => admin.setFormBuilderOpen(false)}
+            />
+
+            {/* P5-03: Catalog Item Detail Modal */}
+            <CatalogItemDetail
+                isOpen={admin.catalogDetailOpen && !!admin.selectedType}
+                requestType={admin.selectedType}
+                onClose={() => admin.setCatalogDetailOpen(false)}
+                onRefresh={() => {
+                    if (admin.selectedDesk?.id) {
+                        admin.fetchCategories(admin.selectedDesk.id);
+                    }
+                }}
             />
         </div>
     );

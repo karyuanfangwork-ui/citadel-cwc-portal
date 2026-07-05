@@ -105,6 +105,7 @@ export interface UseAdminStateReturn {
     editingService: any | null;
     selectedType: any;
     formBuilderOpen: boolean;
+    catalogDetailOpen: boolean; // P5-03
     editingTypeName: { id: string; name: string; description: string; workflowTypeId?: string } | null;
     editTypeForm: { name: string; description: string; workflowTypeId: string; slaHours: string };
     savingTypeName: boolean;
@@ -177,6 +178,7 @@ export interface UseAdminStateReturn {
     handleReactivateService: (typeId: string) => void;
     openEditServiceModal: (type: any) => void;
     openFormBuilder: (type: any) => void;
+    openCatalogDetail: (type: any) => void; // P5-03
     handleSaveFormConfig: (fields: any[]) => Promise<void>;
     openEditTypeName: (type: any) => void;
     handleSaveTypeName: () => Promise<void>;
@@ -247,6 +249,7 @@ export interface UseAdminStateReturn {
     setEditTypeForm: (form: { name: string; description: string; workflowTypeId: string; slaHours: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
     setFormBuilderOpen: (open: boolean) => void;
+    setCatalogDetailOpen: (open: boolean) => void; // P5-03
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,6 +313,7 @@ export function useAdminState(): UseAdminStateReturn {
     const [editingService, setEditingService] = useState<any | null>(null);
     const [selectedType, setSelectedType] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
+    const [catalogDetailOpen, setCatalogDetailOpen] = useState(false); // P5-03
     const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string; workflowTypeId?: string } | null>(null);
     const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '', workflowTypeId: '', slaHours: '' });
     const [savingTypeName, setSavingTypeName] = useState(false);
@@ -836,6 +840,11 @@ export function useAdminState(): UseAdminStateReturn {
         setFormBuilderOpen(true);
     }, []);
 
+    const openCatalogDetail = useCallback((type: any) => { // P5-03
+        setSelectedType(type);
+        setCatalogDetailOpen(true);
+    }, []);
+
     const handleSaveFormConfig = useCallback(async (fields: any[]) => {
         if (!selectedType) return;
         try {
@@ -1100,6 +1109,7 @@ export function useAdminState(): UseAdminStateReturn {
         editingService,
         selectedType,
         formBuilderOpen,
+        catalogDetailOpen,
         editingTypeName,
         editTypeForm,
         savingTypeName,
@@ -1172,6 +1182,7 @@ export function useAdminState(): UseAdminStateReturn {
         handleReactivateService,
         openEditServiceModal,
         openFormBuilder,
+        openCatalogDetail,
         handleSaveFormConfig,
         openEditTypeName,
         handleSaveTypeName,
@@ -1233,5 +1244,6 @@ export function useAdminState(): UseAdminStateReturn {
         setEditTypeForm,
         setEditingTypeName,
         setFormBuilderOpen,
+        setCatalogDetailOpen,
     };
 }

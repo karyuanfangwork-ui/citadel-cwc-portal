@@ -30,6 +30,7 @@ interface ServiceDesksTabProps {
     onEditService: (type: any) => void;
     onEditTypeName: (type: any) => void;
     onOpenFormBuilder: (type: any) => void;
+    onOpenCatalogDetail: (type: any) => void; // P5-03
     // Service Desk CRUD props
     onAddDesk: () => void;
     onEditDesk: (desk: any) => void;
@@ -66,6 +67,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     onEditService,
     onEditTypeName,
     onOpenFormBuilder,
+    onOpenCatalogDetail,
     onAddDesk,
     onEditDesk,
     onDeleteDesk,
@@ -380,6 +382,14 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                                 aria-label="Configure form fields"
                                             >
                                                 <span className="material-symbols-outlined text-[22px]">dynamic_form</span>
+                                            </button>
+                                            <button
+                                                onClick={() => onOpenCatalogDetail(type)}
+                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                                title="Governance & Entitlements"
+                                                aria-label="View governance detail"
+                                            >
+                                                <span className="material-symbols-outlined text-[22px]">shield</span>
                                             </button>
                                             {type.isActive !== false ? (
                                                 <button
