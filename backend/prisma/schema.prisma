@@ -429,6 +429,7 @@ model RequestType {
   entityRoutings  RequestTypeEntityRouting[]
   escalationRules EscalationRule[]
   entitlements     CatalogEntitlement[] // P5-02
+  approvalPolicies ApprovalPolicy[] // P5-06
 
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
@@ -455,6 +456,70 @@ model EscalationRule {
   @@index([requestTypeId])
   @@index([tenantId])
   @@map("escalation_rules")
+}
+
+// P5-06: Generic approval policy model
+// Defines configurable approval workflows per request type.
+// Each policy has ordered steps; each step has an approver type and optional conditions.
+
+enum PolicyApproverType {
+  ROLE            // Approve by system role (e.g., 'ADMIN', 'HR_MANAGER')
+  DEPARTMENT      // Approve by department head
+  ENTITY          // Approve by entity head
+  USER            // Approve by specific user
+  TEAM            // Approve by team lead
+  AUTO            // Auto-approve (no human needed)
+}
+
+enum PolicyConditionOperator {
+  AND
+  OR
+}
+
+model ApprovalPolicy {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @map("tenant_id") @db.Uuid
+  name           String   @db.VarChar(200)
+  description    String?  @db.Text
+  requestTypeId  String   @map("request_type_id") @db.Uuid
+  isActive       Boolean  @default(true) @map("is_active")
+  priority       Int      @default(0) @map("priority") // Lower = higher priority; first matching policy wins
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  requestType     RequestType           @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+  steps           ApprovalPolicyStep[]
+  approvalRecords RequestApproval[]
+
+  @@index([requestTypeId])
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("approval_policies")
+}
+
+model ApprovalPolicyStep {
+  id            String   @id @default(uuid()) @db.Uuid
+  policyId      String   @map("policy_id") @db.Uuid
+  stepOrder     Int      @map("step_order")         // Execution order (1 = first approver)
+  approverType  PolicyApproverType @map("approver_type")
+  approverId    String?  @map("approver_id") @db.Uuid // Required when approverType = USER
+  roleId        String?  @map("role_id")              // Required when approverType = ROLE
+  departmentId  String?  @map("department_id") @db.Uuid // Required when approverType = DEPARTMENT
+  entityId      String?  @map("entity_id") @db.Uuid    // Required when approverType = ENTITY
+  teamId        String?  @map("team_id") @db.VarChar(100) // Required when approverType = TEAM
+  label         String?  @db.VarChar(200)            // Human-readable label for this step
+  autoApproveIf String?  @map("auto_approve_if") @db.Text // Optional JSON condition for auto-approve
+  timeoutHours  Int?     @map("timeout_hours")        // Hours before auto-escalation/skip
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  policy ApprovalPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@index([policyId, stepOrder])
+  @@map("approval_policy_steps")
 }
 
 model WorkflowType {
@@ -905,6 +970,10 @@ model RequestApproval {
   approverId   String? @map("approver_id") @db.Uuid
   entityId     String? @map("entity_id") @db.Uuid
 
+  // P5-06: Link to the approval policy step that created this approval
+  policyId   String?  @map("policy_id") @db.Uuid
+  stepOrder  Int?     @map("step_order")
+
   status   ApprovalStatus @default(PENDING)
   comments String?        @db.Text
 
@@ -912,13 +981,15 @@ model RequestApproval {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  request  Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  approver User?   @relation(fields: [approverId], references: [id])
-  entity   Entity? @relation("ApprovalEntity", fields: [entityId], references: [id])
+  request  Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approver User?           @relation(fields: [approverId], references: [id])
+  entity   Entity?         @relation("ApprovalEntity", fields: [entityId], references: [id])
+  policy   ApprovalPolicy? @relation(fields: [policyId], references: [id])
 
   @@index([requestId])
   @@index([approverId])
   @@index([entityId])
+  @@index([policyId])
   @@map("request_approvals")
 }
 
