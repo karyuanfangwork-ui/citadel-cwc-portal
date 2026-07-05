@@ -13,12 +13,16 @@ import { notFoundHandler } from './middleware/notFound.middleware';
 import { correlationId } from './middleware/correlationId.middleware';
 import { metricsMiddleware, metricsHandler, collectDefaultMetrics } from './middleware/metrics';
 import routes from './routes';
+import { initTransitionGuards } from './services/transitionGuards';
 
 // Load environment variables
 dotenv.config();
 
 // Create Express app
 const app: Application = express();
+
+// P6-04: Register transition guards (side-effect: registers on the guard registry)
+initTransitionGuards();
 
 // Trust proxy — required behind nginx (Docker Compose production setup)
 app.set('trust proxy', 1);

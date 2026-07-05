@@ -1,0 +1,663 @@
+/**
+ * P6-04: Transition Guards / Preconditions Tests
+ *
+ * Tests verify that guard predicates registered in transitionGuards.ts
+ * correctly block or allow transitions based on:
+ *  1. Comment-required for rejection transitions
+ *  2. Assignment checks for IT procurement transitions
+ *  3. Service-desk checks for IT-only transitions
+ *  4. Role-based checks for CEO/CTO/CFO approval decisions
+ *  5. LOA preconditions (approved LOA, signed LOA)
+ *  6. Onboarding completion (all tasks done)
+ *  7. Offboarding phase guards (resignation letter, exit interview, tasks)
+ */
+
+// ---------------------------------------------------------------------------
+// Mocks — must be declared before imports.
+// jest.mock is hoisted, so we use a factory that returns mutable objects.
+// We declare the mock object inside the factory to avoid TDZ issues.
+// ---------------------------------------------------------------------------
+
+const mockPrisma = {
+  request: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  requestActivity: {
+    create: jest.fn(),
+  },
+  requestParticipant: {
+    findMany: jest.fn(),
+  },
+  user: {
+    findFirst: jest.fn(),
+  },
+  onboardingRequest: {
+    findUnique: jest.fn(),
+  },
+  offboardingRequest: {
+    findUnique: jest.fn(),
+  },
+};
+
+// Jest hoists jest.mock calls. The factory returns the mockPrisma object.
+// Since mockPrisma is a const, jest hoists the mock call above it, but
+// jest.mock factories are called lazily (when the module is first imported),
+// so the const is initialized by then. This pattern works in practice.
+jest.mock('../../utils/prisma', () => ({
+  __esModule: true,
+  default: mockPrisma,
+}));
+
+jest.mock('../../utils/workflowTransitions', () => ({
+  isTerminalStatus: (status: string) =>
+    [
+      'RESOLVED', 'REJECTED', 'COMPLETED',
+      'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
+      'REIMBURSEMENT_CLOSED', 'TICKET_CLOSED_FIN',
+      'CHARGEBACK_COMPLETED', 'LOA_REJECTED',
+    ].includes(status),
+  isValidTransition: jest.fn(),
+  getTransitionMeta: jest.fn(),
+  getValidNextStatuses: jest.fn(),
+  getWorkflowForRequest: jest.fn(),
+}));
+
+jest.mock('../sla-pause.service', () => ({
+  pauseSla: jest.fn(),
+  resumeSla: jest.fn(),
+}));
+
+// ---------------------------------------------------------------------------
+// Imports after mock setup
+// ---------------------------------------------------------------------------
+import { transitionRequest, registerTransitionGuard } from '../requestTransition.service';
+import { initTransitionGuards } from '../transitionGuards';
+
+// Ensure guards are registered
+initTransitionGuards();
+
+// ---------------------------------------------------------------------------
+// Helper: create a mock request object
+// ---------------------------------------------------------------------------
+function makeRequest(overrides: Record<string, any> = {}): any {
+  return {
+    id: 'req-001',
+    status: 'SUBMITTED',
+    assignedToId: null,
+    serviceDesk: { code: 'IT' },
+    requesterId: 'user-001',
+    referenceNumber: 'IT-2025-001',
+    customFields: {},
+    slaPausedAt: null,
+    requestType: {
+      workflow: {
+        steps: [],
+      },
+    },
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('P6-04: Transition Guards', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.request.findUnique.mockResolvedValue(null);
+    mockPrisma.request.update.mockImplementation(({ data }: any) =>
+      Promise.resolve({ ...makeRequest(), ...data }),
+    );
+    mockPrisma.requestActivity.create.mockResolvedValue({ id: 'act-001' });
+    mockPrisma.requestParticipant.findMany.mockResolvedValue([]);
+  });
+
+  // ── 1. Comment-required guard ──────────────────────────────────────────
+
+  describe('1. Comment-required for rejections', () => {
+    it('blocks REJECTED transition without comment', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'IN_PROGRESS' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'REJECTED', {
+          userId: 'user-001',
+          userName: 'Test User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/comment is required/i);
+    });
+
+    it('allows REJECTED transition with comment', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'IN_PROGRESS' }),
+      );
+
+      const result = await transitionRequest('req-001', 'REJECTED', {
+        userId: 'user-001',
+        userName: 'Test User',
+        comment: 'Not approved by management',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.newStatus).toBe('REJECTED');
+    });
+
+    it('blocks CEO_REJECTED_IT without comment', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CEO_APPROVAL_IT' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'CEO_REJECTED_IT', {
+          userId: 'user-001',
+          userName: 'CEO User',
+          metadata: { userRoles: ['CEO'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/comment is required/i);
+    });
+  });
+
+  // ── 2. Assignment guard ────────────────────────────────────────────────
+
+  describe('2. Assignment guard for IT procurement', () => {
+    it('blocks PROCUREMENT_IN_PROGRESS→HARDWARE_ORDERED by non-assigned user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'PROCUREMENT_IN_PROGRESS',
+          assignedToId: 'agent-001',
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'HARDWARE_ORDERED', {
+          userId: 'other-user',
+          userName: 'Other User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the assigned agent or admin/i);
+    });
+
+    it('allows PROCUREMENT_IN_PROGRESS→HARDWARE_ORDERED by assigned user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'PROCUREMENT_IN_PROGRESS',
+          assignedToId: 'agent-001',
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'HARDWARE_ORDERED', {
+        userId: 'agent-001',
+        userName: 'Assigned Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('allows PROCUREMENT_IN_PROGRESS→HARDWARE_ORDERED by admin', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'PROCUREMENT_IN_PROGRESS',
+          assignedToId: 'agent-001',
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'HARDWARE_ORDERED', {
+        userId: 'admin-001',
+        userName: 'Admin',
+        userRole: 'ADMIN',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 3. Service-desk guard ──────────────────────────────────────────────
+
+  describe('3. Service-desk guard for IT-only transitions', () => {
+    it('blocks PROCUREMENT_IN_PROGRESS on non-IT service desk', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'SUBMITTED',
+          serviceDesk: { code: 'HR' },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'PROCUREMENT_IN_PROGRESS', {
+          userId: 'user-001',
+          userName: 'Test User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/only allowed for IT service desk/i);
+    });
+
+    it('allows PROCUREMENT_IN_PROGRESS on IT service desk', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'SUBMITTED',
+          serviceDesk: { code: 'IT' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'PROCUREMENT_IN_PROGRESS', {
+        userId: 'user-001',
+        userName: 'Test User',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 4. Role-based approval guards ──────────────────────────────────────
+
+  describe('4. Role-based approval guards', () => {
+    it('blocks CEO_APPROVED_IT by non-CEO user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CEO_APPROVAL_IT' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'CEO_APPROVED_IT', {
+          userId: 'user-001',
+          userName: 'Regular User',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the CEO/i);
+    });
+
+    it('allows CEO_APPROVED_IT by CEO user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CEO_APPROVAL_IT' }),
+      );
+
+      const result = await transitionRequest('req-001', 'CEO_APPROVED_IT', {
+        userId: 'ceo-001',
+        userName: 'CEO User',
+        metadata: { userRoles: ['CEO'] },
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks CTO_APPROVED_IT by non-CTO user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CTO_APPROVAL_IT' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'CTO_APPROVED_IT', {
+          userId: 'user-001',
+          userName: 'Regular User',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the CTO/i);
+    });
+
+    it('blocks CFO_APPROVED_FIN by non-CFO user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'CFO_APPROVED_FIN', {
+          userId: 'user-001',
+          userName: 'Regular User',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the CFO/i);
+    });
+
+    it('allows CFO_APPROVED_FIN by admin without CFO role', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN' }),
+      );
+
+      const result = await transitionRequest('req-001', 'CFO_APPROVED_FIN', {
+        userId: 'admin-001',
+        userName: 'Admin',
+        userRole: 'ADMIN',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks LOA_APPROVED by non-HIRING_MANAGER', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'LOA_PENDING_APPROVAL' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'LOA_APPROVED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only a Hiring Manager/i);
+    });
+  });
+
+  // ── 5. LOA preconditions ───────────────────────────────────────────────
+
+  describe('5. LOA preconditions', () => {
+    it('blocks LOA_APPROVED→LOA_ISSUED without approved LOA', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'LOA_APPROVED',
+          letterOfAcceptance: { approvedBy: null },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'LOA_ISSUED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/LOA must be approved/i);
+    });
+
+    it('allows LOA_APPROVED→LOA_ISSUED with approved LOA', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'LOA_APPROVED',
+          letterOfAcceptance: { approvedBy: 'mgr-001' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'LOA_ISSUED', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks LOA_ISSUED→LOA_ACCEPTED without signed LOA', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'LOA_ISSUED',
+          letterOfAcceptance: { signedLoaFileUrl: null },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'LOA_ACCEPTED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Signed LOA must be uploaded/i);
+    });
+
+    it('allows LOA_ISSUED→LOA_ACCEPTED with signed LOA', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'LOA_ISSUED',
+          letterOfAcceptance: { signedLoaFileUrl: 's3://loa/signed.pdf' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'LOA_ACCEPTED', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 6. Onboarding completion guard ─────────────────────────────────────
+
+  describe('6. Onboarding completion guard', () => {
+    it('blocks ONBOARDING_COMPLETED with pending tasks', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'ONBOARDING_MONTH_3_MILESTONE' }),
+      );
+      mockPrisma.onboardingRequest.findUnique.mockResolvedValue({
+        id: 'ob-001',
+        tasks: [
+          { status: 'COMPLETED' },
+          { status: 'PENDING' },
+        ],
+      });
+
+      await expect(
+        transitionRequest('req-001', 'ONBOARDING_COMPLETED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/task.*still incomplete/i);
+    });
+
+    it('allows ONBOARDING_COMPLETED with all tasks done', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'ONBOARDING_MONTH_3_MILESTONE' }),
+      );
+      mockPrisma.onboardingRequest.findUnique.mockResolvedValue({
+        id: 'ob-001',
+        tasks: [
+          { status: 'COMPLETED' },
+          { status: 'COMPLETED' },
+        ],
+      });
+
+      const result = await transitionRequest('req-001', 'ONBOARDING_COMPLETED', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('allows ONBOARDING_COMPLETED with no tasks', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'ONBOARDING_MONTH_3_MILESTONE' }),
+      );
+      mockPrisma.onboardingRequest.findUnique.mockResolvedValue({
+        id: 'ob-001',
+        tasks: [],
+      });
+
+      const result = await transitionRequest('req-001', 'ONBOARDING_COMPLETED', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 7. Offboarding phase guards ────────────────────────────────────────
+
+  describe('7. Offboarding phase guards', () => {
+    it('blocks OFFBOARDING_FINAL_WEEK without resignation letter', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_KNOWLEDGE_TRANSFER' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        resignationLetterAttached: false,
+        exitInterviewScheduledDate: new Date(),
+      });
+
+      await expect(
+        transitionRequest('req-001', 'OFFBOARDING_FINAL_WEEK', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/resignation letter must be attached/i);
+    });
+
+    it('blocks OFFBOARDING_FINAL_WEEK without exit interview scheduled', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_KNOWLEDGE_TRANSFER' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        resignationLetterAttached: true,
+        exitInterviewScheduledDate: null,
+      });
+
+      await expect(
+        transitionRequest('req-001', 'OFFBOARDING_FINAL_WEEK', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/exit interview date must be scheduled/i);
+    });
+
+    it('allows OFFBOARDING_FINAL_WEEK with both preconditions met', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_KNOWLEDGE_TRANSFER' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        resignationLetterAttached: true,
+        exitInterviewScheduledDate: new Date(),
+      });
+
+      const result = await transitionRequest('req-001', 'OFFBOARDING_FINAL_WEEK', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks OFFBOARDING_COMPLETED without EXIT_PROCEDURES phase', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_EXIT_PROCEDURES' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        currentPhase: 'FINAL_WEEK',
+        tasks: [],
+      });
+
+      await expect(
+        transitionRequest('req-001', 'OFFBOARDING_COMPLETED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/all phases must be completed/i);
+    });
+
+    it('blocks OFFBOARDING_COMPLETED with pending tasks', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_EXIT_PROCEDURES' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        currentPhase: 'EXIT_PROCEDURES',
+        tasks: [
+          { status: 'COMPLETED' },
+          { status: 'PENDING' },
+        ],
+      });
+
+      await expect(
+        transitionRequest('req-001', 'OFFBOARDING_COMPLETED', {
+          userId: 'user-001',
+          userName: 'HR Agent',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/task.*still incomplete/i);
+    });
+
+    it('allows OFFBOARDING_COMPLETED at EXIT_PROCEDURES with all tasks done', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'OFFBOARDING_EXIT_PROCEDURES' }),
+      );
+      mockPrisma.offboardingRequest.findUnique.mockResolvedValue({
+        currentPhase: 'EXIT_PROCEDURES',
+        tasks: [{ status: 'COMPLETED' }],
+      });
+
+      const result = await transitionRequest('req-001', 'OFFBOARDING_COMPLETED', {
+        userId: 'user-001',
+        userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 8. Custom guard registration ───────────────────────────────────────
+
+  describe('8. Custom guard registration', () => {
+    it('supports registering additional guards at runtime', async () => {
+      // Register a custom guard that always blocks
+      registerTransitionGuard('IN_REVIEW→IN_PROGRESS', async () =>
+        'Custom block: test guard',
+      );
+
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'IN_REVIEW' }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'IN_PROGRESS', {
+          userId: 'user-001',
+          userName: 'Test User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Custom block: test guard/i);
+    });
+  });
+});

@@ -63,7 +63,19 @@ export interface TransitionResult {
 // Guard condition registry
 // ---------------------------------------------------------------------------
 
-type GuardFn = (requestId: string, fromStatus: string, toStatus: string, options: TransitionOptions) => Promise<string | null>;
+/**
+ * A guard predicate that runs before a transition.
+ * Receives the current request (already fetched by transitionRequest) to avoid
+ * redundant DB reads.
+ *
+ * @returns null to allow the transition, or an error message string to block it.
+ */
+type GuardFn = (
+  request: any,
+  fromStatus: string,
+  toStatus: string,
+  options: TransitionOptions,
+) => Promise<string | null>;
 
 const guards: Record<string, GuardFn[]> = {};
 
@@ -87,7 +99,7 @@ export function registerTransitionGuard(transitionKey: string, guard: GuardFn): 
  * Checks both specific (`from→to`) and wildcard (`*→to`) guards.
  */
 async function runGuards(
-  requestId: string,
+  request: any,
   fromStatus: string,
   toStatus: string,
   options: TransitionOptions,
@@ -97,7 +109,7 @@ async function runGuards(
     const fns = guards[key];
     if (!fns) continue;
     for (const fn of fns) {
-      const error = await fn(requestId, fromStatus, toStatus, options);
+      const error = await fn(request, fromStatus, toStatus, options);
       if (error) return error;
     }
   }
@@ -244,7 +256,7 @@ export async function transitionRequest(
   }
 
   // ── 3. Run guard conditions ──────────────────────────────────────────────
-  const guardError = await runGuards(requestId, fromStatus, toStatus, options);
+  const guardError = await runGuards(currentRequest, fromStatus, toStatus, options);
   if (guardError) {
     throw new Error(`Transition guard blocked: ${guardError}`);
   }
