@@ -403,8 +403,12 @@ const MyRequests = () => {
                         {requests.map((req) => (
                           <tr
                             key={req.id}
-                            className={`hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
+                            className={`hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
+                            tabIndex={0}
+                            role="link"
+                            aria-label={`View request ${req.referenceNumber || req.id}`}
                             onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/request/${req.referenceNumber || req.id}`); } }}
                           >
                             {canExport && (
                               <td className="px-4 py-4 text-center" onClick={e => e.stopPropagation()}>

@@ -12,6 +12,7 @@ import { applyEntityRouting } from '../services/entityRouting.service';
 import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 import { generateRequestRefNum } from '../services/referenceNumber.service';
+import { assertRequestAccess } from '../services/requestAccess.service';
 
 import prisma from '../utils/prisma';
 
@@ -1669,6 +1670,12 @@ class RequestController {
             },
         });
 
+        // P2-05: Audit log for request update
+        await auditLog(req, 'REQUEST_UPDATED', 'request', id, {
+            referenceNumber: request.referenceNumber,
+            updatedFields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
+        });
+
         res.json({
             status: 'success',
             data: { request },
@@ -1699,6 +1706,11 @@ class RequestController {
         await prisma.request.update({
             where: { id },
             data: { deletedAt: new Date() },
+        });
+
+        // P2-05: Audit log for request delete
+        await auditLog(req, 'REQUEST_DELETED', 'request', id, {
+            referenceNumber: request.referenceNumber,
         });
 
         res.json({
@@ -1855,15 +1867,21 @@ class RequestController {
         const idOrRef = String(req.params.id);
         const id = await resolveRequestId(idOrRef);
         if (!id) throw new AppError('Request not found', 404);
+
+        // P2-02: Verify user has access to the parent request before allowing upload
+        await assertRequestAccess(req.user!, id);
+
         const file = req.file;
 
         if (!file) {
             throw new AppError('No file uploaded', 400);
         }
 
-        // Verify request exists
+        // Verify request exists (assertRequestAccess already confirmed this, but
+        // we keep a lightweight check to satisfy TypeScript)
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
+            select: { id: true, referenceNumber: true },
         });
         if (!request) {
             throw new AppError('Request not found', 404);
@@ -1888,6 +1906,15 @@ class RequestController {
         // Log un-scanned file for manual review (future virus scan)
         logger.info(`[UPLOAD] Unscanned file uploaded: ${attachment.id} | ${file.originalname} | ${file.mimetype} | ${(file.size / 1024).toFixed(1)}KB | by ${req.user!.email}`);
 
+        // P2-04: Audit log for attachment upload
+        await auditLog(req, 'ATTACHMENT_UPLOAD', 'request', id, {
+            referenceNumber: request.referenceNumber,
+            attachmentId: attachment.id,
+            fileName: attachment.fileName,
+            fileSize: Number(attachment.fileSize),
+            mimeType: attachment.mimeType,
+        });
+
         res.status(201).json({
             status: 'success',
             data: {
@@ -1910,6 +1937,11 @@ class RequestController {
     downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
         const { id, attachmentId }  = req.params as Record<string, string>;
 
+        // P2-02: Verify user has access to the parent request before allowing download
+        // This replaces the partial confidentiality-only check with a full access gate
+        // that covers both confidential and non-confidential requests.
+        const attachmentRequest = await assertRequestAccess(req.user!, id, { requireConfidential: true });
+
         // Verify the attachment belongs to the request and is not deleted
         const attachment = await prisma.requestAttachment.findFirst({
             where: {
@@ -1923,30 +1955,21 @@ class RequestController {
             throw new AppError('Attachment not found', 404);
         }
 
-        // Confidentiality gate: block unauthorized downloads on confidential requests
-        const attachmentRequest = await prisma.request.findUnique({
-            where: { id },
-            select: {
-                isConfidential: true,
-                requesterId: true,
-                assignedToId: true,
-                referenceNumber: true,
-                approvals: { select: { approverId: true } },
-            },
-        }) as any;
-        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id && attachmentRequest.assignedToId !== req.user?.id) {
-            const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
-            const isDesignatedApprover = attachmentRequest.approvals?.some((a: any) => a.approverId === req.user?.id);
-            if (!canSeeConfidential && !isDesignatedApprover) {
-                throw new AppError('Attachments for this confidential request are restricted', 403);
-            }
-            // Audit: log download by authorized non-requesters
+        // Audit: log download for confidential requests by non-requesters
+        if (attachmentRequest.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
             auditLog(req, 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD', 'request', id, {
                 referenceNumber: attachmentRequest.referenceNumber,
                 attachmentId,
                 fileName: attachment.fileName,
-            }).catch(() => {});
+            }).catch(() => {}); // fire-and-forget — must not block the download
         }
+
+        // P2-04: Audit all attachment downloads
+        await auditLog(req, 'ATTACHMENT_DOWNLOAD', 'request', id, {
+            referenceNumber: attachmentRequest.referenceNumber,
+            attachmentId,
+            fileName: attachment.fileName,
+        });
 
         // storagePath now stores the S3 object key (e.g. "cwc/uuid-ext")
         const s3Key = attachment.storagePath;
@@ -1980,11 +2003,44 @@ class RequestController {
      * Delete attachment
      */
     deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const { id: _id, attachmentId }  = req.params as Record<string, string>;
+        const { id, attachmentId }  = req.params as Record<string, string>;
+
+        // P2-03: Verify user has access to the parent request before allowing delete
+        const attachmentRequest = await assertRequestAccess(req.user!, id);
+
+        // Verify the attachment belongs to this request and is not already deleted
+        const attachment = await prisma.requestAttachment.findFirst({
+            where: {
+                id: attachmentId,
+                requestId: id,
+                deletedAt: null,
+            },
+        });
+
+        if (!attachment) {
+            throw new AppError('Attachment not found', 404);
+        }
+
+        // Only allow the uploader, the requester, the assigned agent, or an admin to delete
+        const isUploader = attachment.uploadedById === req.user?.id;
+        const isRequester = attachmentRequest.requesterId === req.user?.id;
+        const isAssignedAgent = attachmentRequest.assignedToId === req.user?.id;
+        const isAdmin = hasRole(req, 'ADMIN');
+
+        if (!isUploader && !isRequester && !isAssignedAgent && !isAdmin) {
+            throw new AppError('You do not have permission to delete this attachment', 403);
+        }
 
         await prisma.requestAttachment.update({
             where: { id: attachmentId },
             data: { deletedAt: new Date() },
+        });
+
+        // P2-04: Audit log for attachment delete
+        await auditLog(req, 'ATTACHMENT_DELETE', 'request', id, {
+            referenceNumber: attachmentRequest.referenceNumber,
+            attachmentId,
+            fileName: attachment.fileName,
         });
 
         res.json({

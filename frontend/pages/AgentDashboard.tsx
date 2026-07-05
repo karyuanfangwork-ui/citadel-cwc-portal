@@ -4,6 +4,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { stripHtml } from '../src/utils/format';
+import { friendlyMessage } from '../src/utils/errorMessages';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
 import SkeletonRow from '../src/components/SkeletonRow';
@@ -67,6 +68,7 @@ export default function AgentDashboard() {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [slaStatus, setSlaStatus] = useState<SlaStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -130,6 +132,7 @@ export default function AgentDashboard() {
         if (showAllTab && allRes) setAllTickets(extractTickets(allRes));
       } catch (err) {
         console.error('AgentDashboard fetch error:', err);
+        setError(friendlyMessage(err, 'Failed to load dashboard'));
       } finally {
         setLoading(false);
       }
@@ -246,6 +249,23 @@ export default function AgentDashboard() {
         { label: 'Home', to: '/' },
         { label: 'Agent Dashboard' },
       ]} />
+
+      {/* P4-04: Error state banner */}
+      {error && !loading && (
+       <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <span className="material-symbols-outlined text-red-500 text-xl">error</span>
+           <span className="text-sm text-red-700">{error}</span>
+         </div>
+         <button
+           onClick={() => { setError(null); setRefreshKey(k => k + 1); }}
+           className="px-3 py-1.5 text-xs font-medium rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+         >
+           Retry
+         </button>
+       </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -465,7 +485,11 @@ export default function AgentDashboard() {
                   <tr
                     key={ticket.id}
                     onClick={() => navigate(`/request/${ticket.reference || ticket.id}`)}
-                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''} ${selectedIds.has(ticket.id) ? 'bg-blue-50 hover:bg-blue-100' : ''}`}
+                    tabIndex={0}
+                    role="link"
+                    aria-label={`View request ${ticket.reference || ticket.id}`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/request/${ticket.reference || ticket.id}`); } }}
+                    className={`cursor-pointer transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''} ${selectedIds.has(ticket.id) ? 'bg-blue-50 hover:bg-blue-100' : ''}`}
                   >
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <input

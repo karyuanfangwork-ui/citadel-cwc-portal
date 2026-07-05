@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { useAuth } from '../src/context/AuthContext';
+import { friendlyMessage } from '../src/utils/errorMessages';
 import notificationService, { Notification } from '../src/services/notification.service';
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -65,12 +66,14 @@ const UnifiedInbox: React.FC = () => {
 
   const [timeFrame, setTimeFrame] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Notifications
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await notificationService.getNotifications(1, 50);
       const notifs = data?.data || [];
@@ -79,8 +82,9 @@ const UnifiedInbox: React.FC = () => {
         channel: n.channel, status: n.status, readAt: n.readAt,
         createdAt: n.createdAt, relatedRequestId: n.relatedRequestId,
       })));
-    } catch {
+    } catch (err) {
       setNotifications([]);
+      setError(friendlyMessage(err, 'Failed to load notifications'));
     } finally {
       setLoading(false);
     }
@@ -150,6 +154,22 @@ const UnifiedInbox: React.FC = () => {
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Notifications' }]} />
+
+      {/* P4-05: Error state banner */}
+      {error && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-red-500 text-xl">error</span>
+            <span className="text-sm text-red-700">{error}</span>
+          </div>
+          <button
+            onClick={() => fetchData()}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-6">
         <div>

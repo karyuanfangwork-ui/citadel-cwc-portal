@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { Skeleton } from '../src/components/ui/Skeleton';
+import { friendlyMessage } from '../src/utils/errorMessages';
 import reportsService, {
   ReportSummary,
   StatusCount,
@@ -34,6 +35,8 @@ function toISO(d: Date): string {
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [statuses, setStatuses] = useState<StatusCount[]>([]);
   const [serviceDesks, setServiceDesks] = useState<ServiceDeskCount[]>([]);
@@ -84,6 +87,7 @@ export default function Reports() {
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     const range = buildRange();
     Promise.all([
       reportsService.getSummary(range),
@@ -101,8 +105,11 @@ export default function Reports() {
         setAgents(agentData.sort((a, b) => b.activeTickets - a.activeTickets));
         setSla(slaData);
       })
+      .catch((err) => {
+        setError(friendlyMessage(err, 'Failed to load reports'));
+      })
       .finally(() => setLoading(false));
-  }, [buildRange]);
+  }, [buildRange, refreshKey]);
 
   if (loading) {
     return (
@@ -127,6 +134,27 @@ export default function Reports() {
               <Skeleton height={120} width="100%" rounded="lg" />
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-8 space-y-6">
+        <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Reports' }]} />
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <div className="flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-red-500 text-3xl">error</span>
+          </div>
+          <h2 className="text-lg font-semibold text-red-800">Failed to load reports</h2>
+          <p className="text-sm text-red-600 mt-1">{error}</p>
+          <button
+            onClick={() => { setError(null); setRefreshKey(k => k + 1); }}
+            className="mt-4 px-4 py-2 text-sm font-medium rounded-md bg-white border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );

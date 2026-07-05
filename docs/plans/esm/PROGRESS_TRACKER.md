@@ -45,7 +45,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
 | P1-09 | Gate Prisma query logging by env/config | ✅ | 827aef8 | `PRISMA_LOG_QUERIES=false` in config |
-| P1-10 | Add test/smoke check for production log setting | ⏳ | — | Not yet implemented |
+| P1-10 | Add test/smoke check for production Prisma log setting | ✅ | — | `prisma-production-log.test.ts` — 5/5 passing |
 
 ### Phase 1D — KB Rich-Text Sanitization
 
@@ -71,11 +71,11 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-| P2-01 | Trace attachment download/upload/delete paths | ⏳ | — | |
-| P2-02 | Enforce parent request auth before streaming attachments | ⏳ | — | |
-| P2-03 | Enforce parent request auth before attachment delete | ⏳ | — | |
-| P2-04 | Add audit logs for attachment upload/delete/download | ⏳ | — | |
-| P2-05 | Add audit logs for request update/delete | ⏳ | — | |
+| P2-01 | Trace attachment download/upload/delete paths | ✅ | d283d80 | Full trace doc: `docs/plans/esm/P2-01-attachment-trace.md` |
+| P2-02 | Enforce parent request auth before streaming attachments | ✅ | — | `assertRequestAccess` service + download/upload/delete gates |
+| P2-03 | Enforce parent request auth before attachment delete | ✅ | — | Delete now checks ownership + parent request access |
+| P2-04 | Add audit logs for attachment upload/delete/download | ✅ | — | ATTACHMENT_UPLOAD, ATTACHMENT_DOWNLOAD, ATTACHMENT_DELETE audit events |
+| P2-05 | Add audit logs for request update/delete | ✅ | — | REQUEST_UPDATED + REQUEST_DELETED audit events |
 
 ### Phase 2B — Tenant Schema and Index Hardening
 
@@ -121,12 +121,12 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 |----|------|--------|--------|-------|
 | P4-01 | Fix mobile drawer nav group mismatch | ✅ | 827aef8 | Groups now match `navConfig.ts` |
 | P4-02 | Remove or route unused ApprovalQueue | ⏳ | — | |
-| P4-03 | Add visible error state to Reports | ⏳ | — | |
-| P4-04 | Add visible error state to AgentDashboard | ⏳ | — | |
-| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ⏳ | — | |
-| P4-06 | Make MyRequests rows keyboard accessible | ⏳ | — | |
-| P4-07 | Make AgentDashboard rows keyboard accessible | ⏳ | — | |
-| P4-08 | Make KB cards semantic links/buttons | ⏳ | — | |
+| P4-03 | Add visible error state to Reports | ✅ | — | Error banner + retry, `friendlyMessage` integration |
+| P4-04 | Add visible error state to AgentDashboard | ✅ | — | Inline error banner + retry button |
+| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ✅ | — | Error state + retry, no longer silently empty |
+| P4-06 | Make MyRequests rows keyboard accessible | ✅ | — | `tabIndex=0 role=link aria-label onKeyDown focus-visible:ring` |
+| P4-07 | Make AgentDashboard rows keyboard accessible | ✅ | — | Same pattern as P4-06 |
+| P4-08 | Make KB cards semantic links/buttons | ✅ | — | `role=link tabIndex=0 aria-label onKeyDown focus-visible:ring` |
 | P4-09 | Add aria-current to active nav links | ✅ | 827aef8 | LeftRail + MobileDrawer |
 | P4-10 | Dark-mode token cleanup for top 5 screens | ⏳ | — | |
 | P4-11 | Playwright/axe accessibility smoke tests | ⏳ | — | |
@@ -204,16 +204,16 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | Phase | Total | Done | Remaining | % |
 |-------|-------|------|-----------|---|
 | P0 — Baseline | 5 | 5 | 0 | 100% |
-| P1 — Security hardening | 16 | 15 | 1 | 94% |
-| P2 — Tenant/audit/integrity | 14 | 4 | 10 | 29% |
+| P1 — Security hardening | 16 | 16 | 0 | 100% |
+| P2 — Tenant/audit/integrity | 14 | 8 | 6 | 57% |
 | P3 — Observability/runtime | 10 | 4 | 6 | 40% |
-| P4 — UI/UX quick wins | 11 | 2 | 9 | 18% |
+| P4 — UI/UX quick wins | 11 | 8 | 3 | 73% |
 | P5 — Catalog/approval | 8 | 0 | 8 | 0% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-| **Overall (excl. P8)** | **93** | **30** | **63** | **32%** |
+| **Overall (excl. P8)** | **93** | **41** | **52** | **44%** |
 
 ### Recommended Next Batch
 
