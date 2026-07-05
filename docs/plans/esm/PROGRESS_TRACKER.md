@@ -1,8 +1,8 @@
 # ESM Implementation Progress Tracker
 
-Last updated: 2025-07-05
+Last updated: 2026-07-06
 Branch: dev2.0
-Commit: 827aef8
+Commit: c2df8d7
 
 Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Partial
 
@@ -152,9 +152,9 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-| P6-01 | Inventory all direct status updates | ⏳ | — | |
-| P6-02 | Compare hardcoded transitions vs WorkflowTransition seed | ⏳ | — | |
-| P6-03 | Add central transition service for core ESM requests | ⏳ | — | |
+|| P6-01 | Inventory all direct status updates | ✅ | — | Full trace: `docs/plans/esm/P6-01-direct-status-trace.md` — 13 files, ~58 direct `prisma.request.update` calls, only generic handler validates transitions |
+|| P6-02 | Compare hardcoded transitions vs WorkflowTransition seed | ✅ | — | Full comparison: `docs/plans/esm/P6-02-transition-comparison.md` — 28 gaps, 9 orphan statuses, LOA_REJECTED bug, 34 untested map entries |
+|| P6-03 | Add central transition service for core ESM requests | ✅ | — | 3 deliverables: (1) LOA_REJECTED added to enum, (2) VALID_TRANSITIONS map + seed-esm-transitions.ts (163 transitions), (3) requestTransition.service.ts with validation/guards/SLA/audit/notifications |
 | P6-04 | Add transition guards/preconditions | ⏳ | — | |
 | P6-05 | Migrate IT workflow actions incrementally | ⏳ | — | |
 | P6-06 | Migrate Finance workflow actions incrementally | ⏳ | — | |

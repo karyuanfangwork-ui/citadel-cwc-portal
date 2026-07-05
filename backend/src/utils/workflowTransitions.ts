@@ -1,12 +1,14 @@
-
 import prisma from '../utils/prisma';
 
 // ---------------------------------------------------------------------------
 // SEED REFERENCE — used for documentation and as fallback if DB is empty.
 // This map is NOT the runtime source of truth.
+// Updated P6-02: added 28 missing transitions identified in the comparison.
 // ---------------------------------------------------------------------------
+
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT'],
+  // ── Generic / IT Simple ──────────────────────────────────────────────────
+  SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT', 'HR_SCREENING', 'PENDING_FROM_ENTITY_APPROVAL', 'PROCUREMENT_IN_PROGRESS', 'OFFBOARDING_SUBMITTED'],
   IN_REVIEW: ['IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING', 'REJECTED', 'RESOLVED'],
   IN_PROGRESS: ['ACTION_REQUIRED', 'WAITING', 'RESOLVED', 'REJECTED'],
   ACTION_REQUIRED: ['IN_PROGRESS', 'IN_REVIEW', 'RESOLVED', 'REJECTED'],
@@ -14,33 +16,38 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   APPROVED: ['RESOLVED'],
   RESOLVED: [],
   REJECTED: [],
+
+  // ── HR Recruitment ────────────────────────────────────────────────────────
   PENDING_CEO_APPROVAL: ['CEO_APPROVED', 'CEO_REJECTED'],
   CEO_APPROVED: ['PENDING_GROUP_DCEO_APPROVAL'],
+  CEO_REJECTED: ['SUBMITTED'],
   PENDING_GROUP_DCEO_APPROVAL: ['GROUP_DCEO_APPROVED', 'GROUP_DCEO_REJECTED'],
   GROUP_DCEO_APPROVED: ['JOB_POSTED'],
   GROUP_DCEO_REJECTED: ['SUBMITTED'],
-  CEO_REJECTED: ['SUBMITTED'],
   JOB_POSTED: ['PENDING_MANAGER_REVIEW'],
-  PENDING_MANAGER_REVIEW: ['MANAGER_APPROVED'],
+  PENDING_MANAGER_REVIEW: ['MANAGER_APPROVED', 'INTERVIEW_SCHEDULED'],
   MANAGER_APPROVED: ['INTERVIEW_SCHEDULED'],
-  INTERVIEW_SCHEDULED: ['INTERVIEW_FEEDBACK_PENDING'],
+  INTERVIEW_SCHEDULED: ['INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW'],
   INTERVIEW_FEEDBACK_PENDING: ['HR_SCREENING', 'CANDIDATE_REJECTED_INTERVIEW'],
   CANDIDATE_REJECTED_INTERVIEW: ['JOB_POSTED'],
-  HR_SCREENING: ['LOA_PENDING_APPROVAL'],
-  LOA_PENDING_APPROVAL: ['LOA_APPROVED', 'LOA_REJECTED'],
+  HR_SCREENING: ['LOA_PENDING_APPROVAL', 'REJECTED'],
+  LOA_PENDING_APPROVAL: ['LOA_APPROVED', 'LOA_REJECTED', 'HR_SCREENING'],
   LOA_APPROVED: ['LOA_ISSUED'],
+  LOA_REJECTED: ['HR_SCREENING'],
   LOA_ISSUED: ['LOA_ACCEPTED'],
   LOA_ACCEPTED: ['COMPLETED'],
   COMPLETED: ['ONBOARDING_SUBMITTED'],
+
+  // ── IT Procurement / Hardware ─────────────────────────────────────────────
+  ACKNOWLEDGED_IT: ['PENDING_CEO_APPROVAL_IT', 'PROCUREMENT_IN_PROGRESS'],
   PROCUREMENT_IN_PROGRESS: ['HARDWARE_ORDERED'],
   HARDWARE_ORDERED: ['HARDWARE_RECEIVED'],
   HARDWARE_RECEIVED: ['SOFTWARE_PROVISIONED'],
-  SOFTWARE_PROVISIONED: ['RESOLVED'],
-  ACKNOWLEDGED_IT: ['PENDING_CEO_APPROVAL_IT'],
+  SOFTWARE_PROVISIONED: ['RESOLVED', 'PENDING_CEO_APPROVAL_IT'],
   PENDING_CEO_APPROVAL_IT: ['CEO_APPROVED_IT', 'CEO_REJECTED_IT'],
   CEO_APPROVED_IT: ['PENDING_CTO_APPROVAL_IT'],
   CEO_REJECTED_IT: ['REJECTED'],
-  PENDING_CTO_APPROVAL_IT: ['CTO_APPROVED_IT', 'CTO_REJECTED_IT'],
+  PENDING_CTO_APPROVAL_IT: ['CTO_APPROVED_IT', 'CTO_REJECTED_IT', 'PENDING_CFO_APPROVAL_IT'],
   CTO_APPROVED_IT: ['PENDING_INVOICE_IT'],
   CTO_REJECTED_IT: ['REJECTED'],
   PENDING_INVOICE_IT: ['PENDING_CFO_APPROVAL_IT'],
@@ -50,31 +57,54 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   PAYMENT_PROCESSING_IT: ['PAYMENT_DONE_IT'],
   PAYMENT_DONE_IT: ['PENDING_DELIVERY_IT', 'PROCUREMENT_IN_PROGRESS'],
   PENDING_DELIVERY_IT: ['RESOLVED'],
+
+  // ── Finance Expense Reimbursement ──────────────────────────────────────────
   PENDING_MANAGER_APPROVAL_FIN: ['MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN'],
   MANAGER_APPROVED_FIN: ['PENDING_FINANCE_HEAD_APPROVAL'],
-  // FIXED: was [] (dead-end — requester never notified)
   MANAGER_REJECTED_FIN: ['SUBMITTED'],
   PENDING_FINANCE_HEAD_APPROVAL: ['FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED'],
   FINANCE_HEAD_APPROVED: ['PAYMENT_PROCESSING'],
-  // FIXED: was [] (dead-end)
   FINANCE_HEAD_REJECTED: ['SUBMITTED'],
-  // Finance Purchase Requisition — CFO → Group Deputy CEO
+  PAYMENT_PROCESSING: ['PAYMENT_COMPLETED'],
+  PAYMENT_COMPLETED: ['REIMBURSEMENT_CLOSED'],
+  REIMBURSEMENT_CLOSED: [],
+
+  // ── Finance Purchase Requisition ──────────────────────────────────────────
   FINANCE_PENDING_ACK: ['FINANCE_ACKNOWLEDGED'],
   FINANCE_ACKNOWLEDGED: ['FINANCE_IN_PROGRESS', 'PENDING_CFO_APPROVAL_FIN'],
   FINANCE_IN_PROGRESS: ['PENDING_CFO_APPROVAL_FIN'],
   PENDING_CFO_APPROVAL_FIN: ['CFO_APPROVED_FIN', 'CFO_REJECTED_FIN'],
   CFO_APPROVED_FIN: ['PENDING_GROUP_DCEO_APPROVAL', 'PAYMENT_PROCESSING_FIN', 'FINANCE_IN_PROGRESS'],
   CFO_REJECTED_FIN: ['REJECTED'],
-  // Note: PENDING_GROUP_DCEO_APPROVAL, GROUP_DCEO_APPROVED, GROUP_DCEO_REJECTED
-  // are defined above in the HR section. Finance adds PAYMENT_PROCESSING_FIN as a valid
-  // target for GROUP_DCEO_APPROVED — the DB transitions table handles this at runtime.
   PAYMENT_PROCESSING_FIN: ['AWAITING_PAYMENT_CONFIRMATION'],
   AWAITING_PAYMENT_CONFIRMATION: ['PAYMENT_CONFIRMED_FIN', 'TICKET_CLOSED_FIN'],
   PAYMENT_CONFIRMED_FIN: ['TICKET_CLOSED_FIN'],
   TICKET_CLOSED_FIN: [],
-  PAYMENT_PROCESSING: ['PAYMENT_COMPLETED'],
-  PAYMENT_COMPLETED: ['REIMBURSEMENT_CLOSED'],
-  REIMBURSEMENT_CLOSED: [],
+
+  // ── Inter-Company Chargeback ─────────────────────────────────────────────
+  PENDING_FROM_ENTITY_APPROVAL: ['FROM_ENTITY_APPROVED', 'FROM_ENTITY_REJECTED', 'PENDING_TO_ENTITY_APPROVAL'],
+  FROM_ENTITY_APPROVED: ['PENDING_TO_ENTITY_APPROVAL'],
+  FROM_ENTITY_REJECTED: ['SUBMITTED'],
+  PENDING_TO_ENTITY_APPROVAL: ['TO_ENTITY_APPROVED', 'TO_ENTITY_REJECTED', 'CHARGEBACK_FINANCE_REVIEW'],
+  TO_ENTITY_APPROVED: ['CHARGEBACK_FINANCE_REVIEW'],
+  TO_ENTITY_REJECTED: ['SUBMITTED'],
+  CHARGEBACK_FINANCE_REVIEW: ['AWAITING_CHARGEBACK_CONFIRMATION'],
+  AWAITING_CHARGEBACK_CONFIRMATION: ['CHARGEBACK_COMPLETED'],
+  CHARGEBACK_COMPLETED: [],
+
+  // ── Onboarding ────────────────────────────────────────────────────────────
+  ONBOARDING_SUBMITTED: ['ONBOARDING_PENDING_HR_APPROVAL'],
+  ONBOARDING_PENDING_HR_APPROVAL: ['ONBOARDING_PRE_ARRIVAL_SETUP'],
+  ONBOARDING_PRE_ARRIVAL_SETUP: ['ONBOARDING_READY_FOR_DAY_1'],
+  ONBOARDING_READY_FOR_DAY_1: ['ONBOARDING_DAY_1_ORIENTATION'],
+  ONBOARDING_DAY_1_ORIENTATION: ['ONBOARDING_WEEK_1_INTEGRATION'],
+  ONBOARDING_WEEK_1_INTEGRATION: ['ONBOARDING_MONTH_1_MILESTONE'],
+  ONBOARDING_MONTH_1_MILESTONE: ['ONBOARDING_MONTH_2_MILESTONE'],
+  ONBOARDING_MONTH_2_MILESTONE: ['ONBOARDING_MONTH_3_MILESTONE'],
+  ONBOARDING_MONTH_3_MILESTONE: ['ONBOARDING_COMPLETED'],
+  ONBOARDING_COMPLETED: [],
+
+  // ── Offboarding ────────────────────────────────────────────────────────────
   OFFBOARDING_SUBMITTED: ['OFFBOARDING_NOTICE_PERIOD'],
   OFFBOARDING_NOTICE_PERIOD: ['OFFBOARDING_KNOWLEDGE_TRANSFER'],
   OFFBOARDING_KNOWLEDGE_TRANSFER: ['OFFBOARDING_FINAL_WEEK'],
@@ -127,10 +157,44 @@ export async function getValidNextStatuses(from: string): Promise<string[]> {
 export async function getTransitionMeta(
   from: string,
   to: string
-): Promise<{ transitionLabel: string | null; requiresComment: boolean } | null> {
+): Promise<{ transitionLabel: string | null; requiresComment: boolean; autoAssignRole: string | null; autoAssignUserId: string | null } | null> {
   const row = await prisma.workflowTransition.findUnique({
     where: { fromStatus_toStatus: { fromStatus: from, toStatus: to } },
-    select: { transitionLabel: true, requiresComment: true },
+    select: { transitionLabel: true, requiresComment: true, autoAssignRole: true, autoAssignUserId: true },
   });
   return row;
+}
+
+/**
+ * Get the WorkflowType associated with a request (via its RequestType).
+ * Returns null if no workflow is linked.
+ */
+export async function getWorkflowForRequest(requestId: string): Promise<{ id: string; code: string; name: string } | null> {
+  const request = await prisma.request.findUnique({
+    where: { id: requestId },
+    include: {
+      requestType: {
+        include: {
+          workflow: true,
+        },
+      },
+    },
+  });
+
+  const workflow = request?.requestType?.workflow;
+  if (!workflow) return null;
+  return { id: workflow.id, code: workflow.code, name: workflow.name };
+}
+
+/**
+ * Check if a status is a terminal (final) state — no outgoing transitions.
+ */
+export function isTerminalStatus(status: string): boolean {
+  const terminalStatuses = [
+    'RESOLVED', 'REJECTED', 'COMPLETED',
+    'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
+    'REIMBURSEMENT_CLOSED', 'TICKET_CLOSED_FIN',
+    'CHARGEBACK_COMPLETED', 'LOA_REJECTED',
+  ];
+  return terminalStatuses.includes(status);
 }

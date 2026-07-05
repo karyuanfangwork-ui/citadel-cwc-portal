@@ -588,6 +588,7 @@ enum RequestStatus {
   LOA_APPROVED
   LOA_ISSUED
   LOA_ACCEPTED
+  LOA_REJECTED
   COMPLETED
   // Offboarding Statuses
   OFFBOARDING_SUBMITTED
