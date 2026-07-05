@@ -253,6 +253,7 @@ class ServiceDeskService {
                 requiresApproval: !!data.requiresApproval,
                 slaHours: data.slaHours ?? null,
                 formConfig: data.formConfig || [],
+                formConfigVersion: 1, // P5-04: initial version
                 requiredRole: data.requiredRole || null,
                 isActive: true,
                 ownerId: data.ownerId || null,
@@ -276,22 +277,27 @@ class ServiceDeskService {
         lifecycleStatus?: string;
         reviewDate?: Date | null;
     }) {
+        // P5-04: If formConfig is being updated, increment the version
+        const updateData: any = {
+            name: data.name,
+            description: data.description,
+            icon: data.icon,
+            requiresApproval: data.requiresApproval !== undefined ? !!data.requiresApproval : undefined,
+            slaHours: data.slaHours !== undefined ? (data.slaHours ?? null) : undefined,
+            formConfig: data.formConfig,
+            isActive: data.isActive,
+            requiredRole: data.requiredRole !== undefined ? (data.requiredRole || null) : undefined,
+            workflowTypeId: data.workflowTypeId !== undefined ? (data.workflowTypeId || null) : undefined,
+            ownerId: data.ownerId !== undefined ? (data.ownerId || null) : undefined,
+            lifecycleStatus: data.lifecycleStatus as any,
+            reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
+        };
+        if (data.formConfig !== undefined) {
+            updateData.formConfigVersion = { increment: 1 };
+        }
         return prisma.requestType.update({
             where: { id: typeId },
-            data: {
-                name: data.name,
-                description: data.description,
-                icon: data.icon,
-                requiresApproval: data.requiresApproval !== undefined ? !!data.requiresApproval : undefined,
-                slaHours: data.slaHours !== undefined ? (data.slaHours ?? null) : undefined,
-                formConfig: data.formConfig,
-                isActive: data.isActive,
-                requiredRole: data.requiredRole !== undefined ? (data.requiredRole || null) : undefined,
-                workflowTypeId: data.workflowTypeId !== undefined ? (data.workflowTypeId || null) : undefined,
-                ownerId: data.ownerId !== undefined ? (data.ownerId || null) : undefined,
-                lifecycleStatus: data.lifecycleStatus as any,
-                reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
-            },
+            data: updateData,
         });
     }
 

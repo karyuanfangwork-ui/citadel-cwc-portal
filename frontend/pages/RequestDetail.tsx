@@ -149,7 +149,7 @@ const RequestDetailContainer: React.FC = () => {
                                 ? { code: request.serviceDesk.code, name: request.serviceDesk.name }
                                 : undefined,
                             requestType: request.requestType
-                                ? { code: request.requestType.code, name: request.requestType.name, formConfig: request.requestType.formConfig }
+                                ? { code: request.requestType.code, name: request.requestType.name, formConfig: request.formConfigSnapshot || request.requestType.formConfig }
                                 : undefined,
                         }}
                         activities={activities}

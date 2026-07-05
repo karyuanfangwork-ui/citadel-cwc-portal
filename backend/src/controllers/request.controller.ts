@@ -1098,6 +1098,9 @@ class RequestController {
                     isConfidential: isConfidential === true,
                     status: initialStatus as any,
                     slaDueAt,
+                    // P5-04: Snapshot form config at submission time
+                    formConfigSnapshot: requestType?.formConfig ?? undefined,
+                    formConfigVersion: requestType?.formConfigVersion ?? undefined,
                 },
                 include: {
                     requester: {

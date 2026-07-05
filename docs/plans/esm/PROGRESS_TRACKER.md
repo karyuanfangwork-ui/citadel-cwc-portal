@@ -140,7 +140,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 || P5-01 | Add catalog item owner, lifecycle status, review date | ✅ | — | CatalogLifecycleStatus enum (DRAFT/PUBLISHED/DEPRECATED/RETIRED); ownerId, lifecycleStatus, reviewDate on RequestType; portal filters PUBLISHED only; admin sees all; validator + controller + service updated; migration created |
 || P5-02 | Add catalog entitlement/audience rules | ✅ | — | CatalogEntitlement model (targetType: ROLE/DEPARTMENT/ENTITY/ALL); service + controller + routes; portal filtering by entitlement; entityId added to AuthRequest; Zod validation; tests |
 || P5-03 | Add catalog item detail page | ✅ | — | CatalogItemDetail modal: lifecycle badge+transitions, owner/reviewDate/SLA, entitlement rules list with delete; shield button in ServiceDesksTab; wired in AdminSettings |
-| P5-04 | Version dynamic form config | ⏳ | — | |
+|| P5-04 | Version dynamic form config | ✅ | — | formConfigVersion on RequestType (auto-increment on update); formConfigSnapshot + formConfigVersion on Request (preserved at submission); frontend prefers snapshot; PDF service prefers snapshot; migration backfill |
 | P5-05 | Define conditional-field rule format | ⏳ | — | |
 | P5-06 | Build generic approval policy model | ⏳ | — | |
 | P5-07 | Migrate one finance approval path to policy engine | ⏳ | — | |
@@ -208,12 +208,12 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 || P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
-| P5 — Catalog/approval | 8 | 3 | 5 | 38% |
+| P5 — Catalog/approval | 8 | 4 | 4 | 50% |
 | P6 — Workflow consolidation | 8 | 0 | 8 | 0% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-|| **Overall (excl. P8)** | **93** | **61** | **32** | **66%** |
+|| **Overall (excl. P8)** | **93** | **62** | **31** | **67%** |
 
 ### Recommended Next Batch
 

@@ -248,7 +248,7 @@ function buildHtml(req: RequestForPdf): string {
   // Custom fields — resolve labels from formConfig, format values, hide internal keys
   let customFieldsHtml = '';
   if (req.customFields && typeof req.customFields === 'object') {
-    const formConfig = req.requestType?.formConfig;
+    const formConfig = (req as any).formConfigSnapshot || req.requestType?.formConfig;
     const entries = Object.entries(req.customFields)
       .filter(([k, v]) => !HIDDEN_FIELD_KEYS.has(k) && v != null && v !== '');
     if (entries.length > 0) {

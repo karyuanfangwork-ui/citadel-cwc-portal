@@ -411,6 +411,8 @@ model RequestType {
   slaHours          Int?     @map("sla_hours")
   isActive          Boolean  @default(true) @map("is_active")
   formConfig        Json?    @map("form_config") @db.JsonB
+  // P5-04: Version counter, incremented each time formConfig is updated
+  formConfigVersion Int?     @map("form_config_version")
   requiredRole      String?  @map("required_role") @db.VarChar(50)
   workflowTypeId    String?  @map("workflow_type_id") @db.Uuid
   // P5-01: Catalog governance fields
@@ -634,6 +636,9 @@ model Request {
   isConfidential Boolean  @default(false) @map("is_confidential")
   tags           String[] @db.Text
   customFields   Json?    @map("custom_fields") @db.JsonB
+  // P5-04: Snapshot of the form config at submission time
+  formConfigSnapshot Json?    @map("form_config_snapshot") @db.JsonB
+  formConfigVersion  Int?     @map("form_config_version")
 
   // SLA Tracking
   slaDueAt           DateTime? @map("sla_due_at") @db.Timestamp(6)
