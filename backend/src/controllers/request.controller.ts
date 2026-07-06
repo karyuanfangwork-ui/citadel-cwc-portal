@@ -16,6 +16,7 @@ import { assertRequestAccess } from '../services/requestAccess.service';
 import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
 import prisma from '../utils/prisma';
+import { resolveRequestId, UUID_RE } from '../utils/resolve';
 
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {
@@ -35,19 +36,6 @@ function cfStr(val: any): string {
     }
     return String(val);
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Resolve an id param that may be a UUID or a referenceNumber (e.g. "IT-1") to an actual DB record id (UUID). */
-async function resolveRequestId(idOrRef: string): Promise<string | null> {
-    if (UUID_RE.test(idOrRef)) return idOrRef;
-    const row = await prisma.request.findFirst({
-        where: { referenceNumber: idOrRef, deletedAt: null },
-        select: { id: true },
-    });
-    return row?.id ?? null;
-}
-
 class RequestController {
     /**
      * Get all requests with filters and pagination
@@ -1398,7 +1386,11 @@ class RequestController {
      */
     getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const idOrRef = String(req.params.id);
-        const lookupKey = UUID_RE.test(idOrRef) ? { id: idOrRef } : { referenceNumber: idOrRef };
+        // Normalize old-format reference numbers (e.g. "IT-1" → "IT-00001")
+        const normalizedRef = idOrRef.replace(/^([A-Z]+)-(\d+)$/, (_, prefix, num) =>
+            `${prefix}-${num.padStart(5, '0')}`,
+        );
+        const lookupKey = UUID_RE.test(idOrRef) ? { id: idOrRef } : { referenceNumber: normalizedRef };
 
         const request = await prisma.request.findFirst({
             where: {

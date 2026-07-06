@@ -148,7 +148,10 @@ export async function resolveAndAssertAccess(
     const requestId = UUID_RE.test(idOrRef)
         ? idOrRef
         : (await prisma.request.findFirst({
-            where: { referenceNumber: idOrRef, deletedAt: null },
+            // Normalize old-format reference numbers (e.g. "IT-1" → "IT-00001")
+            where: { referenceNumber: idOrRef.replace(/^([A-Z]+)-(\d+)$/, (_, prefix, num) =>
+                `${prefix}-${num.padStart(5, '0')}`,
+            ), deletedAt: null },
             select: { id: true },
           }))?.id;
 

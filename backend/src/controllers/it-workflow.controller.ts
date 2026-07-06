@@ -21,18 +21,7 @@ function inferCategoryFromName(name: string): string {
 }
 
 import prisma from '../utils/prisma';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-async function resolveRequestId(idOrRef: string): Promise<string | null> {
-  if (UUID_RE.test(idOrRef)) return idOrRef;
-  const row = await prisma.request.findFirst({
-    where: { referenceNumber: idOrRef, deletedAt: null },
-    select: { id: true },
-  });
-  return row?.id ?? null;
-}
-
+import { resolveRequestId } from '../utils/resolve';
 /**
  * Helper: extract common transition options from an Express request.
  * Reduces boilerplate in each handler.

@@ -7,8 +7,7 @@ import { reassignToTeam } from '../services/reassign.service';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { resolveRequestId } from '../utils/resolve';
 
 /**
  * Verify that `userId` is allowed to act as the approver on a pending executive
@@ -41,16 +40,6 @@ export async function assertDesignatedApprover(
 
     const roleLabel = requiredExecutiveRole === 'GROUP_DCEO' ? 'Group Deputy CEO' : requiredExecutiveRole;
     return { ok: false, message: `You are not the designated ${roleLabel} approver for this request` };
-}
-
-/** Resolve an id param that may be a UUID or a referenceNumber (e.g. "HR-4") to an actual DB record id (UUID). */
-async function resolveRequestId(idOrRef: string): Promise<string | null> {
-    if (UUID_RE.test(idOrRef)) return idOrRef;
-    const row = await prisma.request.findFirst({
-        where: { referenceNumber: idOrRef, deletedAt: null },
-        select: { id: true },
-    });
-    return row?.id ?? null;
 }
 
 /**

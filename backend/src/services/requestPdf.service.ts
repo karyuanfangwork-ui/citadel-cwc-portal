@@ -38,7 +38,11 @@ interface RequestForPdf {
 // ── Data Fetching ─────────────────────────────────────────────────────────
 export async function getRequestDataForPdf(idOrRef: string): Promise<RequestForPdf> {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrRef);
-  const lookupKey = isUuid ? { id: idOrRef } : { referenceNumber: idOrRef };
+  // Normalize old-format reference numbers (e.g. "IT-1" → "IT-00001")
+  const normalizedRef = idOrRef.replace(/^([A-Z]+)-(\d+)$/, (_, prefix, num) =>
+    `${prefix}-${num.padStart(5, '0')}`,
+  );
+  const lookupKey = isUuid ? { id: idOrRef } : { referenceNumber: normalizedRef };
 
   const request = await prisma.request.findFirst({
     where: { ...lookupKey, deletedAt: null },
