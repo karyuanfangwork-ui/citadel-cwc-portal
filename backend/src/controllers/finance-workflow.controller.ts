@@ -4,8 +4,7 @@ import { RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 import { reassignToTeam } from '../services/reassign.service';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
-
+import { transitionRequest } from '../services/requestTransition.service';
 import prisma from '../utils/prisma';
 
 // Group Deputy CEO approval threshold — no longer used for routing (all amounts go to GROUP_DCEO)
@@ -24,53 +23,72 @@ async function logActivity(requestId: string, message: string, authorId?: string
     });
 }
 
+/** Helper: extract common transition options from Express request. */
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown> }) {
+    const user = (req as any).user;
+    const userRoles: string[] = user?.roles || [];
+    return {
+        userId: user?.id || 'system',
+        userName: user?.firstName || user?.email || 'System',
+        userRole: userRoles[0] || undefined,
+        metadata: { userRoles, ...overrides?.metadata },
+        skipNotifications: overrides?.skipNotifications ?? true,
+        skipAutoAssignment: true, // Controllers manage assignment explicitly
+        skipSlaPause: true,       // Controllers manage SLA pause/resume explicitly
+        comment: overrides?.comment,
+        source: overrides?.source || 'finance-workflow',
+    };
+}
+
+// ─── Purchase Requisition / Budget Proposal Workflow ───────────────────────
+
 /** POST /finance-workflow/requests/:id/acknowledge */
 export const acknowledge = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { notes } = req.body;
-        
-        const request = await prisma.request.findUnique({ where: { id } });
+
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.FINANCE_ACKNOWLEDGED },
-        });
+        // Transition: SUBMITTED → FINANCE_ACKNOWLEDGED (guard checks FINANCE service desk)
+        await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
+            comment: notes || undefined,
+            source: 'finance-workflow/acknowledge',
+        }));
 
-        await logActivity(id, `Finance agent acknowledged request${notes ? ': ' + notes : ''}`);
         await auditLog(req as any, 'FINANCE_ACKNOWLEDGED', 'request', id, {
-            status: RequestStatus.FINANCE_ACKNOWLEDGED,
+            status: 'FINANCE_ACKNOWLEDGED',
             previousStatus: request.status,
             notes: notes || null,
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_ACKNOWLEDGED', variables: { requestId: id }, relatedRequestId: id });
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Request acknowledged by Finance' });
+    } catch (error: any) {
         console.error('acknowledge error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to acknowledge request' });
     }
 };
 
-/** POST /finance-workflow/requests/:id/route-to-cfo
- *  Simple route-to-CFO for Budget Proposals (no finalized amount or invoice required).
- */
+/** POST /finance-workflow/requests/:id/route-to-cfo */
 export const routeToCfo = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { notes } = req.body;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
-        // Find CFO user for assignee reassignment
+        // Find CFO user for assignment
         const cfoPendingApproval = await prisma.requestApproval.findFirst({
             where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
             select: { approverId: true },
@@ -80,35 +98,44 @@ export const routeToCfo = async (req: Request, res: Response) => {
             select: { id: true },
         }))?.id;
 
-        const updateData: any = {
-            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
-        };
+        // Transition: * → PENDING_CFO_APPROVAL_FIN (guard checks FINANCE desk + CFO role context)
+        await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
+            comment: notes || undefined,
+            source: 'finance-workflow/route-cfo',
+        }));
+
+        // Reassign to CFO
         if (cfoUserId) {
-            updateData.assignedToId = cfoUserId;
+            await prisma.request.update({ where: { id }, data: { assignedToId: cfoUserId } });
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: updateData,
-        });
+        // Create CFO approval record
+        if (!cfoPendingApproval) {
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: cfoUserId || 'system', status: 'PENDING', comments: notes || null },
+            });
+        }
 
-        await logActivity(id, `Routed to CFO for approval${notes ? ': ' + notes : ''}`);
         await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
-            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+            status: 'PENDING_CFO_APPROVAL_FIN',
             previousStatus: request.status,
             notes: notes || null,
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
         if (cfoUserId) {
             await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
         }
 
+        const { pauseSla } = await import('../services/sla-pause.service');
         await pauseSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Request routed to CFO for approval' });
+    } catch (error: any) {
         console.error('routeToCfo error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to route to CFO' });
     }
 };
@@ -117,7 +144,6 @@ export const routeToCfo = async (req: Request, res: Response) => {
 export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
-        // Multer parses multipart fields into req.body; JSON body stays as-is
         const finalizedAmount = req.body.finalizedAmount ? Number(req.body.finalizedAmount) : NaN;
         const notes = req.body.notes || undefined;
         const invoiceFiles = (req as any).files as Express.Multer.File[] | undefined;
@@ -128,7 +154,7 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             return;
         }
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -136,7 +162,7 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
 
         const existingFields = (request.customFields as Record<string, unknown>) || {};
 
-        // Find CFO user for assignee reassignment
+        // Find CFO user for assignment
         const cfoPendingApproval = await prisma.requestApproval.findFirst({
             where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
             select: { approverId: true },
@@ -146,34 +172,42 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             select: { id: true },
         }))?.id;
 
-        const updateData: any = {
-            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
-            customFields: { ...existingFields, finalizedAmount },
-        };
-        // Reassign to CFO so ticket shows under CFO's dashboard
-        if (cfoUserId) {
-            updateData.assignedToId = cfoUserId;
-        }
+        // Transition: * → PENDING_CFO_APPROVAL_FIN
+        await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
+            comment: `Finalized amount: MYR ${finalizedAmount}${notes ? '. ' + notes : ''}`,
+            source: 'finance-workflow/set-finalized-route-cfo',
+        }));
 
-        const updated = await prisma.request.update({
+        // Update customFields + assignment
+        await prisma.request.update({
             where: { id },
-            data: updateData,
+            data: {
+                customFields: { ...existingFields, finalizedAmount },
+                ...(cfoUserId ? { assignedToId: cfoUserId } : {}),
+            },
         });
 
-        // Create a system activity and link invoice attachments to it
-        // so they appear in the ActivityFeed for all stakeholders
+        // Create CFO approval record if not existing
+        if (!cfoPendingApproval && cfoUserId) {
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: cfoUserId, status: 'PENDING', comments: notes || null },
+            });
+        }
+
+        // Create activity and link invoice attachments
+        const fileCount = invoiceFiles?.length || 0;
+        const invoiceLabel = fileCount === 0 ? '' : ` (${fileCount} invoice${fileCount > 1 ? 's' : ''} attached)`;
         const activity = await prisma.requestActivity.create({
             data: {
                 requestId: id,
                 authorId: currentUser?.id || null,
                 authorName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'System',
                 activityType: 'STATUS_CHANGE',
-                message: `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}${invoiceFiles && invoiceFiles.length > 0 ? ` (${invoiceFiles.length} invoice${invoiceFiles.length > 1 ? 's' : ''} attached)` : ''}`,
+                message: `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}${invoiceLabel}`,
                 isSystemGenerated: true,
             },
         });
 
-        // Save invoice attachments if provided, linked to the activity
         if (invoiceFiles && invoiceFiles.length > 0) {
             for (const f of invoiceFiles) {
                 await prisma.requestAttachment.create({
@@ -191,24 +225,28 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
                 });
             }
         }
+
         await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
-            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+            status: 'PENDING_CFO_APPROVAL_FIN',
             previousStatus: request.status,
             finalizedAmount,
             notes: notes || null,
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
-        // Notify the CFO who was assigned this approval
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
         if (cfoUserId) {
             await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
         }
 
+        const { pauseSla } = await import('../services/sla-pause.service');
         await pauseSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: `Finalized amount set to MYR ${finalizedAmount} and routed to CFO` });
+    } catch (error: any) {
         console.error('setFinalizedAmountAndRouteCfo error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to route to CFO' });
     }
 };
@@ -225,39 +263,72 @@ export const cfoDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true, requestType: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
-        let newStatus: RequestStatus;
         if (decision === 'REJECTED') {
-            newStatus = RequestStatus.CFO_REJECTED_FIN;
-        } else {
-            // Budget Proposals go to FINANCE_IN_PROGRESS (no payment phase, no Group DCEO)
-            // Purchase Requisitions go to PAYMENT_PROCESSING_FIN or PENDING_GROUP_DCEO_APPROVAL
-            // Determine request type to decide routing
-            const requestType = await prisma.requestType.findFirst({
-                where: { id: request.requestTypeId! },
-                select: { code: true },
-            });
-            const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
+            // CFO Rejection: PENDING_CFO_APPROVAL_FIN → CFO_REJECTED_FIN
+            await transitionRequest(id, 'CFO_REJECTED_FIN', transitionOpts(req, {
+                comment: comments || 'CFO rejected the request',
+                source: 'finance-workflow/cfo-reject',
+            }));
 
-            if (isBudgetProposal) {
-                // Budget Proposals: CFO approval → Finance Updating (no Group DCEO, no payment)
-                newStatus = RequestStatus.FINANCE_IN_PROGRESS;
-            } else {
-                // Purchase Requisitions: CFO approval → Group Deputy CEO (all amounts)
-                newStatus = RequestStatus.PENDING_GROUP_DCEO_APPROVAL;
-            }
+            // Reassign back to Finance agent
+            await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
+
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'REJECTED', comments: comments || null },
+            });
+
+            await logActivity(id, `CFO rejected the request${comments ? ': ' + comments : ''}`, userId);
+            await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+                decision,
+                approverType: 'CFO',
+                newStatus: 'CFO_REJECTED_FIN',
+                previousStatus: request.status,
+                comments: comments || null,
+            }, { status: request.status });
+            await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+
+            const { resumeSla } = await import('../services/sla-pause.service');
+            await resumeSla(id);
+
+            res.json({ status: 'success', message: 'Request rejected by CFO' });
+            return;
         }
 
-        const cfoUpdateData: any = { status: newStatus };
-        // Resolve Group Deputy CEO ID (needed for both assignment and notification)
-        let groupDceoId: string | undefined;
-        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
-            // When routing to Group Deputy CEO, reassign to them and create PENDING approval record
+        // ── CFO Approved ──
+        // Determine routing: Budget Proposals → FINANCE_IN_PROGRESS, Purchase Requisitions → PENDING_GROUP_DCEO_APPROVAL
+        const requestType = await prisma.requestType.findFirst({
+            where: { id: request.requestTypeId! },
+            select: { code: true },
+        });
+        const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
+        const newStatus = isBudgetProposal ? 'FINANCE_IN_PROGRESS' : 'PENDING_GROUP_DCEO_APPROVAL';
+
+        // Step 1: PENDING_CFO_APPROVAL_FIN → CFO_APPROVED_FIN (guard checks CFO role)
+        await transitionRequest(id, 'CFO_APPROVED_FIN', transitionOpts(req, {
+            comment: comments || undefined,
+            source: 'finance-workflow/cfo-approve',
+        }));
+
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'APPROVED', comments: comments || null },
+        });
+
+        if (isBudgetProposal) {
+            // Step 2a: CFO_APPROVED_FIN → FINANCE_IN_PROGRESS (budget adopted)
+            await transitionRequest(id, 'FINANCE_IN_PROGRESS', transitionOpts(req, {
+                source: 'finance-workflow/cfo-approve-budget',
+            }));
+            await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
+        } else {
+            // Step 2b: CFO_APPROVED_FIN → PENDING_GROUP_DCEO_APPROVAL
+            // Resolve Group DCEO for assignment
+            let groupDceoId: string | undefined;
             const existingGroupDceoApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'GROUP_DCEO', status: 'PENDING' },
                 select: { approverId: true },
@@ -271,33 +342,34 @@ export const cfoDecision = async (req: Request, res: Response) => {
                 });
                 groupDceoId = groupDceoUser?.id;
             }
+
+            await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
+                source: 'finance-workflow/cfo-approve-purchase',
+            }));
+
+            // Reassign to Group DCEO
             if (groupDceoId) {
-                cfoUpdateData.assignedToId = groupDceoId;
-                // Create the PENDING GROUP_DCEO approval record if it doesn't exist yet
+                await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId } });
                 if (!existingGroupDceoApproval) {
                     await prisma.requestApproval.create({
-                        data: {
-                            requestId: id,
-                            approverType: 'GROUP_DCEO',
-                            approverId: groupDceoId,
-                            status: 'PENDING',
-                            comments: null,
-                        },
+                        data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
                     });
                 }
             }
-        } else {
-            // CFO approved (payment processing / budget) or rejected — reassign back to Finance agent using shared reassignToTeam
-            await reassignToTeam(id, (await prisma.request.findUnique({ where: { id } }))!.referenceNumber, 'FINANCE', 'Finance-Workflow');
+
+            // Notify Group DCEO
+            if (groupDceoId) {
+                await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
+            }
         }
 
-        const updated = await prisma.request.update({ where: { id }, data: cfoUpdateData });
+        const { pauseSla, resumeSla } = await import('../services/sla-pause.service');
+        await resumeSla(id);
+        if (!isBudgetProposal) {
+            await pauseSla(id); // Pause SLA during Group DCEO approval
+        }
 
-        await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
-        });
-
-        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO' : newStatus === RequestStatus.FINANCE_IN_PROGRESS ? 'Finance Updating (budget adopted)' : 'payment processing'}`;
+        const verb = `approved — routed to ${isBudgetProposal ? 'Finance Updating (budget adopted)' : 'Group Deputy CEO'}`;
         await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -308,28 +380,12 @@ export const cfoDecision = async (req: Request, res: Response) => {
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        // If routed to Group Deputy CEO for approval, notify them
-        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
-            // Use the groupDceoId already resolved above if available, otherwise look it up
-            const gCeoIdForNotify = groupDceoId ?? (await prisma.user.findFirst({
-                where: { isActive: true, executiveRole: 'GROUP_DCEO' },
-                select: { id: true },
-            }))?.id;
-            if (gCeoIdForNotify) {
-                await notify({ userId: gCeoIdForNotify, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
-            }
-        }
-
-        await resumeSla(id);
-
-        // If routed to Group Deputy CEO, pause SLA again for approval wait
-        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
-            await pauseSla(id);
-        }
-
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: `Request ${decision.toLowerCase()} by CFO — routed to ${isBudgetProposal ? 'Finance Updating' : 'Group Deputy CEO'}` });
+    } catch (error: any) {
         console.error('cfoDecision error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to process CFO decision' });
     }
 };
@@ -370,22 +426,32 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_DCEO_REJECTED;
+        if (decision === 'APPROVED') {
+            // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED (guard checks GROUP_DCEO role)
+            await transitionRequest(id, 'GROUP_DCEO_APPROVED', transitionOpts(req, {
+                comment: comments || undefined,
+                source: 'finance-workflow/group-dceo-approve',
+            }));
 
-        // Reassign back to Finance agent using shared reassignToTeam (no entity-scoping)
+            // GROUP_DCEO_APPROVED → PAYMENT_PROCESSING_FIN
+            await transitionRequest(id, 'PAYMENT_PROCESSING_FIN', transitionOpts(req, {
+                source: 'finance-workflow/group-dceo-approve',
+            }));
+        } else {
+            // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_REJECTED
+            await transitionRequest(id, 'GROUP_DCEO_REJECTED', transitionOpts(req, {
+                comment: comments || 'Group Deputy CEO rejected the request',
+                source: 'finance-workflow/group-dceo-reject',
+            }));
+        }
+
+        // Reassign back to Finance agent
         await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
-        const gCeoUpdateData: any = { status: newStatus };
 
-        const updated = await prisma.request.update({ where: { id }, data: gCeoUpdateData });
-
-        // Update the existing PENDING approval record (don't create a duplicate)
+        // Update existing PENDING approval record
         await prisma.requestApproval.update({
             where: { id: pendingApproval.id },
-            data: {
-                status: decision,
-                approverId: userId,
-                comments: comments || null,
-            },
+            data: { status: decision, approverId: userId, comments: comments || null },
         });
 
         const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
@@ -393,18 +459,21 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
             approverType: 'GROUP_DCEO',
-            newStatus,
+            newStatus: decision === 'APPROVED' ? 'PAYMENT_PROCESSING_FIN' : 'GROUP_DCEO_REJECTED',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_DCEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        // Resume SLA — leaving PENDING_GROUP_DCEO_APPROVAL
+        const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: `Request ${decision.toLowerCase()} by Group Deputy CEO` });
+    } catch (error: any) {
         console.error('groupDceoDecision error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to process Group Deputy CEO decision' });
     }
 };
@@ -415,32 +484,39 @@ export const markPaymentComplete = async (req: Request, res: Response) => {
         const id = String(req.params.id);
         const { paymentReference, notes } = req.body;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
+        // Transition: * → AWAITING_PAYMENT_CONFIRMATION (guard checks Finance desk + assignment)
+        await transitionRequest(id, 'AWAITING_PAYMENT_CONFIRMATION', transitionOpts(req, {
+            comment: `Payment marked complete${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`,
+            source: 'finance-workflow/payment-complete',
+        }));
+
+        // Update customFields with payment reference
         const existingFields = (request.customFields as Record<string, unknown>) || {};
-        const updated = await prisma.request.update({
+        await prisma.request.update({
             where: { id },
-            data: {
-                status: RequestStatus.AWAITING_PAYMENT_CONFIRMATION,
-                customFields: { ...existingFields, paymentReference: paymentReference || null },
-            },
+            data: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
         });
 
-        await logActivity(id, `Payment marked complete${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);
         await auditLog(req as any, 'FINANCE_PAYMENT_COMPLETE', 'request', id, {
-            status: RequestStatus.AWAITING_PAYMENT_CONFIRMATION,
+            status: 'AWAITING_PAYMENT_CONFIRMATION',
             previousStatus: request.status,
             paymentReference: paymentReference || null,
         }, { status: request.status });
+
         await notify({ userId: request.requesterId, eventType: 'FINANCE_PAYMENT_COMPLETE', variables: { requestId: id }, relatedRequestId: id });
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Payment marked complete' });
+    } catch (error: any) {
         console.error('markPaymentComplete error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to mark payment complete' });
     }
 };
@@ -450,28 +526,38 @@ export const closeTicket = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
-        const updated = await prisma.request.update({
+        // Transition: * → TICKET_CLOSED_FIN (guard checks Finance desk + assignment)
+        await transitionRequest(id, 'TICKET_CLOSED_FIN', transitionOpts(req, {
+            comment: 'Ticket closed by Finance Agent',
+            source: 'finance-workflow/close',
+        }));
+
+        // Set resolvedAt + completedAt
+        await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date(), completedAt: new Date() },
+            data: { resolvedAt: new Date(), completedAt: new Date() },
         });
 
-        await logActivity(id, 'Ticket closed by Finance Agent');
         await auditLog(req as any, 'FINANCE_TICKET_CLOSED', 'request', id, {
-            status: RequestStatus.TICKET_CLOSED_FIN,
+            status: 'TICKET_CLOSED_FIN',
             previousStatus: request.status,
             resolvedAt: new Date().toISOString(),
         }, { status: request.status });
+
         await notify({ userId: request.requesterId, eventType: 'FINANCE_TICKET_CLOSED', variables: { requestId: id }, relatedRequestId: id });
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Ticket closed' });
+    } catch (error: any) {
         console.error('closeTicket error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to close ticket' });
     }
 };
@@ -483,7 +569,7 @@ export const updateAndCloseBudget = async (req: Request, res: Response) => {
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -494,27 +580,37 @@ export const updateAndCloseBudget = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
+        // Transition: FINANCE_IN_PROGRESS → TICKET_CLOSED_FIN (guard checks Finance desk + assignment)
+        await transitionRequest(id, 'TICKET_CLOSED_FIN', transitionOpts(req, {
+            comment: notes || 'Budget proposal closed by Finance Agent',
+            source: 'finance-workflow/close-budget',
+        }));
+
+        // Set resolvedAt + completedAt
+        await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date(), completedAt: new Date() },
+            data: { resolvedAt: new Date(), completedAt: new Date() },
         });
 
         await logActivity(id, `Budget proposal closed by Finance Agent${notes ? ': ' + notes : ''}`, userId);
         await auditLog(req as any, 'BUDGET_PROPOSAL_CLOSED', 'request', id, {
-            status: RequestStatus.TICKET_CLOSED_FIN,
+            status: 'TICKET_CLOSED_FIN',
             previousStatus: request.status,
             notes: notes || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_TICKET_CLOSED', variables: { requestId: id }, relatedRequestId: id });
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Budget proposal closed' });
+    } catch (error: any) {
         console.error('updateAndCloseBudget error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to update and close budget proposal' });
     }
 };
 
-// ─── Expense Reimbursement Workflow Endpoints ───
+// ─── Expense Reimbursement Workflow Endpoints ──────────────────────────────
 
 /** POST /finance-workflow/requests/:id/manager-approve-expense */
 export const managerApproveExpense = async (req: Request, res: Response) => {
@@ -523,7 +619,7 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -534,10 +630,11 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.MANAGER_APPROVED_FIN },
-        });
+        // Transition: PENDING_MANAGER_APPROVAL_FIN → MANAGER_APPROVED_FIN (guard checks Finance desk + MANAGER role)
+        await transitionRequest(id, 'MANAGER_APPROVED_FIN', transitionOpts(req, {
+            comment: comments || undefined,
+            source: 'finance-workflow/manager-approve-expense',
+        }));
 
         // P5-07: If a policy-based approval exists for this manager step, update it instead of creating a duplicate
         const existingManagerApproval = await prisma.requestApproval.findFirst({
@@ -545,13 +642,11 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
         });
 
         if (existingManagerApproval) {
-            // Policy-based: update the existing PENDING record
             await prisma.requestApproval.update({
                 where: { id: existingManagerApproval.id },
                 data: { approverId: userId, status: 'APPROVED', comments: comments || null },
             });
         } else {
-            // Legacy: create a new approval record
             await prisma.requestApproval.create({
                 data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'APPROVED', comments: comments || null },
             });
@@ -559,7 +654,7 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
 
         await logActivity(id, `Manager approved expense claim — routed to Finance Head${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_MANAGER_APPROVED', 'request', id, {
-            status: RequestStatus.MANAGER_APPROVED_FIN,
+            status: 'MANAGER_APPROVED_FIN',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
@@ -578,11 +673,15 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
             await notify({ userId: financeHeadId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Finance Head' }, relatedRequestId: id });
         }
 
+        const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Manager approved expense claim' });
+    } catch (error: any) {
         console.error('managerApproveExpense error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to approve expense claim' });
     }
 };
@@ -594,7 +693,7 @@ export const managerRejectExpense = async (req: Request, res: Response) => {
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -605,10 +704,11 @@ export const managerRejectExpense = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.MANAGER_REJECTED_FIN },
-        });
+        // Transition: PENDING_MANAGER_APPROVAL_FIN → MANAGER_REJECTED_FIN (guard checks Finance desk)
+        await transitionRequest(id, 'MANAGER_REJECTED_FIN', transitionOpts(req, {
+            comment: comments || 'Manager rejected the expense claim',
+            source: 'finance-workflow/manager-reject-expense',
+        }));
 
         await prisma.requestApproval.create({
             data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'REJECTED', comments: comments || null },
@@ -616,17 +716,21 @@ export const managerRejectExpense = async (req: Request, res: Response) => {
 
         await logActivity(id, `Manager rejected expense claim — returned to requester${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_MANAGER_REJECTED', 'request', id, {
-            status: RequestStatus.MANAGER_REJECTED_FIN,
+            status: 'MANAGER_REJECTED_FIN',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_REJECTED', variables: { requestId: id }, relatedRequestId: id });
 
+        const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Manager rejected expense claim' });
+    } catch (error: any) {
         console.error('managerRejectExpense error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to reject expense claim' });
     }
 };
@@ -638,7 +742,7 @@ export const financeHeadApproveExpense = async (req: Request, res: Response) => 
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -649,10 +753,11 @@ export const financeHeadApproveExpense = async (req: Request, res: Response) => 
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.FINANCE_HEAD_APPROVED },
-        });
+        // Transition: PENDING_FINANCE_HEAD_APPROVAL → FINANCE_HEAD_APPROVED (guard checks FINANCE_HEAD role)
+        await transitionRequest(id, 'FINANCE_HEAD_APPROVED', transitionOpts(req, {
+            comment: comments || undefined,
+            source: 'finance-workflow/finance-head-approve',
+        }));
 
         // P5-07: If a policy-based approval exists for this finance head step, update it instead of creating a duplicate
         const existingFinHeadApproval = await prisma.requestApproval.findFirst({
@@ -660,13 +765,11 @@ export const financeHeadApproveExpense = async (req: Request, res: Response) => 
         });
 
         if (existingFinHeadApproval) {
-            // Policy-based: update the existing PENDING record
             await prisma.requestApproval.update({
                 where: { id: existingFinHeadApproval.id },
                 data: { approverId: userId, status: 'APPROVED', comments: comments || null },
             });
         } else {
-            // Legacy: create a new approval record
             await prisma.requestApproval.create({
                 data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'APPROVED', comments: comments || null },
             });
@@ -674,17 +777,21 @@ export const financeHeadApproveExpense = async (req: Request, res: Response) => 
 
         await logActivity(id, `Finance Head approved expense claim — routed to payment processing${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_FINANCE_HEAD_APPROVED', 'request', id, {
-            status: RequestStatus.FINANCE_HEAD_APPROVED,
+            status: 'FINANCE_HEAD_APPROVED',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_APPROVED', variables: { requestId: id }, relatedRequestId: id });
 
+        const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Finance Head approved expense claim' });
+    } catch (error: any) {
         console.error('financeHeadApproveExpense error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to approve expense claim' });
     }
 };
@@ -696,7 +803,7 @@ export const financeHeadRejectExpense = async (req: Request, res: Response) => {
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -707,10 +814,11 @@ export const financeHeadRejectExpense = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.FINANCE_HEAD_REJECTED },
-        });
+        // Transition: PENDING_FINANCE_HEAD_APPROVAL → FINANCE_HEAD_REJECTED (guard checks FINANCE_HEAD role)
+        await transitionRequest(id, 'FINANCE_HEAD_REJECTED', transitionOpts(req, {
+            comment: comments || 'Finance Head rejected the expense claim',
+            source: 'finance-workflow/finance-head-reject',
+        }));
 
         await prisma.requestApproval.create({
             data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'REJECTED', comments: comments || null },
@@ -718,17 +826,21 @@ export const financeHeadRejectExpense = async (req: Request, res: Response) => {
 
         await logActivity(id, `Finance Head rejected expense claim — returned to requester${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'EXPENSE_FINANCE_HEAD_REJECTED', 'request', id, {
-            status: RequestStatus.FINANCE_HEAD_REJECTED,
+            status: 'FINANCE_HEAD_REJECTED',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_REJECTED', variables: { requestId: id }, relatedRequestId: id });
 
+        const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Finance Head rejected expense claim' });
+    } catch (error: any) {
         console.error('financeHeadRejectExpense error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to reject expense claim' });
     }
 };
@@ -739,7 +851,7 @@ export const markExpensePaymentComplete = async (req: Request, res: Response) =>
         const id = String(req.params.id);
         const { paymentReference, notes } = req.body;
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
@@ -750,32 +862,45 @@ export const markExpensePaymentComplete = async (req: Request, res: Response) =>
             return;
         }
 
-        const existingFields = (request.customFields as Record<string, unknown>) || {};
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: RequestStatus.PAYMENT_COMPLETED,
-                customFields: { ...existingFields, paymentReference: paymentReference || null },
-            },
-        });
+        // Step 1: PAYMENT_PROCESSING → PAYMENT_COMPLETED
+        await transitionRequest(id, 'PAYMENT_COMPLETED', transitionOpts(req, {
+            comment: `Expense payment completed${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`,
+            source: 'finance-workflow/expense-payment-complete',
+        }));
 
-        // auto-close the reimbursement after payment is marked complete
+        // Update customFields with payment reference
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
         await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.REIMBURSEMENT_CLOSED, resolvedAt: new Date(), completedAt: new Date() },
+            data: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
         });
 
-        await logActivity(id, `Expense payment completed${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);
+        // Step 2: PAYMENT_COMPLETED → REIMBURSEMENT_CLOSED (auto-close)
+        await transitionRequest(id, 'REIMBURSEMENT_CLOSED', transitionOpts(req, {
+            comment: 'Expense reimbursement closed automatically after payment completion',
+            source: 'finance-workflow/expense-payment-complete',
+        }));
+
+        // Set resolvedAt + completedAt
+        await prisma.request.update({
+            where: { id },
+            data: { resolvedAt: new Date(), completedAt: new Date() },
+        });
+
         await auditLog(req as any, 'EXPENSE_PAYMENT_COMPLETE', 'request', id, {
-            status: RequestStatus.REIMBURSEMENT_CLOSED,
+            status: 'REIMBURSEMENT_CLOSED',
             previousStatus: request.status,
             paymentReference: paymentReference || null,
         }, { status: request.status });
+
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_PAYMENT_COMPLETE', variables: { requestId: id }, relatedRequestId: id });
 
-        res.json({ status: 'success', data: { request: updated } });
-    } catch (error) {
+        res.json({ status: 'success', message: 'Expense payment completed and reimbursement closed' });
+    } catch (error: any) {
         console.error('markExpensePaymentComplete error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to mark expense payment complete' });
     }
 };

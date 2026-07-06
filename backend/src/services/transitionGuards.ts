@@ -12,7 +12,9 @@
  *  2. Comment-required guard — rejection transitions require a comment
  *  3. Assignment guard — IT procurement transitions require assigned agent or admin
  *  4. Service-desk guard — IT-specific transitions must be on IT service desk
- *  5. Role-based approval guards — CEO/CTO/CFO decisions require matching role
+ *  4b. Service-desk guard — Finance-specific transitions must be on FINANCE service desk
+ *  4c. Assignment guard — Finance workflow transitions require assigned agent or admin
+ *  5. Role-based approval guards — CEO/CTO/CFO/Group DCEO/Manager/Finance Head decisions
  *  6. LOA preconditions — LOA_ISSUED requires approved LOA; LOA_ACCEPTED requires signed LOA
  *  7. Onboarding completion guard — all tasks must be completed before ONBOARDING_COMPLETED
  *  8. Offboarding phase guard — resignation letter + exit interview before FINAL_WEEK;
@@ -146,6 +148,64 @@ for (const target of IT_ONLY_TARGETS) {
 }
 
 // ---------------------------------------------------------------------------
+// 4b. Service-desk guard — Finance-specific transitions must be on FINANCE service desk
+// ---------------------------------------------------------------------------
+const FINANCE_ONLY_TARGETS = new Set([
+  'FINANCE_ACKNOWLEDGED',
+  'PENDING_CFO_APPROVAL_FIN',
+  'CFO_APPROVED_FIN',
+  'CFO_REJECTED_FIN',
+  'FINANCE_IN_PROGRESS',
+  'PENDING_GROUP_DCEO_APPROVAL',
+  'GROUP_DCEO_APPROVED',
+  'GROUP_DCEO_REJECTED',
+  'PAYMENT_PROCESSING_FIN',
+  'AWAITING_PAYMENT_CONFIRMATION',
+  'TICKET_CLOSED_FIN',
+  'PENDING_MANAGER_APPROVAL_FIN',
+  'MANAGER_APPROVED_FIN',
+  'MANAGER_REJECTED_FIN',
+  'PENDING_FINANCE_HEAD_APPROVAL',
+  'FINANCE_HEAD_APPROVED',
+  'FINANCE_HEAD_REJECTED',
+  'PAYMENT_COMPLETED',
+  'REIMBURSEMENT_CLOSED',
+]);
+
+for (const target of FINANCE_ONLY_TARGETS) {
+  registerTransitionGuard(`*→${target}`, async (request, _from, _to, _options) => {
+    const deskCode = request.serviceDesk?.code;
+    if (deskCode && deskCode !== 'FINANCE') {
+      return `Transition to ${target} is only allowed for FINANCE service desk requests (got: ${deskCode})`;
+    }
+    return null;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 4c. Assignment guard — Finance workflow transitions require assigned agent or admin
+// ---------------------------------------------------------------------------
+// Only the assigned agent or an admin can advance Finance procurement/payment transitions.
+const FINANCE_ASSIGNMENT_TRANSITIONS: Array<[string, string]> = [
+  ['FINANCE_ACKNOWLEDGED', 'PENDING_CFO_APPROVAL_FIN'],
+  ['FINANCE_IN_PROGRESS', 'TICKET_CLOSED_FIN'],
+  ['PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION'],
+  ['PAYMENT_PROCESSING', 'PAYMENT_COMPLETED'],
+  ['PAYMENT_COMPLETED', 'REIMBURSEMENT_CLOSED'],
+];
+
+for (const [from, to] of FINANCE_ASSIGNMENT_TRANSITIONS) {
+  registerTransitionGuard(`${from}→${to}`, async (request, _from, _to, options) => {
+    if (isAdmin(options)) return null;
+    const assignedToId = request.assignedToId;
+    if (assignedToId && assignedToId !== options.userId) {
+      return 'Only the assigned agent or admin can perform this action';
+    }
+    return null;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 5. Role-based approval guards
 // ---------------------------------------------------------------------------
 // CEO decisions (IT and HR approval chains)
@@ -227,6 +287,40 @@ registerTransitionGuard(
     return null;
   },
 );
+
+// Finance Manager expense approval
+const MANAGER_FINANCE_TRANSITIONS: Array<[string, string]> = [
+  ['PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN'],
+  ['PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_REJECTED_FIN'],
+];
+
+for (const [from, to] of MANAGER_FINANCE_TRANSITIONS) {
+  registerTransitionGuard(`${from}→${to}`, async (_req, _from, _to, options) => {
+    if (isAdmin(options)) return null;
+    const roles = (options.metadata?.userRoles as string[]) || [];
+    if (!roles.includes('MANAGER')) {
+      return 'Only a Manager can make this decision';
+    }
+    return null;
+  });
+}
+
+// Finance Head expense approval
+const FINANCE_HEAD_TRANSITIONS: Array<[string, string]> = [
+  ['PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED'],
+  ['PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_REJECTED'],
+];
+
+for (const [from, to] of FINANCE_HEAD_TRANSITIONS) {
+  registerTransitionGuard(`${from}→${to}`, async (_req, _from, _to, options) => {
+    if (isAdmin(options)) return null;
+    const roles = (options.metadata?.userRoles as string[]) || [];
+    if (!roles.includes('FINANCE_HEAD') && !roles.includes('CFO')) {
+      return 'Only the Finance Head or CFO can make this decision';
+    }
+    return null;
+  });
+}
 
 // Hiring Manager LOA approval
 registerTransitionGuard(

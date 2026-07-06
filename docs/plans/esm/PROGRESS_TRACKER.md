@@ -1,6 +1,6 @@
 # ESM Implementation Progress Tracker
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 Branch: dev2.0
 Commit: 84ba59c
 
@@ -156,10 +156,10 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 || P6-02 | Compare hardcoded transitions vs WorkflowTransition seed | ✅ | — | Full comparison: `docs/plans/esm/P6-02-transition-comparison.md` — 28 gaps, 9 orphan statuses, LOA_REJECTED bug, 34 untested map entries |
 || P6-03 | Add central transition service for core ESM requests | ✅ | — | 3 deliverables: (1) LOA_REJECTED added to enum, (2) VALID_TRANSITIONS map + seed-esm-transitions.ts (163 transitions), (3) requestTransition.service.ts with validation/guards/SLA/audit/notifications |
 | P6-04 | Add transition guards/preconditions | ✅ | — | 8 guard categories: comment-required (14 rejection targets), IT assignment, service-desk, CEO/CTO/CFO/Group DCEO/Hiring Mgr role checks, LOA preconditions (approved+signed), onboarding task completion, offboarding phase+task guards; 28/28 tests |
-| P6-05 | Migrate IT workflow actions incrementally | ⏳ | — | |
-| P6-06 | Migrate Finance workflow actions incrementally | ⏳ | — | |
-| P6-07 | Add workflow versioning design doc | ⏳ | — | |
-| P6-08 | Add workflow designer backlog/spec | ⏳ | — | |
+| P6-05 | Migrate IT workflow actions incrementally | ✅ | — | it-workflow.controller.ts fully migrated to transitionRequest(); 16 direct prisma.request.update calls replaced; guards now enforce assignment/role/service-desk checks; controller side effects (customFields, approval records, SLA pause/resume, reassignment, asset creation) preserved outside transitionService; 28/28 guard tests pass; tsc clean |
+| P6-06 | Migrate Finance workflow actions incrementally | ✅ | — | finance-workflow.controller.ts fully migrated to transitionRequest(); 16 direct prisma.request.update calls replaced across 15 handlers; FINANCE service-desk guard (19 targets), Finance assignment guard (5 transitions), Manager/Finance Head role guards added; 39/39 guard tests pass; tsc clean |
+| P6-07 | Add workflow versioning design doc | ✅ | — | Design doc at docs/plans/esm/P6-07-workflow-versioning.md — WorkflowVersion + WorkflowTransitionVersion + WorkflowStepVersion models; Request.versionId pinning; version lifecycle (Draft→Active→Deprecated→Archived); 4-phase implementation (Schema+Seed → Runtime → Admin API → Frontend); guard expression future scope |
+| P6-08 | Add workflow designer backlog/spec | ✅ | — | Design doc at docs/plans/esm/P6-08-workflow-designer.md — React Flow visual graph editor + guard metadata API + type-scoped transition filtering; 3-phase rollout (Visual Editor → Version-Aware → Step Editor+Import/Export); 13 deliverables catalogued |
 
 ---
 
@@ -209,11 +209,11 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 || P3 — Observability/runtime | 10 | 10 | 0 | 100% |
 || P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
 | P5 — Catalog/approval | 8 | 8 | 0 | 100% |
-| P6 — Workflow consolidation | 8 | 4 | 4 | 50% |
+|| P6 — Workflow consolidation | 8 | 8 | 0 | 100% |
 | P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-|| **Overall (excl. P8)** | **93** | **70** | **23** | **75%** |
+||| **Overall (excl. P8)** | **93** | **74** | **19** | **80%** |
 
 ### Recommended Next Batch
 

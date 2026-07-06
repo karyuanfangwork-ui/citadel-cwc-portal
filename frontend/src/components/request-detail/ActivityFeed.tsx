@@ -149,9 +149,12 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     if (!comment.trim() && pendingFiles.length === 0) return;
 
     const tempId = `temp-${Date.now()}`;
-    const commentText = comment;
     const isInternalComment = isInternal;
     const filesToUpload = [...pendingFiles];
+
+    // If the comment text is empty but files were uploaded, use a default message
+    // so the backend validation (message: min(1)) doesn't reject it.
+    const commentText = comment.trim() || (filesToUpload.length > 0 ? 'Shared a file' : comment);
 
     // Optimistically add the entry
     setOptimisticIds(prev => new Set(prev).add(tempId));

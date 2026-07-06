@@ -6,10 +6,13 @@
  *  1. Comment-required for rejection transitions
  *  2. Assignment checks for IT procurement transitions
  *  3. Service-desk checks for IT-only transitions
- *  4. Role-based checks for CEO/CTO/CFO approval decisions
+ *  4. Role-based checks for CEO/CTO/CFO/Group DCEO approval decisions
  *  5. LOA preconditions (approved LOA, signed LOA)
  *  6. Onboarding completion (all tasks done)
  *  7. Offboarding phase guards (resignation letter, exit interview, tasks)
+ *  9. Finance service-desk checks for FINANCE-only transitions
+ *  10. Finance assignment checks for procurement/payment transitions
+ *  11. Manager & Finance Head role-based approval checks
  */
 
 // ---------------------------------------------------------------------------
@@ -322,7 +325,7 @@ describe('P6-04: Transition Guards', () => {
 
     it('blocks CFO_APPROVED_FIN by non-CFO user', async () => {
       mockPrisma.request.findUnique.mockResolvedValue(
-        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN' }),
+        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN', serviceDesk: { code: 'FINANCE' } }),
       );
 
       await expect(
@@ -337,7 +340,7 @@ describe('P6-04: Transition Guards', () => {
 
     it('allows CFO_APPROVED_FIN by admin without CFO role', async () => {
       mockPrisma.request.findUnique.mockResolvedValue(
-        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN' }),
+        makeRequest({ status: 'PENDING_CFO_APPROVAL_FIN', serviceDesk: { code: 'FINANCE' } }),
       );
 
       const result = await transitionRequest('req-001', 'CFO_APPROVED_FIN', {
@@ -628,6 +631,217 @@ describe('P6-04: Transition Guards', () => {
       const result = await transitionRequest('req-001', 'OFFBOARDING_COMPLETED', {
         userId: 'user-001',
         userName: 'HR Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 9. Finance service-desk guard ──────────────────────────────────────
+
+  describe('9. Finance service-desk guard', () => {
+    it('blocks FINANCE_ACKNOWLEDGED on non-FINANCE service desk', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'SUBMITTED',
+          serviceDesk: { code: 'IT' },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'FINANCE_ACKNOWLEDGED', {
+          userId: 'user-001',
+          userName: 'Test User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/only allowed for FINANCE service desk/i);
+    });
+
+    it('allows FINANCE_ACKNOWLEDGED on FINANCE service desk', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'SUBMITTED',
+          serviceDesk: { code: 'FINANCE' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'FINANCE_ACKNOWLEDGED', {
+        userId: 'user-001',
+        userName: 'Test User',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks PENDING_CFO_APPROVAL_FIN on IT service desk', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'FINANCE_ACKNOWLEDGED',
+          serviceDesk: { code: 'IT' },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'PENDING_CFO_APPROVAL_FIN', {
+          userId: 'user-001',
+          userName: 'Test User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/only allowed for FINANCE service desk/i);
+    });
+  });
+
+  // ── 10. Finance assignment guard ──────────────────────────────────────
+
+  describe('10. Finance assignment guard', () => {
+    it('blocks FINANCE_IN_PROGRESS→TICKET_CLOSED_FIN by non-assigned user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'FINANCE_IN_PROGRESS',
+          assignedToId: 'agent-001',
+          serviceDesk: { code: 'FINANCE' },
+        }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'TICKET_CLOSED_FIN', {
+          userId: 'other-user',
+          userName: 'Other User',
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the assigned agent or admin/i);
+    });
+
+    it('allows FINANCE_IN_PROGRESS→TICKET_CLOSED_FIN by assigned user', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'FINANCE_IN_PROGRESS',
+          assignedToId: 'agent-001',
+          serviceDesk: { code: 'FINANCE' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'TICKET_CLOSED_FIN', {
+        userId: 'agent-001',
+        userName: 'Assigned Agent',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('allows FINANCE_IN_PROGRESS→TICKET_CLOSED_FIN by admin', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({
+          status: 'FINANCE_IN_PROGRESS',
+          assignedToId: 'agent-001',
+          serviceDesk: { code: 'FINANCE' },
+        }),
+      );
+
+      const result = await transitionRequest('req-001', 'TICKET_CLOSED_FIN', {
+        userId: 'admin-001',
+        userName: 'Admin',
+        userRole: 'ADMIN',
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ── 11. Manager & Finance Head role guards ──────────────────────────────
+
+  describe('11. Manager & Finance Head role guards', () => {
+    it('blocks MANAGER_APPROVED_FIN by non-Manager', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_MANAGER_APPROVAL_FIN', serviceDesk: { code: 'FINANCE' } }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'MANAGER_APPROVED_FIN', {
+          userId: 'user-001',
+          userName: 'Regular User',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only a Manager/i);
+    });
+
+    it('allows MANAGER_APPROVED_FIN by Manager', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_MANAGER_APPROVAL_FIN', serviceDesk: { code: 'FINANCE' } }),
+      );
+
+      const result = await transitionRequest('req-001', 'MANAGER_APPROVED_FIN', {
+        userId: 'mgr-001',
+        userName: 'Manager User',
+        metadata: { userRoles: ['MANAGER'] },
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('blocks FINANCE_HEAD_APPROVED by non-Finance-Head', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_FINANCE_HEAD_APPROVAL', serviceDesk: { code: 'FINANCE' } }),
+      );
+
+      await expect(
+        transitionRequest('req-001', 'FINANCE_HEAD_APPROVED', {
+          userId: 'user-001',
+          userName: 'Regular User',
+          metadata: { userRoles: ['AGENT'] },
+          skipValidation: true,
+        }),
+      ).rejects.toThrow(/Only the Finance Head or CFO/i);
+    });
+
+    it('allows FINANCE_HEAD_APPROVED by Finance Head', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_FINANCE_HEAD_APPROVAL', serviceDesk: { code: 'FINANCE' } }),
+      );
+
+      const result = await transitionRequest('req-001', 'FINANCE_HEAD_APPROVED', {
+        userId: 'fh-001',
+        userName: 'Finance Head',
+        metadata: { userRoles: ['FINANCE_HEAD'] },
+        skipValidation: true,
+        skipNotifications: true,
+        skipSlaPause: true,
+        skipAutoAssignment: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('allows FINANCE_HEAD_APPROVED by CFO (CFO can act as Finance Head)', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'PENDING_FINANCE_HEAD_APPROVAL', serviceDesk: { code: 'FINANCE' } }),
+      );
+
+      const result = await transitionRequest('req-001', 'FINANCE_HEAD_APPROVED', {
+        userId: 'cfo-001',
+        userName: 'CFO User',
+        metadata: { userRoles: ['CFO'] },
         skipValidation: true,
         skipNotifications: true,
         skipSlaPause: true,
