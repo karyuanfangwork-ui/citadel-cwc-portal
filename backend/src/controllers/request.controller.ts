@@ -1720,8 +1720,11 @@ class RequestController {
             throw new AppError('Request not found', 404);
         }
 
-        // Only requester or admin can delete
-        if (request.requesterId !== req.user!.id && !req.user!.roles.includes('ADMIN')) {
+        // Only requester, admin, or assigned agent can delete
+        const isRequester = request.requesterId === req.user!.id;
+        const isAdmin = req.user!.roles.includes('ADMIN');
+        const isAssignedAgent = request.assignedToId === req.user!.id;
+        if (!isRequester && !isAdmin && !isAssignedAgent) {
             throw new AppError('You do not have permission to delete this request', 403);
         }
 

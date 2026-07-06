@@ -94,6 +94,7 @@ interface WorkflowCockpitProps {
   onAdvanceOffboardingPhase?: () => void;
   onCompleteOffboarding?: () => void;
   onResolveRequest?: () => void;
+  onCancelRequest?: () => void;
 
   /** Offboarding pre-conditions state for gating the Advance button in DecisionPanel */
   offboardingPreConditionsMet?: boolean;
@@ -133,6 +134,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  onCancelRequest,
   offboardingPreConditionsMet = true,
   onUploadResume,
   canExportPdf,
@@ -221,6 +223,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               onAdvanceOffboardingPhase={onAdvanceOffboardingPhase}
               onCompleteOffboarding={onCompleteOffboarding}
               onResolveRequest={onResolveRequest}
+              onCancelRequest={onCancelRequest}
               offboardingPreConditionsMet={offboardingPreConditionsMet}
               onUploadResume={onUploadResume}
             />
@@ -359,6 +362,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   onAdvanceOffboardingPhase={onAdvanceOffboardingPhase}
                   onCompleteOffboarding={onCompleteOffboarding}
                   onResolveRequest={onResolveRequest}
+              onCancelRequest={onCancelRequest}
                   offboardingPreConditionsMet={offboardingPreConditionsMet}
                   onUploadResume={onUploadResume}
                 />

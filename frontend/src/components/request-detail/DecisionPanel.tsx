@@ -51,6 +51,7 @@ interface DecisionPanelProps {
   /** Direct-action callbacks for non-modal actions (assign, resolve, etc.) */
   onAssign?: () => void;
   onResolveRequest?: () => void;
+  onCancelRequest?: () => void;
   onRouteToManager?: () => void;
   onManagerDecision?: () => void;
   onLOAApproval?: () => void;
@@ -139,6 +140,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   FINANCE_HEAD_APPROVE_EXPENSE: { icon: 'check_circle', bgClass: 'bg-green-100', textClass: 'text-green-600' },
   FINANCE_HEAD_REJECT_EXPENSE:  { icon: 'cancel',       bgClass: 'bg-red-100', textClass: 'text-red-600' },
   MARK_EXPENSE_PAYMENT_COMPLETE:{ icon: 'payments',     bgClass: 'bg-emerald-100', textClass: 'text-emerald-600' },
+  CANCEL_REQUEST:              { icon: 'cancel',         bgClass: 'bg-red-100',    textClass: 'text-red-600' },
 };
 
 /* ------------------------------------------------------------------ */
@@ -169,6 +171,7 @@ const DIRECT_ACTIONS: Set<WorkflowActionType> = new Set([
   // UploadResumeModal (with file picker, candidate name, doc type) instead
   // of the generic WorkflowActionModal which only has a notes textarea.
   'UPLOAD_RESUME',
+  'CANCEL_REQUEST',
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -210,6 +213,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  onCancelRequest,
   onUploadResume,
   offboardingPreConditionsMet = true,
 }) => {
@@ -288,6 +292,9 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
           case 'RESOLVE_IT':
             onResolveRequest?.();
             return;
+          case 'CANCEL_REQUEST':
+            onCancelRequest?.();
+            return;
           case 'UPLOAD_RESUME':
             onUploadResume?.();
             return;
@@ -335,6 +342,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
       onAdvanceOffboardingPhase,
       onCompleteOffboarding,
       onResolveRequest,
+      onCancelRequest,
       onUploadResume,
     ]
   );
