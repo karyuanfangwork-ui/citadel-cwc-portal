@@ -26,7 +26,7 @@ ALTER TABLE crm_opportunities ADD CONSTRAINT chk_crm_opportunities_tenant_id_req
 ALTER TABLE crm_contacts ADD CONSTRAINT chk_crm_contacts_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE crm_pipelines ADD CONSTRAINT chk_crm_pipelines_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE credit_applications ADD CONSTRAINT chk_credit_applications_tenant_id_required CHECK (tenant_id IS NOT NULL);
-ALTER TABLE knowledge_base_articles ADD CONSTRAINT chk_knowledge_base_articles_tenant_id_required CHECK (tenant_id IS NOT NULL);
+ALTER TABLE kb_articles ADD CONSTRAINT chk_knowledge_base_articles_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE notifications ADD CONSTRAINT chk_notifications_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE announcement_reads ADD CONSTRAINT chk_announcement_reads_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE onboarding_requests ADD CONSTRAINT chk_onboarding_requests_tenant_id_required CHECK (tenant_id IS NOT NULL);
@@ -65,15 +65,15 @@ CREATE INDEX IF NOT EXISTS idx_requests_tenant_status ON requests (tenant_id, st
 -- Requests: tenant + created_at (pagination, recent tickets)
 CREATE INDEX IF NOT EXISTS idx_requests_tenant_created ON requests (tenant_id, created_at DESC);
 -- Requests: tenant + assigned_to (my tickets view)
-CREATE INDEX IF NOT EXISTS idx_requests_tenant_assigned ON requests (tenant_id, "assignedToId");
+CREATE INDEX IF NOT EXISTS idx_requests_tenant_assigned ON requests (tenant_id, assigned_to_id);
 -- Requests: tenant + service_desk (service desk filtering)
-CREATE INDEX IF NOT EXISTS idx_requests_tenant_desk ON requests (tenant_id, "serviceDeskId");
+CREATE INDEX IF NOT EXISTS idx_requests_tenant_desk ON requests (tenant_id, service_desk_id);
 
 -- Users: tenant + role (role-based queries)
-CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users (tenant_id, "agentTeam");
+CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users (tenant_id, agent_team);
 
 -- Notifications: tenant + read status (inbox queries)
-CREATE INDEX IF NOT EXISTS idx_notifications_tenant_read ON notifications (tenant_id, "readAt");
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_read ON notifications (tenant_id, read_at);
 
 -- Credit applications: tenant + status
 CREATE INDEX IF NOT EXISTS idx_credit_applications_tenant_status ON credit_applications (tenant_id, status);
@@ -87,7 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_crm_opportunities_tenant_stage ON crm_opportuniti
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs (tenant_id, created_at DESC);
 
 -- Knowledge base: tenant + published
-CREATE INDEX IF NOT EXISTS idx_knowledge_base_articles_tenant_published ON knowledge_base_articles (tenant_id, "isPublished");
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_articles_tenant_published ON kb_articles (tenant_id, is_published);
 
 -- =====================================================
 -- 4. P2-09: Tenant-local unique constraints
