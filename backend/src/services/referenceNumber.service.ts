@@ -21,7 +21,7 @@ export async function generateRequestRefNum(prefix: string): Promise<string> {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result: string = await (prisma as any).$transaction(async (tx: any) => {
-            let counter = await tx.requestCounter.findUnique({ where: { prefix } });
+            let counter = await tx.requestCounter.findFirst({ where: { prefix } });
 
             if (!counter) {
                 // Bootstrap: find the max existing sequence from requests with this prefix
