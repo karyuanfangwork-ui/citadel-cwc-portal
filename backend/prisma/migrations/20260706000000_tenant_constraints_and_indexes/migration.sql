@@ -42,6 +42,9 @@ UPDATE request_types SET tenant_id = '00000000-0000-0000-0000-000000000001' WHER
 UPDATE escalation_rules SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
 UPDATE webhook_subscriptions SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
 
+-- request_counters.tenant_id column is added below (section 3);
+-- backfill it after ADD COLUMN, before the CHECK constraint.
+
 -- =====================================================
 -- 1. CHECK constraints: tenantId must NOT be null for always-tenant-scoped models
 -- =====================================================
@@ -68,7 +71,6 @@ ALTER TABLE service_categories ADD CONSTRAINT chk_service_categories_tenant_id_r
 ALTER TABLE request_types ADD CONSTRAINT chk_request_types_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE escalation_rules ADD CONSTRAINT chk_escalation_rules_tenant_id_required CHECK (tenant_id IS NOT NULL);
 ALTER TABLE webhook_subscriptions ADD CONSTRAINT chk_webhook_subscriptions_tenant_id_required CHECK (tenant_id IS NOT NULL);
-ALTER TABLE request_counters ADD CONSTRAINT chk_request_counters_tenant_id_required CHECK (tenant_id IS NOT NULL);
 
 -- =====================================================
 -- 2. Composite tenant-first indexes for high-frequency queries
@@ -117,6 +119,9 @@ ALTER TABLE request_counters DROP CONSTRAINT IF EXISTS request_counters_prefix_k
 -- Add tenant_id column to request_counters (new column for P2-06)
 ALTER TABLE request_counters ADD COLUMN IF NOT EXISTS tenant_id UUID;
 CREATE INDEX IF NOT EXISTS idx_request_counters_tenant_id ON request_counters (tenant_id);
+-- Backfill request_counters tenant_id and add CHECK constraint
+UPDATE request_counters SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+ALTER TABLE request_counters ADD CONSTRAINT chk_request_counters_tenant_id_required CHECK (tenant_id IS NOT NULL);
 
 -- Add tenant-local composite unique constraints
 ALTER TABLE service_desks ADD CONSTRAINT service_desks_tenant_name_unique UNIQUE (tenant_id, name);
