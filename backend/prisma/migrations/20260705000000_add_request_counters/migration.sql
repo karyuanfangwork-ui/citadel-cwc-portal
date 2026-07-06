@@ -1,7 +1,7 @@
 -- P2-11: Atomic reference number counter table
 -- Prevents duplicate reference numbers under concurrent request creation.
 CREATE TABLE IF NOT EXISTS "request_counters" (
-    "id"      INTEGER PRIMARY KEY DEFAULT 1,
+    "id"      SERIAL PRIMARY KEY,
     "prefix"  VARCHAR(10) NOT NULL,
     "lastSeq" INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT "request_counters_prefix_key" UNIQUE ("prefix")
@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "request_counters" (
 -- Insert existing prefixes from current service desks to bootstrap counters
 -- This avoids the need for each prefix to cold-start from a FIND_FIRST query
 -- Note: DB columns use snake_case (reference_number, not referenceNumber)
+-- Use ON CONFLICT DO NOTHING to make this idempotent
 INSERT INTO "request_counters" ("prefix", "lastSeq")
 SELECT "code", COALESCE((
     SELECT MAX(

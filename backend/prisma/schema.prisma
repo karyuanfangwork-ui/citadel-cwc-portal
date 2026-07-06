@@ -5977,7 +5977,7 @@ enum RepaymentFrequency {
 // P2-11: Atomic reference number counter for requests.
 // Prevents duplicate reference numbers under concurrent creates.
 model RequestCounter {
-  id      Int    @id @default(1)
+  id      Int    @id @default(autoincrement())
   prefix  String @db.VarChar(10) // P2-09: removed @unique, added @@unique([tenantId, prefix])
   lastSeq Int    @default(0)
   tenantId String? @map("tenant_id") @db.Uuid // P2-06: tenant-scoped counter isolation
