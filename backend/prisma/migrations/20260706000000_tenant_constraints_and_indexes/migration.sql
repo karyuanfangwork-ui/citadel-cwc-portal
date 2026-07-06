@@ -92,12 +92,12 @@ CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users (tenant_id, agent_team
 CREATE INDEX IF NOT EXISTS idx_notifications_tenant_read ON notifications (tenant_id, read_at);
 
 -- Credit applications: tenant + status
-CREATE INDEX IF NOT EXISTS idx_credit_applications_tenant_status ON credit_applications (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_credit_applications_tenant_status ON credit_applications (tenant_id, state);
 
 -- CRM leads: tenant + status
 CREATE INDEX IF NOT EXISTS idx_crm_leads_tenant_status ON crm_leads (tenant_id, status);
 -- CRM opportunities: tenant + stage
-CREATE INDEX IF NOT EXISTS idx_crm_opportunities_tenant_stage ON crm_opportunities (tenant_id, stage);
+CREATE INDEX IF NOT EXISTS idx_crm_opportunities_tenant_stage ON crm_opportunities (tenant_id, stage_id);
 
 -- Audit log: tenant + created (chronological queries)
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs (tenant_id, created_at DESC);
