@@ -309,12 +309,15 @@ const RequestDetailContainer: React.FC = () => {
             <RejectionModal
                 isOpen={rq.showRejectionConfirm}
                 updatingStatus={rq.updatingStatus}
-                onClose={() => { rq.setShowRejectionConfirm(false); rq.setRejectionPendingStatus(null); }}
+                rejectionComment={rq.rejectionComment}
+                onCommentChange={rq.setRejectionComment}
+                onClose={() => { rq.setShowRejectionConfirm(false); rq.setRejectionPendingStatus(null); rq.setRejectionComment(''); }}
                 onConfirmReject={async () => {
-                    if (rq.rejectionPendingStatus) {
-                        await rq.updateStatusDirectly(rq.rejectionPendingStatus);
+                    if (rq.rejectionPendingStatus && rq.rejectionComment.trim()) {
+                        await rq.updateStatusDirectly(rq.rejectionPendingStatus, rq.rejectionComment.trim());
                         rq.setShowRejectionConfirm(false);
                         rq.setRejectionPendingStatus(null);
+                        rq.setRejectionComment('');
                     }
                 }}
             />

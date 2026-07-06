@@ -185,6 +185,8 @@ interface UseRequestDetailReturn {
     resolutionComment: string;
     pendingStatus: string | null;
     rejectionPendingStatus: string | null;
+    rejectionComment: string;
+    setRejectionComment: (value: string) => void;
     setRejectionPendingStatus: React.Dispatch<React.SetStateAction<string | null>>;
     setResolutionComment: (value: string) => void;
     setShowResolutionModal: (value: boolean) => void;
@@ -228,7 +230,7 @@ interface UseRequestDetailReturn {
     handleReopenForNewCandidates: () => Promise<void>;
     handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string, documentType?: string) => Promise<void>;
     handleMarkJobPosted: () => Promise<void>;
-    updateStatusDirectly: (newStatus: string) => Promise<void>;
+    updateStatusDirectly: (newStatus: string, comment?: string) => Promise<void>;
 }
 
 export const useRequestDetail = (): UseRequestDetailReturn => {
@@ -250,6 +252,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
 
     const [showResolutionModal, setShowResolutionModal] = useState(false);
     const [showRejectionConfirm, setShowRejectionConfirm] = useState(false);
+    const [rejectionComment, setRejectionComment] = useState('');
     const [showCompleteOnboardingConfirm, setShowCompleteOnboardingConfirm] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showJobPostModal, setShowJobPostModal] = useState(false);
@@ -335,11 +338,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         return true;
     }, [user?.roles, request?.assignedTo]);
 
-    const updateStatusDirectly = useCallback(async (newStatus: string) => {
+    const updateStatusDirectly = useCallback(async (newStatus: string, comment?: string) => {
         if (!id) return;
         try {
             setUpdatingStatus(true);
-            const updatedRequest = await requestService.updateStatus(id, newStatus as any);
+            const updatedRequest = await requestService.updateStatus(id, newStatus as any, comment);
             setRequest(updatedRequest);
             const updatedActivities = await requestService.getRequestActivities(id);
             setActivities(updatedActivities);
@@ -732,6 +735,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         id, request, setRequest, activities, setActivities, resumes, candidates, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
+        rejectionComment, setRejectionComment,
         setRejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,
         fetchRequestData, fetchResumes, fetchCandidates, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,

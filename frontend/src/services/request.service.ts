@@ -121,9 +121,10 @@ export const requestService = {
         return response.data.data.request;
     },
 
-    async updateStatus(requestId: string, status: RequestStatus) {
+    async updateStatus(requestId: string, status: RequestStatus, comment?: string) {
         const response = await apiClient.put(`/requests/${requestId}/status`, {
             status,
+            ...(comment && { comment }),
         });
         return response.data.data.request;
     },
