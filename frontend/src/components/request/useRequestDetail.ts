@@ -360,7 +360,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             setShowResolutionModal(true);
             return;
         }
-        if (newStatus === 'REJECTED') {
+        if (newStatus === 'REJECTED' || newStatus === 'CANCELLED') {
             setRejectionPendingStatus(newStatus);
             setShowRejectionConfirm(true);
             return;

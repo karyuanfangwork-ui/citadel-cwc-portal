@@ -286,7 +286,7 @@ const RequestDetailContainer: React.FC = () => {
                     onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
                     onCompleteOffboarding={rq.handleCompleteOffboarding}
                     onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
-                    onCancelRequest={() => rq.handleStatusChange('REJECTED')}
+                    onCancelRequest={() => rq.handleStatusChange('CANCELLED')}
                     onUploadResume={() => rq.setShowUploadModal(true)}
                     offboardingPreConditionsMet={offboardingPreConditions.preConditionsMet}
                     canExportPdf={canExport}
@@ -308,6 +308,7 @@ const RequestDetailContainer: React.FC = () => {
 
             <RejectionModal
                 isOpen={rq.showRejectionConfirm}
+                mode={rq.rejectionPendingStatus === 'CANCELLED' ? 'cancel' : 'reject'}
                 updatingStatus={rq.updatingStatus}
                 rejectionComment={rq.rejectionComment}
                 onCommentChange={rq.setRejectionComment}
