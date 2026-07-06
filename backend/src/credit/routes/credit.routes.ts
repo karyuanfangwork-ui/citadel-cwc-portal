@@ -147,11 +147,20 @@ router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (re
   const rolloutPct: number | undefined = req.body.rolloutPct;
   const category: string | undefined = req.body.category;
   const description: string | undefined = req.body.description;
-  const flag = await prisma.featureFlag.upsert({
-    where: { key: String(key) },
-    update: { enabled, rolloutPct, category, description },
-    create: { key: String(key), enabled: enabled ?? false, rolloutPct: rolloutPct ?? 0, category: category ?? 'credit', description: description ?? '' },
-  });
+  // P2-09: key is no longer @unique (composite tenant_id+key unique instead).
+  // Use findFirst + update/create to avoid FeatureFlagWhereUniqueInput type error.
+  const existing = await prisma.featureFlag.findFirst({ where: { key: String(key) } });
+  let flag;
+  if (existing) {
+    flag = await prisma.featureFlag.update({
+      where: { id: existing.id },
+      data: { enabled, rolloutPct, category, description },
+    });
+  } else {
+    flag = await prisma.featureFlag.create({
+      data: { key: String(key), enabled: enabled ?? false, rolloutPct: rolloutPct ?? 0, category: category ?? 'credit', description: description ?? '' },
+    });
+  }
   await invalidateFlagCache();
   res.json({ status: 'success', data: { flag } });
 });
