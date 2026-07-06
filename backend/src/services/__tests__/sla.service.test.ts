@@ -7,6 +7,7 @@ jest.mock('../../utils/prisma', () => ({
   default: {
     request: { findMany: jest.fn() },
     requestActivity: { create: jest.fn(), findFirst: jest.fn() },
+    requestParticipant: { upsert: jest.fn() },
     escalationRule: { findMany: jest.fn() },
     user: { findMany: jest.fn() },
   },
@@ -27,6 +28,7 @@ jest.mock('../../utils/logger', () => ({
 const mockPrisma = prisma as unknown as {
   request: { findMany: jest.Mock };
   requestActivity: { create: jest.Mock; findFirst: jest.Mock };
+  requestParticipant: { upsert: jest.Mock };
   escalationRule: { findMany: jest.Mock };
   user: { findMany: jest.Mock };
 };
@@ -37,6 +39,7 @@ const mockNotify = notify as jest.Mock;
 beforeEach(() => {
   jest.clearAllMocks();
   mockPrisma.requestActivity.create.mockResolvedValue({ id: 'activity-1' });
+  mockPrisma.requestParticipant.upsert.mockResolvedValue({ id: 'participant-1' });
 });
 
 // ── checkSlaBreaches ──────────────────────────────────────────────────────
@@ -92,11 +95,10 @@ describe('checkSlaBreaches', () => {
       requesterId: 'user-2',
       assignedToId: null,
       slaDueAt: new Date('2025-01-01'),
-      activities: [{ id: 'a1', activityType: 'SYSTEM', message: 'SLA BREACH: ...' }],
+      activities: [{ id: 'a1', activityType: 'SYSTEM', message: 'SLA BRECH: ...' }],
     };
 
     mockPrisma.request.findMany.mockResolvedValue([alreadyNotified]);
-
     const result = await checkSlaBreaches();
     expect(result).toBe(0);
     expect(mockPrisma.requestActivity.create).not.toHaveBeenCalled();
@@ -187,6 +189,23 @@ describe('checkEscalations', () => {
 
     expect(result).toBe(1);
     expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(1);
+    // Each handler gets added as participant AND notified
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { requestId_userId: { requestId: 'req-1', userId: 'admin-1' } },
+        create: expect.objectContaining({
+          requestId: 'req-1',
+          userId: 'admin-1',
+          addedById: 'user-1',
+        }),
+        update: {},
+      }),
+    );
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'admin-1', eventType: 'SLA_ESCALATED' }),
+    );
 
     jest.useRealTimers();
   });
@@ -220,6 +239,8 @@ describe('checkEscalations', () => {
 
     expect(result).toBe(0);
     expect(mockPrisma.requestActivity.create).not.toHaveBeenCalled();
+    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });
@@ -255,6 +276,7 @@ describe('checkEscalations', () => {
 
     expect(result).toBe(0);
     expect(mockPrisma.requestActivity.create).not.toHaveBeenCalled();
+    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });
@@ -295,12 +317,120 @@ describe('checkEscalations', () => {
       },
     ]);
     mockPrisma.requestActivity.findFirst.mockResolvedValue(null);
+    // Both escalation queries return the same handler
     mockPrisma.user.findMany.mockResolvedValue([{ id: 'admin-1' }]);
 
     const result = await checkEscalations();
 
     expect(result).toBe(2);
     expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(2);
+    // 2 rules × 1 handler each = 2 participant upserts + 2 notifications
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledTimes(2);
+    expect(mockNotify).toHaveBeenCalledTimes(2);
+
+    jest.useRealTimers();
+  });
+
+  it('notifies ALL matching escalation handlers and adds each as participant', async () => {
+    const breachedAt = new Date('2025-01-01T00:00:00Z');
+    const now = new Date('2025-01-01T05:00:00Z');
+
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+
+    const breachedReq = {
+      id: 'req-5',
+      referenceNumber: 'IT-005',
+      requesterId: 'user-5',
+      requestTypeId: 'type-1',
+      slaDueAt: new Date('2024-12-31'),
+      activities: [{ metadata: { breachedAt: breachedAt.toISOString() } }],
+    };
+
+    mockPrisma.request.findMany.mockResolvedValue([breachedReq]);
+    mockPrisma.escalationRule.findMany.mockResolvedValue([{
+      id: 'rule-5',
+      triggerHoursAfterBreach: 1,
+      label: 'GROUP_DCEO Escalation',
+      notifyRoles: ['GROUP_DCEO'],
+      requestTypeId: 'type-1',
+      isActive: true,
+    }]);
+    mockPrisma.requestActivity.findFirst.mockResolvedValue(null);
+    // Multiple GROUP_DCEO users should ALL be notified and added as participants
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'dceo-1' },
+      { id: 'dceo-2' },
+    ]);
+
+    const result = await checkEscalations();
+
+    expect(result).toBe(1);
+    expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(1);
+    // Both handlers added as participants
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { requestId_userId: { requestId: 'req-5', userId: 'dceo-1' } },
+        create: expect.objectContaining({ requestId: 'req-5', userId: 'dceo-1', addedById: 'user-5' }),
+        update: {},
+      }),
+    );
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { requestId_userId: { requestId: 'req-5', userId: 'dceo-2' } },
+        create: expect.objectContaining({ requestId: 'req-5', userId: 'dceo-2', addedById: 'user-5' }),
+        update: {},
+      }),
+    );
+    // Both handlers notified
+    expect(mockNotify).toHaveBeenCalledTimes(2);
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'dceo-1', eventType: 'SLA_ESCALATED' }),
+    );
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'dceo-2', eventType: 'SLA_ESCALATED' }),
+    );
+
+    jest.useRealTimers();
+  });
+
+  it('handles zero escalation handlers gracefully', async () => {
+    const breachedAt = new Date('2025-01-01T00:00:00Z');
+    const now = new Date('2025-01-01T05:00:00Z');
+
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+
+    const breachedReq = {
+      id: 'req-6',
+      referenceNumber: 'IT-006',
+      requesterId: 'user-6',
+      requestTypeId: 'type-1',
+      slaDueAt: new Date('2024-12-31'),
+      activities: [{ metadata: { breachedAt: breachedAt.toISOString() } }],
+    };
+
+    mockPrisma.request.findMany.mockResolvedValue([breachedReq]);
+    mockPrisma.escalationRule.findMany.mockResolvedValue([{
+      id: 'rule-6',
+      triggerHoursAfterBreach: 1,
+      label: 'Orphaned',
+      notifyRoles: ['NONEXISTENT_ROLE'],
+      requestTypeId: 'type-1',
+      isActive: true,
+    }]);
+    mockPrisma.requestActivity.findFirst.mockResolvedValue(null);
+    // No users found for the role
+    mockPrisma.user.findMany.mockResolvedValue([]);
+
+    const result = await checkEscalations();
+
+    expect(result).toBe(1); // Escalation activity still recorded
+    expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(1);
+    // No handlers to add as participants or notify
+    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
+    expect(mockNotify).not.toHaveBeenCalled();
 
     jest.useRealTimers();
   });

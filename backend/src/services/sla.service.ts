@@ -142,22 +142,30 @@ export async function checkEscalations(): Promise<number> {
           },
         });
 
-        // Single-recipient: notify one escalation handler (senior-most matching the role).
-        // Instead of blasting all users in the escalation roles, pick the most senior
-        // active user so that one dedicated person is responsible for acting on it.
+        // Notify ALL matching escalation handlers and add each as a participant
+        // so they can access the request when clicking the email link.
         const escalationHandlers = await prisma.user.findMany({
           where: {
             isActive: true,
             roles: { some: { role: { name: { in: rule.notifyRoles } } } },
           },
           select: { id: true },
-          orderBy: { createdAt: 'asc' },
-          take: 1,
         });
 
-        if (escalationHandlers.length > 0) {
+        for (const handler of escalationHandlers) {
+          // Grant access by adding as participant (skips if already present)
+          await prisma.requestParticipant.upsert({
+            where: { requestId_userId: { requestId: req.id, userId: handler.id } },
+            create: {
+              requestId: req.id,
+              userId: handler.id,
+              addedById: req.requesterId, // system-generated — use requester as proxy
+            },
+            update: {},
+          });
+
           await notify({
-            userId: escalationHandlers[0].id,
+            userId: handler.id,
             eventType: 'SLA_ESCALATED',
             variables: {
               referenceNumber: req.referenceNumber,
