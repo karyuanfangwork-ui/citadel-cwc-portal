@@ -2184,8 +2184,8 @@ class RequestController {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
-        if (status === 'REJECTED' && !String(comment || '').trim()) {
-            throw new AppError('A rejection reason is required', 400);
+        if (['REJECTED', 'CANCELLED'].includes(status) && !String(comment || '').trim()) {
+            throw new AppError(`A reason is required to mark this request as ${status.toLowerCase()}`, 400);
         }
         const sanitizedComment = comment ? sanitizeComment(String(comment)) : undefined;
 

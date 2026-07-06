@@ -200,3 +200,77 @@ describe('updateStatus rejection comment requirement', () => {
         );
     });
 });
+
+describe('updateStatus CANCELLED handling', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('rejects with 400 when status is CANCELLED and no comment is provided', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID,
+            status: 'PROCUREMENT_IN_PROGRESS',
+            serviceDesk: { code: 'IT' },
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-3',
+        });
+
+        const { res, responseDone } = makeResWithDone();
+        const { next, nextDone } = makeNextWithDone();
+        const req: any = {
+            params: { id: REQ_ID },
+            body: { status: 'CANCELLED' },
+            user: { id: 'agent-1', roles: ['AGENT'], agentTeam: 'IT' },
+        };
+
+        requestController.updateStatus(req, res, next);
+        await Promise.race([responseDone, nextDone]);
+
+        expect(next).toHaveBeenCalledWith(expect.objectContaining({
+            message: expect.stringMatching(/reason/i),
+        }));
+        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts CANCELLED with a comment, stamps closedAt, and stores the reason', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID_2,
+            status: 'PROCUREMENT_IN_PROGRESS',
+            serviceDesk: { code: 'IT' },
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-4',
+        });
+        mockPrisma.request.update.mockResolvedValue({
+            id: REQ_ID_2,
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-4',
+            status: 'CANCELLED',
+        });
+
+        const { res, responseDone } = makeResWithDone();
+        const { next, nextDone } = makeNextWithDone();
+        const req: any = {
+            params: { id: REQ_ID_2 },
+            body: { status: 'CANCELLED', comment: 'Submitted against the wrong asset by mistake' },
+            user: { id: 'agent-1', roles: ['AGENT'], agentTeam: 'IT' },
+        };
+
+        requestController.updateStatus(req, res, next);
+        await Promise.race([responseDone, nextDone]);
+
+        if (next.mock.calls.length > 0 && next.mock.calls[0][0]) {
+            throw next.mock.calls[0][0];
+        }
+
+        expect(mockPrisma.request.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({ closedAt: expect.any(Date) }),
+            })
+        );
+        expect(mockPrisma.requestActivity.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    message: expect.stringContaining('Submitted against the wrong asset by mistake'),
+                }),
+            })
+        );
+    });
+});
