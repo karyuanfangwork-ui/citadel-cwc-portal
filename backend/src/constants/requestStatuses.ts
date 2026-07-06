@@ -31,8 +31,9 @@ export const CLOSED_STATUSES: RequestStatus[] = [
   RequestStatus.REIMBURSEMENT_CLOSED,
   RequestStatus.TICKET_CLOSED_FIN,
 
-  // Generic rejected
+  // Generic rejected / cancelled
   RequestStatus.REJECTED,
+  RequestStatus.CANCELLED,
 
   // Onboarding / Offboarding completed
   RequestStatus.ONBOARDING_COMPLETED,
