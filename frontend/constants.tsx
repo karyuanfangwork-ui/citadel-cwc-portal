@@ -8,6 +8,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.ACTION_REQUIRED]: { label: 'ACTION REQUIRED', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'warning' },
   [RequestStatus.APPROVED]: { label: 'APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.REJECTED]: { label: 'REJECTED', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.CANCELLED]: { label: 'CANCELLED', color: 'text-gray-700', bg: 'bg-gray-200', icon: 'block' },
   [RequestStatus.RESOLVED]: { label: 'COMPLETED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'task_alt' },
   [RequestStatus.IN_PROGRESS]: { label: 'IN PROGRESS', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'sync' },
   [RequestStatus.WAITING]: { label: 'WAITING', color: 'text-gray-600', bg: 'bg-gray-100', icon: 'hourglass_empty' },

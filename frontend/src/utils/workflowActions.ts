@@ -754,8 +754,8 @@ export function getWorkflowActions(
   }
 
   // ─── Cancel / Reject Request ──────────────────────────────────────────────
-  // Agents and admins can cancel (reject) a request at early stages where
-  // the REJECTED transition is valid — this handles the "wrong ticket" scenario
+  // Agents and admins can cancel a request at early stages where
+  // the CANCELLED transition is valid — this handles the "wrong ticket" scenario
   // where staff submitted an incorrect request and the agent needs to close it out.
   const CANCELLABLE_STATUSES = new Set([
     'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING',
@@ -768,16 +768,16 @@ export function getWorkflowActions(
     actions.push({
       type: 'CANCEL_REQUEST',
       label: 'Cancel Request',
-      description: 'Cancel this request and mark it as rejected. Use when a ticket was submitted in error or is no longer needed.',
+      description: 'Cancel this request as CANCELLED (distinct from REJECTED). Use when a ticket was submitted in error or is no longer needed.',
       variant: 'danger',
     });
   }
   // Admins can cancel from any non-terminal status (broader override)
-  if (isAdmin && !CANCELLABLE_STATUSES.has(status) && status !== 'RESOLVED' && status !== 'REJECTED' && status !== 'COMPLETED' && status !== 'OFFBOARDING_COMPLETED' && status !== 'ONBOARDING_COMPLETED' && status !== 'REIMBURSEMENT_CLOSED' && status !== 'TICKET_CLOSED_FIN' && status !== 'CHARGEBACK_COMPLETED' && status !== 'LOA_REJECTED') {
+  if (isAdmin && !CANCELLABLE_STATUSES.has(status) && status !== 'RESOLVED' && status !== 'REJECTED' && status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'OFFBOARDING_COMPLETED' && status !== 'ONBOARDING_COMPLETED' && status !== 'REIMBURSEMENT_CLOSED' && status !== 'TICKET_CLOSED_FIN' && status !== 'CHARGEBACK_COMPLETED' && status !== 'LOA_REJECTED') {
     actions.push({
       type: 'CANCEL_REQUEST',
       label: 'Cancel Request',
-      description: 'Cancel this request and mark it as rejected. Admin override for any non-terminal status.',
+      description: 'Cancel this request as CANCELLED (distinct from REJECTED). Admin override for any non-terminal status.',
       variant: 'danger',
     });
   }
