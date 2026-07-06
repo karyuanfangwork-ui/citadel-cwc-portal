@@ -43,7 +43,7 @@ export async function notify(options: NotifyOptions): Promise<void> {
     // Resolve the recipient user so we always have {{userName}}
     const recipientUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { firstName: true, lastName: true, email: true },
+      select: { firstName: true, lastName: true, email: true, tenantId: true },
     });
     const userName = recipientUser
       ? `${recipientUser.firstName} ${recipientUser.lastName}`
@@ -129,6 +129,7 @@ export async function notify(options: NotifyOptions): Promise<void> {
     const inAppNotification = await prisma.notification.create({
       data: {
         userId,
+        tenantId: recipientUser?.tenantId ?? '00000000-0000-0000-0000-000000000001',
         channel: 'IN_APP',
         subject: pushSubject,
         body: pushBodyText,
@@ -156,6 +157,7 @@ export async function notify(options: NotifyOptions): Promise<void> {
         await prisma.notification.create({
           data: {
             userId,
+            tenantId: recipientUser?.tenantId ?? '00000000-0000-0000-0000-000000000001',
             channel: 'EMAIL',
             subject: emailSubject,
             body: emailBodyHtml,

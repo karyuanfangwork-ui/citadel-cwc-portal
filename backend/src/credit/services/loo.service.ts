@@ -245,7 +245,7 @@ class LooService {
         applicationNo: true,
         looExpiryDate: true,
         assignedRmId: true,
-        assignedRm: { select: { id: true, firstName: true, lastName: true } },
+        assignedRm: { select: { id: true, firstName: true, lastName: true, tenantId: true } },
         borrowerProfile: { select: { id: true, name: true } },
       },
     });
@@ -267,6 +267,7 @@ class LooService {
         await prisma.notification.create({
           data: {
             userId: app.assignedRmId,
+            tenantId: app.assignedRm.tenantId ?? '00000000-0000-0000-0000-000000000001',
             channel: 'IN_APP',
             subject: `LOO Expiring in ${daysRemaining} Day${daysRemaining > 1 ? 's' : ''}`,
             body: `Letter of Offer for ${borrowerName} (App: ${app.applicationNo ?? app.id.slice(0, 8)}) expires in ${daysRemaining} day${daysRemaining > 1 ? 's' : ''} on ${app.looExpiryDate.toLocaleDateString('en-MY')}. Follow up with the borrower for acceptance.`,
@@ -305,6 +306,7 @@ class LooService {
         await prisma.notification.create({
           data: {
             userId: app.assignedRmId,
+            tenantId: '00000000-0000-0000-0000-000000000001',
             channel: 'IN_APP',
             subject: 'LOO Has Expired',
             body: `Letter of Offer for application ${app.applicationNo ?? app.id.slice(0, 8)} has expired. The borrower must request a new LOO to proceed.`,

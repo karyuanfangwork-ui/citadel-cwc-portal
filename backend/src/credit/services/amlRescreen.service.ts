@@ -253,13 +253,14 @@ class AmlRescreenService {
       // Find compliance officers (users with COMPLIANCE role)
       const complianceOfficers = await prisma.user.findMany({
         where: { roles: { some: { role: { name: 'COMPLIANCE' } } } },
-        select: { id: true },
+        select: { id: true, tenantId: true },
       });
 
       for (const officer of complianceOfficers) {
         await prisma.notification.create({
           data: {
             userId: officer.id,
+            tenantId: officer.tenantId ?? '00000000-0000-0000-0000-000000000001',
             channel: 'IN_APP',
             subject: 'AML Confirmed Hit — Compliance Review Required',
             body: `AML rescreen event ${eventId} has a confirmed hit. Compliance review is required before the application can progress.`,

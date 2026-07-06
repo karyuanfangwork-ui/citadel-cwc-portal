@@ -31,7 +31,7 @@ class RejectionService {
       where: { id: applicationId },
       include: {
         borrowerProfile: { include: { account: true, contact: true } },
-        assignedRm: { select: { id: true, firstName: true, lastName: true, email: true } },
+        assignedRm: { select: { id: true, firstName: true, lastName: true, email: true, tenantId: true } },
       },
     });
     if (!app) return;
@@ -52,6 +52,7 @@ class RejectionService {
       await prisma.notification.create({
         data: {
           userId: app.assignedRmId,
+          tenantId: app.assignedRm.tenantId ?? '00000000-0000-0000-0000-000000000001',
           channel: 'IN_APP',
           subject: 'Application Rejected',
           body: `Application ${app.applicationNo ?? app.id.slice(0, 8)} for ${borrowerName} has been rejected. Reason: ${reasonLabel}${detailText}`,

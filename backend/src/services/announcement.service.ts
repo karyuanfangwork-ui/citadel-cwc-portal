@@ -579,7 +579,7 @@ class AnnouncementService {
 
       // Find users matching the target audience
       const users = targetRoles.length === 0
-        ? await prisma.user.findMany({ where: { isActive: true }, select: { id: true, email: true } })
+        ? await prisma.user.findMany({ where: { isActive: true }, select: { id: true, email: true, tenantId: true } })
         : await prisma.user.findMany({
             where: {
               isActive: true,
@@ -589,7 +589,7 @@ class AnnouncementService {
                 },
               },
             },
-            select: { id: true, email: true },
+            select: { id: true, email: true, tenantId: true },
           });
 
       if (users.length === 0) return;
@@ -598,6 +598,7 @@ class AnnouncementService {
       await prisma.notification.createMany({
         data: users.map(u => ({
           userId: u.id,
+          tenantId: u.tenantId ?? '00000000-0000-0000-0000-000000000001',
           channel: 'IN_APP',
           status: 'PENDING',
           subject: `New announcement: ${title}`,
