@@ -9,17 +9,18 @@ CREATE TABLE IF NOT EXISTS "request_counters" (
 
 -- Insert existing prefixes from current service desks to bootstrap counters
 -- This avoids the need for each prefix to cold-start from a FIND_FIRST query
+-- Note: DB columns use snake_case (reference_number, not referenceNumber)
 INSERT INTO "request_counters" ("prefix", "lastSeq")
 SELECT "code", COALESCE((
     SELECT MAX(
         CASE
-            WHEN "referenceNumber" ~ '^[A-Z]+-[0-9]+$'
-            THEN CAST(SPLIT_PART("referenceNumber", '-', 2) AS INTEGER)
+            WHEN r."reference_number" ~ '^[A-Z]+-[0-9]+$'
+            THEN CAST(SPLIT_PART(r."reference_number", '-', 2) AS INTEGER)
             ELSE 0
         END
     )
     FROM "requests" r
-    WHERE r."referenceNumber" LIKE sd."code" || '-%'
+    WHERE r."reference_number" LIKE sd."code" || '-%'
 ), 0)
 FROM "service_desks" sd
 ON CONFLICT ("prefix") DO NOTHING;
