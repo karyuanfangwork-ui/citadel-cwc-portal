@@ -13,6 +13,7 @@ import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
+import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
 import prisma from '../utils/prisma';
 
@@ -2183,16 +2184,12 @@ class RequestController {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
-        const TERMINAL_STATUSES = [
-            'RESOLVED', 'REJECTED', 'COMPLETED',
-            'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
-            'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
-        ];
+        const isTerminalStatus = CLOSED_STATUSES.includes(status as RequestStatus);
         const request = await prisma.request.update({
             where: { id },
             data: {
                 status: status as RequestStatus,
-                ...(TERMINAL_STATUSES.includes(status) && { closedAt: new Date() }),
+                ...(isTerminalStatus && { closedAt: new Date() }),
                 ...(status === 'COMPLETED' && { completedAt: new Date() }),
             },
             include: {
