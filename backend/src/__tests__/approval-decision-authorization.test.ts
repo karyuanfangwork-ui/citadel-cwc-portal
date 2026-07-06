@@ -27,12 +27,14 @@ vi.mock('../services/entityRouting.service', () => ({ allEntityApprovalsResolved
 vi.mock('../services/reassign.service', () => ({ reassignToTeam: vi.fn() }));
 vi.mock('../services/sla-pause.service', () => ({ pauseSla: vi.fn(), resumeSla: vi.fn() }));
 
-import { ceoDecision, assertDesignatedApprover } from '../controllers/approval.controller';
+import { ceoDecision, groupDceoDecisionHr, assertDesignatedApprover } from '../controllers/approval.controller';
 
 // Use UUID-format IDs so resolveRequestId passes them through without calling findFirst
 const CEO_USER_ID = '00000000-0000-0000-0000-000000000001';
 const IMPOSTOR_USER_ID = '00000000-0000-0000-0000-000000000002';
+const DCEO_USER_ID = '00000000-0000-0000-0000-000000000003';
 const REQ_ID = '00000000-0000-0000-0000-000000000010';
+const REQ_ID_2 = '00000000-0000-0000-0000-000000000011';
 
 function makeRes() {
     const res: any = {};
@@ -144,6 +146,62 @@ describe('ceoDecision authorization', () => {
 
         expect(res.status).not.toHaveBeenCalledWith(403);
         expect(mockPrisma.requestApproval.update).toHaveBeenCalled();
+        expect(mockPrisma.request.update).toHaveBeenCalled();
+    });
+});
+
+describe('groupDceoDecisionHr authorization', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('returns 403 when the caller is not the designated Group Deputy CEO approver', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID_2,
+            referenceNumber: 'HR-2',
+            status: 'PENDING_GROUP_DCEO_APPROVAL',
+            requesterId: 'requester-1',
+            approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
+        });
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: IMPOSTOR_USER_ID,
+            executiveRole: null,
+            roles: [],
+        });
+
+        const req: any = {
+            params: { id: REQ_ID_2 },
+            body: { decision: 'REJECTED', comments: 'nope' },
+            user: { id: IMPOSTOR_USER_ID },
+        };
+        const res = makeRes();
+
+        await groupDceoDecisionHr(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(mockPrisma.requestApproval.update).not.toHaveBeenCalled();
+        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+    });
+
+    it('allows the designated Group Deputy CEO approver to reject', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID_2,
+            referenceNumber: 'HR-2',
+            status: 'PENDING_GROUP_DCEO_APPROVAL',
+            requesterId: 'requester-1',
+            approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
+        });
+        mockPrisma.request.update.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
+        mockPrisma.requestApproval.update.mockResolvedValue({ id: 'appr-2', status: 'REJECTED' });
+
+        const req: any = {
+            params: { id: REQ_ID_2 },
+            body: { decision: 'REJECTED', comments: 'final rejection' },
+            user: { id: DCEO_USER_ID, firstName: 'D', lastName: 'CEO' },
+        };
+        const res = makeRes();
+
+        await groupDceoDecisionHr(req, res);
+
+        expect(res.status).not.toHaveBeenCalledWith(403);
         expect(mockPrisma.request.update).toHaveBeenCalled();
     });
 });

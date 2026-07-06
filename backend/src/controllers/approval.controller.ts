@@ -1059,6 +1059,12 @@ export const groupDceoDecisionHr = async (req: Request, res: Response) => {
             return;
         }
 
+        const authCheck = await assertDesignatedApprover(userId, pendingApproval, 'GROUP_DCEO');
+        if (!authCheck.ok) {
+            res.status(403).json({ status: 'error', message: authCheck.message });
+            return;
+        }
+
         const newStatus = decision === 'APPROVED' ? 'GROUP_DCEO_APPROVED' : 'GROUP_DCEO_REJECTED';
 
         // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
