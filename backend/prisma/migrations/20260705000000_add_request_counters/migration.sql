@@ -1,7 +1,7 @@
 -- P2-11: Atomic reference number counter table
 -- Prevents duplicate reference numbers under concurrent request creation.
 CREATE TABLE IF NOT EXISTS "request_counters" (
-    "id"      SERIAL PRIMARY KEY DEFAULT 1,
+    "id"      INTEGER PRIMARY KEY DEFAULT 1,
     "prefix"  VARCHAR(10) NOT NULL,
     "lastSeq" INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT "request_counters_prefix_key" UNIQUE ("prefix")
