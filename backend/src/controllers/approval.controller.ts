@@ -10,6 +10,39 @@ import prisma from '../utils/prisma';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Verify that `userId` is allowed to act as the approver on a pending executive
+ * approval step: either the explicitly assigned approver, an ADMIN, or — when the
+ * approval was routed generically with no assigned approverId — a user holding the
+ * matching executiveRole.
+ */
+export async function assertDesignatedApprover(
+    userId: string,
+    pendingApproval: { approverId: string | null },
+    requiredExecutiveRole: 'CEO' | 'GROUP_DCEO'
+): Promise<{ ok: true } | { ok: false; message: string }> {
+    if (pendingApproval.approverId === userId) {
+        return { ok: true };
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { roles: { include: { role: true } } },
+    });
+
+    const isAdmin = user?.roles?.some((r: any) => r.role?.name === 'ADMIN') ?? false;
+    if (isAdmin) {
+        return { ok: true };
+    }
+
+    if (!pendingApproval.approverId && user?.executiveRole === requiredExecutiveRole) {
+        return { ok: true };
+    }
+
+    const roleLabel = requiredExecutiveRole === 'GROUP_DCEO' ? 'Group Deputy CEO' : requiredExecutiveRole;
+    return { ok: false, message: `You are not the designated ${roleLabel} approver for this request` };
+}
+
 /** Resolve an id param that may be a UUID or a referenceNumber (e.g. "HR-4") to an actual DB record id (UUID). */
 async function resolveRequestId(idOrRef: string): Promise<string | null> {
     if (UUID_RE.test(idOrRef)) return idOrRef;
@@ -188,6 +221,12 @@ export const ceoDecision = async (req: Request, res: Response) => {
                 status: 'error',
                 message: 'No pending approval found'
             });
+            return;
+        }
+
+        const authCheck = await assertDesignatedApprover(userId, pendingApproval, 'CEO');
+        if (!authCheck.ok) {
+            res.status(403).json({ status: 'error', message: authCheck.message });
             return;
         }
 
