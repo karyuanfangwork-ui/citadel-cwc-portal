@@ -14,6 +14,35 @@
 --   All other 22 models with tenantId
 
 -- =====================================================
+-- 0. Backfill NULL tenant_id rows before adding CHECK constraints
+-- =====================================================
+-- Default tenant UUID (matches seed data)
+-- These are idempotent: WHERE tenant_id IS NULL means they're no-ops on re-run.
+
+UPDATE users SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE requests SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE assets SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE crm_leads SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE crm_accounts SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE crm_opportunities SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE crm_contacts SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE crm_pipelines SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE credit_applications SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE kb_articles SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE notifications SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE announcement_reads SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE onboarding_requests SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE offboarding_requests SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE candidates SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE branches SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE entities SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE service_desks SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE service_categories SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE request_types SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE escalation_rules SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+UPDATE webhook_subscriptions SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
+
+-- =====================================================
 -- 1. CHECK constraints: tenantId must NOT be null for always-tenant-scoped models
 -- =====================================================
 
@@ -42,22 +71,7 @@ ALTER TABLE webhook_subscriptions ADD CONSTRAINT chk_webhook_subscriptions_tenan
 ALTER TABLE request_counters ADD CONSTRAINT chk_request_counters_tenant_id_required CHECK (tenant_id IS NOT NULL);
 
 -- =====================================================
--- 2. BEFORE applying CHECK constraints: set null tenantId rows to a default tenant
---    (Adjust the default tenant UUID to your actual seed tenant)
--- =====================================================
-
--- IMPORTANT: Run these UPDATE statements ONLY if there are existing null rows.
--- Replace '00000000-0000-0000-0000-000000000001' with your real default tenant ID.
-
--- SET statements commented out by default — uncomment and adjust after verifying
--- which rows have null tenant_id:
--- UPDATE users SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
--- UPDATE requests SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
--- UPDATE assets SET tenant_id = '00000000-0000-0000-0000-000000000001' WHERE tenant_id IS NULL;
--- (etc. for each model above)
-
--- =====================================================
--- 3. Composite tenant-first indexes for high-frequency queries
+-- 2. Composite tenant-first indexes for high-frequency queries
 -- =====================================================
 
 -- Requests: tenant + status (agent dashboard, list filters)
@@ -90,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs (tenant_i
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_articles_tenant_published ON kb_articles (tenant_id, is_published);
 
 -- =====================================================
--- 4. P2-09: Tenant-local unique constraints
+-- 3. P2-09: Tenant-local unique constraints
 -- =====================================================
 
 -- Drop global unique constraints that conflict with multi-tenancy
