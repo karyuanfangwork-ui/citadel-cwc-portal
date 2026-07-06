@@ -2156,7 +2156,7 @@ class RequestController {
         const idOrRef = String(req.params.id);
         const id = await resolveRequestId(idOrRef);
         if (!id) throw new AppError('Request not found', 404);
-        const { status } = req.body;
+        const { status, comment } = req.body;
 
         // Fetch current request to validate transition
         const currentRequest = await prisma.request.findUnique({
@@ -2183,6 +2183,11 @@ class RequestController {
         if (!(await isValidTransition(currentRequest.status, status))) {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
+
+        if (status === 'REJECTED' && !String(comment || '').trim()) {
+            throw new AppError('A rejection reason is required', 400);
+        }
+        const sanitizedComment = comment ? sanitizeComment(String(comment)) : undefined;
 
         const isTerminalStatus = CLOSED_STATUSES.includes(status as RequestStatus);
         const request = await prisma.request.update({
@@ -2222,9 +2227,13 @@ class RequestController {
                 authorId: req.user!.id,
                 authorName: 'System',
                 activityType: 'STATUS_CHANGE',
-                message: `Status changed to ${status}`,
+                message: sanitizedComment
+                    ? `Status changed to ${status}: ${sanitizedComment}`
+                    : `Status changed to ${status}`,
                 isSystemGenerated: true,
-                metadata: { newStatus: status },
+                metadata: sanitizedComment
+                    ? { newStatus: status, comment: sanitizedComment }
+                    : { newStatus: status },
             },
         });
 
@@ -2261,6 +2270,7 @@ class RequestController {
         await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
             newStatus: status,
             referenceNumber: request.referenceNumber,
+            ...(sanitizedComment && { comment: sanitizedComment }),
         }, {
             oldStatus: currentRequest.status,
         });

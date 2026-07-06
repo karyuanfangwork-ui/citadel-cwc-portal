@@ -36,6 +36,8 @@ import { requestController } from '../controllers/request.controller';
 
 const REQ_ID = '00000000-0000-0000-0000-000000000003';
 const REQ_ID_2 = '00000000-0000-0000-0000-000000000004';
+const REQ_ID_3 = '00000000-0000-0000-0000-000000000005';
+const REQ_ID_4 = '00000000-0000-0000-0000-000000000006';
 
 function makeResWithDone() {
     let resolveResponse!: () => void;
@@ -127,5 +129,74 @@ describe('updateStatus terminal-status handling', () => {
         expect(mockPrisma.request.update).toHaveBeenCalled();
         const callArg = mockPrisma.request.update.mock.calls[0][0];
         expect(callArg.data.closedAt).toBeUndefined();
+    });
+});
+
+describe('updateStatus rejection comment requirement', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('rejects with 400 when status is REJECTED and no comment is provided', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID_3,
+            status: 'SUBMITTED',
+            serviceDesk: { code: 'IT' },
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-5',
+        });
+
+        const { res, responseDone } = makeResWithDone();
+        const { next, nextDone } = makeNextWithDone();
+        const req: any = {
+            params: { id: REQ_ID_3 },
+            body: { status: 'REJECTED' },
+            user: { id: 'agent-1', roles: ['AGENT'], agentTeam: 'IT' },
+        };
+
+        requestController.updateStatus(req, res, next);
+        await Promise.race([responseDone, nextDone]);
+
+        expect(next).toHaveBeenCalledWith(expect.objectContaining({
+            message: expect.stringMatching(/reason/i),
+        }));
+        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts REJECTED with a comment and stores it on the activity log', async () => {
+        mockPrisma.request.findUnique.mockResolvedValue({
+            id: REQ_ID_4,
+            status: 'SUBMITTED',
+            serviceDesk: { code: 'IT' },
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-6',
+        });
+        mockPrisma.request.update.mockResolvedValue({
+            id: REQ_ID_4,
+            requesterId: 'requester-1',
+            referenceNumber: 'IT-6',
+            status: 'REJECTED',
+        });
+
+        const { res, responseDone } = makeResWithDone();
+        const { next, nextDone } = makeNextWithDone();
+        const req: any = {
+            params: { id: REQ_ID_4 },
+            body: { status: 'REJECTED', comment: 'Duplicate of IT-2' },
+            user: { id: 'agent-1', roles: ['AGENT'], agentTeam: 'IT' },
+        };
+
+        requestController.updateStatus(req, res, next);
+        await Promise.race([responseDone, nextDone]);
+
+        if (next.mock.calls.length > 0 && next.mock.calls[0][0]) {
+            throw next.mock.calls[0][0];
+        }
+
+        expect(mockPrisma.requestActivity.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    message: expect.stringContaining('Duplicate of IT-2'),
+                }),
+            })
+        );
     });
 });
