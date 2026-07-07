@@ -235,15 +235,6 @@ const CrmLeads = () => {
     return result;
   }, [leads, prioritySort, sortConfig]);
 
-  // Derived stats for metric cards + sidebar
-  const statsBar = useMemo(() => {
-    const todayLeads = leads.filter(l => isToday(l.createdAt)).length;
-    const pendingFollowUps = leads.filter(l => l.followUpDate && (isToday(l.followUpDate) || isOverdue(l.followUpDate))).length;
-    const converted = leads.filter(l => l.status === 'CONVERTED').length;
-    const convRate = leads.length > 0 ? ((converted / leads.length) * 100).toFixed(1) : '0.0';
-    return { todayLeads, pendingFollowUps, convRate };
-  }, [leads]);
-
   const hotLeads = useMemo(() =>
     leads.filter(l => (l.aiScore ?? 0) >= 80 && l.status !== 'CONVERTED' && l.status !== 'LOST').slice(0, 5),
   [leads]);
@@ -258,10 +249,6 @@ const CrmLeads = () => {
 
   const convertedCount = useMemo(() =>
     leads.filter(l => l.status === 'CONVERTED').length,
-  [leads]);
-
-  const priorityCalls = useMemo(() =>
-    leads.filter(l => l.followUpDate && (isToday(l.followUpDate) || isOverdue(l.followUpDate))).slice(0, 5),
   [leads]);
 
   const clearFilterParam = () => {
@@ -472,11 +459,8 @@ const CrmLeads = () => {
             </div>
           </div>
 
-          {/* ── Two-column layout ── */}
-          <div className="flex flex-col lg:flex-row gap-4">
-
-            {/* ── Left Column: Primary View ── */}
-            <div className="flex-1 min-w-0 space-y-6">
+          {/* ── Main View ── */}
+          <div className="space-y-6">
 
               {/* ── Filter bar — Kinetic Enterprise card ── */}
               <div className="bg-white p-4 rounded-xl border border-[#e2e8f0] shadow-sm flex flex-wrap items-end gap-4">
@@ -813,97 +797,7 @@ const CrmLeads = () => {
             )}
           </div>
 
-            </div>{/* ── End Left Column ── */}
-
-            {/* ── Right Column: Daily Activities Sidebar ── */}
-            <div className="lg:w-80 flex-shrink-0 space-y-4">
-
-              {/* Upcoming Meetings (stub) */}
-              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Upcoming Meetings</h3>
-                  <span className="material-symbols-outlined text-[#45464d]" style={{ fontSize: 20 }}>calendar_month</span>
-                </div>
-                <div className="flex flex-col items-center py-6 text-center">
-                  <span className="material-symbols-outlined mb-2" style={{ fontSize: 32, color: '#d3e4fe' }}>event_available</span>
-                  <p style={{ fontSize: 13, color: '#45464d' }}>No meetings scheduled for today</p>
-                </div>
-              </section>
-
-              {/* Priority Calls */}
-              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Priority Calls</h3>
-                  <span className="bg-[#ffdad6] text-[#93000a] px-2 py-0.5 rounded font-bold" style={{ fontSize: 11 }}>{priorityCalls.length}</span>
-                </div>
-                {priorityCalls.length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#76777d' }}>No priority calls today</p>
-                ) : (
-                  <div className="space-y-3">
-                    {priorityCalls.slice(0, 5).map(lead => {
-                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-                      return (
-                        <div key={lead.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors cursor-pointer" onClick={() => navigate(`/crm/leads/${lead.id}`)}>
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: '#ffdad6', color: '#93000a' }}>{initials}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[#0b1c30] text-[13px] truncate">{lead.title}</p>
-                            <p style={{ fontSize: 12, color: '#45464d' }}>{lead.companyName || lead.source?.replace(/_/g, ' ') || 'Lead'}</p>
-                          </div>
-                          <span className="material-symbols-outlined text-[#006a61]" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>phone_in_talk</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-
-              {/* Overdue Tasks */}
-              <section className="bg-white border border-[#e2e8f0] rounded-lg p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0b1c30', fontFamily: 'Inter, sans-serif' }}>Overdue Tasks</h3>
-                  <span className="bg-[#ffdad6] text-[#93000a] px-2 py-0.5 rounded font-bold" style={{ fontSize: 11 }}>{overdueLeads.length}</span>
-                </div>
-                {overdueLeads.length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#76777d' }}>All tasks up to date!</p>
-                ) : (
-                  <div className="space-y-3">
-                    {overdueLeads.slice(0, 5).map(lead => {
-                      const initials = lead.title.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-                      return (
-                        <div key={lead.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors cursor-pointer" onClick={() => navigate(`/crm/leads/${lead.id}`)}>
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ background: '#ffdad6', color: '#93000a' }}>{initials}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[#0b1c30] text-[13px] truncate">{lead.title}</p>
-                            <p style={{ fontSize: 12, color: '#93000a' }}>Due: {lead.followUpDate ? formatShortDate(lead.followUpDate) : 'N/A'}</p>
-                          </div>
-                          <span className="material-symbols-outlined text-[#ba1a1a]" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>warning</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-
-              {/* Team Target */}
-              <section className="rounded-lg p-5 text-white" style={{ background: TEAL }}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'Inter, sans-serif' }}>Team Target</h3>
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>target</span>
-                </div>
-                <div className="mb-3">
-                  <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'Inter, sans-serif', lineHeight: '32px' }}>
-                    {convertedCount}<span style={{ fontSize: 16, fontWeight: 400, opacity: 0.8 }}> / 20</span>
-                  </p>
-                  <p style={{ fontSize: 12, opacity: 0.8 }}>leads converted this month</p>
-                </div>
-                <div className="w-full bg-white/20 rounded-full h-2 mb-2">
-                  <div className="bg-white rounded-full h-2 transition-all duration-500" style={{ width: `${Math.min(100, (convertedCount / 20) * 100)}%` }} />
-                </div>
-                <p style={{ fontSize: 12, opacity: 0.8 }}>{Math.round((convertedCount / 20) * 100)}% of monthly target</p>
-              </section>
-
-            </div>{/* ── End Right Column ── */}
-          </div>{/* ── End Two-Column Layout ── */}
+          </div>{/* ── End Main View ── */}
 
         </div>
       </div>
