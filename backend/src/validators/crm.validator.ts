@@ -101,6 +101,7 @@ const leadBodySchema = z.object({
   contactEmail: z.string().email().max(255).optional().or(z.literal('')),
   contactPhone: z.string().max(50).optional(),
   companyName: z.string().max(255).optional(),
+  industry: z.string().max(100).optional(),
   estimatedValue: z.coerce.number().nonnegative().optional(),
   description: z.string().optional(),
   followUpDate: z.string().optional(),

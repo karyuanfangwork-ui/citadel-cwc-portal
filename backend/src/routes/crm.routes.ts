@@ -225,4 +225,8 @@ router.get('/tag-assignments', requirePermission('crm:read'), crmController.getE
 // Field-level change history
 router.get('/field-changes', requirePermission('crm:read'), crmController.getFieldChanges);
 
+// ======== INDUSTRY OPTIONS (configurable) ========
+router.get('/industry-options', requirePermission('crm:read'), crmController.getIndustryOptions);
+router.put('/industry-options', requirePermission('crm:admin'), crmController.setIndustryOptions);
+
 export default router;

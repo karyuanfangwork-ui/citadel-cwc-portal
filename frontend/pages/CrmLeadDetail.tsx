@@ -12,6 +12,7 @@ import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
 import { useAnalyzeNote, useDraftMessage, useLeadSummary, useLeadScore, useNextBestAction } from '../src/hooks/useCrmAi';
+import { INDUSTRY_OPTIONS, INDUSTRY_LABELS, fetchIndustryOptions } from '../src/components/crm/crmConstants';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -50,6 +51,10 @@ const CrmLeadDetail = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+  const [industryOptions, setIndustryOptions] = useState<{ value: string; label: string }[]>([...INDUSTRY_OPTIONS]);
+
+  // Fetch dynamic industry options on mount
+  useEffect(() => { fetchIndustryOptions().then(setIndustryOptions); }, []);
 
   // ── Activity pagination state ─────────────────────────────────────
   const [activityPage, setActivityPage] = useState(1);
@@ -282,6 +287,7 @@ const CrmLeadDetail = () => {
       contactEmail: lead.contactEmail ?? '',
       contactPhone: lead.contactPhone ?? '',
       companyName: lead.companyName ?? '',
+      industry: (lead.account as any)?.industry ?? '',
       source: lead.source ?? 'OTHER',
       estimatedValue: lead.estimatedValue ?? '',
       description: lead.description ?? '',
@@ -309,6 +315,8 @@ const CrmLeadDetail = () => {
       for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'description', 'followUpNote']) {
         if (editForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
       }
+      // Industry lives on CrmAccount, not CrmLead — always send it so the backend can update/create the account
+      payload.industry = editForm.industry ?? '';
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
       await crmService.updateLead(id, payload);
       setShowEdit(false);
@@ -867,7 +875,7 @@ const CrmLeadDetail = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Industry</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{(lead.account as any)?.industry || 'Not specified'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{(lead.account as any)?.industry ? INDUSTRY_LABELS[(lead.account as any).industry] || (lead.account as any).industry.replace(/_/g, ' ') : 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Lead Source</p>
@@ -893,7 +901,13 @@ const CrmLeadDetail = () => {
               {lead.followUpNote ? (
                 <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Note</p>
-                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.followUpNote}</p>
+                  <div className="text-[13px] leading-relaxed text-[#45464d] [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5 [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-base [&_h1]:font-bold [&_h1]:my-2 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-[#006a61]/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:opacity-70">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
+                      }}
+                    >{lead.followUpNote}</ReactMarkdown>
+                  </div>
                 </div>
               ) : null}
               {lead.lostReason ? (
@@ -1428,6 +1442,16 @@ const CrmLeadDetail = () => {
                   <input value={editForm.companyName ?? ''} onChange={e => setEditForm(f => ({ ...f, companyName: e.target.value }))}
                     className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Industry</label>
+                  <select value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Not specified</option>
+                    {industryOptions.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1481,12 +1505,11 @@ const CrmLeadDetail = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Follow-up Note</label>
-                <input value={editForm.followUpNote ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpNote: e.target.value }))}
-                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
+                <textarea rows={5} value={editForm.followUpNote ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpNote: e.target.value }))}
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Qualification Notes</label>
-                <p className="text-[11px] text-[#45464d] opacity-60 mb-1.5">Supports markdown — use **bold**, - bullets, 1. numbering, or line breaks for formatting.</p>
                 <textarea rows={5} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
               </div>

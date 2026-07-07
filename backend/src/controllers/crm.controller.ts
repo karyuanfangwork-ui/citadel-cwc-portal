@@ -532,7 +532,7 @@ class CrmController {
       where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
       include: {
         owner: { select: userSelect },
-        account: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true, industry: true } },
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
         notes: { include: { author: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
@@ -636,10 +636,25 @@ class CrmController {
     });
     if (!existing) throw new AppError('Lead not found', 404);
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
-    const { followUpDate, ...rest } = req.body;
+    const { followUpDate, industry, ...rest } = req.body;
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
-    const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect } } });
+    // Handle industry — stored on CrmAccount, not CrmLead
+    if (industry !== undefined) {
+      delete data.industry; // Don't try to write industry to CrmLead
+      if (existing.accountId) {
+        // Update existing account's industry
+        await prisma.crmAccount.update({ where: { id: existing.accountId }, data: { industry: industry || null } });
+      } else if (industry) {
+        // No account yet — create one from the lead's company name
+        const accountName = rest.companyName || existing.companyName || existing.contactName || 'Unnamed Account';
+        const account = await prisma.crmAccount.create({
+          data: { name: accountName, industry, ownerId: existing.ownerId, tenantId: existing.tenantId },
+        });
+        data.accountId = account.id;
+      }
+    }
+    const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect }, account: { select: { id: true, name: true, industry: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
     // Emit workflow event if status changed
@@ -2406,6 +2421,59 @@ class CrmController {
         followUpRequired: followUpContacts,
       },
     });
+  });
+
+  // ── Industry Options (configurable list stored in SystemSetting) ─────────────
+  private static INDUSTRY_KEY = 'crm_industry_options';
+  private static DEFAULT_INDUSTRIES = [
+    { value: 'MANUFACTURING', label: 'Manufacturing' },
+    { value: 'RETAIL_TRADE', label: 'Retail Trade' },
+    { value: 'CONSTRUCTION', label: 'Construction' },
+    { value: 'TECHNOLOGY', label: 'Technology' },
+    { value: 'FINANCIAL_SERVICES', label: 'Financial Services' },
+    { value: 'WHOLESALE_TRADE', label: 'Wholesale Trade' },
+    { value: 'TRANSPORTATION', label: 'Transportation & Storage' },
+    { value: 'ACCOMMODATION', label: 'Accommodation & Food Services' },
+    { value: 'PROFESSIONAL_SERVICES', label: 'Professional Services' },
+    { value: 'OTHER_SERVICES', label: 'Other Services' },
+  ];
+  private static industryCache: { data: { value: string; label: string }[]; ts: number } | null = null;
+  private static CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+  getIndustryOptions = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const now = Date.now();
+    if (CrmController.industryCache && (now - CrmController.industryCache.ts) < CrmController.CACHE_TTL) {
+      res.json({ success: true, data: CrmController.industryCache.data });
+      return;
+    }
+    const setting = await prisma.systemSetting.findUnique({ where: { key: CrmController.INDUSTRY_KEY } });
+    let options: { value: string; label: string }[];
+    if (setting?.value) {
+      try { options = JSON.parse(setting.value); } catch { options = CrmController.DEFAULT_INDUSTRIES; }
+    } else {
+      options = CrmController.DEFAULT_INDUSTRIES;
+    }
+    CrmController.industryCache = { data: options, ts: now };
+    res.json({ success: true, data: options });
+  });
+
+  setIndustryOptions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { options } = req.body as { options: { value: string; label: string }[] };
+    if (!Array.isArray(options) || options.some(o => typeof o.value !== 'string' || typeof o.label !== 'string')) {
+      throw new AppError('options must be an array of { value: string, label: string }', 400);
+    }
+    // Validate no duplicate values
+    const values = options.map(o => o.value);
+    if (new Set(values).size !== values.length) {
+      throw new AppError('Duplicate industry values are not allowed', 400);
+    }
+    await prisma.systemSetting.upsert({
+      where: { key: CrmController.INDUSTRY_KEY },
+      create: { key: CrmController.INDUSTRY_KEY, value: JSON.stringify(options) },
+      update: { value: JSON.stringify(options) },
+    });
+    CrmController.industryCache = { data: options, ts: Date.now() };
+    res.json({ success: true, data: options });
   });
 }
 

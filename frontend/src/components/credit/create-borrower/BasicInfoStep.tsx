@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import creditService from '../../../services/credit.service';
+import { INDUSTRY_OPTIONS as BASE_INDUSTRY_OPTIONS, fetchIndustryOptions } from '../../crm/crmConstants';
 
 type BorrowerType = 'INDIVIDUAL' | 'CORPORATE' | 'SOLE_PROPRIETOR';
 
@@ -105,19 +106,7 @@ export const initialFormData = (): FormData => ({
   documents: [],
 });
 
-const INDUSTRY_OPTIONS = [
-  { value: '', label: 'Select industry...' },
-  { value: 'MANUFACTURING', label: 'Manufacturing' },
-  { value: 'RETAIL_TRADE', label: 'Retail Trade' },
-  { value: 'CONSTRUCTION', label: 'Construction' },
-  { value: 'TECHNOLOGY', label: 'Technology' },
-  { value: 'FINANCIAL_SERVICES', label: 'Financial Services' },
-  { value: 'WHOLESALE_TRADE', label: 'Wholesale Trade' },
-  { value: 'TRANSPORTATION', label: 'Transportation & Storage' },
-  { value: 'ACCOMMODATION', label: 'Accommodation & Food Services' },
-  { value: 'PROFESSIONAL_SERVICES', label: 'Professional Services' },
-  { value: 'OTHER_SERVICES', label: 'Other Services' },
-];
+const INDUSTRY_DEFAULTS = [{ value: '', label: 'Select industry...' }, ...BASE_INDUSTRY_OPTIONS];
 
 const SEGMENT_TAGS: Record<BorrowerType, string> = {
   INDIVIDUAL: 'Retail Fields Loaded',
@@ -174,6 +163,14 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
   const isIndividual = formData.borrowerType === 'INDIVIDUAL';
   const isCorporateType = formData.borrowerType === 'CORPORATE' || formData.borrowerType === 'SOLE_PROPRIETOR';
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [industryOptions, setIndustryOptions] = useState(INDUSTRY_DEFAULTS);
+
+  // Fetch dynamic industry options on mount
+  useEffect(() => {
+    fetchIndustryOptions().then(opts => {
+      setIndustryOptions([{ value: '', label: 'Select industry...' }, ...opts]);
+    });
+  }, []);
 
   // Malaysian NRIC format: XXXXXX-XX-XXXX (6 digits - 2 digits - 4 digits)
   // Passport: alphanumeric, min 5 chars
@@ -589,7 +586,7 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
               onFocus={e => { e.currentTarget.style.borderColor = 'var(--cr-secondary, #0051d5)'; e.currentTarget.style.boxShadow = '0 0 0 1px var(--cr-secondary, #0051d5)'; }}
               onBlur={e => { e.currentTarget.style.borderColor = 'var(--cr-outline-variant, #c6c6cd)'; e.currentTarget.style.boxShadow = 'none'; }}
             >
-              {INDUSTRY_OPTIONS.map(opt => (
+              {industryOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>

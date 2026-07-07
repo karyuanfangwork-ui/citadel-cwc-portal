@@ -1,8 +1,8 @@
 # ESM Implementation Progress Tracker
 
-Last updated: 2026-07-07
+Last updated: 2026-07-07 00:12 +08
 Branch: dev2.0
-Commit: 84ba59c
+Commit: d58f852
 
 Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Partial
 
@@ -104,14 +104,14 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 |----|------|--------|--------|-------|
 | P3-01 | Add /health/live and /health/ready | ✅ | 827aef8 | Liveness (200) + readiness (DB + Redis check). 3 tests. |
 | P3-02 | Add request correlation ID middleware | ✅ | 827aef8 | `correlationId.middleware.ts`, X-Correlation-ID, 4 tests. |
-|| P3-03 | Add metrics endpoint | ✅ | — | Prometheus `/metrics` via prom-client; HTTP duration histogram + request counter + Node.js defaults; gated by METRICS_ENABLED. 3 tests. |
-|| P3-04 | Add queue monitoring/admin route | ✅ | — | `GET /admin/queues` — BullMQ credit + PDF queue stats; admin:access gated. 1 test. |
-|| P3-05 | Add scheduler distributed lock or singleton mode | ✅ | — | `schedulerLock.service.ts` — Redis SETNX with TTL + Lua release; SCHEDULER_SINGLETON_MODE env; graceful fallback. 4 tests. |
-|| P3-06 | Split runtime docs: API vs worker vs scheduler | ✅ | — | `docs/runtime-modes.md` — 3 modes, env vars, Docker, scaling, port summary. |
-|| P3-07 | Extend backup script for restore test | ✅ | 827aef8 | `scripts/verify-backup.sh` — 5-step verification |
-|| P3-08 | Add object storage backup plan | ✅ | 827aef8 | `scripts/backup-db.sh` extended with S3 sync + `docs/backup-restore-policy.md` |
-|| P3-09 | Add first load-test scripts | ✅ | — | `scripts/load/baseline-load-test.js` — Node.js zero-dep load test for health/metrics endpoints. |
-|| P3-10 | Add CI/CD hardening checklist | ✅ | — | `docs/cicd-hardening-checklist.md` — 9-section pre-deployment verification checklist. |
+| P3-03 | Add metrics endpoint | ✅ | — | Prometheus `/metrics` via prom-client; HTTP duration histogram + request counter + Node.js defaults; gated by METRICS_ENABLED. 3 tests. |
+| P3-04 | Add queue monitoring/admin route | ✅ | — | `GET /admin/queues` — BullMQ credit + PDF queue stats; admin:access gated. 1 test. |
+| P3-05 | Add scheduler distributed lock or singleton mode | ✅ | — | `schedulerLock.service.ts` — Redis SETNX with TTL + Lua release; SCHEDULER_SINGLETON_MODE env; graceful fallback. 4 tests. |
+| P3-06 | Split runtime docs: API vs worker vs scheduler | ✅ | — | `docs/runtime-modes.md` — 3 modes, env vars, Docker, scaling, port summary. |
+| P3-07 | Extend backup script for restore test | ✅ | 827aef8 | `scripts/verify-backup.sh` — 5-step verification |
+| P3-08 | Add object storage backup plan | ✅ | 827aef8 | `scripts/backup-db.sh` extended with S3 sync + `docs/backup-restore-policy.md` |
+| P3-09 | Add first load-test scripts | ✅ | — | `scripts/load/baseline-load-test.js` — Node.js zero-dep load test for health/metrics endpoints. |
+| P3-10 | Add CI/CD hardening checklist | ✅ | — | `docs/cicd-hardening-checklist.md` — 9-section pre-deployment verification checklist. |
 
 ---
 
@@ -120,16 +120,16 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
 | P4-01 | Fix mobile drawer nav group mismatch | ✅ | 827aef8 | Groups now match `navConfig.ts` |
-|| P4-02 | Remove or route unused ApprovalQueue | ✅ | — | Dead import removed from App.tsx; file kept for reference |
-|| P4-03 | Add visible error state to Reports | ✅ | — | Error banner + retry, `friendlyMessage` integration |
-|| P4-04 | Add visible error state to AgentDashboard | ✅ | — | Inline error banner + retry button |
-|| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ✅ | — | Error state + retry, no longer silently empty |
-|| P4-06 | Make MyRequests rows keyboard accessible | ✅ | — | `tabIndex=0 role=link aria-label onKeyDown focus-visible:ring` |
-|| P4-07 | Make AgentDashboard rows keyboard accessible | ✅ | — | Same pattern as P4-06 |
-|| P4-08 | Make KB cards semantic links/buttons | ✅ | — | `role=link tabIndex=0 aria-label onKeyDown focus-visible:ring` |
-|| P4-09 | Add aria-current to active nav links | ✅ | 827aef8 | LeftRail + MobileDrawer |
-|| P4-10 | Dark-mode token cleanup for top 5 screens | ✅ | — | 90 dark: tokens added across Dashboard, MyRequests, AgentDashboard, KnowledgeBase, Reports |
-|| P4-11 | Playwright/axe accessibility smoke tests | ✅ | — | Playwright + @axe-core/playwright; 5-screen a11y audit + route smoke tests; `npm run test:e2e:a11y` |
+| P4-02 | Remove or route unused ApprovalQueue | ✅ | — | Dead import removed from App.tsx; file kept for reference |
+| P4-03 | Add visible error state to Reports | ✅ | — | Error banner + retry, `friendlyMessage` integration |
+| P4-04 | Add visible error state to AgentDashboard | ✅ | — | Inline error banner + retry button |
+| P4-05 | Fix UnifiedInbox failure-as-empty behavior | ✅ | — | Error state + retry, no longer silently empty |
+| P4-06 | Make MyRequests rows keyboard accessible | ✅ | — | `tabIndex=0 role=link aria-label onKeyDown focus-visible:ring` |
+| P4-07 | Make AgentDashboard rows keyboard accessible | ✅ | — | Same pattern as P4-06 |
+| P4-08 | Make KB cards semantic links/buttons | ✅ | — | `role=link tabIndex=0 aria-label onKeyDown focus-visible:ring` |
+| P4-09 | Add aria-current to active nav links | ✅ | 827aef8 | LeftRail + MobileDrawer |
+| P4-10 | Dark-mode token cleanup for top 5 screens | ✅ | — | 90 dark: tokens added across Dashboard, MyRequests, AgentDashboard, KnowledgeBase, Reports |
+| P4-11 | Playwright/axe accessibility smoke tests | ✅ | — | Playwright + @axe-core/playwright; 5-screen a11y audit + route smoke tests; `npm run test:e2e:a11y` |
 
 ---
 
@@ -137,13 +137,13 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-|| P5-01 | Add catalog item owner, lifecycle status, review date | ✅ | — | CatalogLifecycleStatus enum (DRAFT/PUBLISHED/DEPRECATED/RETIRED); ownerId, lifecycleStatus, reviewDate on RequestType; portal filters PUBLISHED only; admin sees all; validator + controller + service updated; migration created |
-|| P5-02 | Add catalog entitlement/audience rules | ✅ | — | CatalogEntitlement model (targetType: ROLE/DEPARTMENT/ENTITY/ALL); service + controller + routes; portal filtering by entitlement; entityId added to AuthRequest; Zod validation; tests |
-|| P5-03 | Add catalog item detail page | ✅ | — | CatalogItemDetail modal: lifecycle badge+transitions, owner/reviewDate/SLA, entitlement rules list with delete; shield button in ServiceDesksTab; wired in AdminSettings |
-|| P5-04 | Version dynamic form config | ✅ | — | formConfigVersion on RequestType (auto-increment on update); formConfigSnapshot + formConfigVersion on Request (preserved at submission); frontend prefers snapshot; PDF service prefers snapshot; migration backfill |
-|| P5-05 | Define conditional-field rule format | ✅ | — | showWhen ConditionalRule spec; Zod validation in serviceDesk.validator.ts; FormBuilder UI editor with field selector, operator, value; conditional badge in preview; backend conditionalRules.service.ts (self-ref, circular dep, invalid ref validators); frontend evaluateShowWhile/filterVisibleFields runtime evaluator; spec doc at docs/plans/esm/conditional-field-rules.md |
-|| P5-06 | Build generic approval policy model | ✅ | — | ApprovalPolicy + ApprovalPolicyStep models (Prisma); PolicyApproverType enum (ROLE/DEPARTMENT/ENTITY/USER/TEAM/AUTO); RequestApproval gains policyId + stepOrder; approvalPolicy.service.ts (CRUD + resolvePolicy + createApprovalsFromPolicy); controller + routes at /admin/approval-policies; migration SQL; tests |
-|| P5-07 | Migrate one finance approval path to policy engine | ✅ | — | Expense claim approval (Manager→CFO) migrated to ApprovalPolicy engine; request creation uses createApprovalsFromPolicy with fallback; managerApproveExpense + financeHeadApproveExpense update policy records instead of creating duplicates; seed migration for EXPENSE_CLAIM policy |
+| P5-01 | Add catalog item owner, lifecycle status, review date | ✅ | — | CatalogLifecycleStatus enum (DRAFT/PUBLISHED/DEPRECATED/RETIRED); ownerId, lifecycleStatus, reviewDate on RequestType; portal filters PUBLISHED only; admin sees all; validator + controller + service updated; migration created |
+| P5-02 | Add catalog entitlement/audience rules | ✅ | — | CatalogEntitlement model (targetType: ROLE/DEPARTMENT/ENTITY/ALL); service + controller + routes; portal filtering by entitlement; entityId added to AuthRequest; Zod validation; tests |
+| P5-03 | Add catalog item detail page | ✅ | — | CatalogItemDetail modal: lifecycle badge+transitions, owner/reviewDate/SLA, entitlement rules list with delete; shield button in ServiceDesksTab; wired in AdminSettings |
+| P5-04 | Version dynamic form config | ✅ | — | formConfigVersion on RequestType (auto-increment on update); formConfigSnapshot + formConfigVersion on Request (preserved at submission); frontend prefers snapshot; PDF service prefers snapshot; migration backfill |
+| P5-05 | Define conditional-field rule format | ✅ | — | showWhen ConditionalRule spec; Zod validation in serviceDesk.validator.ts; FormBuilder UI editor with field selector, operator, value; conditional badge in preview; backend conditionalRules.service.ts (self-ref, circular dep, invalid ref validators); frontend evaluateShowWhile/filterVisibleFields runtime evaluator; spec doc at docs/plans/esm/conditional-field-rules.md |
+| P5-06 | Build generic approval policy model | ✅ | — | ApprovalPolicy + ApprovalPolicyStep models (Prisma); PolicyApproverType enum (ROLE/DEPARTMENT/ENTITY/USER/TEAM/AUTO); RequestApproval gains policyId + stepOrder; approvalPolicy.service.ts (CRUD + resolvePolicy + createApprovalsFromPolicy); controller + routes at /admin/approval-policies; migration SQL; tests |
+| P5-07 | Migrate one finance approval path to policy engine | ✅ | — | Expense claim approval (Manager→CFO) migrated to ApprovalPolicy engine; request creation uses createApprovalsFromPolicy with fallback; managerApproveExpense + financeHeadApproveExpense update policy records instead of creating duplicates; seed migration for EXPENSE_CLAIM policy |
 | P5-08 | Add approval delegation/fallback/reminders | ✅ | — | RequestApproval extended with delegation/reminders/timeout fields; ApprovalDelegation + ApprovalReminder models; delegation API (POST/GET); timeout checker auto-rejects overdue approvals; reminder scheduler (24h/48h/72h escalation); dueAt set from policy step timeoutHours; SLA checker integrated |
 
 ---
@@ -152,9 +152,9 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-|| P6-01 | Inventory all direct status updates | ✅ | — | Full trace: `docs/plans/esm/P6-01-direct-status-trace.md` — 13 files, ~58 direct `prisma.request.update` calls, only generic handler validates transitions |
-|| P6-02 | Compare hardcoded transitions vs WorkflowTransition seed | ✅ | — | Full comparison: `docs/plans/esm/P6-02-transition-comparison.md` — 28 gaps, 9 orphan statuses, LOA_REJECTED bug, 34 untested map entries |
-|| P6-03 | Add central transition service for core ESM requests | ✅ | — | 3 deliverables: (1) LOA_REJECTED added to enum, (2) VALID_TRANSITIONS map + seed-esm-transitions.ts (163 transitions), (3) requestTransition.service.ts with validation/guards/SLA/audit/notifications |
+| P6-01 | Inventory all direct status updates | ✅ | — | Full trace: `docs/plans/esm/P6-01-direct-status-trace.md` — 13 files, ~58 direct `prisma.request.update` calls, only generic handler validates transitions |
+| P6-02 | Compare hardcoded transitions vs WorkflowTransition seed | ✅ | — | Full comparison: `docs/plans/esm/P6-02-transition-comparison.md` — 28 gaps, 9 orphan statuses, LOA_REJECTED bug, 34 untested map entries |
+| P6-03 | Add central transition service for core ESM requests | ✅ | — | 3 deliverables: (1) LOA_REJECTED added to enum, (2) VALID_TRANSITIONS map + seed-esm-transitions.ts (163 transitions), (3) requestTransition.service.ts with validation/guards/SLA/audit/notifications |
 | P6-04 | Add transition guards/preconditions | ✅ | — | 8 guard categories: comment-required (14 rejection targets), IT assignment, service-desk, CEO/CTO/CFO/Group DCEO/Hiring Mgr role checks, LOA preconditions (approved+signed), onboarding task completion, offboarding phase+task guards; 28/28 tests |
 | P6-05 | Migrate IT workflow actions incrementally | ✅ | — | it-workflow.controller.ts fully migrated to transitionRequest(); 16 direct prisma.request.update calls replaced; guards now enforce assignment/role/service-desk checks; controller side effects (customFields, approval records, SLA pause/resume, reassignment, asset creation) preserved outside transitionService; 28/28 guard tests pass; tsc clean |
 | P6-06 | Migrate Finance workflow actions incrementally | ✅ | — | finance-workflow.controller.ts fully migrated to transitionRequest(); 16 direct prisma.request.update calls replaced across 15 handlers; FINANCE service-desk guard (19 targets), Finance assignment guard (5 transitions), Manager/Finance Head role guards added; 39/39 guard tests pass; tsc clean |
@@ -167,7 +167,7 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 
 | ID | Task | Status | Commit | Notes |
 |----|------|--------|--------|-------|
-| P7-01 | Add report error handling and export polish | ⏳ | — | |
+| P7-01 | Add report error handling and export polish | 🔶 | — | Error handling already present via P4-03 (`Reports.tsx` banner + retry). Export polish still missing: no reports export route/service/client found. |
 | P7-02 | Add saved report definitions | ⏳ | — | |
 | P7-03 | Add scheduled report delivery | ⏳ | — | |
 | P7-04 | Add executive dashboard | ⏳ | — | |
@@ -206,19 +206,25 @@ Legend: ✅ Done | 🔄 In Progress | ⏳ Not Started | ❌ Excluded | 🔶 Part
 | P0 — Baseline | 5 | 5 | 0 | 100% |
 | P1 — Security hardening | 16 | 16 | 0 | 100% |
 | P2 — Tenant/audit/integrity | 14 | 14 | 0 | 100% |
-|| P3 — Observability/runtime | 10 | 10 | 0 | 100% |
-|| P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
+| P3 — Observability/runtime | 10 | 10 | 0 | 100% |
+| P4 — UI/UX quick wins | 11 | 11 | 0 | 100% |
 | P5 — Catalog/approval | 8 | 8 | 0 | 100% |
-|| P6 — Workflow consolidation | 8 | 8 | 0 | 100% |
-| P7 — Reporting/analytics | 6 | 0 | 6 | 0% |
+| P6 — Workflow consolidation | 8 | 8 | 0 | 100% |
+| P7 — Reporting/analytics | 6 | 0 + 1 partial | 5 full + 1 partial | 0% done |
 | ~~P8 — Module expansion~~ | 15 | — | ❌ | Excluded |
 | P9 — Enterprise capabilities | 10 | 0 | 10 | 0% |
-||| **Overall (excl. P8)** | **93** | **74** | **19** | **80%** |
+| **Overall (excl. P8)** | **93** | **74 + 1 partial** | **18 full + 1 partial** | **80% done** |
+
+### Latest Check Notes
+
+- Verified repo head is `d58f852` on `dev2.0`; working tree was clean before this tracker edit.
+- P7/P9 are still the active remaining phases. Searches found no `SavedReport`/report scheduling/CSAT/CES/analytics read-model schema or routes.
+- P7-01 is now marked partial because Reports already has visible failure handling from P4-03, but export support is absent in `frontend/src/services/reports.service.ts`, `frontend/pages/Reports.tsx`, `backend/src/controllers/reports.controller.ts`, and `backend/src/routes/reports.routes.ts`.
 
 ### Recommended Next Batch
 
-1. **P2-01→05** — Attachment auth & audit (P0 security gap)
-2. **P1-10** — Prisma log smoke test (XS, quick close)
-3. **P4-03→08** — UI error states + keyboard accessibility (P1 quick wins)
-4. **P3-05** — Scheduler distributed lock (P0 ops risk)
-5. **P3-09** — Load test scripts (P0 baseline)
+1. **Finish P7-01** — Add report export polish (CSV/XLSX or agreed format) now that error handling is already done.
+2. **P7-02** — Add saved report definitions (schema/routes/frontend save/load filters).
+3. **P7-03** — Add scheduled report delivery (scheduler + email delivery test).
+4. **P7-04** — Add executive dashboard (SLA, MTTA/MTTR, backlog, trends).
+5. **P7-05→06** — Add CSAT/CES survey trigger, then analytics read model only if load/query evidence requires it.

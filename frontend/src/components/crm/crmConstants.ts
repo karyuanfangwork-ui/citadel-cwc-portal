@@ -26,6 +26,47 @@ export const SOURCE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
+// ── Industry options (shared between CRM lead detail & credit borrower) ──
+// Static defaults — used as fallback when API is unavailable.
+// Admin can customize via /crm/industry-options (stored in SystemSetting).
+export const INDUSTRY_OPTIONS = [
+  { value: 'MANUFACTURING', label: 'Manufacturing' },
+  { value: 'RETAIL_TRADE', label: 'Retail Trade' },
+  { value: 'CONSTRUCTION', label: 'Construction' },
+  { value: 'TECHNOLOGY', label: 'Technology' },
+  { value: 'FINANCIAL_SERVICES', label: 'Financial Services' },
+  { value: 'WHOLESALE_TRADE', label: 'Wholesale Trade' },
+  { value: 'TRANSPORTATION', label: 'Transportation & Storage' },
+  { value: 'ACCOMMODATION', label: 'Accommodation & Food Services' },
+  { value: 'PROFESSIONAL_SERVICES', label: 'Professional Services' },
+  { value: 'OTHER_SERVICES', label: 'Other Services' },
+] as const;
+
+export const INDUSTRY_LABELS: Record<string, string> = Object.fromEntries(
+  INDUSTRY_OPTIONS.map(o => [o.value, o.label]),
+);
+
+// ── Dynamic industry options (fetched from API, cached in module scope) ──
+let _cachedIndustryOptions: { value: string; label: string }[] | null = null;
+
+export async function fetchIndustryOptions(): Promise<{ value: string; label: string }[]> {
+  if (_cachedIndustryOptions) return _cachedIndustryOptions;
+  try {
+    const crmService = (await import('../../services/crm.service')).default;
+    const options = await crmService.getIndustryOptions();
+    _cachedIndustryOptions = options;
+    // Also rebuild INDUSTRY_LABELS from dynamic data
+    Object.assign(INDUSTRY_LABELS, Object.fromEntries(options.map(o => [o.value, o.label])));
+    return options;
+  } catch {
+    return [...INDUSTRY_OPTIONS];
+  }
+}
+
+export function clearIndustryOptionsCache() {
+  _cachedIndustryOptions = null;
+}
+
 export const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 

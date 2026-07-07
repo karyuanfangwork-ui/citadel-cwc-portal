@@ -1055,6 +1055,16 @@ const crmService = {
     const res = await api.post(`/crm/duplicates/${id}/dismiss`);
     return res.data;
   },
+
+  // ── Industry Options (configurable) ──────────────────────────────────────
+  async getIndustryOptions(): Promise<{ value: string; label: string }[]> {
+    const res = await api.get('/crm/industry-options');
+    return res.data.data;
+  },
+  async setIndustryOptions(options: { value: string; label: string }[]): Promise<{ value: string; label: string }[]> {
+    const res = await api.put('/crm/industry-options', { options });
+    return res.data.data;
+  },
 };
 
 export default crmService;

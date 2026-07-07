@@ -75,6 +75,7 @@ import CrmAnomalyConfigPage from './pages/CrmAnomalyConfig';
 import CrmCustomFieldAdmin from './pages/CrmCustomFieldAdmin';
 import CrmDuplicates from './pages/CrmDuplicates';
 import CrmLeadScoringAdmin from './pages/CrmLeadScoringAdmin';
+import CrmIndustryOptionsAdmin from './pages/CrmIndustryOptionsAdmin';
 import CrmAssignmentRulesAdmin from './pages/CrmAssignmentRulesAdmin';
 import CrmLayout from './src/components/crm/CrmLayout';
 import CreditDashboard from './pages/credit/CreditDashboard';
@@ -295,6 +296,7 @@ const AppShell = () => {
                 <Route path="/crm/duplicates" element={<CrmDuplicates />} />
                 <Route path="/crm/lead-scoring" element={<CrmLeadScoringAdmin />} />
                 <Route path="/crm/assignment-rules" element={<CrmAssignmentRulesAdmin />} />
+                <Route path="/crm/industry-options" element={<CrmIndustryOptionsAdmin />} />
               </Route>
               {/* Credit Module routes — wrapped in CreditLayout for top nav + content */}
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditLayout /></ProtectedRoute>}>
