@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_ONBOARDING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_ONBOARDING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL' || code === 'CWC_TRAVEL_REQUEST';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -228,6 +228,38 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       if (dept) parts.push(dept);
       if (period) parts.push(`(${period})`);
       if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
+      return parts.join(' ');
+    }
+
+    // CWC_TRAVEL_REQUEST
+    if (code === 'CWC_TRAVEL_REQUEST') {
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const destination = cf.travelDestination || resolveByLabel('destination') || '';
+      const purpose = cf.travelPurpose || resolveByLabel('purpose') || '';
+      const amount = cf.totalAmount || resolveByLabel('total estimated cost') || '';
+      const departureDate = cf.departureDate || resolveByLabel('departure date') || '';
+
+      if (!destination && !purpose) return '';
+
+      const parts = ['Travel'];
+      if (destination) parts.push(`to ${destination}`);
+      if (departureDate) {
+        try {
+          const d = new Date(departureDate);
+          const formatted = d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+          parts.push(`on ${formatted}`);
+        } catch { /* skip unparseable date */ }
+      }
+      if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
+
       return parts.join(' ');
     }
 

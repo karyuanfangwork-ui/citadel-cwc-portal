@@ -1453,10 +1453,12 @@ async function main() {
             formConfig: [
                 { id: 'totalAmount', label: 'Total Estimated Cost (RM)', type: 'currency', required: true },
                 { id: 'travelDestination', label: 'Destination', type: 'text', required: true },
+                { id: 'businessReason', label: 'Business Reason', type: 'textarea', required: true },
                 { id: 'travelPurpose', label: 'Purpose of Travel', type: 'textarea', required: true },
                 { id: 'departureDate', label: 'Departure Date', type: 'date', required: true },
                 { id: 'returnDate', label: 'Return Date', type: 'date', required: true },
                 { id: 'numberOfTravelers', label: 'Number of Travelers', type: 'number', required: true },
+                { id: 'expectedOutcome', label: 'Expected Outcome', type: 'textarea', required: true },
                 { id: 'itinerary', label: 'Itinerary Details', type: 'textarea', required: false },
                 { id: 'attachments', label: 'Supporting Documents (quotes, itineraries)', type: 'file', required: false },
             ],
