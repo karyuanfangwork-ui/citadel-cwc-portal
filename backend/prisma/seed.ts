@@ -45,7 +45,7 @@ async function main() {
 
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'IT' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'IT' } },
         update: RETAIN_ADMIN_CONFIG
             ? {}
             : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
@@ -61,7 +61,7 @@ async function main() {
     });
 
     const hrDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'HR' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'HR' } },
         update: RETAIN_ADMIN_CONFIG
             ? {}
             : { name: 'Group HR', description: 'Human resources support for employees', autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
@@ -77,7 +77,7 @@ async function main() {
     });
 
     const financeDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'FINANCE' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'FINANCE' } },
         update: RETAIN_ADMIN_CONFIG
             ? {}
             : { name: 'Group Finance', description: 'Financial services and expense management', autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
@@ -1426,6 +1426,116 @@ async function main() {
     }
 
     console.log('✅ Finance categories created');
+
+    // ── ESM (Executive Service Management) ──────────────────────────────────
+    const esmDesk = await prisma.serviceDesk.upsert({
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'ESM' } },
+        update: RETAIN_ADMIN_CONFIG
+            ? {}
+            : { name: 'Executive Services', description: 'Executive service requests including travel, bookings, and executive-level approvals', autoAssignTeam: 'NONE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+        create: {
+            tenantId: DEFAULT_TENANT_ID,
+            name: 'Executive Services',
+            code: 'ESM',
+            description: 'Executive service requests including travel, bookings, and executive-level approvals',
+            isActive: true,
+            autoAssignTeam: 'NONE',
+            assignmentStrategy: 'ROUND_ROBIN',
+        },
+    });
+
+    const esmCategoriesData = [
+        {
+            name: 'Travel Request', description: 'Submit a CWC travel request for executive approval',
+            icon: 'flight', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
+            requestTypeName: 'CWC Travel Request', requestTypeCode: 'CWC_TRAVEL_REQUEST', workflowType: 'ESM_TRAVEL',
+            requiresApproval: true, slaHours: 168, // 7 days SLA for travel requests
+            formConfig: [
+                { id: 'totalAmount', label: 'Total Estimated Cost (RM)', type: 'currency', required: true },
+                { id: 'travelDestination', label: 'Destination', type: 'text', required: true },
+                { id: 'travelPurpose', label: 'Purpose of Travel', type: 'textarea', required: true },
+                { id: 'departureDate', label: 'Departure Date', type: 'date', required: true },
+                { id: 'returnDate', label: 'Return Date', type: 'date', required: true },
+                { id: 'numberOfTravelers', label: 'Number of Travelers', type: 'number', required: true },
+                { id: 'itinerary', label: 'Itinerary Details', type: 'textarea', required: false },
+                { id: 'attachments', label: 'Supporting Documents (quotes, itineraries)', type: 'file', required: false },
+            ],
+        },
+    ];
+
+    for (const cat of esmCategoriesData) {
+        const category = await prisma.serviceCategory.upsert({
+            where: {
+                serviceDeskId_name: {
+                    serviceDeskId: esmDesk.id,
+                    name: cat.name
+                }
+            },
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
+            create: {
+                tenantId: DEFAULT_TENANT_ID,
+                name: cat.name,
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                serviceDeskId: esmDesk.id,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
+        });
+
+        const existingByCode = await prisma.requestType.findFirst({
+            where: { code: cat.requestTypeCode }
+        });
+
+        if (existingByCode) {
+            await prisma.requestType.update({
+                where: { id: existingByCode.id },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        slaHours: (cat as any).slaHours ?? 168,
+                        requiresApproval: (cat as any).requiresApproval ?? false,
+                        lifecycleStatus: 'PUBLISHED',
+                    },
+            });
+        } else {
+            await prisma.requestType.create({
+                data: {
+                    tenantId: DEFAULT_TENANT_ID,
+                    serviceCategory: { connect: { id: category.id } },
+                    code: cat.requestTypeCode,
+                    name: cat.requestTypeName,
+                    description: cat.description,
+                    slaHours: (cat as any).slaHours ?? 168,
+                    isActive: true,
+                    requiresApproval: (cat as any).requiresApproval ?? false,
+                    lifecycleStatus: 'PUBLISHED',
+                    formConfig: cat.formConfig,
+                },
+            });
+        }
+    }
+
+    console.log('✅ ESM categories created');
+
+    // ── Seed GROUP_DCEO threshold default ──
+    await prisma.systemSetting.upsert({
+        where: { key: 'esm_group_dceo_threshold' },
+        update: RETAIN_ADMIN_CONFIG ? {} : { value: '50000' },
+        create: { key: 'esm_group_dceo_threshold', tenantId: DEFAULT_TENANT_ID, value: '50000' },
+    });
+    console.log('✅ ESM Group DCEO threshold seeded (default: 50000)');
 
     // ── Workflow Types & Steps (from seed-workflows) ──
     // Must run AFTER request types are created so linking works

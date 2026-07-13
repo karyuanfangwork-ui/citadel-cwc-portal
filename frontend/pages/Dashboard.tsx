@@ -81,6 +81,7 @@ const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: strin
   IT:      { colorBar: 'var(--color-it-500)',  iconBg: 'var(--color-it-50)',  icon: 'devices' },
   HR:      { colorBar: 'var(--color-hr-500)',  iconBg: 'var(--color-hr-50)',  icon: 'groups'  },
   FINANCE: { colorBar: 'var(--color-fin-500)', iconBg: 'var(--color-fin-50)', icon: 'payments' },
+  ESM:     { colorBar: '#4f46e5',             iconBg: '#eef2ff',            icon: 'flight_takeoff' },
 };
 
 // ── Skeleton ───────────────────────────────────────────────────────────────

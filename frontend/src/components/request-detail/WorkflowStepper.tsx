@@ -165,7 +165,7 @@ const formatRemaining = (ms: number): string => {
 // Terminal statuses — the workflow is done; all steps should show as completed.
 // ---------------------------------------------------------------------------
 const TERMINAL_STATUSES = new Set([
-  'COMPLETED', 'RESOLVED', 'REJECTED',
+  'COMPLETED', 'RESOLVED', 'REJECTED', 'CANCELLED',
   'TICKET_CLOSED_FIN', 'REIMBURSEMENT_CLOSED', 'PAYMENT_COMPLETED',
   'CHARGEBACK_COMPLETED', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED',
   'CFO_REJECTED_FIN', 'CEO_REJECTED', 'CEO_REJECTED_IT', 'CTO_REJECTED_IT',
@@ -400,10 +400,11 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   const workflowDone = steps.length > 0 && steps.every(s => s.state === 'completed' || s.state === 'rejected');
   const workflowRejected = REJECTED_STATUSES.has(request.status);
 
-  // SLA computation
+  // SLA computation — only active for non-terminal statuses
+  const isTerminal = TERMINAL_STATUSES.has(request.status);
   const slaDueMs = request.slaDueAt ? new Date(request.slaDueAt).getTime() - Date.now() : null;
-  const isBreached = slaDueMs !== null && slaDueMs < 0 && !request.resolvedAt;
-  const isPaused = !!request.slaPausedAt && !request.resolvedAt;
+  const isBreached = slaDueMs !== null && slaDueMs < 0 && !request.resolvedAt && !isTerminal;
+  const isPaused = !!request.slaPausedAt && !request.resolvedAt && !isTerminal;
 
   // Approval lookup for popover
   const approvalMap = useMemo(() => {
@@ -480,7 +481,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   // Shared: SLA timer badge for current step
   // -------------------------------------------------------------------------
   const renderSlaBadge = (compact?: boolean) => {
-    if (slaDueMs === null || request.resolvedAt) return null;
+    if (slaDueMs === null || request.resolvedAt || isTerminal) return null;
     if (compact) {
       return (
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
@@ -522,7 +523,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
           <span className="material-symbols-outlined text-sm" aria-hidden="true">check_circle</span>
           Completed
         </div>
-      ) : slaDueMs !== null && !request.resolvedAt ? (
+      ) : slaDueMs !== null && !request.resolvedAt && !isTerminal ? (
         <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
           isBreached
             ? 'bg-red-50 text-red-700'
@@ -715,7 +716,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                 }`}>
                   {step.label}
                 </span>
-                {step.state === 'current' && !request.resolvedAt && renderSlaBadge()}
+                {step.state === 'current' && !request.resolvedAt && !isTerminal && renderSlaBadge()}
                 {renderApprovalInline(step.step)}
               </div>
 

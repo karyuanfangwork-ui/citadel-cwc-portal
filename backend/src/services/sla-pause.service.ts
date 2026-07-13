@@ -229,7 +229,7 @@ export async function checkStalePauses(): Promise<number> {
   const staleRequests = await prisma.request.findMany({
     where: {
       slaPausedAt: { lte: cutoff },
-      status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+      status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
     },
     select: { id: true, referenceNumber: true },
   });

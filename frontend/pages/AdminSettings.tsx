@@ -14,6 +14,7 @@ import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 import { EntitiesTab } from '../src/components/admin/EntitiesTab';
 import { AuditLogTab } from '../src/components/admin/AuditLogTab';
 import { SLAEscalationTab } from '../src/components/admin/SLAEscalationTab';
+import { ESMSettingsTab } from '../src/components/admin/ESMSettingsTab';
 import SchedulerSettings from '../src/components/admin/SchedulerSettings';
 import { useAdminState } from '../src/components/admin/useAdminState';
 import { ADMIN_TABS, CATEGORY_ICONS, COLOR_THEMES } from '../src/components/admin/adminConstants';
@@ -244,6 +245,7 @@ const AdminSettings = () => {
                     {admin.activeTab === 'banner-config' && <BannerConfigTab />}
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
                     {admin.activeTab === 'sla-escalation' && <SLAEscalationTab />}
+                    {admin.activeTab === 'esm-settings' && <ESMSettingsTab />}
                     {admin.activeTab === 'audit-logs' && <AuditLogTab />}
                     {admin.activeTab === 'scheduler' && <SchedulerSettings />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}

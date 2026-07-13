@@ -10,7 +10,7 @@ export async function checkSlaBreaches(): Promise<number> {
       where: {
         slaDueAt: { lte: now },
         slaPausedAt: null, // Skip paused requests — SLA clock is stopped
-        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
       },
       include: {
         assignedTo: { select: { id: true } },
@@ -94,7 +94,7 @@ export async function checkEscalations(): Promise<number> {
         slaDueAt: { lte: now },
         slaPausedAt: null, // Skip paused requests — SLA clock is stopped
         requestTypeId: { not: null },
-        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
       },
       include: {
         activities: {

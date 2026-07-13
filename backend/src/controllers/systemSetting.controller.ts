@@ -90,3 +90,30 @@ export function registerEmailEnabledCacheInvalidator(fn: () => void) {
 function invalidateEmailEnabledCache() {
   _cacheInvalidator?.();
 }
+
+// ---------------------------------------------------------------------------
+// ESM Travel Request — GROUP_DCEO Approval Threshold
+// ---------------------------------------------------------------------------
+
+const ESM_DCEO_THRESHOLD_KEY = 'esm_group_dceo_threshold';
+const DEFAULT_DCEO_THRESHOLD = 50000;
+
+export const getEsmDceoThreshold = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  const setting = await prisma.systemSetting.findUnique({ where: { key: ESM_DCEO_THRESHOLD_KEY } });
+  const threshold = setting ? parseFloat(setting.value) : DEFAULT_DCEO_THRESHOLD;
+  res.json({ success: true, data: { threshold: isNaN(threshold) ? DEFAULT_DCEO_THRESHOLD : threshold } });
+});
+
+export const setEsmDceoThreshold = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { threshold } = req.body;
+  if (typeof threshold !== 'number' || threshold < 0) {
+    res.status(400).json({ success: false, message: '`threshold` must be a non-negative number' });
+    return;
+  }
+  await prisma.systemSetting.upsert({
+    where: { key: ESM_DCEO_THRESHOLD_KEY },
+    create: { key: ESM_DCEO_THRESHOLD_KEY, value: String(threshold) },
+    update: { value: String(threshold) },
+  });
+  res.json({ success: true, data: { threshold } });
+});

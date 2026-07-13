@@ -1647,6 +1647,103 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "transitionLabel": "ADVANCE",
     "autoAssignRole": null,
     "isActive": true
+  },
+  // ── ESM Travel Request ────────────────────────────────────────────────────
+  {
+    "fromStatus": "SUBMITTED",
+    "toStatus": "PENDING_CEO_APPROVAL",
+    "transitionLabel": "SUBMIT",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_CEO_APPROVAL",
+    "toStatus": "CEO_APPROVED",
+    "transitionLabel": "APPROVE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_CEO_APPROVAL",
+    "toStatus": "CEO_REJECTED",
+    "transitionLabel": "REJECT",
+    "requiresComment": true,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CEO_APPROVED",
+    "toStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "transitionLabel": "ESCALATE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CEO_APPROVED",
+    "toStatus": "ACTION_REQUIRED",
+    "transitionLabel": "ADVANCE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CEO_REJECTED",
+    "toStatus": "REJECTED",
+    "transitionLabel": "CLOSE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "toStatus": "GROUP_DCEO_APPROVED",
+    "transitionLabel": "APPROVE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "toStatus": "GROUP_DCEO_REJECTED",
+    "transitionLabel": "REJECT",
+    "requiresComment": true,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "GROUP_DCEO_APPROVED",
+    "toStatus": "ACTION_REQUIRED",
+    "transitionLabel": "ADVANCE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "GROUP_DCEO_REJECTED",
+    "toStatus": "REJECTED",
+    "transitionLabel": "CLOSE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "ACTION_REQUIRED",
+    "toStatus": "COMPLETED",
+    "transitionLabel": "CONFIRM_BOOKING",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "COMPLETED",
+    "toStatus": "RESOLVED",
+    "transitionLabel": "CLOSE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
   }
 ];
 

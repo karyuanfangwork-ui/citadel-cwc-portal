@@ -160,6 +160,22 @@ const defaultWorkflows = [
       { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'REIMBURSEMENT_CLOSED', icon: 'check_circle', isFinal: true },
     ]
+  },
+  {
+    name: 'ESM Travel Request',
+    code: 'ESM_TRAVEL',
+    description: 'CWC Travel Request workflow with CEO approval, Group DCEO escalation for amounts above threshold, and booking confirmation',
+    displayOrder: 10,
+    steps: [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CEO Approved', status: 'CEO_APPROVED', icon: 'check_circle' },
+      { label: 'Group Deputy CEO Approval', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Group Deputy CEO Approved', status: 'GROUP_DCEO_APPROVED', icon: 'check_circle' },
+      { label: 'Booking Confirmation', status: 'ACTION_REQUIRED', icon: 'radio_button_checked' },
+      { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
+    ]
   }
 ];
 
@@ -302,6 +318,7 @@ export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boo
     'INTERCOMPANY_CHARGEBACK': 'INTERCOMPANY_CHARGEBACK',
     'BUDGET_PROPOSAL': 'FINANCE',
     'EXPENSE_CLAIM': 'EXPENSE_REIMBURSEMENT',
+    'CWC_TRAVEL_REQUEST': 'ESM_TRAVEL',
   };
 
   for (const [requestTypeCode, workflowCode] of Object.entries(requestTypeWorkflowMap)) {

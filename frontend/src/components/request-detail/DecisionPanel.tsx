@@ -126,6 +126,12 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   MARK_PAYMENT_COMPLETE_FIN: { icon: 'payments',         bgClass: 'bg-emerald-100', textClass: 'text-emerald-600' },
   CLOSE_TICKET_FIN:          { icon: 'task_alt',         bgClass: 'bg-green-100', textClass: 'text-green-600' },
   CLOSE_BUDGET_PROPOSAL:     { icon: 'task_alt',         bgClass: 'bg-green-100', textClass: 'text-green-600' },
+  // ESM Travel
+  SUBMIT_FOR_CEO_ESM:    { icon: 'send',             bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
+  CEO_DECISION_ESM:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  GROUP_DCEO_DECISION_ESM:   { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  CONFIRM_BOOKING_ESM:       { icon: 'flight_takeoff',   bgClass: 'bg-green-100', textClass: 'text-green-600' },
+  CLOSE_TRAVEL_REQUEST:      { icon: 'task_alt',         bgClass: 'bg-green-100', textClass: 'text-green-600' },
   // Chargeback
   CHARGEBACK_SUBMIT:         { icon: 'send',             bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   FROM_ENTITY_APPROVE:       { icon: 'check_circle',     bgClass: 'bg-green-100', textClass: 'text-green-600' },

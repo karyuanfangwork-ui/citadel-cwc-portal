@@ -6,6 +6,7 @@
 import itWorkflowService from '../services/it-workflow.service';
 import financeWorkflowService from '../services/finance-workflow.service';
 import chargebackWorkflowService from '../services/chargeback-workflow.service';
+import esmWorkflowService from '../services/esm-workflow.service';
 import { requestService } from '../services/request.service';
 import api from '../services/api';
 import approvalService from '../services/approval.service';
@@ -1442,6 +1443,152 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         requestId,
         (values.paymentRef as string) || undefined,
         (values.notes as string) || undefined,
+      ),
+  },
+
+  /* ────────────────────────────────────────────────────────────────── *
+   *  ESM TRAVEL REQUEST WORKFLOW                                       *
+   * ────────────────────────────────────────────────────────────────── */
+
+  SUBMIT_FOR_CEO_ESM: {
+    title: 'Submit for CEO Approval',
+    subtitle: 'ESM Workflow · Route this travel request to the CEO',
+    icon: 'send',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for the CEO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit for CEO Approval',
+    submitColor: 'primary',
+    loadingLabel: 'Submitting…',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.submitForCeoApproval(
+        requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CEO_DECISION_ESM: {
+    title: 'CEO Decision — Travel Request',
+    subtitle: 'ESM Workflow · Approve or reject this travel request',
+    icon: 'gavel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.ceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  GROUP_DCEO_DECISION_ESM: {
+    title: 'Group Deputy CEO Decision — Travel Request',
+    subtitle: 'ESM Workflow · Approve or reject this high-value travel request',
+    icon: 'gavel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.groupDceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CONFIRM_BOOKING_ESM: {
+    title: 'Confirm Booking Completed',
+    subtitle: 'ESM Workflow · Confirm your travel booking is complete',
+    icon: 'flight_takeoff',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Booking Confirmation Notes',
+        type: 'textarea',
+        placeholder: 'Provide details about the completed booking…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Booking',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.confirmBooking(
+        requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CLOSE_TRAVEL_REQUEST: {
+    title: 'Close Travel Request',
+    subtitle: 'ESM Workflow · Resolve and close this travel request',
+    icon: 'task_alt',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'resolutionNote',
+        label: 'Resolution Note',
+        type: 'textarea',
+        placeholder: 'Optional closing remarks…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Close & Resolve',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.closeTicket(
+        requestId,
+        (values.resolutionNote as string) || undefined,
       ),
   },
 };

@@ -63,7 +63,13 @@ export type WorkflowActionType =
   | 'FINANCE_HEAD_REJECT_EXPENSE'
   | 'MARK_EXPENSE_PAYMENT_COMPLETE'
   | 'SUBMIT_INTERVIEW_FEEDBACK'
-  | 'CANCEL_REQUEST';
+  | 'CANCEL_REQUEST'
+  // ESM Travel Request workflow actions
+  | 'SUBMIT_FOR_CEO_ESM'
+  | 'CEO_DECISION_ESM'
+  | 'GROUP_DCEO_DECISION_ESM'
+  | 'CONFIRM_BOOKING_ESM'
+  | 'CLOSE_TRAVEL_REQUEST';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -217,6 +223,60 @@ export function getWorkflowActions(
       label: 'Group Deputy CEO Approval Decision',
       description: 'Review and approve or reject this hiring request as Group Deputy CEO.',
       variant: 'primary',
+    });
+  }
+
+  // ─── ESM Travel Request workflow ─────────────────────────────────────────
+  const isESMTravel = requestTypeCode === 'CWC_TRAVEL_REQUEST' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('travel request'));
+
+  // Agent submits for CEO approval
+  if (isESMTravel && canActOnDesk && status === 'SUBMITTED') {
+    actions.push({
+      type: 'SUBMIT_FOR_CEO_ESM',
+      label: 'Submit for CEO Approval',
+      description: 'Route this travel request to the CEO for approval.',
+      variant: 'primary',
+    });
+  }
+
+  // CEO decision for ESM Travel (not gated by canAct — CEO is not an agent)
+  if (isESMTravel && userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL') {
+    actions.push({
+      type: 'CEO_DECISION_ESM',
+      label: 'CEO Approval Decision',
+      description: 'Review and approve or reject this travel request as CEO. If approved, requests above the threshold will be routed to Group Deputy CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // GROUP_DCEO decision for ESM Travel (not gated by canAct)
+  if (isESMTravel && userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
+    actions.push({
+      type: 'GROUP_DCEO_DECISION_ESM',
+      label: 'Group Deputy CEO Approval Decision',
+      description: 'Review and approve or reject this high-value travel request as Group Deputy CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // Requester confirms booking completion (ACTION_REQUIRED status)
+  if (isESMTravel && isRequester && status === 'ACTION_REQUIRED') {
+    actions.push({
+      type: 'CONFIRM_BOOKING_ESM',
+      label: 'Confirm Booking Completed',
+      description: 'Confirm that the travel booking has been completed successfully.',
+      variant: 'success',
+    });
+  }
+
+  // Agent/Admin closes the travel request
+  if (isESMTravel && canActOnDesk && status === 'COMPLETED') {
+    actions.push({
+      type: 'CLOSE_TRAVEL_REQUEST',
+      label: 'Close Travel Request',
+      description: 'Close and resolve this travel request.',
+      variant: 'success',
     });
   }
 

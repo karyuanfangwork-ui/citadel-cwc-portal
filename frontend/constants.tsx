@@ -109,6 +109,7 @@ export const RESOLVED_STATUSES = new Set<string>([
   RequestStatus.RESOLVED,
   RequestStatus.COMPLETED,
   RequestStatus.REJECTED,
+  RequestStatus.CANCELLED,
   RequestStatus.CEO_REJECTED,
   RequestStatus.REIMBURSEMENT_CLOSED,
   RequestStatus.ONBOARDING_COMPLETED,

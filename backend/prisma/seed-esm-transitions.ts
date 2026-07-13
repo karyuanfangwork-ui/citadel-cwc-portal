@@ -205,6 +205,22 @@ const HR_SCREENING: TransitionDef[] = [
   { fromStatus: 'SUBMITTED', toStatus: 'HR_SCREENING', transitionLabel: 'ADVANCE', requiresComment: false },
 ];
 
+// ── ESM Travel Request ────────────────────────────────────────────────────
+const ESM_TRAVEL: TransitionDef[] = [
+  { fromStatus: 'SUBMITTED', toStatus: 'PENDING_CEO_APPROVAL', transitionLabel: 'SUBMIT', requiresComment: false },
+  { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
+  { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },
+  { fromStatus: 'CEO_APPROVED', toStatus: 'PENDING_GROUP_DCEO_APPROVAL', transitionLabel: 'ESCALATE', requiresComment: false },
+  { fromStatus: 'CEO_APPROVED', toStatus: 'ACTION_REQUIRED', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'CEO_REJECTED', toStatus: 'REJECTED', transitionLabel: 'CLOSE', requiresComment: false },
+  { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
+  { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },
+  { fromStatus: 'GROUP_DCEO_APPROVED', toStatus: 'ACTION_REQUIRED', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'GROUP_DCEO_REJECTED', toStatus: 'REJECTED', transitionLabel: 'CLOSE', requiresComment: false },
+  { fromStatus: 'ACTION_REQUIRED', toStatus: 'COMPLETED', transitionLabel: 'CONFIRM_BOOKING', requiresComment: false },
+  { fromStatus: 'COMPLETED', toStatus: 'RESOLVED', transitionLabel: 'CLOSE', requiresComment: false },
+];
+
 // ── All transitions combined (deduped) ─────────────────────────────────────
 const ALL_TRANSITIONS: TransitionDef[] = [
   ...IT_SIMPLE,
@@ -217,6 +233,7 @@ const ALL_TRANSITIONS: TransitionDef[] = [
   ...ONBOARDING,
   ...OFFBOARDING,
   ...HR_SCREENING,
+  ...ESM_TRAVEL,
 ];
 
 async function main() {

@@ -38,6 +38,7 @@ import Dashboard from './pages/Dashboard';
 import HRServices from './pages/HRServices';
 import ITSupport from './pages/ITSupport';
 import GroupFinance from './pages/GroupFinance';
+import ExecutiveServices from './pages/ExecutiveServices';
 import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
 import AdminSettings from './pages/AdminSettings';
@@ -248,6 +249,7 @@ const AppShell = () => {
               <Route path="/hr" element={<ProtectedRoute><HRServices /></ProtectedRoute>} />
               <Route path="/it" element={<ProtectedRoute><ITSupport /></ProtectedRoute>} />
               <Route path="/finance" element={<ProtectedRoute><GroupFinance /></ProtectedRoute>} />
+              <Route path="/esm" element={<ProtectedRoute><ExecutiveServices /></ProtectedRoute>} />
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
               <Route path="/request/:id" element={<ProtectedRoute><ErrorBoundary><RequestDetail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/it/hardware" element={<Navigate to="/it" replace />} />

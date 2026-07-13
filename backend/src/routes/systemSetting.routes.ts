@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { getEmailNotificationsEnabled, setEmailNotificationsEnabled, getOnboardingItAgent, setOnboardingItAgent } from '../controllers/systemSetting.controller';
+import { getEmailNotificationsEnabled, setEmailNotificationsEnabled, getOnboardingItAgent, setOnboardingItAgent, getEsmDceoThreshold, setEsmDceoThreshold } from '../controllers/systemSetting.controller';
 
 const router = Router();
 
@@ -9,5 +9,9 @@ router.put('/email-notifications-enabled', authenticate, authorize('ADMIN'), set
 
 router.get('/onboarding-it-agent', authenticate, getOnboardingItAgent);
 router.put('/onboarding-it-agent', authenticate, authorize('ADMIN'), setOnboardingItAgent);
+
+// ESM Travel Request — GROUP_DCEO approval threshold
+router.get('/esm-dceo-threshold', authenticate, getEsmDceoThreshold);
+router.put('/esm-dceo-threshold', authenticate, authorize('ADMIN'), setEsmDceoThreshold);
 
 export default router;
