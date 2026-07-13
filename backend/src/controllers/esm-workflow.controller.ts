@@ -128,8 +128,29 @@ export const submitForCeoApproval = async (req: Request, res: Response) => {
             source: 'esm-workflow/submit-for-ceo',
         }));
 
-        // Find and assign CEO
-        const ceoId = await findCeoForRequest(request.requesterId);
+        // Use the CEO selected by the requester (required field), fall back to auto-detection
+        const customFields = (request.customFields as Record<string, unknown>) || {};
+        let ceoId = String(customFields.ceoApproverId || '');
+
+        if (!ceoId) {
+            console.warn(`[ESM-Workflow] No CEO approver selected for request ${id}, falling back to auto-detection`);
+            ceoId = (await findCeoForRequest(request.requesterId)) || '';
+        }
+
+        // Validate that the selected user is actually a CEO
+        if (ceoId) {
+            const ceoUser = await prisma.user.findUnique({
+                where: { id: ceoId },
+                select: { id: true, executiveRole: true, isActive: true },
+            });
+            if (!ceoUser || !ceoUser.isActive || ceoUser.executiveRole !== 'CEO') {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Selected CEO approver is not an active CEO. Please select a valid CEO.',
+                });
+            }
+        }
+
         if (ceoId) {
             await prisma.request.update({ where: { id }, data: { assignedToId: ceoId } });
 

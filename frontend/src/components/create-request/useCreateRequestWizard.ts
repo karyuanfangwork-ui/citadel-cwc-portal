@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { entityService } from '../../services/entity.service';
+import apiClient from '../../services/api';
 import { friendlyMessage } from '../../utils/errorMessages';
 import { useAuth } from '../../context/AuthContext';
 
@@ -320,6 +321,21 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       .catch(() => setEntityOptions([]));
   }, []);
 
+  // Fetch CEO list for CEO approver dropdown
+  const [ceoOptions, setCeoOptions] = useState<{id: string; name: string; entity: string}[]>([]);
+  useEffect(() => {
+    apiClient.get('/users/executives?role=CEO')
+      .then(res => {
+        const execs = res.data?.data?.executives || res.data?.data || [];
+        setCeoOptions(execs.map((e: any) => ({
+          id: e.id,
+          name: `${e.firstName} ${e.lastName}`,
+          entity: e.entity?.name || e.entity?.code || '',
+        })));
+      })
+      .catch(() => setCeoOptions([]));
+  }, []);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -450,6 +466,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     error,
     setError,
     entityOptions,
+    ceoOptions,
     uploadingFields,
     setUploadingFields,
     isRoleBlocked,

@@ -1459,6 +1459,7 @@ async function main() {
                 { id: 'returnDate', label: 'Return Date', type: 'date', required: true },
                 { id: 'numberOfTravelers', label: 'Number of Travelers', type: 'number', required: true },
                 { id: 'expectedOutcome', label: 'Expected Outcome', type: 'textarea', required: true },
+                { id: 'ceoApproverId', label: 'CEO Approver', type: 'ceo-select', required: true },
                 { id: 'itinerary', label: 'Itinerary Details', type: 'textarea', required: false },
                 { id: 'attachments', label: 'Supporting Documents (quotes, itineraries)', type: 'file', required: false },
             ],

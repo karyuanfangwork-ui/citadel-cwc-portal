@@ -145,6 +145,7 @@ const CreateRequest = () => {
                                     setFormData={wizard.setFormData}
                                     selectedRequestType={wizard.selectedRequestType}
                                     entityOptions={wizard.entityOptions}
+                                    ceoOptions={wizard.ceoOptions}
                                     uploadingFields={wizard.uploadingFields}
                                     setUploadingFields={wizard.setUploadingFields}
                                     isRoleBlocked={wizard.isRoleBlocked}
@@ -165,6 +166,7 @@ const CreateRequest = () => {
                                     selectedRequestType={wizard.selectedRequestType}
                                     deskType={deskType!}
                                     entityOptions={wizard.entityOptions}
+                                    ceoOptions={wizard.ceoOptions}
                                     isRoleBlocked={wizard.isRoleBlocked}
                                     autoSummary={wizard.autoSummary}
                                     isAutoConfidential={wizard.isAutoConfidential}

@@ -8,6 +8,7 @@ interface StepDetailsProps {
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   selectedRequestType: any;
   entityOptions: { code: string; name: string }[];
+  ceoOptions: { id: string; name: string; entity: string }[];
   uploadingFields: Record<string, boolean>;
   setUploadingFields: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   isRoleBlocked: boolean;
@@ -28,6 +29,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
   setFormData,
   selectedRequestType,
   entityOptions,
+  ceoOptions,
   uploadingFields,
   setUploadingFields,
   isRoleBlocked,
@@ -481,6 +483,31 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               <option value="" disabled>Select an entity...</option>
               {entityOptions.map(e => (
                 <option key={e.code} value={e.code}>{e.name} ({e.code})</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none">expand_more</span>
+          </div>
+        );
+      }
+      case 'ceo-select': {
+        const selectedCeo = formData.customFields[field.id] || '';
+        return (
+          <div className="relative">
+            <select
+              id={`field-${field.id}`}
+              required={field.required}
+              className={`${commonClass} appearance-none`}
+              value={selectedCeo}
+              onChange={e => handleCustomFieldChange(field.id, e.target.value)}
+              disabled={submitting}
+              aria-invalid={field.required && !selectedCeo}
+              aria-describedby={error ? "step-details-error" : undefined}
+            >
+              <option value="" disabled>Select a CEO Approver...</option>
+              {ceoOptions.map(ceo => (
+                <option key={ceo.id} value={ceo.id}>
+                  {ceo.name}{ceo.entity ? ` — ${ceo.entity}` : ''}
+                </option>
               ))}
             </select>
             <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none">expand_more</span>
