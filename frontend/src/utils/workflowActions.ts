@@ -66,6 +66,7 @@ export type WorkflowActionType =
   | 'CANCEL_REQUEST'
   // ESM Travel Request workflow actions
   | 'SUBMIT_FOR_CEO_ESM'
+  | 'REASSIGN_CEO_APPROVER_ESM'
   | 'CEO_DECISION_ESM'
   | 'GROUP_DCEO_DECISION_ESM'
   | 'CONFIRM_BOOKING_ESM'
@@ -128,6 +129,8 @@ export function getWorkflowActions(
     (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
   const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
+  const isESMTravel = requestTypeCode === 'CWC_TRAVEL_REQUEST' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('travel request'));
   // Procurement lifecycle actions: only assigned person + admin can act
   // Also requires the agent to be from the IT desk (procurement is IT-specific)
   const isAssignedToMe = !!assignedToId && !!currentUserId && assignedToId === currentUserId;
@@ -145,7 +148,7 @@ export function getWorkflowActions(
         description: 'Review and approve or reject this IT request as CEO.',
         variant: 'primary',
       });
-    } else if (status === 'PENDING_CEO_APPROVAL') {
+    } else if (!isESMTravel && status === 'PENDING_CEO_APPROVAL') {
       actions.push({
         type: 'CEO_DECISION_HR',
         label: 'CEO Approval Decision',
@@ -227,9 +230,6 @@ export function getWorkflowActions(
   }
 
   // ─── ESM Travel Request workflow ─────────────────────────────────────────
-  const isESMTravel = requestTypeCode === 'CWC_TRAVEL_REQUEST' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('travel request'));
-
   // Agent submits for CEO approval
   if (isESMTravel && canActOnDesk && status === 'SUBMITTED') {
     actions.push({
@@ -240,8 +240,18 @@ export function getWorkflowActions(
     });
   }
 
+  // Requester/Admin can correct the selected CEO/GROUP_DCEO before approval.
+  if (isESMTravel && status === 'PENDING_CEO_APPROVAL' && (isRequester || isAdmin)) {
+    actions.push({
+      type: 'REASSIGN_CEO_APPROVER_ESM',
+      label: 'Change CEO Approver',
+      description: 'Select a different CEO or Group Deputy CEO approver for this travel request.',
+      variant: 'warning',
+    });
+  }
+
   // CEO decision for ESM Travel (not gated by canAct — CEO is not an agent)
-  if (isESMTravel && userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL') {
+  if (isESMTravel && (userRoles.includes('CEO') || userRoles.includes('GROUP_DCEO')) && status === 'PENDING_CEO_APPROVAL' && (isAssignedToMe || isDesignatedApprover)) {
     actions.push({
       type: 'CEO_DECISION_ESM',
       label: 'CEO Approval Decision',

@@ -7,7 +7,7 @@ interface StepReviewProps {
   selectedRequestType: any;
   deskType: string;
   entityOptions: { code: string; name: string }[];
-  ceoOptions: { id: string; name: string; entity: string }[];
+  ceoOptions: { id: string; name: string; entity: string; role?: string }[];
   isRoleBlocked: boolean;
   autoSummary?: string;
   isAutoConfidential?: boolean;
@@ -136,7 +136,7 @@ const StepReview: React.FC<StepReviewProps> = ({
     }
     if (field.type === 'ceo-select' && ceoOptions.length > 0) {
       const ceo = ceoOptions.find(c => c.id === value);
-      return ceo ? `${ceo.name}${ceo.entity ? ` (${ceo.entity})` : ''}` : value;
+      return ceo ? `${ceo.name}${ceo.role ? ` — ${ceo.role}` : ''}${ceo.entity ? ` (${ceo.entity})` : ''}` : value;
     }
     // File field: single object or array of file objects
     if (field.type === 'file') {

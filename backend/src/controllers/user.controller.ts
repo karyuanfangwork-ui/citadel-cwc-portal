@@ -446,22 +446,29 @@ class UserController {
      * No PII beyond name/email/role is exposed.
      */
     getExecutives = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const role = String(req.query.role || '').toUpperCase().trim();
+        const roles = String(req.query.role || '')
+            .split(',')
+            .map((r) => r.toUpperCase().trim())
+            .filter(Boolean) as ExecutiveRole[];
 
-        if (!role) {
-            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_DCEO)', 400);
+        if (roles.length === 0) {
+            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_DCEO or CEO,GROUP_DCEO)', 400);
         }
-        if (!EXECUTIVE_HIERARCHY.includes(role as ExecutiveRole)) {
+        const invalidRoles = roles.filter((role) => !EXECUTIVE_HIERARCHY.includes(role));
+        if (invalidRoles.length > 0) {
             throw new AppError(
-                `Invalid executive role "${role}". Allowed: ${EXECUTIVE_HIERARCHY.join(', ')}`,
+                `Invalid executive role "${invalidRoles.join(', ')}". Allowed: ${EXECUTIVE_HIERARCHY.join(', ')}`,
                 400,
             );
         }
 
         const executives = await prisma.user.findMany({
             where: {
-                executiveRole: role as ExecutiveRole,
                 isActive: true,
+                OR: [
+                    { executiveRole: { in: roles } },
+                    { roles: { some: { role: { name: { in: roles } } } } },
+                ],
             },
             select: {
                 id: true,
@@ -470,6 +477,7 @@ class UserController {
                 email: true,
                 jobTitle: true,
                 executiveRole: true,
+                roles: { select: { role: { select: { name: true } } } },
                 entity: {
                     select: { id: true, code: true, name: true },
                 },

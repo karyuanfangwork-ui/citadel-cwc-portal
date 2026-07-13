@@ -321,16 +321,17 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       .catch(() => setEntityOptions([]));
   }, []);
 
-  // Fetch CEO list for CEO approver dropdown
-  const [ceoOptions, setCeoOptions] = useState<{id: string; name: string; entity: string}[]>([]);
+  // Fetch CEO / Group DCEO list for CEO approver dropdown
+  const [ceoOptions, setCeoOptions] = useState<{id: string; name: string; entity: string; role: string}[]>([]);
   useEffect(() => {
-    apiClient.get('/users/executives?role=CEO')
+    apiClient.get('/users/executives?role=CEO,GROUP_DCEO')
       .then(res => {
         const execs = res.data?.data?.executives || res.data?.data || [];
         setCeoOptions(execs.map((e: any) => ({
           id: e.id,
           name: `${e.firstName} ${e.lastName}`,
           entity: e.entity?.name || e.entity?.code || '',
+          role: e.executiveRole || e.roles?.find((r: any) => ['CEO', 'GROUP_DCEO'].includes(r.role?.name))?.role?.name || '',
         })));
       })
       .catch(() => setCeoOptions([]));

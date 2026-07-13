@@ -8,7 +8,7 @@ interface StepDetailsProps {
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   selectedRequestType: any;
   entityOptions: { code: string; name: string }[];
-  ceoOptions: { id: string; name: string; entity: string }[];
+  ceoOptions: { id: string; name: string; entity: string; role?: string }[];
   uploadingFields: Record<string, boolean>;
   setUploadingFields: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   isRoleBlocked: boolean;
@@ -506,7 +506,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               <option value="" disabled>Select a CEO Approver...</option>
               {ceoOptions.map(ceo => (
                 <option key={ceo.id} value={ceo.id}>
-                  {ceo.name}{ceo.entity ? ` — ${ceo.entity}` : ''}
+                  {ceo.name}{ceo.role ? ` — ${ceo.role}` : ''}{ceo.entity ? ` — ${ceo.entity}` : ''}
                 </option>
               ))}
             </select>

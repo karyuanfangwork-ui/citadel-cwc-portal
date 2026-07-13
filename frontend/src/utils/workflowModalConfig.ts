@@ -1476,6 +1476,50 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
+  REASSIGN_CEO_APPROVER_ESM: {
+    title: 'Change CEO Approver',
+    subtitle: 'ESM Workflow · Reassign this travel request to a different CEO or Group Deputy CEO',
+    icon: 'manage_accounts',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'approverId',
+        label: 'New Approver',
+        type: 'select',
+        required: true,
+        asyncOptions: async () => {
+          const res = await api.get('/users/executives', { params: { role: 'CEO,GROUP_DCEO' } });
+          const executives = res.data?.data?.executives ?? [];
+          return executives.map((user: any) => {
+            const role = user.executiveRole || user.roles?.find((entry: any) => ['CEO', 'GROUP_DCEO'].includes(entry.role?.name))?.role?.name;
+            return {
+              value: user.id,
+              label: `${user.firstName} ${user.lastName}${role ? ` — ${role}` : ''}${user.entity?.name ? ` · ${user.entity.name}` : ''}`,
+            };
+          });
+        },
+      },
+      {
+        name: 'notes',
+        label: 'Reason',
+        type: 'textarea',
+        placeholder: 'Optional reason for changing the approver…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Change Approver',
+    submitColor: 'warning',
+    loadingLabel: 'Changing…',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.reassignCeoApprover(
+        requestId,
+        values.approverId as string,
+        (values.notes as string) || undefined,
+      ),
+  },
+
   CEO_DECISION_ESM: {
     title: 'CEO Decision — Travel Request',
     subtitle: 'ESM Workflow · Approve or reject this travel request',

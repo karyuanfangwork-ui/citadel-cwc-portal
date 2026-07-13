@@ -716,6 +716,45 @@ class RequestController {
         const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
         const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
+        const isEsmTravelRequest = requestType?.code === 'CWC_TRAVEL_REQUEST';
+
+        let esmSelectedCeo: { id: string; firstName: string; lastName: string; email: string } | null = null;
+        if (isEsmTravelRequest) {
+            const ceoApproverId = String(((customFields || {}) as Record<string, any>).ceoApproverId || '').trim();
+            if (!ceoApproverId) {
+                throw new AppError('CEO Approver is required for CWC Travel Request', 400);
+            }
+
+            const ceoUser = await prisma.user.findUnique({
+                where: { id: ceoApproverId },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    executiveRole: true,
+                    isActive: true,
+                    roles: { select: { role: { select: { name: true } } } },
+                },
+            });
+
+            const selectedRoleNames = ceoUser?.roles.map((r) => r.role.name) ?? [];
+            const canApproveTravel = ceoUser?.executiveRole === 'CEO'
+                || ceoUser?.executiveRole === 'GROUP_DCEO'
+                || selectedRoleNames.includes('CEO')
+                || selectedRoleNames.includes('GROUP_DCEO');
+
+            if (!ceoUser || !ceoUser.isActive || !canApproveTravel) {
+                throw new AppError('Selected CEO approver is not an active CEO or Group DCEO. Please select a valid approver.', 400);
+            }
+
+            esmSelectedCeo = {
+                id: ceoUser.id,
+                firstName: ceoUser.firstName,
+                lastName: ceoUser.lastName,
+                email: ceoUser.email,
+            };
+        }
 
         // Validate summary: required unless auto-generated for specific request types
         const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'REPORT_SYSTEM_PROBLEM', 'SOFTWARE_INSTALLATION', 'PURCHASE_REQUISITION', 'EMAIL_MANAGEMENT'];
@@ -734,6 +773,8 @@ class RequestController {
             ? 'SUBMITTED'
             : isExpenseClaim
             ? 'PENDING_MANAGER_APPROVAL_FIN'
+            : isEsmTravelRequest
+            ? 'PENDING_CEO_APPROVAL'
             : 'SUBMITTED';
 
         // Auto-generate description from form fields
@@ -1086,6 +1127,7 @@ class RequestController {
                     customFields,
                     isConfidential: isConfidential === true,
                     status: initialStatus as any,
+                    assignedToId: esmSelectedCeo?.id,
                     slaDueAt,
                     // P5-04: Snapshot form config at submission time
                     formConfigSnapshot: requestType?.formConfig ?? undefined,
@@ -1253,6 +1295,33 @@ class RequestController {
                 },
             });
 
+            if (isEsmTravelRequest && esmSelectedCeo) {
+                await tx.requestApproval.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        approverType: 'CEO',
+                        approverId: esmSelectedCeo.id,
+                        status: 'PENDING',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        activityType: 'ASSIGNMENT',
+                        message: `Travel request submitted directly to ${esmSelectedCeo.firstName} ${esmSelectedCeo.lastName} for CEO approval`,
+                        isSystemGenerated: true,
+                        metadata: {
+                            autoAssigned: true,
+                            assignedToId: esmSelectedCeo.id,
+                            approverType: 'CEO',
+                            source: 'esm-travel-request-create',
+                        },
+                    },
+                });
+            }
+
             return createdRequest;
         });
 
@@ -1276,6 +1345,16 @@ class RequestController {
         // SLA: pause immediately if request is created in an approval status (e.g. EXPENSE_CLAIM → PENDING_MANAGER_APPROVAL_FIN)
         if (isExpenseClaim) {
             await pauseSla(request.id);
+        }
+
+        if (isEsmTravelRequest && esmSelectedCeo) {
+            await pauseSla(request.id);
+            await notify({
+                userId: esmSelectedCeo.id,
+                eventType: 'APPROVAL_REQUIRED',
+                variables: { requestId: request.id, role: 'CEO' },
+                relatedRequestId: request.id,
+            });
         }
 
         // P5-07: Use approval policy engine for expense claims
@@ -1363,7 +1442,7 @@ class RequestController {
         });
 
         // Re-fetch request to include auto-assigned agent info in response
-        const finalRequest = assignResult.success
+        const finalRequest = assignResult.success || isEsmTravelRequest
             ? await prisma.request.findUnique({
                   where: { id: request.id },
                   include: {

@@ -9,7 +9,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.APPROVED]: { label: 'APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.REJECTED]: { label: 'REJECTED', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
   [RequestStatus.CANCELLED]: { label: 'CANCELLED', color: 'text-gray-700', bg: 'bg-gray-200', icon: 'block' },
-  [RequestStatus.RESOLVED]: { label: 'COMPLETED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'task_alt' },
+  [RequestStatus.RESOLVED]: { label: 'RESOLVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'task_alt' },
   [RequestStatus.IN_PROGRESS]: { label: 'IN PROGRESS', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'sync' },
   [RequestStatus.WAITING]: { label: 'WAITING', color: 'text-gray-600', bg: 'bg-gray-100', icon: 'hourglass_empty' },
   [RequestStatus.PENDING_CEO_APPROVAL]: { label: 'PENDING CEO APPROVAL', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
@@ -26,7 +26,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.LOA_APPROVED]: { label: 'LOA APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.LOA_ISSUED]: { label: 'LOA ISSUED', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'description' },
   [RequestStatus.LOA_ACCEPTED]: { label: 'LOA ACCEPTED', color: 'text-green-700', bg: 'bg-green-100', icon: 'handshake' },
-  [RequestStatus.COMPLETED]: { label: 'HIRING COMPLETE', color: 'text-emerald-800', bg: 'bg-emerald-200', icon: 'task_alt' },
+  [RequestStatus.COMPLETED]: { label: 'COMPLETED', color: 'text-emerald-800', bg: 'bg-emerald-200', icon: 'task_alt' },
   // Onboarding Statuses
   [RequestStatus.ONBOARDING_SUBMITTED]: { label: 'ONBOARDING SUBMITTED', color: 'text-cyan-700', bg: 'bg-cyan-100', icon: 'send' },
   [RequestStatus.ONBOARDING_PENDING_HR_APPROVAL]: { label: 'PENDING HR APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'pending' },

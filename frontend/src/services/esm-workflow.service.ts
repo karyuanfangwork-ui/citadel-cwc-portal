@@ -11,6 +11,14 @@ const esmWorkflowService = {
     },
 
     /**
+     * Requester/Admin reassigns the pending CEO/GROUP_DCEO approver.
+     */
+    async reassignCeoApprover(requestId: string, approverId: string, notes?: string) {
+        const response = await api.post(`/esm-workflow/requests/${requestId}/reassign-ceo-approver`, { approverId, notes });
+        return response.data;
+    },
+
+    /**
      * CEO approves or rejects a travel request.
      * On approval: checks threshold → routes to GROUP_DCEO or ACTION_REQUIRED.
      * On rejection: → REJECTED (terminal).
