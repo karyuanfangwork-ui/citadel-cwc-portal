@@ -292,6 +292,21 @@ class ServiceDeskService {
             lifecycleStatus: data.lifecycleStatus as any,
             reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
         };
+        // P5-05: Sanitize formConfig — strip incomplete showWhen conditions before persisting
+        if (data.formConfig !== undefined) {
+            const sanitizedConfig = (data.formConfig as any[])?.map((field: any) => {
+                if (!field.showWhen) return field;
+                const validConditions = (field.showWhen.conditions as any[])?.filter(
+                    (c: any) => c.fieldId && c.fieldId.trim() !== ''
+                );
+                if (!validConditions || validConditions.length === 0) {
+                    const { showWhen, ...rest } = field;
+                    return rest;
+                }
+                return { ...field, showWhen: { ...field.showWhen, conditions: validConditions } };
+            });
+            updateData.formConfig = sanitizedConfig ?? data.formConfig;
+        }
         if (data.formConfig !== undefined) {
             updateData.formConfigVersion = { increment: 1 };
         }

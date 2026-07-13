@@ -2,14 +2,14 @@ import { z } from 'zod';
 
 // P5-05: Conditional-field rule validation
 const conditionSchema = z.object({
-    fieldId: z.string().min(1, 'Condition fieldId is required'),
+    fieldId: z.string(), // Allow empty strings — frontend builds rules incrementally; invalid ones are stripped before persisting
     operator: z.enum(['eq', 'neq', 'contains', 'startsWith', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty', 'in']),
     value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]).optional(),
 });
 
 const conditionalRuleSchema = z.object({
     operator: z.enum(['and', 'or']).default('and'),
-    conditions: z.array(conditionSchema).min(1, 'At least one condition is required'),
+    conditions: z.array(conditionSchema), // Allow empty array — incomplete rules are stripped before persisting
 });
 
 const formFieldSchema = z.object({
