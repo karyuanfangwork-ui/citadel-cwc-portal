@@ -15,7 +15,7 @@ const conditionalRuleSchema = z.object({
 const formFieldSchema = z.object({
     id: z.string().min(1),
     label: z.string().min(1),
-    type: z.enum(['text', 'textarea', 'select', 'date', 'number', 'currency', 'file', 'entity']),
+    type: z.enum(['text', 'textarea', 'select', 'date', 'number', 'currency', 'file', 'entity', 'ceo-select', 'candidateDocuments']),
     required: z.boolean().default(false),
     options: z.array(z.string()).optional(),
     showWhen: conditionalRuleSchema.optional(), // P5-05: conditional visibility
