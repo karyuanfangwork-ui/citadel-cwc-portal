@@ -2125,11 +2125,19 @@ async function main() {
         { key: 'credit:ai',          description: 'AI advisory features (v2 - deferred)',            enabled: true, category: 'credit' },
     ];
     for (const flag of featureFlags) {
-        await prisma.featureFlag.upsert({
-            where: { key: flag.key },
-            update: { description: flag.description, category: flag.category, enabled: flag.enabled },
-            create: { ...flag, tenantId: DEFAULT_TENANT_ID },
+        const existing = await prisma.featureFlag.findFirst({
+            where: { key: flag.key, tenantId: DEFAULT_TENANT_ID },
         });
+        if (existing) {
+            await prisma.featureFlag.update({
+                where: { id: existing.id },
+                data: { description: flag.description, category: flag.category, enabled: flag.enabled },
+            });
+        } else {
+            await prisma.featureFlag.create({
+                data: { ...flag, tenantId: DEFAULT_TENANT_ID },
+            });
+        }
     }
     console.log('✅ Feature flags seeded');
 
