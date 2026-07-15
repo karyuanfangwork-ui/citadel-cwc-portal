@@ -211,6 +211,7 @@ const ESM_TRAVEL: TransitionDef[] = [
   { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
   { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },
   { fromStatus: 'CEO_APPROVED', toStatus: 'PENDING_GROUP_DCEO_APPROVAL', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'CEO_APPROVED', toStatus: 'GROUP_DCEO_APPROVED', transitionLabel: 'SKIP', requiresComment: false },  // Skip when CEO approver holds GROUP_DCEO role
   { fromStatus: 'CEO_REJECTED', toStatus: 'REJECTED', transitionLabel: 'CLOSE', requiresComment: false },
   { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
   { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },

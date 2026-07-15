@@ -508,7 +508,14 @@ export const ceoDecision = async (req: Request, res: Response) => {
         }
 
         // ── CEO APPROVED ──
-        // Always route to GROUP_DCEO approval (threshold bypass removed)
+        // If the selected CEO approver is the GROUP_DCEO (i.e. same person holds both roles),
+        // skip GROUP_DCEO approval and route directly to Finance acknowledgement.
+        const ceoApprover = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { executiveRole: true, roles: { select: { role: { select: { name: true } } } } },
+        });
+        const ceoApproverRoles = ceoApprover?.roles.map(r => r.role.name) ?? [];
+        const isGroupDceoApprover = ceoApprover?.executiveRole === 'GROUP_DCEO' || ceoApproverRoles.includes('GROUP_DCEO');
 
         // Update/create CEO approval record
         if (pendingCeoApproval) {
@@ -522,42 +529,89 @@ export const ceoDecision = async (req: Request, res: Response) => {
             });
         }
 
-        // CEO_APPROVED → PENDING_GROUP_DCEO_APPROVAL (always)
-        await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
-            comment: comments || 'CEO approved — routing to Group Deputy CEO for approval',
-            source: 'esm-workflow/ceo-approve',
-        }));
-        await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
-            source: 'esm-workflow/ceo-approve',
-        }));
-
-        // Find and assign GROUP_DCEO
-        const groupDceoId = await findGroupDceo();
-        if (groupDceoId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId, assignedTeam: 'ESM' } });
-
+        if (isGroupDceoApprover) {
+            // ── GROUP_DCEO acted as CEO approver → skip GROUP_DCEO stage ──
+            // Record automatic GROUP_DCEO approval since the same person already approved
             await prisma.requestApproval.create({
-                data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
+                data: { requestId: id, approverType: 'GROUP_DCEO', approverId: userId, status: 'APPROVED', comments: 'Auto-approved: same approver holds GROUP_DCEO role' },
             });
 
-            await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
+            // CEO_APPROVED → GROUP_DCEO_APPROVED → FINANCE_ACKNOWLEDGED
+            await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
+                comment: comments || 'CEO/Group Deputy CEO approved — routing directly to Finance',
+                source: 'esm-workflow/ceo-approve',
+            }));
+            await transitionRequest(id, 'GROUP_DCEO_APPROVED', transitionOpts(req, {
+                comment: 'Auto-approved: CEO approver holds GROUP_DCEO role',
+                source: 'esm-workflow/auto-dceo-approve',
+            }));
+            await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
+                source: 'esm-workflow/ceo-approve',
+            }));
+
+            // Assign to Finance agent for acknowledgement
+            const financeAgentId = await findFinanceAgent();
+            if (financeAgentId) {
+                await prisma.request.update({ where: { id }, data: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } });
+                await notify({ userId: financeAgentId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
+            } else {
+                console.warn(`[ESM-Workflow] No Finance agent found for request ${id}`);
+            }
+
+            await logActivity(id, `CEO/Group Deputy CEO approved — skipping Group Deputy CEO stage, routing directly to Finance${comments ? ': ' + comments : ''}`, userId);
+            await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
+
+            const { resumeSla } = await import('../services/sla-pause.service');
+            await resumeSla(id);
+
+            await auditLog(req as any, 'ESM_CEO_DECISION', 'request', id, {
+                decision,
+                approverType: 'CEO',
+                newStatus: 'FINANCE_ACKNOWLEDGED',
+                previousStatus: request.status,
+                comments: comments || null,
+                skipGroupDceo: true,
+            }, { status: request.status });
+
+            res.json({ status: 'success', message: 'CEO/Group Deputy CEO approved — routing directly to Finance for acknowledgement' });
         } else {
-            console.warn(`[ESM-Workflow] No active Group DCEO found for request ${id}`);
+            // ── Standard flow: CEO approved → route to GROUP_DCEO ──
+            // CEO_APPROVED → PENDING_GROUP_DCEO_APPROVAL
+            await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
+                comment: comments || 'CEO approved — routing to Group Deputy CEO for approval',
+                source: 'esm-workflow/ceo-approve',
+            }));
+            await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
+                source: 'esm-workflow/ceo-approve',
+            }));
+
+            // Find and assign GROUP_DCEO
+            const groupDceoId = await findGroupDceo();
+            if (groupDceoId) {
+                await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId, assignedTeam: 'ESM' } });
+
+                await prisma.requestApproval.create({
+                    data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
+                });
+
+                await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
+            } else {
+                console.warn(`[ESM-Workflow] No active Group DCEO found for request ${id}`);
+            }
+
+            await logActivity(id, `CEO approved — routing to Group Deputy CEO for approval${comments ? ': ' + comments : ''}`, userId);
+            await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'PENDING_GROUP_DCEO_APPROVAL' }, relatedRequestId: id });
+
+            await auditLog(req as any, 'ESM_CEO_DECISION', 'request', id, {
+                decision,
+                approverType: 'CEO',
+                newStatus: 'PENDING_GROUP_DCEO_APPROVAL',
+                previousStatus: request.status,
+                comments: comments || null,
+            }, { status: request.status });
+
+            res.json({ status: 'success', message: 'CEO approved — routing to Group Deputy CEO for approval' });
         }
-
-        await logActivity(id, `CEO approved — routing to Group Deputy CEO for approval${comments ? ': ' + comments : ''}`, userId);
-
-        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'PENDING_GROUP_DCEO_APPROVAL' }, relatedRequestId: id });
-
-        await auditLog(req as any, 'ESM_CEO_DECISION', 'request', id, {
-            decision,
-            approverType: 'CEO',
-            newStatus: 'PENDING_GROUP_DCEO_APPROVAL',
-            previousStatus: request.status,
-            comments: comments || null,
-        }, { status: request.status });
-
-        res.json({ status: 'success', message: 'CEO approved — routing to Group Deputy CEO for approval' });
     } catch (error: any) {
         console.error('ceoDecision error:', error);
         if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
