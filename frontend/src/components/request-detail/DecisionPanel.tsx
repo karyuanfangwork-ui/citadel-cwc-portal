@@ -131,7 +131,8 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   REASSIGN_CEO_APPROVER_ESM: { icon: 'manage_accounts', bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   CEO_DECISION_ESM:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   GROUP_DCEO_DECISION_ESM:   { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
-  CONFIRM_BOOKING_ESM:       { icon: 'flight_takeoff',   bgClass: 'bg-green-100', textClass: 'text-green-600' },
+  FIN_ACKNOWLEDGE_ESM:      { icon: 'task_alt',         bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
+  CFO_DECISION_ESM:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   CLOSE_TRAVEL_REQUEST:      { icon: 'task_alt',         bgClass: 'bg-green-100', textClass: 'text-green-600' },
   // Chargeback
   CHARGEBACK_SUBMIT:         { icon: 'send',             bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
@@ -192,6 +193,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   userId,
   assignedTo,
   assignedTeam,
+  agentTeam,
   approvals = [],
   requestTypeName = '',
   requestTypeCode = '',
@@ -251,6 +253,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     hasSignedLOA,
     assignedTo?.id ?? '',
     userId,
+    agentTeam ?? '',
     assignedTeam ?? '',
   );
 
@@ -600,7 +603,8 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     REASSIGN_CEO_APPROVER_ESM: 'REASSIGN_CEO_APPROVER_ESM',
     CEO_DECISION_ESM: 'CEO_DECISION_ESM',
     GROUP_DCEO_DECISION_ESM: 'GROUP_DCEO_DECISION_ESM',
-    CONFIRM_BOOKING_ESM: 'CONFIRM_BOOKING_ESM',
+    FIN_ACKNOWLEDGE_ESM: 'FIN_ACKNOWLEDGE_ESM',
+    CFO_DECISION_ESM: 'CFO_DECISION_ESM',
     CLOSE_TRAVEL_REQUEST: 'CLOSE_TRAVEL_REQUEST',
     ROUTE_TO_CEO_HR: 'ROUTE_TO_CEO_HR',
     ROUTE_TO_GROUP_DCEO_HR: 'ROUTE_TO_GROUP_DCEO_HR',

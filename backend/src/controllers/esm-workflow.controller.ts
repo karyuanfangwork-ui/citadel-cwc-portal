@@ -8,10 +8,6 @@ import prisma from '../utils/prisma';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** SystemSetting key for the GROUP_DCEO approval threshold (numeric value in local currency). */
-const GROUP_DCEO_THRESHOLD_KEY = 'esm_group_dceo_threshold';
-const DEFAULT_THRESHOLD = 50000; // Default threshold if not configured
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -47,19 +43,6 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
 }
 
 /**
- * Get the GROUP_DCEO approval threshold from SystemSetting.
- * Falls back to DEFAULT_THRESHOLD if not configured.
- */
-async function getGroupDceoThreshold(): Promise<number> {
-    const setting = await prisma.systemSetting.findUnique({
-        where: { key: GROUP_DCEO_THRESHOLD_KEY },
-    });
-    if (!setting) return DEFAULT_THRESHOLD;
-    const parsed = parseFloat(setting.value);
-    return isNaN(parsed) ? DEFAULT_THRESHOLD : parsed;
-}
-
-/**
  * Find the CEO user for the requester's entity (or the first active CEO).
  * Priority: CEO of the requester's entity → any active CEO.
  */
@@ -91,6 +74,77 @@ async function findGroupDceo(): Promise<string | undefined> {
         select: { id: true },
     });
     return dceo?.id;
+}
+
+/**
+ * Find a CFO user for the finance approval step.
+ * Priority: CFO of the requester's entity → any active CFO.
+ */
+async function findCfo(): Promise<string | undefined> {
+    const cfo = await prisma.user.findFirst({
+        where: { isActive: true, executiveRole: 'CFO' },
+        select: { id: true },
+    });
+    if (cfo) return cfo.id;
+
+    // Fallback: any user with CFO role
+    const cfoRole = await prisma.role.findUnique({ where: { name: 'CFO' } });
+    if (cfoRole) {
+        const cfoUser = await prisma.user.findFirst({
+            where: { isActive: true, roles: { some: { roleId: cfoRole.id } } },
+            select: { id: true },
+        });
+        if (cfoUser) return cfoUser.id;
+    }
+
+    // Final fallback: finance desk agent
+    const financeDesk = await prisma.serviceDesk.findFirst({
+        where: { code: 'FINANCE', isActive: true },
+    });
+    if (financeDesk) {
+        const financeAgent = await prisma.user.findFirst({
+            where: { isActive: true, agentTeam: 'FINANCE' },
+            select: { id: true },
+        });
+        if (financeAgent) return financeAgent.id;
+    }
+
+    return undefined;
+}
+
+/**
+ * Find a Finance desk agent for acknowledgement.
+ * Prefers agents with the AGENT role on the FINANCE team.
+ * Falls back to any active FINANCE agent, then any admin.
+ */
+async function findFinanceAgent(): Promise<string | undefined> {
+    // Prefer active finance agents with AGENT role
+    const financeAgentWithRole = await prisma.user.findFirst({
+        where: { isActive: true, agentTeam: 'FINANCE', roles: { some: { role: { name: 'AGENT' } } } },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+    });
+    if (financeAgentWithRole) return financeAgentWithRole.id;
+
+    // Fallback: any active finance team member
+    const financeAgent = await prisma.user.findFirst({
+        where: { isActive: true, agentTeam: 'FINANCE' },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+    });
+    if (financeAgent) return financeAgent.id;
+
+    // Final fallback: any admin
+    const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
+    if (adminRole) {
+        const admin = await prisma.user.findFirst({
+            where: { isActive: true, roles: { some: { roleId: adminRole.id } } },
+            select: { id: true },
+        });
+        if (admin) return admin.id;
+    }
+
+    return undefined;
 }
 
 async function validateTravelExecutiveApprover(approverId: string) {
@@ -190,7 +244,7 @@ export const submitForCeoApproval = async (req: Request, res: Response) => {
         }));
 
         if (ceoId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: ceoId } });
+            await prisma.request.update({ where: { id }, data: { assignedToId: ceoId, assignedTeam: 'ESM' } });
 
             // Create CEO approval record
             await prisma.requestApproval.create({
@@ -334,6 +388,7 @@ export const reassignCeoApprover = async (req: Request, res: Response) => {
                 where: { id },
                 data: {
                     assignedToId: newApprover.id,
+                    assignedTeam: 'ESM',
                     customFields: {
                         ...existingCustomFields,
                         ceoApproverId: newApprover.id,
@@ -375,7 +430,7 @@ export const reassignCeoApprover = async (req: Request, res: Response) => {
  * POST /esm-workflow/requests/:id/ceo-decision
  *
  * CEO approves or rejects a travel request.
- * On approval: checks totalAmount against threshold → routes to GROUP_DCEO or directly to ACTION_REQUIRED.
+ * On approval: always routes to GROUP_DCEO_APPROVAL (threshold bypass removed).
  * On rejection: CEO_REJECTED → REJECTED (terminal).
  */
 export const ceoDecision = async (req: Request, res: Response) => {
@@ -433,8 +488,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }
 
             // Reassign back to requester for visibility
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId } });
-
+            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
             await logActivity(id, `CEO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
             await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
 
@@ -454,11 +508,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         }
 
         // ── CEO APPROVED ──
-        // Check totalAmount against threshold
-        const customFields = (request.customFields as Record<string, unknown>) || {};
-        const totalAmount = parseFloat(String(customFields.totalAmount ?? '0'));
-        const threshold = await getGroupDceoThreshold();
-        const exceedsThreshold = !isNaN(totalAmount) && totalAmount > threshold;
+        // Always route to GROUP_DCEO approval (threshold bypass removed)
 
         // Update/create CEO approval record
         if (pendingCeoApproval) {
@@ -472,70 +522,42 @@ export const ceoDecision = async (req: Request, res: Response) => {
             });
         }
 
-        if (exceedsThreshold) {
-            // CEO_APPROVED → PENDING_GROUP_DCEO_APPROVAL
-            await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
-                comment: comments || `CEO approved — amount exceeds threshold (MYR ${totalAmount} > MYR ${threshold}), routed to Group Deputy CEO`,
-                source: 'esm-workflow/ceo-approve-dceo',
-            }));
-            await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
-                source: 'esm-workflow/ceo-approve-dceo',
-            }));
+        // CEO_APPROVED → PENDING_GROUP_DCEO_APPROVAL (always)
+        await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
+            comment: comments || 'CEO approved — routing to Group Deputy CEO for approval',
+            source: 'esm-workflow/ceo-approve',
+        }));
+        await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
+            source: 'esm-workflow/ceo-approve',
+        }));
 
-            // Find and assign GROUP_DCEO
-            const groupDceoId = await findGroupDceo();
-            if (groupDceoId) {
-                await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId } });
+        // Find and assign GROUP_DCEO
+        const groupDceoId = await findGroupDceo();
+        if (groupDceoId) {
+            await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId, assignedTeam: 'ESM' } });
 
-                await prisma.requestApproval.create({
-                    data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
-                });
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
+            });
 
-                await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
-            }
-
-            await logActivity(id, `CEO approved — amount MYR ${totalAmount} exceeds threshold MYR ${threshold}, routed to Group Deputy CEO${comments ? ': ' + comments : ''}`, userId);
-
-            // SLA stays paused during DCEO approval
+            await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
         } else {
-            // CEO_APPROVED → ACTION_REQUIRED (below threshold — skip DCEO)
-            await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
-                comment: comments || 'CEO approved — amount within threshold, no Group Deputy CEO approval required',
-                source: 'esm-workflow/ceo-approve-direct',
-            }));
-            await transitionRequest(id, 'ACTION_REQUIRED', transitionOpts(req, {
-                source: 'esm-workflow/ceo-approve-direct',
-            }));
-
-            // Reassign back to requester for booking confirmation
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId } });
-
-            await logActivity(id, `CEO approved — amount MYR ${totalAmount} within threshold MYR ${threshold}. Awaiting booking confirmation${comments ? ': ' + comments : ''}`, userId);
-
-            const { resumeSla } = await import('../services/sla-pause.service');
-            await resumeSla(id);
+            console.warn(`[ESM-Workflow] No active Group DCEO found for request ${id}`);
         }
 
-        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: exceedsThreshold ? 'PENDING_GROUP_DCEO_APPROVAL' : 'ACTION_REQUIRED' }, relatedRequestId: id });
+        await logActivity(id, `CEO approved — routing to Group Deputy CEO for approval${comments ? ': ' + comments : ''}`, userId);
+
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'PENDING_GROUP_DCEO_APPROVAL' }, relatedRequestId: id });
 
         await auditLog(req as any, 'ESM_CEO_DECISION', 'request', id, {
             decision,
             approverType: 'CEO',
-            newStatus: exceedsThreshold ? 'PENDING_GROUP_DCEO_APPROVAL' : 'ACTION_REQUIRED',
+            newStatus: 'PENDING_GROUP_DCEO_APPROVAL',
             previousStatus: request.status,
-            totalAmount,
-            threshold,
-            exceedsThreshold,
             comments: comments || null,
         }, { status: request.status });
 
-        res.json({
-            status: 'success',
-            message: exceedsThreshold
-                ? `CEO approved — amount exceeds MYR ${threshold} threshold, routed to Group Deputy CEO`
-                : `CEO approved — amount within MYR ${threshold} threshold, awaiting booking confirmation`,
-            data: { exceedsThreshold, totalAmount, threshold },
-        });
+        res.json({ status: 'success', message: 'CEO approved — routing to Group Deputy CEO for approval' });
     } catch (error: any) {
         console.error('ceoDecision error:', error);
         if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
@@ -549,7 +571,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
  * POST /esm-workflow/requests/:id/group-dceo-decision
  *
  * GROUP_DCEO approves or rejects.
- * Approved → ACTION_REQUIRED (reassign to requester for booking confirmation).
+ * Approved → FINANCE_ACKNOWLEDGED (assign to Finance agent).
  * Rejected → GROUP_DCEO_REJECTED → REJECTED (terminal).
  */
 export const groupDceoDecision = async (req: Request, res: Response) => {
@@ -597,7 +619,7 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             }
 
             // Reassign back to requester
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId } });
+            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
 
             await logActivity(id, `Group Deputy CEO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
             await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
@@ -618,12 +640,12 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
         }
 
         // ── GROUP_DCEO APPROVED ──
-        // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED → ACTION_REQUIRED
+        // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED → FINANCE_ACKNOWLEDGED
         await transitionRequest(id, 'GROUP_DCEO_APPROVED', transitionOpts(req, {
             comment: comments || undefined,
             source: 'esm-workflow/group-dceo-approve',
         }));
-        await transitionRequest(id, 'ACTION_REQUIRED', transitionOpts(req, {
+        await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
             source: 'esm-workflow/group-dceo-approve',
         }));
 
@@ -634,11 +656,17 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             });
         }
 
-        // Reassign back to requester for booking confirmation
-        await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId } });
+        // Assign to Finance agent for acknowledgement
+        const financeAgentId = await findFinanceAgent();
+        if (financeAgentId) {
+            await prisma.request.update({ where: { id }, data: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } });
+            await notify({ userId: financeAgentId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
+        } else {
+            console.warn(`[ESM-Workflow] No Finance agent found for request ${id}`);
+        }
 
-        await logActivity(id, `Group Deputy CEO approved — awaiting booking confirmation from requester${comments ? ': ' + comments : ''}`, userId);
-        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'ACTION_REQUIRED' }, relatedRequestId: id });
+        await logActivity(id, `Group Deputy CEO approved — routing to Finance for acknowledgement${comments ? ': ' + comments : ''}`, userId);
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
 
         const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
@@ -646,12 +674,12 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
         await auditLog(req as any, 'ESM_GROUP_DCEO_DECISION', 'request', id, {
             decision,
             approverType: 'GROUP_DCEO',
-            newStatus: 'ACTION_REQUIRED',
+            newStatus: 'FINANCE_ACKNOWLEDGED',
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
 
-        res.json({ status: 'success', message: 'Travel request approved by Group Deputy CEO — awaiting booking confirmation' });
+        res.json({ status: 'success', message: 'Group Deputy CEO approved — routing to Finance for acknowledgement' });
     } catch (error: any) {
         console.error('groupDceoDecision error:', error);
         if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
@@ -662,16 +690,16 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
 };
 
 /**
- * POST /esm-workflow/requests/:id/confirm-booking
+ * POST /esm-workflow/requests/:id/finance-acknowledge
  *
- * Requester confirms their booking is completed.
- * ACTION_REQUIRED → COMPLETED
+ * Finance Agent acknowledges the travel request and routes it to CFO.
+ * FINANCE_ACKNOWLEDGED → PENDING_CFO_APPROVAL_FIN
  */
-export const confirmBooking = async (req: Request, res: Response) => {
+export const financeAcknowledge = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
-        const userId = (req as any).user?.id;
         const { notes } = req.body;
+        const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({ where: { id } });
         if (!request) {
@@ -679,40 +707,172 @@ export const confirmBooking = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'ACTION_REQUIRED') {
-            res.status(400).json({ status: 'error', message: 'Request must be in ACTION_REQUIRED status to confirm booking' });
+        if (request.status !== 'FINANCE_ACKNOWLEDGED') {
+            res.status(400).json({ status: 'error', message: 'Request must be in FINANCE_ACKNOWLEDGED status to acknowledge' });
             return;
         }
 
-        // Verify the requester is the one confirming
-        if (request.requesterId !== userId) {
-            res.status(403).json({ status: 'error', message: 'Only the requester can confirm the booking' });
-            return;
-        }
-
-        // ACTION_REQUIRED → COMPLETED
-        await transitionRequest(id, 'COMPLETED', transitionOpts(req, {
-            comment: notes || 'Booking confirmed by requester',
-            source: 'esm-workflow/confirm-booking',
+        // Transition: FINANCE_ACKNOWLEDGED → PENDING_CFO_APPROVAL_FIN
+        await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
+            comment: notes || 'Finance acknowledged — routing to CFO for approval',
+            source: 'esm-workflow/finance-acknowledge',
         }));
 
-        await logActivity(id, `Booking confirmed by requester${notes ? ': ' + notes : ''}`, userId);
+        // Find and assign CFO
+        const cfoId = await findCfo();
+        if (cfoId) {
+            await prisma.request.update({ where: { id }, data: { assignedToId: cfoId, assignedTeam: 'FINANCE' } });
 
-        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'COMPLETED' }, relatedRequestId: id });
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: cfoId, status: 'PENDING', comments: notes || null },
+            });
 
-        await auditLog(req as any, 'ESM_BOOKING_CONFIRMED', 'request', id, {
-            newStatus: 'COMPLETED',
+            await notify({ userId: cfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
+        } else {
+            console.warn(`[ESM-Workflow] No active CFO found for request ${id}`);
+        }
+
+        // Pause SLA during CFO approval
+        const { pauseSla } = await import('../services/sla-pause.service');
+        await pauseSla(id);
+
+        await logActivity(id, `Finance acknowledged — routing to CFO for approval${notes ? ': ' + notes : ''}`, userId);
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'PENDING_CFO_APPROVAL' }, relatedRequestId: id });
+
+        await auditLog(req as any, 'ESM_FINANCE_ACKNOWLEDGE', 'request', id, {
+            newStatus: 'PENDING_CFO_APPROVAL_FIN',
             previousStatus: request.status,
             notes: notes || null,
         }, { status: request.status });
 
-        res.json({ status: 'success', message: 'Booking confirmed — travel request marked as completed' });
+        res.json({ status: 'success', message: 'Finance acknowledged — routing to CFO for approval' });
     } catch (error: any) {
-        console.error('confirmBooking error:', error);
+        console.error('financeAcknowledge error:', error);
         if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
             return res.status(403).json({ error: error.message });
         }
-        res.status(500).json({ status: 'error', message: 'Failed to confirm booking' });
+        res.status(500).json({ status: 'error', message: 'Failed to acknowledge travel request' });
+    }
+};
+
+/**
+ * POST /esm-workflow/requests/:id/cfo-decision
+ *
+ * CFO approves or rejects the travel request.
+ * Approved → CFO_APPROVED_FIN → COMPLETED (reassigned to requester).
+ * Rejected → CFO_REJECTED_FIN → REJECTED (terminal).
+ */
+export const cfoDecisionTravel = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { decision, comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        if (!['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({ status: 'error', message: 'decision must be APPROVED or REJECTED' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: { approvals: { where: { approverType: 'CFO', status: 'PENDING' } } },
+        });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'PENDING_CFO_APPROVAL_FIN') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending CFO approval' });
+            return;
+        }
+
+        const pendingCfoApproval = request.approvals[0];
+
+        if (decision === 'REJECTED') {
+            // PENDING_CFO_APPROVAL_FIN → CFO_REJECTED_FIN → REJECTED (terminal)
+            await transitionRequest(id, 'CFO_REJECTED_FIN', transitionOpts(req, {
+                comment: comments || 'CFO rejected the travel request',
+                source: 'esm-workflow/cfo-reject',
+            }));
+            await transitionRequest(id, 'REJECTED', transitionOpts(req, {
+                comment: comments || 'Travel request rejected by CFO',
+                source: 'esm-workflow/cfo-reject-terminal',
+            }));
+
+            if (pendingCfoApproval) {
+                await prisma.requestApproval.update({
+                    where: { id: pendingCfoApproval.id },
+                    data: { status: 'REJECTED', approverId: userId, comments: comments || null },
+                });
+            }
+
+            // Reassign back to requester
+            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
+            await logActivity(id, `CFO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
+            await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
+
+            const { resumeSla } = await import('../services/sla-pause.service');
+            await resumeSla(id);
+
+            await auditLog(req as any, 'ESM_CFO_DECISION', 'request', id, {
+                decision,
+                approverType: 'CFO',
+                newStatus: 'REJECTED',
+                previousStatus: request.status,
+                comments: comments || null,
+            }, { status: request.status });
+
+            res.json({ status: 'success', message: 'Travel request rejected by CFO' });
+            return;
+        }
+
+        // ── CFO APPROVED ──
+        // CFO_APPROVED_FIN → COMPLETED
+        if (pendingCfoApproval) {
+            await prisma.requestApproval.update({
+                where: { id: pendingCfoApproval.id },
+                data: { status: 'APPROVED', approverId: userId, comments: comments || null },
+            });
+        } else {
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        }
+
+        await transitionRequest(id, 'CFO_APPROVED_FIN', transitionOpts(req, {
+            comment: comments || 'CFO approved the travel request',
+            source: 'esm-workflow/cfo-approve',
+        }));
+        await transitionRequest(id, 'COMPLETED', transitionOpts(req, {
+            comment: 'Travel request approved — all approvals completed',
+            source: 'esm-workflow/cfo-approve-complete',
+        }));
+
+        // Reassign back to requester
+        await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
+
+        await logActivity(id, `CFO approved the travel request — all approvals completed${comments ? ': ' + comments : ''}`, userId);
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'COMPLETED' }, relatedRequestId: id });
+
+        const { resumeSla } = await import('../services/sla-pause.service');
+        await resumeSla(id);
+
+        await auditLog(req as any, 'ESM_CFO_DECISION', 'request', id, {
+            decision,
+            approverType: 'CFO',
+            newStatus: 'COMPLETED',
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+
+        res.json({ status: 'success', message: 'CFO approved — travel request completed' });
+    } catch (error: any) {
+        console.error('cfoDecisionTravel error:', error);
+        if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+            return res.status(403).json({ error: error.message });
+        }
+        res.status(500).json({ status: 'error', message: 'Failed to process CFO decision' });
     }
 };
 
@@ -745,7 +905,6 @@ export const closeTicket = async (req: Request, res: Response) => {
         }));
 
         await logActivity(id, `Travel request closed and resolved${notes ? ': ' + notes : ''}`, (req as any).user?.id);
-
         await auditLog(req as any, 'ESM_TICKET_CLOSED', 'request', id, {
             newStatus: 'RESOLVED',
             previousStatus: request.status,

@@ -58,6 +58,7 @@ interface WorkflowCockpitProps {
     roles: string[];
     name?: string;
     permissions?: string[];
+    agentTeam?: string | null;
   };
 
   /** Workflow steps from request type */
@@ -201,7 +202,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               slaDueAt={request.slaDueAt}
               requesterId={request.requesterId}
               requiresApproval={request.requiresApproval}
-              agentTeam={request.assignedTeam ?? undefined}
+              agentTeam={user.agentTeam ?? undefined}
               hasResumes={hasResumes}
               allCandidatesComplete={allCandidatesComplete}
               screeningCompleted={screeningCompleted}
@@ -340,7 +341,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   slaDueAt={request.slaDueAt}
                   requesterId={request.requesterId}
                   requiresApproval={request.requiresApproval}
-                  agentTeam={request.assignedTeam ?? undefined}
+                  agentTeam={user.agentTeam ?? undefined}
                   hasResumes={hasResumes}
                   allCandidatesComplete={allCandidatesComplete}
                   screeningCompleted={screeningCompleted}

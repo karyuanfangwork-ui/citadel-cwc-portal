@@ -69,7 +69,8 @@ export type WorkflowActionType =
   | 'REASSIGN_CEO_APPROVER_ESM'
   | 'CEO_DECISION_ESM'
   | 'GROUP_DCEO_DECISION_ESM'
-  | 'CONFIRM_BOOKING_ESM'
+  | 'FIN_ACKNOWLEDGE_ESM'
+  | 'CFO_DECISION_ESM'
   | 'CLOSE_TRAVEL_REQUEST';
 
 export interface WorkflowAction {
@@ -115,12 +116,16 @@ export function getWorkflowActions(
   assignedToId = '',
   currentUserId = '',
   agentTeam = '',
+  assignedTeam = '',
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
-  // Agent can only act on tickets belonging to their own service desk (admin bypasses)
-  const canActOnDesk = canAct && (isAdmin || (agentTeam?.toUpperCase() || '') === (serviceDeskCode?.toUpperCase() || ''));
+  // Agent can act on tickets belonging to their own service desk OR tickets
+  // cross-routed to their team (e.g. Finance agent acknowledging an ESM travel request).
+  const canActOnDesk = canAct && (isAdmin
+    || (agentTeam?.toUpperCase() || '') === (serviceDeskCode?.toUpperCase() || '')
+    || (agentTeam?.toUpperCase() || '') === (assignedTeam?.toUpperCase() || ''));
   const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
   const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
@@ -255,7 +260,7 @@ export function getWorkflowActions(
     actions.push({
       type: 'CEO_DECISION_ESM',
       label: 'CEO Approval Decision',
-      description: 'Review and approve or reject this travel request as CEO. If approved, requests above the threshold will be routed to Group Deputy CEO.',
+      description: 'Review and approve or reject this travel request as CEO.',
       variant: 'primary',
     });
   }
@@ -265,18 +270,28 @@ export function getWorkflowActions(
     actions.push({
       type: 'GROUP_DCEO_DECISION_ESM',
       label: 'Group Deputy CEO Approval Decision',
-      description: 'Review and approve or reject this high-value travel request as Group Deputy CEO.',
+      description: 'Review and approve or reject this travel request as Group Deputy CEO.',
       variant: 'primary',
     });
   }
 
-  // Requester confirms booking completion (ACTION_REQUIRED status)
-  if (isESMTravel && isRequester && status === 'ACTION_REQUIRED') {
+  // Finance Agent acknowledges travel request and routes to CFO
+  if (isESMTravel && canActOnDesk && status === 'FINANCE_ACKNOWLEDGED') {
     actions.push({
-      type: 'CONFIRM_BOOKING_ESM',
-      label: 'Confirm Booking Completed',
-      description: 'Confirm that the travel booking has been completed successfully.',
-      variant: 'success',
+      type: 'FIN_ACKNOWLEDGE_ESM',
+      label: 'Acknowledge & Route to CFO',
+      description: 'Review this travel request and route it to the CFO for final approval.',
+      variant: 'primary',
+    });
+  }
+
+  // CFO decision for ESM Travel
+  if (isESMTravel && (userRoles.includes('CFO') || isAdmin) && status === 'PENDING_CFO_APPROVAL_FIN') {
+    actions.push({
+      type: 'CFO_DECISION_ESM',
+      label: 'CFO Approval Decision',
+      description: 'Review and approve or reject this travel request as CFO.',
+      variant: 'primary',
     });
   }
 

@@ -164,7 +164,7 @@ const defaultWorkflows = [
   {
     name: 'ESM Travel Request',
     code: 'ESM_TRAVEL',
-    description: 'CWC Travel Request workflow with CEO approval, Group DCEO escalation for amounts above threshold, and booking confirmation',
+    description: 'CWC Travel Request workflow with CEO approval, Group DCEO approval, Finance acknowledgement, and CFO approval',
     displayOrder: 10,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
@@ -172,7 +172,9 @@ const defaultWorkflows = [
       { label: 'CEO Approved', status: 'CEO_APPROVED', icon: 'check_circle' },
       { label: 'Group Deputy CEO Approval', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Group Deputy CEO Approved', status: 'GROUP_DCEO_APPROVED', icon: 'check_circle' },
-      { label: 'Booking Confirmation', status: 'ACTION_REQUIRED', icon: 'radio_button_checked' },
+      { label: 'Finance Acknowledgement', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
+      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CFO Approved', status: 'CFO_APPROVED_FIN', icon: 'check_circle' },
       { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
       { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
     ]

@@ -1676,14 +1676,6 @@ export const SEED_WORKFLOW_TRANSITIONS = [
   {
     "fromStatus": "CEO_APPROVED",
     "toStatus": "PENDING_GROUP_DCEO_APPROVAL",
-    "transitionLabel": "ESCALATE",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "CEO_APPROVED",
-    "toStatus": "ACTION_REQUIRED",
     "transitionLabel": "ADVANCE",
     "requiresComment": false,
     "autoAssignRole": null,
@@ -1715,8 +1707,8 @@ export const SEED_WORKFLOW_TRANSITIONS = [
   },
   {
     "fromStatus": "GROUP_DCEO_APPROVED",
-    "toStatus": "ACTION_REQUIRED",
-    "transitionLabel": "ADVANCE",
+    "toStatus": "FINANCE_ACKNOWLEDGED",
+    "transitionLabel": "ACKNOWLEDGE",
     "requiresComment": false,
     "autoAssignRole": null,
     "isActive": true
@@ -1730,9 +1722,41 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "ACTION_REQUIRED",
+    "fromStatus": "FINANCE_ACKNOWLEDGED",
+    "toStatus": "PENDING_CFO_APPROVAL_FIN",
+    "transitionLabel": "ROUTE_TO_CFO",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_CFO_APPROVAL_FIN",
+    "toStatus": "CFO_APPROVED_FIN",
+    "transitionLabel": "APPROVE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "PENDING_CFO_APPROVAL_FIN",
+    "toStatus": "CFO_REJECTED_FIN",
+    "transitionLabel": "REJECT",
+    "requiresComment": true,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CFO_APPROVED_FIN",
     "toStatus": "COMPLETED",
-    "transitionLabel": "CONFIRM_BOOKING",
+    "transitionLabel": "COMPLETE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CFO_REJECTED_FIN",
+    "toStatus": "REJECTED",
+    "transitionLabel": "CLOSE",
     "requiresComment": false,
     "autoAssignRole": null,
     "isActive": true

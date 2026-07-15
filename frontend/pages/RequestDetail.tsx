@@ -250,6 +250,7 @@ const RequestDetailContainer: React.FC = () => {
                         roles: user?.roles || [],
                         name: user ? `${user.firstName} ${user.lastName}` : '',
                         permissions: user?.permissions || [],
+                        agentTeam: (user as any)?.agentTeam ?? null,
                     }}
                     workflowSteps={workflowSteps}
                     approvals={approvals}

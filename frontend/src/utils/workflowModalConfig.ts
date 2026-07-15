@@ -1586,27 +1586,61 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
-  CONFIRM_BOOKING_ESM: {
-    title: 'Confirm Booking Completed',
-    subtitle: 'ESM Workflow · Confirm your travel booking is complete',
-    icon: 'flight_takeoff',
-    iconBgClass: 'bg-green-100',
-    iconTextClass: 'text-green-600',
+  FIN_ACKNOWLEDGE_ESM: {
+    title: 'Acknowledge Travel Request',
+    subtitle: 'ESM Workflow · Review and acknowledge this travel request, then route to CFO for approval',
+    icon: 'task_alt',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
     fields: [
       {
         name: 'notes',
-        label: 'Booking Confirmation Notes',
+        label: 'Acknowledgement Notes',
         type: 'textarea',
-        placeholder: 'Provide details about the completed booking…',
+        placeholder: 'Optional notes on review…',
         required: false,
         rows: 3,
       },
     ],
-    submitLabel: 'Confirm Booking',
-    submitColor: 'success',
+    submitLabel: 'Acknowledge & Route to CFO',
+    submitColor: 'primary',
+    loadingLabel: 'Acknowledging…',
     onSubmit: (requestId, values) =>
-      esmWorkflowService.confirmBooking(
+      esmWorkflowService.financeAcknowledge(
         requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CFO_DECISION_ESM: {
+    title: 'CFO Approval Decision — Travel Request',
+    subtitle: 'ESM Workflow · Approve or reject this travel request as CFO',
+    icon: 'gavel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      esmWorkflowService.cfoDecisionTravel(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined,
       ),
   },

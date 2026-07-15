@@ -150,15 +150,13 @@ for (const target of IT_ONLY_TARGETS) {
 // ---------------------------------------------------------------------------
 // 4b. Service-desk guard — Finance-specific transitions must be on FINANCE service desk
 // ---------------------------------------------------------------------------
+// NOTE: Some statuses (e.g. PENDING_GROUP_DCEO_APPROVAL, GROUP_DCEO_APPROVED,
+// FINANCE_ACKNOWLEDGED, PENDING_CFO_APPROVAL_FIN, CFO_APPROVED_FIN, CFO_REJECTED_FIN)
+// are also used by the ESM Travel workflow (ESM service desk). Those shared statuses
+// are NOT included in FINANCE_ONLY_TARGETS — they have their own targeted guards below
+// that allow both ESM and FINANCE service desks.
 const FINANCE_ONLY_TARGETS = new Set([
-  'FINANCE_ACKNOWLEDGED',
-  'PENDING_CFO_APPROVAL_FIN',
-  'CFO_APPROVED_FIN',
-  'CFO_REJECTED_FIN',
   'FINANCE_IN_PROGRESS',
-  'PENDING_GROUP_DCEO_APPROVAL',
-  'GROUP_DCEO_APPROVED',
-  'GROUP_DCEO_REJECTED',
   'PAYMENT_PROCESSING_FIN',
   'AWAITING_PAYMENT_CONFIRMATION',
   'TICKET_CLOSED_FIN',
@@ -177,6 +175,28 @@ for (const target of FINANCE_ONLY_TARGETS) {
     const deskCode = request.serviceDesk?.code;
     if (deskCode && deskCode !== 'FINANCE') {
       return `Transition to ${target} is only allowed for FINANCE service desk requests (got: ${deskCode})`;
+    }
+    return null;
+  });
+}
+
+// Shared statuses used by both ESM Travel and Finance workflows.
+// Allow transitions from both ESM and FINANCE service desks.
+const SHARED_APPROVAL_TARGETS = new Set([
+  'PENDING_GROUP_DCEO_APPROVAL',
+  'GROUP_DCEO_APPROVED',
+  'GROUP_DCEO_REJECTED',
+  'FINANCE_ACKNOWLEDGED',
+  'PENDING_CFO_APPROVAL_FIN',
+  'CFO_APPROVED_FIN',
+  'CFO_REJECTED_FIN',
+]);
+
+for (const target of SHARED_APPROVAL_TARGETS) {
+  registerTransitionGuard(`*→${target}`, async (request, _from, _to, _options) => {
+    const deskCode = request.serviceDesk?.code;
+    if (deskCode && deskCode !== 'FINANCE' && deskCode !== 'ESM') {
+      return `Transition to ${target} is only allowed for FINANCE or ESM service desk requests (got: ${deskCode})`;
     }
     return null;
   });
