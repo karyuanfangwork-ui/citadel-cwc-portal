@@ -926,13 +926,12 @@ const CrmLeads = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Email Address *</label>
+                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Email Address</label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
                           <span className="material-symbols-outlined text-[18px]">mail</span>
                         </span>
                         <input
-                          required
                           type="email"
                           placeholder="john.doe@company.com"
                           value={form.contactEmail || ''}
