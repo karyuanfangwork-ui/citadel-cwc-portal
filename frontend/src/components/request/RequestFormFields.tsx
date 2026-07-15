@@ -27,7 +27,7 @@ interface RequestFormFieldsProps {
     resolvedAt?: string | null;
     customFields?: Record<string, any>;
     serviceDesk?: { code: string; name?: string };
-    requestType?: { code?: string; name?: string; formConfig?: any[] };
+    requestType?: { code?: string; name?: string; formConfig?: any };
     itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
     requester?: { id: string; firstName: string; lastName: string; email: string } | null;
     assignedTo?: { id: string; firstName: string; lastName: string } | null;

@@ -2,6 +2,7 @@ import React from 'react';
 import apiClient from '../../services/api';
 import { type FormData, URGENCY_OPTIONS } from './useCreateRequestWizard';
 import RichTextEditor from '@/src/components/ui/RichTextEditor';
+import { parseFormConfig } from '../../utils/formConfig';
 
 interface StepDetailsProps {
   formData: FormData;
@@ -592,7 +593,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       )}
 
       {/* DYNAMIC FIELDS FROM ADMIN CONFIG */}
-      {selectedRequestType?.formConfig?.map((field: any) => (
+      {parseFormConfig(selectedRequestType?.formConfig).map((field: any) => (
         <div key={field.id} className="scale-in">
           <label htmlFor={`field-${field.id}`} className="block text-sm font-bold text-text-primary mb-2 flex justify-between">
             {field.label} {field.required && <span className="text-red-500">*</span>}

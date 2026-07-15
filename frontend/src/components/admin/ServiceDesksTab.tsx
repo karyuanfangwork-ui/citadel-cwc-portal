@@ -1,5 +1,6 @@
 import React from 'react';
 import { CategoryData } from '../../services/admin.service';
+import { parseFormConfig } from '../../utils/formConfig';
 
 interface ServiceDesksTabProps {
     serviceDesks: any[];
@@ -429,7 +430,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
 
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-50">
                                         <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#0052cc] bg-blue-50 px-3 py-1 rounded-full">
-                                            {type.formConfig?.length || 0} Custom Fields
+                                            {parseFormConfig(type.formConfig).length || 0} Custom Fields
                                         </span>
                                         <span className="material-symbols-outlined text-gray-300 group-hover:text-[#0052cc] transition-colors">arrow_forward</span>
                                     </div>

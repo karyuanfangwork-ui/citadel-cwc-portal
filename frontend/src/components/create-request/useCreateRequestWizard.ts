@@ -3,6 +3,7 @@ import { serviceDeskService } from '../../services/serviceDesk.service';
 import { entityService } from '../../services/entity.service';
 import apiClient from '../../services/api';
 import { friendlyMessage } from '../../utils/errorMessages';
+import { parseFormConfig } from '../../utils/formConfig';
 import { useAuth } from '../../context/AuthContext';
 
 export type WizardStep = 'type' | 'details' | 'review';
@@ -90,7 +91,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     if (code === 'NEW_HARDWARE') {
       const hwName = cf.hardwareName || '';
       // Resolve field by label in case admin changed field IDs
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -105,7 +106,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }
 
     if (code === 'SOFTWARE_INSTALLATION') {
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -125,7 +126,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       if (!desc) {
         // For EMAIL_MANAGEMENT, also try building from custom fields if no description
         if (code === 'EMAIL_MANAGEMENT') {
-          const formConfig = selectedRequestType?.formConfig || [];
+          const formConfig = parseFormConfig(selectedRequestType?.formConfig);
           const resolveByLabel = (labelMatch: string): string => {
             for (const f of formConfig) {
               if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -170,7 +171,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }
 
     if (code === 'PURCHASE_REQUISITION') {
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -187,7 +188,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }
 
     if (code === 'INTERCOMPANY_CHARGEBACK') {
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -212,7 +213,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }
 
     if (code === 'BUDGET_PROPOSAL') {
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -234,7 +235,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
     // CWC_TRAVEL_REQUEST
     if (code === 'CWC_TRAVEL_REQUEST') {
-      const formConfig = selectedRequestType?.formConfig || [];
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
       const resolveByLabel = (labelMatch: string): string => {
         for (const f of formConfig) {
           if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
@@ -394,11 +395,10 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
     // Initialize custom fields for the selected type
     const initialCustom: any = {};
-    if (type.formConfig) {
-      type.formConfig.forEach((field: any) => {
-        initialCustom[field.id] = '';
-      });
-    }
+    const fc = parseFormConfig(type.formConfig);
+    fc.forEach((field: any) => {
+      initialCustom[field.id] = '';
+    });
     setFormData(prev => ({
       ...prev,
       customFields: initialCustom,

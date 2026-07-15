@@ -140,7 +140,7 @@ export interface Request {
                 isFinal: boolean;
             }[];
         };
-        formConfig?: any[];
+        formConfig?: any;
     };
     approvals?: { id: string; approverId: string; approverType: string; status: string }[];
     attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];

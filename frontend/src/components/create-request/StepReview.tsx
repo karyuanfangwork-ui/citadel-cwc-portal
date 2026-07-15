@@ -1,6 +1,7 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
 import { FormData, URGENCY_OPTIONS, WorkflowInfo } from './useCreateRequestWizard';
+import { parseFormConfig } from '../../utils/formConfig';
 
 interface StepReviewProps {
   formData: FormData;
@@ -228,11 +229,11 @@ const StepReview: React.FC<StepReviewProps> = ({
       )}
 
       {/* Custom Fields */}
-      {selectedRequestType?.formConfig?.length > 0 && (
+      {parseFormConfig(selectedRequestType?.formConfig).length > 0 && (
         <div className="pb-6 border-b border-cwc-border">
           <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3">Additional Fields</h3>
           <div className="space-y-3">
-            {selectedRequestType.formConfig.map((field: any) => (
+            {parseFormConfig(selectedRequestType.formConfig).map((field: any) => (
               <div key={field.id} className="flex justify-between items-start gap-4 py-2">
                 <span className="text-sm text-text-secondary min-w-[140px]">{field.label}</span>
                 <span className="text-sm text-text-primary font-medium text-right flex-1">

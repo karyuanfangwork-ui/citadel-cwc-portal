@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { entityService } from '../../services/entity.service';
 import { requestService } from '../../services/request.service';
 import { useToast } from '../../context/ToastContext';
+import { parseFormConfig } from '../../utils/formConfig';
 
 const API_BASE = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
   serviceDeskCode: string;
-  formConfig?: any[];
+  formConfig?: any;
   requestId?: string;
   canEdit?: boolean;
   onFieldSaved?: (updatedCustomFields: Record<string, any>) => void;
@@ -317,8 +318,9 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
     if (labels[key]) return labels[key];
 
     // 2. Check dynamic form config
-    if (formConfig) {
-      const field = formConfig.find(f => f.id === key);
+    const parsedConfig = parseFormConfig(formConfig);
+    if (parsedConfig.length > 0) {
+      const field = parsedConfig.find(f => f.id === key);
       if (field?.label) return field.label;
     }
 
@@ -327,8 +329,9 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
   };
 
   const getFieldType = (key: string): string | undefined => {
-    if (formConfig) {
-      const field = formConfig.find(f => f.id === key);
+    const parsedConfig = parseFormConfig(formConfig);
+    if (parsedConfig.length > 0) {
+      const field = parsedConfig.find(f => f.id === key);
       if (field?.type) return field.type;
     }
     return undefined;
