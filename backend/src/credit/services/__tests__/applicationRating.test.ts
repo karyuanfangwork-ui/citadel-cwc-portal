@@ -7,7 +7,7 @@ jest.mock('../../../utils/prisma', () => ({
     qualitativeAssessment: { findUnique: jest.fn().mockResolvedValue(null) },
     bureauChecklist: { findUnique: jest.fn().mockResolvedValue(null) },
     creditDocument: { findFirst: jest.fn().mockResolvedValue(null) },
-    creditApplication: { findUnique: jest.fn().mockResolvedValue(null) },
+    creditApplication: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
   },
 }));
 
@@ -29,10 +29,12 @@ describe('getApplicationEffectiveRating', () => {
 
   it('queries with orderBy runAt desc to get the most recent run', async () => {
     (prisma.creditScoreRun.findFirst as jest.Mock).mockResolvedValue({ riskRating: 'A' });
+    (prisma.creditApplication.update as jest.Mock).mockResolvedValue({});
     await getApplicationEffectiveRating('app-2');
     const call = (prisma.creditScoreRun.findFirst as jest.Mock).mock.calls[0][0];
     expect(call.where).toEqual({ applicationId: 'app-2' });
-    expect(call.orderBy).toEqual({ runAt: 'desc' });
+    // syncApplicationRiskRatingFromLatestScoreRun uses array orderBy for tie-breaking
+    expect(call.orderBy).toEqual([{ runAt: 'desc' }, { createdAt: 'desc' }]);
   });
 });
 

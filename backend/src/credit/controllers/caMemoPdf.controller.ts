@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { getCaMemoData } from '../services/caMemoPdf.service';
-import { enqueuePdf } from '../../services/pdfJob.service';
+import { getLockedMemoVersion, generateAndSaveMemoVersion } from '../services/creditMemoVersion.service';
 
 const fmt = (v: any) => (v != null ? Number(v).toLocaleString('en-MY', { maximumFractionDigits: 2 }) : '—');
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -264,7 +264,19 @@ ${(app.conditions ?? []).length > 0 ? `<h3>Conditions Precedent</h3>
 
 export async function previewCaMemo(req: Request, res: Response, next: NextFunction) {
   try {
-    const app = await getCaMemoData(String(req.params.appId));
+    const appId = String(req.params.appId);
+
+    // P2.2d — If a locked memo version exists, show the locked HTML snapshot
+    // instead of regenerating from live data.
+    const lockedVersion = await getLockedMemoVersion(appId);
+
+    if (lockedVersion) {
+      res.type('html').send(lockedVersion.htmlContent);
+      return;
+    }
+
+    // No locked version — generate from live data
+    const app = await getCaMemoData(appId);
     const title = `CA Memo — ${app.applicationNo}`;
     const html = buildHtml(app, title);
     res.type('html').send(html);
@@ -273,10 +285,24 @@ export async function previewCaMemo(req: Request, res: Response, next: NextFunct
 
 export async function generateCaMemo(req: Request, res: Response, next: NextFunction) {
   try {
-    const app = await getCaMemoData(String(req.params.appId));
-    const title = `CA Memo — ${app.applicationNo}`;
-    const html = buildHtml(app, title);
-    const jobId = await enqueuePdf(html, 'credit/ca-memo/');
-    res.json({ status: 'success', data: { jobId, message: 'PDF generation started. Poll /api/v1/pdf-jobs/:jobId for the download URL.' } });
+    const appId = String(req.params.appId);
+    const userId = (req as any).user?.id;
+
+    // P2.2b — Save a versioned snapshot when generating the memo PDF.
+    // If the latest version is locked, this will throw a 409.
+    const memoVersion = await generateAndSaveMemoVersion(appId, userId);
+
+    // If PDF URL was set (async job), include it in the response
+    res.json({
+      status: 'success',
+      data: {
+        memoVersionId: memoVersion.id,
+        versionNumber: memoVersion.versionNumber,
+        isLocked: memoVersion.isLocked,
+        message: memoVersion.isLocked
+          ? 'Memo version is locked. PDF generation uses the locked snapshot.'
+          : 'Memo version saved. PDF generation started.',
+      },
+    });
   } catch (e) { next(e); }
 }

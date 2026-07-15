@@ -36,8 +36,9 @@ const flags = {
   demo:           args.includes('--demo'),
   clear:          args.includes('--clear'),
   policyLimits:   args.includes('--policy-limits'),
+  scoring:        args.includes('--scoring'),
 };
-const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear && !flags.policyLimits;
+const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear && !flags.policyLimits && !flags.scoring;
 
 // ---------------------------------------------------------------------------
 // §3.1 — Branches (multi-branch support)
@@ -548,6 +549,8 @@ async function clearCreditData() {
     ['score runs',                      () => prisma.creditScoreRun.deleteMany({}).then(r => r.count)],
     ['scorecard versions',              () => prisma.creditScorecardVersion.deleteMany({}).then(r => r.count)],
     ['scorecards',                      () => prisma.creditScorecard.deleteMany({}).then(r => r.count)],
+    ['rating band configs',             () => prisma.ratingBandConfig.deleteMany({}).then(r => r.count)],
+    ['score factor definitions',        () => prisma.scoreFactorDefinition.deleteMany({}).then(r => r.count)],
 
     // ── Committee meetings (after agenda items & members) ───────────────
     ['committee meetings',              () => prisma.committeeMeeting.deleteMany({}).then(r => r.count)],
@@ -579,6 +582,79 @@ async function clearCreditData() {
   }
 
   console.log('🧹 Credit Module data cleared.');
+}
+
+// ---------------------------------------------------------------------------
+// 6a. Scoring Governance Seed — scorecards, rating bands, factor definitions (P2.1)
+// ---------------------------------------------------------------------------
+async function seedScoringGovernance() {
+  console.log('📊 Seeding scoring governance data...');
+
+  // ── Score Factor Definitions ─────────────────────────────────────────
+  const { scoreFactorDefinitionService } = await import('../src/credit/services/scoreFactorDefinition.service');
+  const factorCount = await scoreFactorDefinitionService.seedDefinitions();
+  console.log(`  ✅ ${factorCount} score factor definitions seeded (idempotent)`);
+
+  // ── Default Scorecard + Version ───────────────────────────────────────
+  const defaultScorecard = await prisma.creditScorecard.upsert({
+    where: { name: 'Default Credit Scorecard' },
+    update: {},
+    create: {
+      name: 'Default Credit Scorecard',
+      description: 'Standard credit scoring model for all borrower types. 9-factor weighted scorecard.',
+      isActive: true,
+    },
+  });
+
+  const existingVersion = await prisma.creditScorecardVersion.findFirst({
+    where: { scorecardId: defaultScorecard.id, version: 1 },
+  });
+
+  if (!existingVersion) {
+    const adminUser = await prisma.user.findFirst({ where: { email: 'admin@test.local' } });
+    await prisma.creditScorecardVersion.create({
+      data: {
+        scorecardId: defaultScorecard.id,
+        version: 1,
+        factorWeights: {
+          financial_performance: 20,
+          leverage: 15,
+          liquidity: 12,
+          cashflow: 18,
+          management: 10,
+          industry: 8,
+          collateral: 7,
+          relationship: 5,
+          market_conditions: 5,
+        },
+        retailFactorWeights: {
+          financial_performance: 15,
+          leverage: 10,
+          liquidity: 10,
+          cashflow: 30,
+          management: 10,
+          industry: 8,
+          collateral: 7,
+          relationship: 5,
+          market_conditions: 5,
+        },
+        isActive: true,
+        effectiveFrom: new Date('2025-01-01'),
+        approvedById: adminUser?.id ?? null,
+        approvedAt: adminUser ? new Date() : null,
+      },
+    });
+    console.log('  ✅ Default scorecard v1 seeded');
+  } else {
+    console.log('  ⏭ Default scorecard v1 already exists');
+  }
+
+  // ── Rating Bands ─────────────────────────────────────────────────────
+  const { seedDefaultRatingBands } = await import('../src/credit/services/ratingBand.service');
+  await seedDefaultRatingBands(await prisma.user.findFirst({ where: { email: 'admin@test.local' } }).then(u => u?.id) ?? undefined);
+  console.log('  ✅ Rating bands seeded (idempotent)');
+
+  console.log('✅ Scoring governance data seeded.');
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +695,7 @@ async function main() {
     if (shouldRun(flags.approvals))     await seedApprovals();
     if (shouldRun(flags.branches))      await seedBranches();
     if (shouldRun(flags.policyLimits))   await seedPolicyLimits();
+    if (shouldRun(flags.scoring))        await seedScoringGovernance();
     if (shouldRun(flags.demo))          await seedDemo();
 
     console.log('\n✅ Done.');

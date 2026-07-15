@@ -26,11 +26,13 @@ const STEPS: StepDef[] = [
   { label: 'KYC Rejected',     status: 'KYC_REJECTED',     icon: 'cancel' },
   { label: 'Underwriting',     status: 'UNDERWRITING',     icon: 'radio_button_checked', slaPause: true },
   { label: 'Credit Assessment',status: 'CREDIT_ASSESSMENT', icon: 'radio_button_checked', slaPause: true },
+  { label: 'Compliance Hold', status: 'COMPLIANCE_HOLD',  icon: 'pause_circle',        slaPause: true },
   { label: 'Committee Review', status: 'COMMITTEE_REVIEW', icon: 'radio_button_checked', slaPause: true },
   { label: 'Approved',         status: 'APPROVED',         icon: 'check_circle' },
   { label: 'Rejected',         status: 'REJECTED',         icon: 'cancel',            isFinal: true },
   { label: 'Offer',            status: 'OFFER',            icon: 'radio_button_checked' },
   { label: 'Accepted',         status: 'ACCEPTED',         icon: 'check_circle' },
+  { label: 'Referred Back',   status: 'REFERRED_BACK',   icon: 'undo',                slaPause: true },
   { label: 'Disbursed',       status: 'DISBURSED',         icon: 'radio_button_checked' },
   { label: 'Active',           status: 'ACTIVE',           icon: 'check_circle' },
   { label: 'Closed',           status: 'CLOSED',           icon: 'check_circle',       isFinal: true },
@@ -76,6 +78,24 @@ const TRANSITIONS: TransitionDef[] = [
   { fromStatus: 'APPROVED',          toStatus: 'WITHDRAWN',       transitionLabel: 'CLOSE',   requiresComment: true  },
   { fromStatus: 'OFFER',            toStatus: 'WITHDRAWN',       transitionLabel: 'CLOSE',   requiresComment: true  },
   { fromStatus: 'ACCEPTED',         toStatus: 'WITHDRAWN',       transitionLabel: 'CLOSE',   requiresComment: true  },
+
+  // -- Refer Back (any review stage → REFERRED_BACK) --
+  { fromStatus: 'KYC_REVIEW',        toStatus: 'REFERRED_BACK',  transitionLabel: 'RETURN',  requiresComment: true  },
+  { fromStatus: 'COMPLIANCE_HOLD',   toStatus: 'REFERRED_BACK',  transitionLabel: 'RETURN',  requiresComment: true  },
+  { fromStatus: 'CREDIT_ASSESSMENT', toStatus: 'REFERRED_BACK',  transitionLabel: 'RETURN',  requiresComment: true  },
+  { fromStatus: 'COMMITTEE_REVIEW',  toStatus: 'REFERRED_BACK',  transitionLabel: 'RETURN',  requiresComment: true  },
+
+  // -- Resume from REFERRED_BACK → prior stage --
+  { fromStatus: 'REFERRED_BACK', toStatus: 'KYC_REVIEW',        transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'REFERRED_BACK', toStatus: 'UNDERWRITING',      transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'REFERRED_BACK', toStatus: 'CREDIT_ASSESSMENT', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'REFERRED_BACK', toStatus: 'COMMITTEE_REVIEW',   transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'REFERRED_BACK', toStatus: 'SUBMITTED',         transitionLabel: 'RETURN',  requiresComment: false },  // resubmit
+  { fromStatus: 'REFERRED_BACK', toStatus: 'WITHDRAWN',          transitionLabel: 'CLOSE',   requiresComment: true  },
+
+  // -- Compliance Hold transitions --
+  { fromStatus: 'KYC_REVIEW',        toStatus: 'COMPLIANCE_HOLD',  transitionLabel: 'ESCALATE', requiresComment: false },
+  { fromStatus: 'COMPLIANCE_HOLD',   toStatus: 'KYC_APPROVED',     transitionLabel: 'APPROVE',  requiresComment: false },
 ];
 
 async function main() {

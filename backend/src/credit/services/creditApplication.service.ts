@@ -240,6 +240,7 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.KYC_REVIEW, action: 'resume_kyc' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.UNDERWRITING, action: 'resume_underwriting' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.CREDIT_ASSESSMENT, action: 'resume_assessment' },
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.COMMITTEE_REVIEW, action: 'resume_committee' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.SUBMITTED, action: 'resubmit' },
   // ── REFERRED_BACK can also be withdrawn ──
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
@@ -283,6 +284,7 @@ const TRANSITION_PERMISSIONS: Record<string, string> = {
   resume_kyc: 'credit:write',
   resume_underwriting: 'credit:write',
   resume_assessment: 'credit:write',
+  resume_committee: 'credit:write',
 };
 
 /** Human-readable labels for transition actions */
@@ -313,6 +315,7 @@ const ACTION_LABELS: Record<string, string> = {
   resume_kyc: 'Resume KYC Review',
   resume_underwriting: 'Resume Underwriting',
   resume_assessment: 'Resume Assessment',
+  resume_committee: 'Resume Committee Review',
 };
 
 function getValidTransitions(currentState: ApplicationState): TransitionDef[] {
@@ -1185,6 +1188,12 @@ class CreditApplicationService {
       // P1-5 — freeze the assessment result at committee submission so the
       // rating/recommendation/reason-codes are immutable from this point forward
       await freezeAssessmentResult(id, actorId ?? 'system');
+
+      // P2.2 — Lock the latest memo version at committee submission so the
+      // approval pack always references an immutable snapshot. If no memo
+      // version exists yet, generate one first.
+      const { lockMemoVersionOnSubmission } = await import('./creditMemoVersion.service');
+      await lockMemoVersionOnSubmission(id, actorId);
 
       const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
       if (!readiness.ready) {

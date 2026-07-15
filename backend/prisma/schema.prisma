@@ -260,6 +260,9 @@ model User {
   aiOverrides               AiOverride[]                 @relation("AiOverrideUser")
   // P2-4 — Application Comments
   applicationComments       ApplicationComment[]         @relation("CommentAuthor")
+  // P2.2 — Credit Memo Versions
+  memoVersionsLocked        CreditMemoVersion[]         @relation("MemoLockedBy")
+  memoVersionsGenerated     CreditMemoVersion[]         @relation("MemoGeneratedBy")
 
   @@index([tenantId])
   @@index([tenantId, agentTeam]) // P2-08: composite for role-based queries
@@ -3863,6 +3866,7 @@ model CreditApplication {
   sicrAssessments         SicrAssessment[]
   signoffs                ApplicationSignoff[]
   scoreOverrides          ScoreOverrideApproval[]
+  memoVersions            CreditMemoVersion[]
   qualitativeAssessment   QualitativeAssessment?
   retailIncome            RetailIncome?
   bureauChecklist         BureauChecklist?
@@ -4976,11 +4980,74 @@ model CreditScorecard {
 }
 
 // ============================================================================
+// Score Factor Definition — governed factor definitions for credit scoring (P2.1)
+// Replaces hardcoded factor groups in scorecard.service.ts with database-driven
+// definitions that support activation/deactivation, effective dates, and input
+// source type tracking. Ensures no factor silently uses placeholder data.
+// ============================================================================
+model ScoreFactorDefinition {
+  id                String   @id @default(uuid()) @db.Uuid
+  factorKey         String   @map("factor_key") @db.VarChar(50)    // e.g. 'financial_performance' — not unique alone; uniqueness is on (factorKey, effectiveFrom) for effective-dated successors
+  label             String   @map("label") @db.VarChar(100)                // e.g. 'Financial Performance'
+  description       String?  @map("description") @db.Text                  // human-readable explanation
+  inputSourceType   String   @map("input_source_type") @db.VarChar(20)    // RATIO | QUALITATIVE | EXTERNAL
+  applicableBorrowerTypes String @default("INDIVIDUAL,SOLE_PROPRIETOR,CORPORATE") @map("applicable_borrower_types") @db.VarChar(200)
+  isActive          Boolean  @default(true) @map("is_active")
+  effectiveFrom     DateTime @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo       DateTime? @map("effective_to") @db.Timestamp(6)
+  sortOrder         Int      @default(0) @map("sort_order")                // display order
+  predecessorId     String?  @map("predecessor_id") @db.Uuid             // P2.1 — links to the factor definition this one supersedes
+
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  predecessor       ScoreFactorDefinition? @relation("FactorSuccession", fields: [predecessorId], references: [id])
+  successors        ScoreFactorDefinition[] @relation("FactorSuccession")
+
+  @@unique([factorKey, effectiveFrom])
+  @@index([factorKey])
+  @@index([isActive, effectiveFrom, effectiveTo])
+  @@map("score_factor_definitions")
+}
+
+// ============================================================================
 // Rating Band Configuration — configurable score→rating bands (Phase 3)
 // Multiple versions can coexist with effectiveFrom/effectiveTo ranges; the
 // active set (effectiveTo IS NULL or >= now) drives mapTotalScoreToRiskRating.
 // Falls back to the hardcoded thresholds when no active band exists.
 // ============================================================================
+
+// ============================================================================
+// Credit Memo Version — immutable snapshot of CA memo content (P2.2)
+// Every time a memo is generated, a versioned snapshot is saved.
+// On committee submission, the latest version is locked and cannot be
+// regenerated — the approval pack always references the locked version.
+// ============================================================================
+model CreditMemoVersion {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+  versionNumber   Int      @map("version_number")
+  htmlContent     String   @map("html_content") @db.Text
+  pdfUrl          String?  @map("pdf_url") @db.VarChar(500)
+  isLocked        Boolean  @default(false) @map("is_locked")
+  lockedAt        DateTime? @map("locked_at") @db.Timestamp(6)
+  lockedById      String?  @map("locked_by_id") @db.Uuid
+  lockedBy        User?    @relation("MemoLockedBy", fields: [lockedById], references: [id])
+  generatedById   String?  @map("generated_by_id") @db.Uuid
+  generatedBy     User?    @relation("MemoGeneratedBy", fields: [generatedById], references: [id])
+  dataSnapshot    Json?    @map("data_snapshot")    // serialized CaMemoData at generation time
+  governanceWarnings Json? @map("governance_warnings") // P2.1 warnings snapshot
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  application     CreditApplication @relation(fields: [applicationId], references: [id])
+
+  @@unique([applicationId, versionNumber])
+  @@index([applicationId])
+  @@index([isLocked])
+  @@map("credit_memo_versions")
+}
+
 model RatingBandConfig {
   id              String    @id @default(uuid()) @db.Uuid
   scoreMin        Int       @map("score_min")
@@ -5054,6 +5121,7 @@ model CreditScoreRun {
   inputSnapshot        Json?      @map("input_snapshot")                         // factorScores, dsr, bureau caps, etc.
   policyVersion        String?    @map("policy_version") @db.VarChar(50)
   missingInputs        Json?      @map("missing_inputs")                         // list of factors with missing data + policy applied
+  scoreRunWarnings     Json?      @map("score_run_warnings")                      // P2.1 — governance warnings (placeholder data, missing sources, etc.)
   ratingBandVersion    Int?       @map("rating_band_version")                    // which RatingBandConfig version produced the rating
 
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)

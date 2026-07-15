@@ -11,6 +11,7 @@ jest.mock('../../../utils/prisma', () => {
       financialStatement: { findFirst: jest.fn().mockResolvedValue(null) },
       creditScoreRun: { create: mockCreate },
       ratingBandConfig: { findMany: jest.fn().mockResolvedValue([]) },
+      scoreFactorDefinition: { findMany: jest.fn().mockResolvedValue([]) },
       $queryRaw: jest.fn(),
     },
   };
@@ -46,6 +47,23 @@ jest.mock('../missingDataPolicy.service', () => ({
     score: 50, record: { factor, subField: 'test', policy: 'NEUTRAL', appliedScore: 50 },
   })),
   getMissingDataPolicies: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('../scoreFactorDefinition.service', () => ({
+  scoreFactorDefinitionService: {
+    getActiveDefinitions: jest.fn().mockResolvedValue([
+      { factorKey: 'financial_performance', inputSourceType: 'RATIO', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'leverage', inputSourceType: 'RATIO', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'liquidity', inputSourceType: 'RATIO', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'cashflow', inputSourceType: 'RATIO', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'management', inputSourceType: 'QUALITATIVE', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'industry', inputSourceType: 'QUALITATIVE', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'collateral', inputSourceType: 'QUALITATIVE', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'relationship', inputSourceType: 'QUALITATIVE', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+      { factorKey: 'market_conditions', inputSourceType: 'EXTERNAL', applicableBorrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR', 'CORPORATE'] },
+    ]),
+    validateFactorWeights: jest.fn().mockResolvedValue({ valid: true, warnings: [] }),
+  },
 }));
 
 import { scoringService } from '../scoring.service';

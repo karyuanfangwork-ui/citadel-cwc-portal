@@ -148,6 +148,7 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.KYC_REVIEW, action: 'resume_kyc' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.UNDERWRITING, action: 'resume_underwriting' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.CREDIT_ASSESSMENT, action: 'resume_assessment' },
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.COMMITTEE_REVIEW, action: 'resume_committee' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.SUBMITTED, action: 'resubmit' },
   { from: ApplicationState.REFERRED_BACK, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true },
 ];
@@ -168,8 +169,8 @@ describe('P1.5 — Workflow Transition Validation', () => {
   // 1. Transition structure integrity
   // ──────────────────────────────────────────────────────────────────────
   describe('Transition structure integrity', () => {
-    it('transition count matches canonical source (43 transitions)', () => {
-      expect(TRANSITIONS.length).toBe(43);
+    it('transition count matches canonical source (44 transitions)', () => {
+      expect(TRANSITIONS.length).toBe(44);
     });
 
     it('no duplicate from+action pairs exist', () => {
@@ -368,6 +369,7 @@ describe('P1.5 — Workflow Transition Validation', () => {
       resume_kyc: 'credit:write',
       resume_underwriting: 'credit:write',
       resume_assessment: 'credit:write',
+      resume_committee: 'credit:write',
     };
 
     it('every transition action has a permission mapping', () => {
@@ -399,7 +401,7 @@ describe('P1.5 — Workflow Transition Validation', () => {
     it('write-level actions use credit:write', () => {
       const writeActions = ['submit', 'start_kyc', 'approve_kyc', 'resubmit',
         'start_underwriting', 'start_assessment', 'submit_to_committee',
-        'accept_offer', 'withdraw', 'resume_kyc', 'resume_underwriting', 'resume_assessment'];
+        'accept_offer', 'withdraw', 'resume_kyc', 'resume_underwriting', 'resume_assessment', 'resume_committee'];
       for (const action of writeActions) {
         expect(TRANSITION_PERMISSIONS[action]).toBe('credit:write');
       }
@@ -432,13 +434,12 @@ describe('P1.5 — Workflow Transition Validation', () => {
       expect(resumeToStates).toContain(ApplicationState.CREDIT_ASSESSMENT);
       expect(resumeToStates).toContain(ApplicationState.SUBMITTED);
 
-      // KNOWN GAP: COMMITTEE_REVIEW has a refer_back transition but no resume_committee path.
-      // A referred-back application that was in committee review must resume via
-      // CREDIT_ASSESSMENT → re-submit to committee. This is the designed flow but
-      // should be documented as a deliberate design decision.
+      // P2.1 FIX: COMMITTEE_REVIEW now has a resume_committee path.
+      // A referred-back application that was in committee review can now
+      // directly resume back to COMMITTEE_REVIEW.
+      expect(resumeToStates).toContain(ApplicationState.COMMITTEE_REVIEW);
+
       // COMPLIANCE_HOLD resumes via KYC_REVIEW (the parent stage).
-      const committeeResume = resumeTransitions.find(t => t.to === ApplicationState.COMMITTEE_REVIEW);
-      expect(committeeResume).toBeUndefined(); // known gap — no direct resume to committee
     });
   });
 });

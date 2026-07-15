@@ -11,6 +11,7 @@ import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord }
 import { mapScoreToRatingFromBands } from './ratingBand.service';
 import { persistApplicationRiskRating } from './applicationRating.service';
 import { getNumberPolicy } from './policyParameter.service';
+import { scoreFactorDefinitionService, type GovernanceWarning } from './scoreFactorDefinition.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +44,7 @@ export interface ScoreResult {
   bureauCapsApplied: string[];
   bureauFresh: boolean;
   staleBureauProviders: string[];
+  governanceWarnings: GovernanceWarning[];
 }
 
 interface RatioThreshold {
@@ -172,8 +174,13 @@ export async function getScoringThresholds(): Promise<ScoringThresholds> {
 
 // ---------------------------------------------------------------------------
 // Risk Rating mapping (totalScore → RiskRating)
+//
+// P2.1: The static fallback is DEPRECATED. mapScoreToRatingFromBands() is now
+// the canonical path. This function is kept ONLY as a safety net for unseeded
+// databases during migration. It will be removed in P2.4.
 // ---------------------------------------------------------------------------
 
+/** @deprecated Use mapScoreToRatingFromBands() instead. Static fallback for unseeded DBs. */
 export function mapTotalScoreToRiskRating(totalScore: number): RiskRating {
   if (totalScore >= 85) return 'AAA';
   if (totalScore >= 78) return 'AA';
@@ -323,8 +330,7 @@ export function computeDsrCashflowScore(
       thresholds.warnScoreFloor);
 }
 
-// Qualitative factors — placeholder scores
-const PLACEHOLDER_SCORE = 50;
+// Qualitative factors — no longer use PLACEHOLDER_SCORE; missing-data policy drives the score
 
 // ---------------------------------------------------------------------------
 // Service
@@ -524,7 +530,7 @@ class ScoringService {
       },
       market_conditions: {
         weight: factorWeights.market_conditions,
-        score: PLACEHOLDER_SCORE,
+        score: 50, // will be replaced by missing-data policy below
         weightedScore: 0,
       },
     };
@@ -532,8 +538,16 @@ class ScoringService {
     // Step 5b: Apply missing-data policy to factors that had no source data.
     // Factors with all sub-fields missing get a policy-based score instead of
     // the blanket 50. Collect missingInputs records for the audit trail.
+    // Also collect governance warnings for factors using placeholder data.
     const missingInputs: MissingInputRecord[] = [];
+    const governanceWarnings: GovernanceWarning[] = [];
     const missingDataPolicies = await getMissingDataPolicies();
+
+    // Step 5c: Validate factor weights against governed definitions.
+    // Emit governance warnings for EXTERNAL factors with weight > 0 (no real data source)
+    // and for factors without an active definition.
+    const factorValidation = await scoreFactorDefinitionService.validateFactorWeights(factorWeights as any);
+    governanceWarnings.push(...factorValidation.warnings);
 
     // Detect which financial-ratio-based factors had missing data (all sub-fields null)
     const hasAnyRatio = Object.keys(ratioMap).length > 0;
@@ -562,11 +576,17 @@ class ScoringService {
       missingInputs.push(record);
     }
 
-    // market_conditions: always placeholder (no source data yet) — apply policy
+    // market_conditions: EXTERNAL source with no real data provider — apply missing-data policy
+    // and emit a governance warning (P2.1: no more silent placeholder scores)
     {
-      const { score, record } = resolveMissingFactorScore('market_conditions', 'placeholder', missingDataPolicies);
+      const { score, record } = resolveMissingFactorScore('market_conditions', 'no_external_data_source', missingDataPolicies);
       factorScores.market_conditions.score = score;
       missingInputs.push(record);
+      governanceWarnings.push({
+        field: 'market_conditions',
+        message: `market_conditions uses ${record.policy} policy (score: ${score}) because no external data source is configured. Weight: ${factorWeights.market_conditions}.`,
+        severity: 'warning',
+      });
     }
 
     // Step 6: Compute weighted scores
@@ -621,6 +641,7 @@ class ScoringService {
         calculationSource: opts.source ?? 'MANUAL',
         inputSnapshot: inputSnapshot as any,
         missingInputs: missingInputs.length > 0 ? (missingInputs as any) : Prisma.JsonNull,
+        scoreRunWarnings: governanceWarnings.length > 0 ? (governanceWarnings as any) : Prisma.JsonNull,
         runAt: new Date(),
       },
       include: {
@@ -666,6 +687,7 @@ class ScoringService {
       bureauCapsApplied,
       bureauFresh,
       staleBureauProviders,
+      governanceWarnings,
     };
   }
 

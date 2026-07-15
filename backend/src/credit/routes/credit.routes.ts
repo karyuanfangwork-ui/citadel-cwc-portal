@@ -61,6 +61,15 @@ import securityRoutes from './security.routes';
 // CA Memo Phase 5
 import { generateCaMemo, previewCaMemo } from '../controllers/caMemoPdf.controller';
 import { getApprovalPack } from '../controllers/approvalPack.controller';
+import {
+  createMemoVersion,
+  getMemoVersions,
+  getLatestVersion,
+  getMemoVersionByNumber,
+  getLockedVersion,
+  lockVersion,
+  unlockVersion,
+} from '../controllers/creditMemoVersion.controller';
 import bureauCheckRoutes from './bureauCheck.routes';
 import qualitativeAssessmentRoutes from './qualitativeAssessment.routes';
 import retailIncomeRoutes from './retailIncome.routes';
@@ -268,6 +277,17 @@ router.use('/security', securityRoutes);
 router.get('/applications/:appId/ca-memo/preview', authenticate, requirePermission('credit:read'), previewCaMemo);
 router.get('/applications/:appId/ca-memo', authenticate, requirePermission('credit:read'), generateCaMemo);
 router.get('/applications/:appId/approval-pack', authenticate, requirePermission('credit:read'), getApprovalPack);
+
+// P2.2 — Memo Version Management (immutable snapshots)
+// IMPORTANT: Static routes (latest, locked) MUST come before :versionNumber
+// to avoid Express treating 'latest' or 'locked' as a version number.
+router.post('/applications/:appId/ca-memo-versions', authenticate, requirePermission('credit:write'), createMemoVersion);
+router.get('/applications/:appId/ca-memo-versions', authenticate, requirePermission('credit:read'), getMemoVersions);
+router.get('/applications/:appId/ca-memo-versions/latest', authenticate, requirePermission('credit:read'), getLatestVersion);
+router.get('/applications/:appId/ca-memo-versions/locked', authenticate, requirePermission('credit:read'), getLockedVersion);
+router.get('/applications/:appId/ca-memo-versions/:versionNumber', authenticate, requirePermission('credit:read'), getMemoVersionByNumber);
+router.post('/applications/:appId/ca-memo-versions/lock', authenticate, requirePermission('credit:write'), lockVersion);
+router.post('/applications/:appId/ca-memo-versions/unlock', authenticate, requirePermission('credit:admin'), unlockVersion);
 router.use('/applications', bureauCheckRoutes);
 router.use('/applications', qualitativeAssessmentRoutes);
 router.use('/applications', retailIncomeRoutes);
