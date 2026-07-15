@@ -1452,6 +1452,9 @@ async function main() {
             requiresApproval: true, slaHours: 168, // 7 days SLA for travel requests
             formConfig: [
                 { id: 'totalAmount', label: 'Total Estimated Cost (RM)', type: 'currency', required: true },
+                { id: 'perDiem', label: 'Per Diem (RM)', type: 'currency', required: true },
+                { id: 'hotelAccommodation', label: 'Hotel Accommodation Amount (RM)', type: 'currency', required: true },
+                { id: 'flightBooking', label: 'Flight Booking Amount (RM)', type: 'currency', required: true },
                 { id: 'travelDestination', label: 'Destination', type: 'text', required: true },
                 { id: 'businessReason', label: 'Business Reason', type: 'textarea', required: true },
                 { id: 'travelPurpose', label: 'Purpose of Travel', type: 'textarea', required: true },
