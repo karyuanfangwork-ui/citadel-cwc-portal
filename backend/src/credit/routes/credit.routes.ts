@@ -61,6 +61,9 @@ import securityRoutes from './security.routes';
 // P2.3 — Credit Recommendation lifecycle
 import creditRecommendationRoutes from './creditRecommendation.routes';
 
+// P2.5 — Borrower Risk History (immutable, separate from application scoring)
+import borrowerRiskRoutes from './borrowerRisk.routes';
+
 // CA Memo Phase 5
 import { generateCaMemo, previewCaMemo } from '../controllers/caMemoPdf.controller';
 import { getApprovalPack } from '../controllers/approvalPack.controller';
@@ -278,6 +281,9 @@ router.use('/security', securityRoutes);
 
 // P2.3 — Credit Recommendation lifecycle
 router.use(creditRecommendationRoutes);
+
+// P2.5 — Borrower Risk History
+router.use(borrowerRiskRoutes);
 
 // CA Memo Phase 5
 router.get('/applications/:appId/ca-memo/preview', authenticate, requirePermission('credit:read'), previewCaMemo);
