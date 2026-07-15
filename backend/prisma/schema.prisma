@@ -5209,7 +5209,7 @@ model ApplicationAssessmentResult {
   modelVersion            String?  @map("model_version") @db.VarChar(50)
   policyVersion           String?  @map("policy_version") @db.VarChar(50)
   ratingBandVersion       Int?     @map("rating_band_version")
-  totalScore             Decimal? @db.Decimal(10, 2)
+  totalScore             Decimal? @map("total_score") @db.Decimal(10, 2)
   status                  String   @default("FROZEN") @db.VarChar(20)       // FROZEN | SUPERSEDED
   version                 Int      @default(1)
   createdById             String?  @map("created_by_id") @db.Uuid
