@@ -601,10 +601,24 @@ class ScoringService {
     totalScore = Math.round(totalScore * 100) / 100;
 
     // Step 8: Map totalScore to RiskRating
-    // Phase 5 — prefer configurable RatingBandConfig; fall back to hardcoded
-    // thresholds when no bands are active (unseeded DB behavior unchanged).
+    // P2.4 — Prefer configurable RatingBandConfig from DB (ACTIVE status only).
+    // If no active bands exist (unseeded DB), fall back to hardcoded thresholds
+    // and emit a governance warning. This fallback will be removed once all
+    // environments have a seeded active band set.
     const bandRating = await mapScoreToRatingFromBands(totalScore);
-    const baseRiskRating = bandRating ?? mapTotalScoreToRiskRating(totalScore);
+    let baseRiskRating: RiskRating;
+    if (bandRating) {
+      baseRiskRating = bandRating;
+    } else {
+      // P2.4 governance warning: no active DB band set found.
+      // This should never happen in production — run seedCanonicalBands().
+      governanceWarnings.push({
+        field: 'ratingBand',
+        message: 'No active rating band configuration found in DB. Using hardcoded fallback. Seed canonical bands for production scoring.',
+        severity: 'warning',
+      });
+      baseRiskRating = mapTotalScoreToRiskRating(totalScore);
+    }
 
     // Step 8b: Apply bureau rating caps
     const bureauCaps = await getBureauCapsForApplication(applicationId);

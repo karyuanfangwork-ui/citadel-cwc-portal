@@ -5099,6 +5099,12 @@ model RatingBandConfig {
   scoreMax        Int       @map("score_max")
   rating          RiskRating
   riskCategory    String    @map("risk_category") @db.VarChar(50)
+
+  // P2.4 — Governance lifecycle: DRAFT → SUBMITTED → APPROVED → ACTIVE → SUPERSEDED
+  status          String    @default("DRAFT") @db.VarChar(20)
+  name            String?   @db.VarChar(200)
+  description     String?   @db.Text
+
   effectiveFrom   DateTime  @default(now()) @map("effective_from") @db.Timestamp(6)
   effectiveTo     DateTime?  @map("effective_to") @db.Timestamp(6)
   version         Int       @default(1)
@@ -5112,6 +5118,7 @@ model RatingBandConfig {
 
   @@index([effectiveFrom, effectiveTo])
   @@index([rating])
+  @@index([status])
   @@map("rating_band_configs")
 }
 
