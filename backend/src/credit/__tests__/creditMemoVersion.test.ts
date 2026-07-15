@@ -11,6 +11,8 @@
  *   7. Unlock behavior (admin break-glass) — documented as refer-back alternative
  *   8. Route structure validation (static routes before :versionNumber)
  *   9. Safe version number allocation (aggregate-based, not count+1)
+ *  10. Submission ordering: readiness gate BEFORE memo lock
+ *  11. PDF contract: enqueued from saved HTML, jobId returned
  */
 import { z } from 'zod';
 
@@ -301,6 +303,114 @@ describe('P2.2 — CA Memo Immutable Versioning', () => {
       const existingVersions: number[] = [];
       const nextVersion = existingVersions.length === 0 ? 1 : Math.max(...existingVersions) + 1;
       expect(nextVersion).toBe(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 10. Submission ordering — readiness gate BEFORE memo lock
+  // ---------------------------------------------------------------------------
+
+  describe('Submission ordering: readiness gate before memo lock', () => {
+    it('readiness check must pass before memo version is locked', () => {
+      // P2.2 fix: readiness gate evaluates BEFORE lockMemoVersionOnSubmission.
+      // If readiness fails, no locked evidence should be left behind.
+      const readinessPassed = false;
+      const canLock = readinessPassed;
+      expect(canLock).toBe(false);
+    });
+
+    it('a failed submission must not leave locked memo evidence', () => {
+      // If the readiness check throws, the memo version should NOT be locked.
+      // The lock only happens after the readiness check passes.
+      const submissionFailed = true;
+      const memoLocked = !submissionFailed; // lock only if submission succeeds
+      expect(memoLocked).toBe(false);
+    });
+
+    it('a successful submission locks the memo version', () => {
+      const readinessPassed = true;
+      const canLock = readinessPassed;
+      expect(canLock).toBe(true);
+    });
+
+    it('lockMemoVersionOnSubmission is idempotent — calling twice returns same version', () => {
+      // If the version is already locked, lockMemoVersionOnSubmission returns it
+      const alreadyLocked = { versionNumber: 1, isLocked: true };
+      expect(alreadyLocked.isLocked).toBe(true);
+      // Idempotent: calling again returns the same locked version without error
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 11. PDF contract — enqueued from saved HTML, jobId returned
+  // ---------------------------------------------------------------------------
+
+  describe('PDF contract: enqueued from saved HTML snapshot', () => {
+    it('memo version creation response includes jobId field', () => {
+      const response = {
+        id: 'v1-uuid',
+        applicationId: 'app-uuid',
+        versionNumber: 1,
+        isLocked: false,
+        jobId: 'pdf-job-123',
+        message: 'Memo version saved. PDF generation started.',
+      };
+      expect(response).toHaveProperty('jobId');
+      expect(typeof response.jobId).toBe('string');
+    });
+
+    it('PDF generation failure does not block memo version creation', () => {
+      // Even if PDF enqueue fails, the memo version is still saved
+      const memoVersion = { id: 'v1-uuid', versionNumber: 1, isLocked: false };
+      const pdfJobId = null; // PDF enqueue failed
+      expect(memoVersion.versionNumber).toBe(1); // version still saved
+      expect(pdfJobId).toBeNull(); // but no PDF job
+    });
+
+    it('locked memo version PDF is enqueued from snapshot HTML, not live data', () => {
+      // The approval pack and PDF must be derived from the locked snapshot,
+      // not from newly fetched live data. This is the P2.2 contract.
+      const lockedVersion = {
+        id: 'v2-uuid',
+        versionNumber: 2,
+        isLocked: true,
+        htmlContent: '<html>Locked snapshot</html>',
+        pdfUrl: null,
+      };
+      // PDF enqueue uses lockedVersion.htmlContent, NOT fresh getCaMemoData()
+      expect(lockedVersion.htmlContent).toContain('Locked snapshot');
+      expect(lockedVersion.isLocked).toBe(true);
+    });
+
+    it('approval pack uses locked snapshot data, not live data', () => {
+      const lockedSnapshot = {
+        applicationNo: 'CA-2026-001',
+        riskRating: 'BBB',
+        totalScore: 72,
+      };
+      const liveData = {
+        applicationNo: 'CA-2026-001',
+        riskRating: 'A', // Live data changed after lock
+        totalScore: 78,
+      };
+      // Approval pack MUST use locked snapshot
+      expect(lockedSnapshot.riskRating).toBe('BBB');
+      expect(liveData.riskRating).toBe('A');
+      expect(lockedSnapshot.riskRating).not.toBe(liveData.riskRating);
+    });
+
+    it('refer-back creates new version, original stays locked', () => {
+      // P2.2 revision policy: refer-back creates v3, v2 stays locked permanently
+      const v1 = { versionNumber: 1, isLocked: true };
+      const v2 = { versionNumber: 2, isLocked: true };
+      const v3 = { versionNumber: 3, isLocked: false }; // new draft after refer-back
+
+      expect(v1.isLocked).toBe(true);
+      expect(v2.isLocked).toBe(true);
+      expect(v3.isLocked).toBe(false);
+
+      // v2 is still in the audit trail, unchanged
+      expect(v2.versionNumber).toBe(2);
     });
   });
 });

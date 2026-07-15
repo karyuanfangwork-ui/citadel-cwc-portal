@@ -1189,12 +1189,8 @@ class CreditApplicationService {
       // rating/recommendation/reason-codes are immutable from this point forward
       await freezeAssessmentResult(id, actorId ?? 'system');
 
-      // P2.2 — Lock the latest memo version at committee submission so the
-      // approval pack always references an immutable snapshot. If no memo
-      // version exists yet, generate one first.
-      const { lockMemoVersionOnSubmission } = await import('./creditMemoVersion.service');
-      await lockMemoVersionOnSubmission(id, actorId);
-
+      // P2.2 — Validate committee readiness BEFORE locking the memo version.
+      // This prevents leaving locked evidence for a failed submission.
       const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
       if (!readiness.ready) {
         const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
@@ -1203,6 +1199,12 @@ class CreditApplicationService {
           { statusCode: 400 },
         );
       }
+
+      // P2.2 — Lock the latest memo version at committee submission so the
+      // approval pack always references an immutable snapshot. If no memo
+      // version exists yet, generate one first.
+      const { lockMemoVersionOnSubmission } = await import('./creditMemoVersion.service');
+      await lockMemoVersionOnSubmission(id, actorId);
     }
     // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
     // unless all required approval decisions have been collected via the
