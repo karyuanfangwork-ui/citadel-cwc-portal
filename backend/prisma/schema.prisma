@@ -548,7 +548,7 @@ model WorkflowStep {
   id             String   @id @default(uuid()) @db.Uuid
   workflowTypeId String   @map("workflow_type_id") @db.Uuid
   label          String   @db.VarChar(100)
-  status         RequestStatus
+  status         String   @db.VarChar(100)
   icon           String   @default("radio_button_checked") @db.VarChar(50)
   displayOrder   Int      @map("display_order")
   isInitial      Boolean  @default(false) @map("is_initial")

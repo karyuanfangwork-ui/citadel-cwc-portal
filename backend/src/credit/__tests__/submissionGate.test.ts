@@ -31,6 +31,7 @@ jest.mock('../services/bureauCheck.service', () => ({
   isBureauCheckFresh: jest.fn().mockResolvedValue({ fresh: true, staleProviders: [] }),
   isBureauChecklistComplete: jest.fn().mockResolvedValue(true),
   isBureauChecklistVerified: jest.fn().mockResolvedValue(true),
+  getBureauFreshnessDays: jest.fn().mockResolvedValue(30),
 }));
 
 jest.mock('../services/fatcaCrs.service', () => ({
@@ -41,6 +42,49 @@ jest.mock('../services/fatcaCrs.service', () => ({
 
 jest.mock('../services/creditFieldCheck.service', () => ({
   checkRequiredFields: jest.fn(),
+}));
+
+// P1.3: Mock the rule engine for document requirements
+jest.mock('../services/creditRuleEngine.service', () => ({
+  resolveRequiredDocuments: jest.fn(async (scope: any) => {
+    const defaults: Record<string, { documentClass: string; label: string; isMandatory: boolean; sortOrder: number }[]> = {
+      INDIVIDUAL: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'PAYSLIP', label: 'Payslip', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      SOLE_PROPRIETOR: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      JOINT: [
+        { documentClass: 'JV_AGREEMENT', label: 'JV Agreement', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+      ],
+      CORPORATE: [
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'MOA_AOA', label: 'Memorandum & Articles (MOA/AOA)', isMandatory: true, sortOrder: 2 },
+      ],
+    };
+    return defaults[scope.borrowerType] ?? defaults.INDIVIDUAL;
+  }),
+}));
+
+jest.mock('../services/collateral.service', () => ({
+  collateralService: {
+    checkCollateralReadiness: jest.fn().mockResolvedValue({ ready: true, issues: [] }),
+    validateCollateralCoverage: jest.fn().mockResolvedValue({ coverageRatio: 1.0, meetsRequirement: true }),
+  },
+}));
+
+jest.mock('../services/smeFinancial.service', () => ({
+  smeFinancialService: { computeDualAssessment: jest.fn().mockResolvedValue({ ownerDsr: null, businessDscr: null, overallStatus: 'pass', smeLane: 'SME' }) },
+}));
+
+jest.mock('../services/policyParameter.service', () => ({
+  getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
 }));
 
 import prisma from '../../utils/prisma';

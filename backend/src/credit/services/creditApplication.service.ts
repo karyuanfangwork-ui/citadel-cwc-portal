@@ -275,7 +275,7 @@ const TRANSITION_PERMISSIONS: Record<string, string> = {
   make_offer_direct: 'credit:approve',
   accept_offer: 'credit:write',
   decline_offer: 'credit:approve',
-  disburse: 'credit:admin',
+  disburse: 'credit:disburse',
   activate: 'credit:admin',
   close: 'credit:admin',
   withdraw: 'credit:write',

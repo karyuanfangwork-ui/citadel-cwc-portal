@@ -10,7 +10,7 @@ export interface BorrowerFilterState {
 interface BorrowerFilterBarProps {
   filters: BorrowerFilterState;
   onFilterChange: (filters: BorrowerFilterState) => void;
-  onExport: () => void;
+  onExport?: () => void;
 }
 
 const TYPE_OPTIONS = [
@@ -244,7 +244,8 @@ const BorrowerFilterBar: React.FC<BorrowerFilterBarProps> = ({ filters, onFilter
           )}
         </div>
 
-        {/* Export button */}
+        {/* Export button — hidden when onExport is not provided (P0.3) */}
+        {onExport && (
         <button
           onClick={onExport}
           style={{
@@ -262,6 +263,7 @@ const BorrowerFilterBar: React.FC<BorrowerFilterBarProps> = ({ filters, onFilter
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
           Export
         </button>
+        )}
       </div>
 
       {/* Active filter chips */}

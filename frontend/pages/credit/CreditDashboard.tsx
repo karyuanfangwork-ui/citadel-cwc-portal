@@ -835,9 +835,10 @@ const CreditDashboard: React.FC = () => {
               <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
                 Recent Activities
               </h2>
-              <Link to="/credit/audit" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
+              {/* Audit log route not yet implemented — link hidden until route exists (P0.3) */}
+              {/* <Link to="/credit/audit" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
                 View Audit Log
-              </Link>
+              </Link> */}
             </div>
             <ActivityTimeline items={activity?.items ?? []} loading={false} />
           </div>

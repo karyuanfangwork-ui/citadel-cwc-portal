@@ -114,9 +114,9 @@ const BorrowerProfileList: React.FC = () => {
     navigate(`/credit/applications/new?borrowerId=${id}`);
   };
 
-  const handleExport = () => {
-    console.log('Export not yet implemented');
-  };
+  // Export not yet implemented — placeholder removed until backend endpoint exists (P0.3)
+  // When implementing: call credit.service.ts borrowerExport API → download CSV/Excel
+  const handleExport = undefined;
 
   // Pagination helpers
   const currentPage = pagination.page;

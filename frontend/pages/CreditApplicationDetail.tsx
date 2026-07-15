@@ -66,7 +66,6 @@ import {
   getJourneyStage,
   // ── Application 360 Tab System ──
   DetailTab360,
-  TAB_GROUPS_360,
   ALL_TABS_360,
   TAB_TO_TAB360,
 } from './credit/creditUtils';
@@ -379,7 +378,7 @@ const CreditApplicationDetail: React.FC = () => {
   };
 
   const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab360) => {
-    const visible360Tabs = TAB_GROUPS_360.flatMap(g => g.tabs.map(t => t.id as DetailTab360));
+    const visible360Tabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id as DetailTab360));
     const idx = visible360Tabs.indexOf(tab);
     if (idx === -1) return;
     if (e.key === 'ArrowRight') {
@@ -755,7 +754,7 @@ const CreditApplicationDetail: React.FC = () => {
           {/* ── Horizontal Tabs ── */}
           {lane !== 'PERSONAL_FAST' && (
             <ApplicationHorizontalTabs
-              visibleTabGroups={TAB_GROUPS_360}
+              visibleTabGroups={visibleTabGroups}
               activeTab={activeTab}
               onTabChange={handleTabChange}
               phaseCompletion={phaseCompletion}

@@ -42,6 +42,35 @@ jest.mock('../policyParameter.service', () => ({
   getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
 }));
 
+// P1.3: Mock the rule engine so resolveRequiredDocuments returns the same defaults
+// that the old hardcoded getRequiredDocuments() function used to return
+jest.mock('../creditRuleEngine.service', () => ({
+  resolveRequiredDocuments: jest.fn(async (scope: any) => {
+    const defaults: Record<string, { documentClass: string; label: string; isMandatory: boolean; sortOrder: number }[]> = {
+      INDIVIDUAL: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'PAYSLIP', label: 'Payslip', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      SOLE_PROPRIETOR: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      JOINT: [
+        { documentClass: 'JV_AGREEMENT', label: 'JV Agreement', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+      ],
+      CORPORATE: [
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'MOA_AOA', label: 'Memorandum & Articles (MOA/AOA)', isMandatory: true, sortOrder: 2 },
+      ],
+    };
+    return defaults[scope.borrowerType] ?? defaults.INDIVIDUAL;
+  }),
+}));
+
 import prisma from '../../../utils/prisma';
 import { checkRequiredFields } from '../creditFieldCheck.service';
 import { validateSubmissionReadiness } from '../submissionReadiness.service';

@@ -14,8 +14,15 @@ import { checkRequiredFields } from './creditFieldCheck.service';
 import { collateralService } from './collateral.service';
 import { smeFinancialService } from './smeFinancial.service';
 import { getNumberPolicy } from './policyParameter.service';
+import { resolveRequiredDocuments, RuleScope } from './creditRuleEngine.service';
 
-function getRequiredDocuments(borrowerType: string): string[] {
+/**
+ * @deprecated Use resolveRequiredDocuments() from creditRuleEngine.service instead.
+ * This function is kept only as a synchronous fallback for contexts where
+ * the async rule engine cannot be called (e.g., test mocks).
+ * P1.3: This hardcoded function will be removed once all callers are migrated.
+ */
+export function getRequiredDocumentsFallback(borrowerType: string): string[] {
   switch (borrowerType) {
     case 'INDIVIDUAL':
       return ['NRIC_PASSPORT', 'PAYSLIP', 'BANK_STATEMENT'];
@@ -173,7 +180,17 @@ export async function validateSubmissionReadiness(
     }
   }
 
-  const mandatoryClasses = getRequiredDocuments(application.borrowerProfile.borrowerType as string);
+  // P1.3: Use rule engine for document requirements instead of hardcoded function
+  const documentScope: RuleScope = {
+    borrowerType: application.borrowerProfile.borrowerType as string,
+    lane: (application as any).lane ?? 'STANDARD',
+    productType: application.productType ?? null,
+  };
+  const resolvedDocs = await resolveRequiredDocuments(documentScope);
+  // Filter to mandatory documents only for readiness check
+  const mandatoryClasses = resolvedDocs
+    .filter(d => d.isMandatory)
+    .map(d => d.documentClass as string);
   for (const docClass of mandatoryClasses) {
     const hasDoc = application.documents.some((d) => d.classification === docClass);
     const profileSatisfier = PROFILE_SATISFIABLE[docClass];
