@@ -58,6 +58,9 @@ import monitoringItemRoutes from './monitoringItem.routes';
 // Sprint 5 — Security Hardening
 import securityRoutes from './security.routes';
 
+// P2.3 — Credit Recommendation lifecycle
+import creditRecommendationRoutes from './creditRecommendation.routes';
+
 // CA Memo Phase 5
 import { generateCaMemo, previewCaMemo } from '../controllers/caMemoPdf.controller';
 import { getApprovalPack } from '../controllers/approvalPack.controller';
@@ -272,6 +275,9 @@ router.use(monitoringItemRoutes);
 
 // Sprint 5 — Security Hardening
 router.use('/security', securityRoutes);
+
+// P2.3 — Credit Recommendation lifecycle
+router.use(creditRecommendationRoutes);
 
 // CA Memo Phase 5
 router.get('/applications/:appId/ca-memo/preview', authenticate, requirePermission('credit:read'), previewCaMemo);

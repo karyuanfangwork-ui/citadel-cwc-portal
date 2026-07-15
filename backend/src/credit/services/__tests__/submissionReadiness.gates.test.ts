@@ -12,6 +12,7 @@ jest.mock('../../../utils/prisma', () => ({
     retailIncome: { findUnique: (...a: unknown[]) => mockRetailFindUnique(...a) },
     eclSnapshot: { count: (...a: unknown[]) => mockEclCount(...a) },
     deviationApproval: { findMany: (...a: unknown[]) => mockDeviationFindMany(...a) },
+    creditRecommendation: { findFirst: jest.fn().mockResolvedValue(null) },
   },
 }));
 

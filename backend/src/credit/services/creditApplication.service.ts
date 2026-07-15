@@ -1260,6 +1260,22 @@ class CreditApplicationService {
       }
     }
 
+    // P2.3 D2 — SOD check: recommendation author cannot be the final decision actor.
+    // Enforced server-side for every terminal approve/reject action.
+    if ((action === 'approve' || action === 'reject') && !options?.skipApprovalChainCheck) {
+      const { creditRecommendationService } = await import('./creditRecommendation.service');
+      const sodCheck = await creditRecommendationService.checkSodSeparation(id, actorId ?? '');
+      if (!sodCheck.ok) {
+        throw Object.assign(
+          new Error(
+            'Separation of duties violation: the recommendation author cannot make the final decision. ' +
+            'A different officer must approve or reject this application.',
+          ),
+          { statusCode: 403 },
+        );
+      }
+    }
+
     // §1.3 — Hard-block: disallow ACTIVE/DISBURSED if tangible collateral valuation > 12 months
     if (action === 'activate' || action === 'disburse') {
       const { hasStaleCollateralValuations } = await import('../jobs/collateralInsuranceMonitor.job');

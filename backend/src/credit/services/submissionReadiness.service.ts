@@ -480,6 +480,19 @@ export async function validateSubmissionReadiness(
     }
   }
 
+  // ---- Check 13: P2.3 D1 — Committee submission requires a current submitted recommendation ----
+  if (stage === 'committee') {
+    const { creditRecommendationService } = await import('./creditRecommendation.service');
+    const currentRec = await creditRecommendationService.getCurrentRecommendation(applicationId);
+    if (!currentRec) {
+      errors.push({
+        field: 'recommendation',
+        message: 'Committee submission requires at least one submitted recommendation.',
+        severity: 'error',
+      });
+    }
+  }
+
   return {
     ready: errors.length === 0,
     errors,

@@ -193,6 +193,7 @@ model User {
   creditDocumentVerifications CreditDocument[]    @relation("CreditDocumentVerifier")
   borrowerBureauReportsUploaded BorrowerBureauReport[] @relation("BorrowerBureauReportUploadedBy")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
+  creditRecommendations    CreditRecommendation[]  @relation("CreditRecommendationAuthor")
   bureauChecksRun          CreditBureauCheck[]     @relation("BureauCheckRunBy")
   applicationSignoffs      ApplicationSignoff[]    @relation("ApplicationSignoffBy")
   matrixVersionApprovals  CreditApprovalMatrixVersion[] @relation("MatrixVersionApprovedBy")
@@ -3848,6 +3849,7 @@ model CreditApplication {
   slaBreaches      CreditSlaBreach[]
   conditions       Condition[]
   decisions        CreditDecision[]
+  recommendations  CreditRecommendation[]
   scoreRuns        CreditScoreRun[]
   assessmentResults ApplicationAssessmentResult[]
   committeeAgendaItems CommitteeAgendaItem[]
@@ -4728,6 +4730,49 @@ model CreditDecision {
   
   @@index([applicationId])
   @@map("credit_decisions")
+}
+
+// ============================================================================
+// Credit Recommendation — P2.3
+// Analyst recommendation as a governed lifecycle object.
+// DRAFT → SUBMITTED → ACKNOWLEDGED/SUPERSEDED.
+// Submitted recommendations are immutable; a newer submitted recommendation
+// supersedes the prior current recommendation.
+// ============================================================================
+model CreditRecommendation {
+  id                    String    @id @default(uuid()) @db.Uuid
+  applicationId         String    @map("application_id") @db.Uuid
+  authorId              String    @map("author_id") @db.Uuid
+
+  // Lifecycle: DRAFT | SUBMITTED | ACKNOWLEDGED | SUPERSEDED
+  status                String    @default("DRAFT") @db.VarChar(20)
+
+  // Recommendation content
+  recommendationType    String    @map("recommendation_type") @db.VarChar(20) // APPROVE | CONDITIONAL | REJECT
+  recommendedAmount     Decimal?  @map("recommended_amount") @db.Decimal(15, 2)
+  recommendedTenorMonths Int?     @map("recommended_tenor_months")
+  pricingTerms          Json?     @map("pricing_terms")
+  conditions            String?   @db.Text
+  rationale             String?   @db.Text
+
+  // Governance
+  submittedAt           DateTime?  @map("submitted_at") @db.Timestamp(6)
+  supersededAt          DateTime?  @map("superseded_at") @db.Timestamp(6)
+  supersededById        String?    @map("superseded_by_id") @db.Uuid
+
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  application           CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  author                User              @relation("CreditRecommendationAuthor", fields: [authorId], references: [id])
+  supersededBy          CreditRecommendation? @relation("RecommendationSuccession", fields: [supersededById], references: [id])
+  supersededRecommendations CreditRecommendation[] @relation("RecommendationSuccession")
+
+  @@index([applicationId])
+  @@index([applicationId, status])
+  @@index([authorId])
+  @@map("credit_recommendations")
 }
 
 // ============================================================================
