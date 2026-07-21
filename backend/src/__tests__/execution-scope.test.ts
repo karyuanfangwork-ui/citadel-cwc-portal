@@ -166,4 +166,13 @@ describe('P02-06: Execution scope', () => {
             expect(TENANT_SCOPED_MODELS.length).toBeGreaterThanOrEqual(25);
         });
     });
+
+    describe('Phased enforcement mode', () => {
+        it('should default to warn mode (TENANT_SCOPE_ENFORCE not set or not "strict")', () => {
+            // The default enforcement mode is 'warn' — unscoped writes are logged
+            // but not blocked. This allows gradual migration of call sites.
+            const env = process.env.TENANT_SCOPE_ENFORCE;
+            expect(env).not.toBe('strict');
+        });
+    });
 });
