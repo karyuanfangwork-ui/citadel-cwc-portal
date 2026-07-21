@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requirePermission, requireServiceApiKey } from '../../middleware/auth.middleware';
+import { authenticate, requirePermission, requireServiceApiKey, requireMfa } from '../../middleware/auth.middleware';
 import { requireFeatureFlag, invalidateFlagCache } from '../middleware/featureFlag.middleware';
 import prisma from '../../utils/prisma';
 import { getIntegrationsStatus } from '../adapters/registry';
@@ -156,7 +156,8 @@ router.get('/feature-flags', requirePermission('credit:admin'), async (_req: Req
   res.json({ status: 'success', data: { flags } });
 });
 
-router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (req: Request, res: Response) => {
+// P01 Task 5: Feature flag mutations require MFA for admins
+router.patch('/feature-flags/:key', requirePermission('credit:admin'), requireMfa, async (req: Request, res: Response) => {
   const { key } = req.params;
   const enabled: boolean | undefined = req.body.enabled;
   const rolloutPct: number | undefined = req.body.rolloutPct;

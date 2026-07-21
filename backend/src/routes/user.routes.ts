@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { userController } from '../controllers/user.controller';
-import { authenticate, authorize, requirePermission } from '../middleware/auth.middleware';
+import { authenticate, authorize, requirePermission, requireMfa } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { updateProfileSchema, changePasswordSchema } from '../validators/user.validator';
 
@@ -116,21 +116,22 @@ router.get('/me/delegation/incoming', userController.getIncomingDelegations);
  * @desc    Create a new role
  * @access  Private (admin:settings)
  */
-router.post('/roles', requirePermission('admin:settings'), userController.createRole);
+// P01 Task 5: Privileged role/permission mutations require MFA
+router.post('/roles', requirePermission('admin:settings'), requireMfa, userController.createRole);
 
 /**
  * @route   PUT /api/v1/users/roles/:roleId
  * @desc    Update role name/description
  * @access  Private (admin:settings)
  */
-router.put('/roles/:roleId', requirePermission('admin:settings'), userController.updateRole);
+router.put('/roles/:roleId', requirePermission('admin:settings'), requireMfa, userController.updateRole);
 
 /**
  * @route   DELETE /api/v1/users/roles/:roleId
  * @desc    Delete a role (fails if users assigned)
  * @access  Private (admin:settings)
  */
-router.delete('/roles/:roleId', requirePermission('admin:settings'), userController.deleteRole);
+router.delete('/roles/:roleId', requirePermission('admin:settings'), requireMfa, userController.deleteRole);
 
 /**
  * @route   GET /api/v1/users/roles/all
@@ -194,7 +195,8 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
  * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_DCEO — agents & executives need this to look up approvers during workflow)
  */
 router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'), userController.getAllUsers);
-router.post('/', authorize('ADMIN'), userController.createUser);
+// P01 Task 5: Privileged admin operations require MFA
+router.post('/', authorize('ADMIN'), requireMfa, userController.createUser);
 
 /**
  * @route   PUT /api/v1/users/:id
@@ -208,13 +210,13 @@ router.put('/:id', authorize('ADMIN'), userController.updateUser);
  * @desc    Delete user by ID
  * @access  Private (Admin only)
  */
-router.delete('/:id', authorize('ADMIN'), userController.deleteUser);
+router.delete('/:id', authorize('ADMIN'), requireMfa, userController.deleteUser);
 
 /**
  * @route   POST /api/v1/users/:id/reset-password
  * @desc    Reset a user's password (generates temp password, revokes sessions)
  * @access  Private (Admin only)
  */
-router.post('/:id/reset-password', authorize('ADMIN'), userController.resetUserPassword);
+router.post('/:id/reset-password', authorize('ADMIN'), requireMfa, userController.resetUserPassword);
 
 export default router;

@@ -8,7 +8,6 @@ import { runWithTenant } from '../lib/tenant-context';
 import { runWithUser } from '../lib/user-context';
 
 import prisma from '../utils/prisma';
-import { logger } from '../utils/logger';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -270,11 +269,8 @@ export const sseAuth = async (
         else if (req.headers.authorization?.startsWith('Bearer ')) {
             token = req.headers.authorization.substring(7);
         }
-        // 3. Query param (deprecated — leaks into logs/history)
-        else if ((req.query as Record<string, unknown>).token) {
-            token = String((req.query as Record<string, unknown>).token);
-            logger.warn('SSE auth via query token is deprecated; use cookie or Authorization header instead');
-        }
+        // P01 Task 5 (Finding #37): Query-param token removed —
+        // it leaked JWTs into access logs and browser history.
 
         if (!token) {
             res.status(401).json({ error: 'No token provided' });
@@ -400,4 +396,36 @@ export const requirePermission = (...permissionNames: string[]) => {
 
         next();
     };
+};
+
+/**
+ * P01 Task 5 (Findings #75–#77): Require that the authenticated user has
+ * completed MFA verification for privileged operations.
+ *
+ * Checks `req.user.mfaEnabled` and `req.user.mfaVerifiedAt`:
+ * - If MFA is not enabled for this user, allow (MFA not configured yet).
+ * - If MFA is enabled but the user hasn't verified in this session,
+ *   reject with 403 "MFA verification required".
+ * - If MFA is enabled and verified, allow.
+ *
+ * Usage: mount on privileged routes:
+ *   router.post('/admin/users', authenticate, requireMfa, adminController.createUser);
+ */
+export const requireMfa = (req: AuthRequest, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+        return next(new AppError('Not authenticated', 401));
+    }
+
+    // If MFA is not enabled for this user, they don't need MFA verification
+    if (!req.user.mfaEnabled) {
+        return next();
+    }
+
+    // MFA is enabled — check if the user has verified in this session
+    if (!req.user.mfaVerifiedAt) {
+        return next(new AppError('MFA verification required for this operation', 403));
+    }
+
+    // MFA is enabled and verified — allow
+    next();
 };
