@@ -97,6 +97,10 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Compression
 app.use(compression());
 
+// P01 Task 3: Strip sensitive user fields from all JSON responses
+import { responseSanitizer } from './middleware/response-sanitizer.middleware';
+app.use(responseSanitizer);
+
 // P1-03: Redact sensitive query params (token) from request logs.
 // Morgan logs the full URL including query strings, which can leak JWTs.
 morgan.token('url-redacted', (req: Request) => {

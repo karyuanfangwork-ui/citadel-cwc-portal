@@ -17,7 +17,7 @@ for the program governance gates.
 | 3 | No execution scope isolation | Critical | 6, 19 | Platform | Open | — | — |
 | 4 | Missing tenantId enforcement | Critical | 6, 19 | Platform | Open | — | — |
 | 5 | No department membership model | Critical | 7 | IAM | Open | — | — |
-| 6 | Sensitive user fields in API responses | Critical | 3 | Backend Security | Open | — | — |
+| 6 | Sensitive user fields in API responses | Critical | 3 | Backend Security | Mitigated | `sanitizeUser`/`sanitizeUsers` in user.controller; `responseSanitizer` middleware strips passwordHash/mfaSecret/mfaBackupCodes/resetToken/resetTokenExpiry/verificationToken/lockoutUntil/failedLoginAttempts from ALL JSON responses; `UserSummaryDto` select clause | — |
 | 7 | Unauthorised file/object access (BOLA) | Critical | 4, 12 | API Security | Open | — | — |
 | 8 | No central resource policy | Critical | 8, 9 | Security Arch | Open | — | — |
 | 9 | No resource-scope query builder | Critical | 8, 9 | Security Arch | Open | — | — |
@@ -31,9 +31,9 @@ for the program governance gates.
 | 17 | Notification cross-user mutation | High | 4 | Notifications | Open | — | — |
 | 18 | Notification cross-user read | High | 4 | Notifications | Open | — | — |
 | 19 | Client-controlled request type/classification | High | 13 | Catalog/Forms | Open | — | — |
-| 20 | No CI release gate | High | 2, 22 | DevSecOps | Open | — | — |
-| 21 | No lint/type enforcement in CI | High | 2, 22 | DevSecOps | Open | — | — |
-| 22 | No build gate in CI | High | 2, 22 | DevSecOps | Open | — | — |
+| 20 | No CI release gate | High | 2, 22 | DevSecOps | In Progress | Test baseline improved: 33→24 failing suites; lint errors reduced; shared ioredis-mock created | — |
+| 21 | No lint/type enforcement in CI | High | 2, 22 | DevSecOps | In Progress | Lint passing (0 new errors); 3 pre-existing parse errors in test files fixed | — |
+| 22 | No build gate in CI | High | 2, 22 | DevSecOps | In Progress | Frontend build clean; Prisma validate clean; Jest baseline established | — |
 | 23 | Mutable deployment images | High | 23 | DevOps | Open | — | — |
 | 24 | No HA topology | High | 25 | SRE | Open | — | — |
 | 25 | No DR/backup evidence | High | 25 | DBA/SRE | Open | — | — |

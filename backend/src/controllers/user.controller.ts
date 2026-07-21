@@ -23,6 +23,7 @@ import {
 } from '../utils/importStaff';
 
 import prisma from '../utils/prisma';
+import { sanitizeUser, sanitizeUsers } from '../dtos/user.dto';
 
 function generateTemporaryPassword(): string {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -185,7 +186,7 @@ class UserController {
 
         res.json({
             status: 'success',
-            data: { user },
+            data: { user: sanitizeUser(user) },
         });
     });
 
@@ -304,7 +305,7 @@ class UserController {
         res.json({
             status: 'success',
             data: {
-                users,
+                users: sanitizeUsers(users),
                 pagination: {
                     page: pageNum,
                     limit: limitNum,
