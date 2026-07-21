@@ -40,6 +40,9 @@ const TENANT_SCOPED_MODELS = new Set([
 const TENANT_SCOPE_ENFORCE: 'warn' | 'strict' =
     (process.env.TENANT_SCOPE_ENFORCE as 'warn' | 'strict') === 'strict' ? 'strict' : 'warn';
 
+// Deduplicate warnings — only log once per model+operation combination
+const _warnedKeys = new Set<string>();
+
 // P1-09: Gate Prisma query/info logging by environment config.
 function getPrismaLogLevels(): Array<'query' | 'info' | 'warn' | 'error'> {
     const levels: Array<'query' | 'info' | 'warn' | 'error'> = ['warn', 'error'];
@@ -77,20 +80,28 @@ export const prisma = baseClient.$extends({
                                 `Use runWithExecutionScope({ kind: 'tenant', tenantId }) or runWithTenant().`
                             );
                         }
-                        // P02-06 warn mode: log but allow through
-                        console.warn(
-                            `[TENANT_SCOPE] Unscoped ${operation} on tenant-scoped model ${modelKey}. ` +
-                            `Set TENANT_SCOPE_ENFORCE=strict to block this.`
-                        );
+                        // P02-06 warn mode: log once per model+op, then allow through
+                        const warnKey = `w:${modelKey}:${operation}`;
+                        if (!_warnedKeys.has(warnKey)) {
+                            _warnedKeys.add(warnKey);
+                            console.warn(
+                                `[TENANT_SCOPE] Unscoped ${operation} on tenant-scoped model ${modelKey}. ` +
+                                `Set TENANT_SCOPE_ENFORCE=strict to block this.`
+                            );
+                        }
                         return query(args);
                     }
 
                     if (isRead) {
-                        // Reads without scope are always allowed (with deprecation warning)
-                        console.warn(
-                            `[TENANT_SCOPE] Unscoped ${operation} on tenant-scoped model ${modelKey}. ` +
-                            `This will be rejected in a future release. Use runWithExecutionScope().`
-                        );
+                        // Reads without scope: log once per model+op, then allow
+                        const warnKey = `r:${modelKey}:${operation}`;
+                        if (!_warnedKeys.has(warnKey)) {
+                            _warnedKeys.add(warnKey);
+                            console.warn(
+                                `[TENANT_SCOPE] Unscoped ${operation} on tenant-scoped model ${modelKey}. ` +
+                                `This will be rejected in a future release. Use runWithExecutionScope().`
+                            );
+                        }
                         return query(args);
                     }
                 }
