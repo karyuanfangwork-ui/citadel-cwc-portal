@@ -24,7 +24,7 @@ export async function createMemoVersion(req: Request, res: Response, next: NextF
     // P2.2f — Enqueue PDF generation from the saved HTML snapshot (not live data)
     let jobId: string | null = null;
     try {
-      jobId = await enqueuePdf(version.htmlContent, `credit/memo/${appId}/v${version.versionNumber}/`);
+      jobId = await enqueuePdf(version.htmlContent, `credit/memo/${appId}/v${version.versionNumber}/`, userId);
     } catch (pdfErr) {
       // PDF job enqueue failure should not block memo version creation
       // The version is still saved; PDF can be regenerated later
@@ -129,7 +129,7 @@ export async function lockVersion(req: Request, res: Response, next: NextFunctio
     let jobId: string | null = null;
     if (!version.pdfUrl) {
       try {
-        jobId = await enqueuePdf(version.htmlContent, `credit/memo/${appId}/v${version.versionNumber}/locked/`);
+        jobId = await enqueuePdf(version.htmlContent, `credit/memo/${appId}/v${version.versionNumber}/locked/`, userId);
         // The PDF URL will be updated asynchronously by the worker via updateMemoPdfUrl
       } catch (pdfErr) {
         console.warn(`[MemoVersion] PDF enqueue failed on lock for version ${version.versionNumber}: ${pdfErr}`);

@@ -18,18 +18,18 @@ for the program governance gates.
 | 4 | Missing tenantId enforcement | Critical | 6, 19 | Platform | Open | — | — |
 | 5 | No department membership model | Critical | 7 | IAM | Open | — | — |
 | 6 | Sensitive user fields in API responses | Critical | 3 | Backend Security | Mitigated | `sanitizeUser`/`sanitizeUsers` in user.controller; `responseSanitizer` middleware strips passwordHash/mfaSecret/mfaBackupCodes/resetToken/resetTokenExpiry/verificationToken/lockoutUntil/failedLoginAttempts from ALL JSON responses; `UserSummaryDto` select clause | — |
-| 7 | Unauthorised file/object access (BOLA) | Critical | 4, 12 | API Security | Open | — | — |
+| 7 | Unauthorised file/object access (BOLA) | Critical | 4, 12 | API Security | In Progress | File download: assertRequestAccess check via requestAttachment lookup; Notification markAsRead/delete: ownership check; PDF jobs: user-scoped Redis keys | — |
 | 8 | No central resource policy | Critical | 8, 9 | Security Arch | Open | — | — |
 | 9 | No resource-scope query builder | Critical | 8, 9 | Security Arch | Open | — | — |
 | 10 | Hardcoded request access logic | Critical | 9 | Requests | Open | — | — |
 | 11 | Unscoped search results | Critical | 11 | Search/Reporting | Open | — | — |
 | 12 | Unscoped aggregations/exports | Critical | 11 | Search/Reporting | Open | — | — |
-| 13 | Activity access not scoped | High | 4 | Requests | Open | — | — |
+| 13 | Activity access not scoped | High | 4 | Requests | In Progress | PDF job polling scoped to userId | — |
 | 14 | Activity writes not scoped | High | 4 | Requests | Open | — | — |
 | 15 | Participant mutations unauthorised | High | 4 | Requests | Open | — | — |
 | 16 | Generic AGENT bypass | High | 4, 9 | Security Arch | Open | — | — |
-| 17 | Notification cross-user mutation | High | 4 | Notifications | Open | — | — |
-| 18 | Notification cross-user read | High | 4 | Notifications | Open | — | — |
+| 17 | Notification cross-user mutation | High | 4 | Notifications | Mitigated | markAsRead/deleteNotification verify notification.userId === req.user.id; returns 404 if not owner | — |
+| 18 | Notification cross-user read | High | 4 | Notifications | Mitigated | Same ownership check applied to markAsRead and deleteNotification | — |
 | 19 | Client-controlled request type/classification | High | 13 | Catalog/Forms | Open | — | — |
 | 20 | No CI release gate | High | 2, 22 | DevSecOps | In Progress | Test baseline improved: 33→24 failing suites; lint errors reduced; shared ioredis-mock created | — |
 | 21 | No lint/type enforcement in CI | High | 2, 22 | DevSecOps | In Progress | Lint passing (0 new errors); 3 pre-existing parse errors in test files fixed | — |

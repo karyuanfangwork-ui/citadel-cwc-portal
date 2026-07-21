@@ -423,8 +423,8 @@ function buildHtml(req: RequestForPdf): string {
 }
 
 // ── PDF Generation ────────────────────────────────────────────────────────
-export async function generateRequestPdf(idOrRef: string): Promise<string> {
+export async function generateRequestPdf(idOrRef: string, userId?: string): Promise<string> {
   const requestData = await getRequestDataForPdf(idOrRef);
   const html = buildHtml(requestData);
-  return enqueuePdf(html, 'requests/');
+  return enqueuePdf(html, 'requests/', userId);
 }

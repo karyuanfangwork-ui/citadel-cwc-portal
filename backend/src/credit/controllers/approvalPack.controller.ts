@@ -29,7 +29,7 @@ export async function getApprovalPack(req: Request, res: Response, next: NextFun
     }
 
     if (format === 'pdf') {
-      const jobId = await enqueuePdf(html, 'credit/approval-pack/');
+      const jobId = await enqueuePdf(html, 'credit/approval-pack/', (req as any).user?.id);
       return res.json({ status: 'success', data: { jobId, message: 'PDF generation started. Poll /api/v1/pdf-jobs/:jobId for the download URL.' } });
     }
 

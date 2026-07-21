@@ -10,13 +10,14 @@ export const PDF_WORKER_CONCURRENCY = Number(process.env.PDF_WORKER_CONCURRENCY 
 interface PdfJobData {
   html: string;
   s3Key: string;
+  userId?: string;  // P01 Task 4: user-scoped job result keys
 }
 
 export function startPdfWorker(): Worker<PdfJobData> {
   const worker = new Worker<PdfJobData>(
     'pdf.generation',
     async (job: Job<PdfJobData>) => {
-      const { html, s3Key } = job.data;
+      const { html, s3Key, userId } = job.data;
       logger.info(`[PdfWorker] Generating PDF for job ${job.id} → ${s3Key}`);
 
       const pdfBuffer = await htmlToPdf(html);
@@ -24,7 +25,7 @@ export function startPdfWorker(): Worker<PdfJobData> {
 
       // Generate a short-lived presigned URL (1 hour — same as Redis TTL)
       const presignedUrl = await s3Service.getPresignedUrl(s3Key, 1);
-      await setPdfResult(job.id!, presignedUrl);
+      await setPdfResult(job.id!, presignedUrl, userId);
 
       logger.info(`[PdfWorker] Job ${job.id} complete → ${s3Key}`);
     },
@@ -35,7 +36,10 @@ export function startPdfWorker(): Worker<PdfJobData> {
   );
 
   worker.on('failed', async (job, err) => {
-    if (job) await setPdfError(job.id!, err.message);
+    if (job) {
+      const userId = job.data?.userId;
+      await setPdfError(job.id!, err.message, userId);
+    }
     logger.error(`[PdfWorker] Job ${job?.id} failed: ${err.message}`);
   });
 

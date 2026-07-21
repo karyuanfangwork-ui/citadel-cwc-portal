@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { asyncHandler } from '../middleware/error.middleware';
+import { asyncHandler, AppError } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { addClient, removeClient } from '../utils/sseClients';
 
@@ -54,8 +54,15 @@ class NotificationController {
         });
     });
 
+    // P01-17: Verify ownership before marking as read
     markAsRead = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
+
+        // Verify the notification belongs to the requesting user
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user!.id) {
+            throw new AppError('Notification not found or access denied', 404);
+        }
 
         const notification = await prisma.notification.update({
             where: { id },
@@ -84,8 +91,15 @@ class NotificationController {
         });
     });
 
+    // P01-18: Verify ownership before deleting
     deleteNotification = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
+
+        // Verify the notification belongs to the requesting user
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user!.id) {
+            throw new AppError('Notification not found or access denied', 404);
+        }
 
         await prisma.notification.delete({
             where: { id },
