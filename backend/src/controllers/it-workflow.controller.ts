@@ -323,9 +323,17 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
     let ceoUser: { id: string; firstName: string; lastName: string } | null = null;
     let approverSource: 'manual' | 'auto' = 'auto';
 
+    const ceoWhere = {
+      isActive: true,
+      OR: [
+        { executiveRole: 'CEO' as const },
+        { roles: { some: { role: { name: 'CEO' } } } },
+      ],
+    };
+
     if (ceoId) {
       ceoUser = await prisma.user.findFirst({
-        where: { id: ceoId, isActive: true, executiveRole: 'CEO' },
+        where: { id: ceoId, ...ceoWhere },
         select: { id: true, firstName: true, lastName: true },
       });
       if (!ceoUser) {
@@ -334,7 +342,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       approverSource = 'manual';
     } else {
       ceoUser = await prisma.user.findFirst({
-        where: { executiveRole: 'CEO', isActive: true },
+        where: ceoWhere,
         select: { id: true, firstName: true, lastName: true },
       });
     }
@@ -343,8 +351,18 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No active CEO user found in the system. Please create a CEO user first.' });
     }
 
-    // Transition: SUBMITTED → PENDING_CEO_APPROVAL_IT with auto-assignment to CEO
-    // Guards: service-desk guard checks IT; we skip auto-assignment because we set assignedToId explicitly
+    // Transition: SUBMITTED → ACKNOWLEDGED_IT → PENDING_CEO_APPROVAL_IT
+    // Two-step transition required because the workflow map doesn't have a direct
+    // SUBMITTED → PENDING_CEO_APPROVAL_IT edge. We skip auto-assignment because
+    // we set assignedToId explicitly to the CEO below.
+    await transitionRequest(id, 'ACKNOWLEDGED_IT', {
+      ...transitionOpts(req, {
+        comment: 'Request acknowledged by IT agent',
+        source: 'it-workflow/acknowledge',
+      }),
+      skipAutoAssignment: true,
+    });
+
     await transitionRequest(id, 'PENDING_CEO_APPROVAL_IT', {
       ...transitionOpts(req, {
         comment: notes || undefined,
@@ -410,9 +428,17 @@ export const ceoDecision = async (req: Request, res: Response) => {
       // Resolve the CTO: prefer CEO's manual pick, fall back to auto-route.
       let ctoUser: { id: string; firstName: string; lastName: string } | null = null;
 
+      const ctoWhere = {
+        isActive: true,
+        OR: [
+          { executiveRole: 'CTO' as const },
+          { roles: { some: { role: { name: 'CTO' } } } },
+        ],
+      };
+
       if (ctoId) {
         ctoUser = await prisma.user.findFirst({
-          where: { id: ctoId, isActive: true, executiveRole: 'CTO' },
+          where: { id: ctoId, ...ctoWhere },
           select: { id: true, firstName: true, lastName: true },
         });
         if (!ctoUser) {
@@ -421,7 +447,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         ctoApproverSource = 'manual';
       } else {
         ctoUser = await prisma.user.findFirst({
-          where: { executiveRole: 'CTO', isActive: true },
+          where: ctoWhere,
           select: { id: true, firstName: true, lastName: true },
         });
       }
