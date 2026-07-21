@@ -165,6 +165,40 @@ describe('Operation Control Registry', () => {
     }
   });
 
+  it('covers CRM endpoints (findings #63, #75–#84)', () => {
+    const crmOps = operationControls.filter((c) =>
+      c.path.startsWith('/crm'),
+    );
+    expect(crmOps.length).toBeGreaterThanOrEqual(100);
+
+    const crmAccounts = operationControls.filter((c) =>
+      c.path.startsWith('/crm/accounts'),
+    );
+    expect(crmAccounts.length).toBeGreaterThanOrEqual(4);
+
+    const crmContacts = operationControls.filter((c) =>
+      c.path.startsWith('/crm/contacts'),
+    );
+    expect(crmContacts.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('covers credit module endpoints', () => {
+    const creditOps = operationControls.filter((c) =>
+      c.path.startsWith('/credit'),
+    );
+    expect(creditOps.length).toBeGreaterThanOrEqual(300);
+
+    const appOps = operationControls.filter((c) =>
+      c.path.includes('/applications'),
+    );
+    expect(appOps.length).toBeGreaterThanOrEqual(50);
+
+    const borrowerOps = operationControls.filter((c) =>
+      c.path.includes('/borrowers'),
+    );
+    expect(borrowerOps.length).toBeGreaterThanOrEqual(10);
+  });
+
   it('sensitive and auth rate tiers are only used appropriately', () => {
     const authOps = operationControls.filter((c) => c.rateTier === 'auth');
     // Only auth-related operations should use 'auth' rate tier
