@@ -44,6 +44,7 @@ import pdfJobRoutes from './pdfJob.routes';
 import catalogEntitlementRoutes from './catalogEntitlement.routes';
 import approvalPolicyRoutes from './approvalPolicy.routes';
 import approvalDelegationRoutes from './approvalDelegation.routes';
+import departmentRoutes from './department.routes';
 
 const router = Router();
 
@@ -98,6 +99,7 @@ router.use('/pdf-jobs', pdfJobRoutes);
 router.use('/admin/catalog-entitlements', catalogEntitlementRoutes);
 router.use('/admin/approval-policies', approvalPolicyRoutes);
 router.use('/approval-delegations', approvalDelegationRoutes);
+router.use('/departments', departmentRoutes);
 
 export default router;
 

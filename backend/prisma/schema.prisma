@@ -25,6 +25,7 @@ model Tenant {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   users User[]
+  departments Department[] // P02-07: department-scoped RBAC
 
   @@map("tenants")
 }
@@ -136,6 +137,7 @@ model User {
   delegatedApprovalsTo      RequestApproval[]     @relation("ApprovalDelegate")  // P5-08
   delegationsFrom            ApprovalDelegation[]  @relation("DelegationFrom")    // P5-08
   delegationsTo              ApprovalDelegation[]  @relation("DelegationTo")      // P5-08
+  departmentMemberships      DepartmentMembership[] // P02-07: department-scoped RBAC
   approvalReminders          ApprovalReminder[]    // P5-08
   uploadedResumes           CandidateResume[]
   scheduledInterviews       InterviewSchedule[]
@@ -283,6 +285,7 @@ model Role {
   // Relations
   users       UserRole[]
   permissions RolePermission[]
+  departmentMemberships DepartmentMembership[] // P02-07: department-scoped RBAC
 
   @@map("roles")
 }
@@ -323,6 +326,50 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+// ── P02 Task 7: Department-scoped RBAC ───────────────────────────────
+// Findings #1–#2, #5, #29–#30, #39–#40
+
+model Department {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  code        String   @db.VarChar(50)
+  name        String   @db.VarChar(200)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships  DepartmentMembership[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("departments")
+}
+
+model DepartmentMembership {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  departmentId String    @map("department_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  validFrom    DateTime  @default(now()) @map("valid_from") @db.Timestamp(6)
+  validUntil   DateTime? @map("valid_until") @db.Timestamp(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, departmentId, userId, roleId])
+  @@index([tenantId, userId])
+  @@index([tenantId, departmentId])
+  @@map("department_memberships")
 }
 
 model Session {
