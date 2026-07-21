@@ -1,3 +1,11 @@
+/**
+ * Operation Control Registry Tests — P02/P03 Task 10
+ *
+ * Validates that every entry in the registry has complete security metadata
+ * and that critical domains are covered. This test will be expanded as
+ * more route families are migrated.
+ */
+
 import { operationControls } from '../security/operation-control.registry';
 
 describe('Operation Control Registry', () => {
@@ -22,12 +30,14 @@ describe('Operation Control Registry', () => {
     const userPaths = operationControls.filter((c) =>
       c.path.startsWith('/users'),
     );
-    expect(userPaths.length).toBeGreaterThanOrEqual(4);
+    expect(userPaths.length).toBeGreaterThanOrEqual(11);
+  });
 
+  it('covers auth endpoints (findings #6, #35)', () => {
     const authPaths = operationControls.filter((c) =>
       c.path.startsWith('/auth'),
     );
-    expect(authPaths.length).toBeGreaterThanOrEqual(1);
+    expect(authPaths.length).toBeGreaterThanOrEqual(5);
   });
 
   it('covers file download/upload (findings #7, #83, #84)', () => {
@@ -37,23 +47,37 @@ describe('Operation Control Registry', () => {
     expect(fileOps.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('covers request domain endpoints (findings #8–#18, #55)', () => {
+    const requestOps = operationControls.filter((c) =>
+      c.path.startsWith('/requests'),
+    );
+    // GET /, POST /, GET /pending-approvals, POST /bulk-action,
+    // GET /recent-services, POST /export/xlsx, GET /:id, PUT /:id,
+    // DELETE /:id, GET /:id/export/pdf, GET /:id/activities,
+    // POST /:id/activities, POST /:id/attachments,
+    // GET /:id/attachments/:attachmentId, DELETE /:id/attachments/:attachmentId,
+    // PUT /:id/assign, PUT /:id/status, GET /:id/participants,
+    // POST /:id/participants, DELETE /:id/participants/:userId
+    expect(requestOps.length).toBeGreaterThanOrEqual(20);
+  });
+
   it('covers request activities and participants (findings #13–#16)', () => {
     const activityOps = operationControls.filter((c) =>
       c.path.includes('/activities'),
     );
-    expect(activityOps.length).toBeGreaterThanOrEqual(1);
+    expect(activityOps.length).toBeGreaterThanOrEqual(2);
 
     const participantOps = operationControls.filter((c) =>
       c.path.includes('/participants'),
     );
-    expect(participantOps.length).toBeGreaterThanOrEqual(1);
+    expect(participantOps.length).toBeGreaterThanOrEqual(3);
   });
 
   it('covers notification mutations (findings #17, #18)', () => {
     const notifOps = operationControls.filter((c) =>
       c.path.startsWith('/notifications'),
     );
-    expect(notifOps.length).toBeGreaterThanOrEqual(4);
+    expect(notifOps.length).toBeGreaterThanOrEqual(5);
   });
 
   it('covers PDF jobs and request exports (findings #35, #83, #84)', () => {
@@ -66,5 +90,44 @@ describe('Operation Control Registry', () => {
       c.path.includes('/export'),
     );
     expect(exportOps.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('covers department endpoints (findings #1–#2, #29–#30)', () => {
+    const deptOps = operationControls.filter((c) =>
+      c.path.startsWith('/departments'),
+    );
+    expect(deptOps.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('every request endpoint with :id has resourcePolicy set', () => {
+    const requestOpsWithId = operationControls.filter((c) =>
+      c.path.startsWith('/requests') && c.path.includes(':id'),
+    );
+    for (const op of requestOpsWithId) {
+      expect(op.resourcePolicy).toBeTruthy();
+      expect(op.resourcePolicy).not.toBe('none');
+    }
+  });
+
+  it('sensitive and auth rate tiers are only used appropriately', () => {
+    const authOps = operationControls.filter((c) => c.rateTier === 'auth');
+    // Only auth-related operations should use 'auth' rate tier
+    for (const op of authOps) {
+      expect(op.path.startsWith('/auth') || op.auditEvent.startsWith('auth.')).toBe(true);
+    }
+
+    const sensitiveOps = operationControls.filter((c) => c.rateTier === 'sensitive');
+    // Sensitive tier should be for deletes, exports, file downloads, and privilege operations
+    for (const op of sensitiveOps) {
+      const isDelete = op.method === 'DELETE';
+      const isExport = op.path.includes('/export');
+      const isFileDownload = op.path.includes('/download') || op.path.includes('/attachments/:attachmentId');
+      const isAdminDelete = op.path.startsWith('/users') && op.method === 'DELETE';
+      const isDeptDelete = op.path.startsWith('/departments') && op.method === 'DELETE';
+      const isPrivilegeOp = op.path.includes('/roles') || op.path.includes('/password');
+      expect(
+        isDelete || isExport || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp,
+      ).toBe(true);
+    }
   });
 });
