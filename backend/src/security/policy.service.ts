@@ -215,6 +215,54 @@ class PolicyServiceImpl implements IPolicyService {
             });
         }
 
+        // ── For KB articles: department-scoped visibility ──
+        // P02-11: KB articles follow request visibility — admin sees all,
+        // agents see their service desk's articles, end users see published
+        // articles in their department's service desk scope.
+        if (resourceType === 'kb_article') {
+            // Admin sees everything (tenant boundary already applied)
+            if (!principal.roles.includes('ADMIN')) {
+                const kbOrConditions: Record<string, any>[] = [];
+                // Articles with no serviceDesk restriction (global)
+                kbOrConditions.push({ serviceDeskId: null });
+                // Articles in the agent's service desk scope
+                if (principal.agentTeam) {
+                    kbOrConditions.push({ serviceDesk: { code: principal.agentTeam } });
+                }
+                // End users can also see articles from their own department's desk
+                if (principal.departmentIds && principal.departmentIds.length > 0) {
+                    kbOrConditions.push({
+                        serviceDesk: { departmentId: { in: principal.departmentIds } },
+                    });
+                }
+                conditions.push({ OR: kbOrConditions });
+            }
+        }
+
+        // ── For reports/search: same scope as requests ──
+        // Reports and search results use the same visibility as 'request'
+        // type — they query the request table, so they need the same
+        // ownership/team/executive conditions.
+        if (resourceType === 'report' || resourceType === 'search' || resourceType === 'export') {
+            // Same logic as 'request' — reuse the OR conditions
+            const orConditions: Record<string, any>[] = [
+                { requesterId: principal.userId },
+                { assignedToId: principal.userId },
+            ];
+            if (principal.agentTeam) {
+                orConditions.push({ serviceDesk: { code: principal.agentTeam } });
+                orConditions.push({ assignedTeam: principal.agentTeam });
+            }
+            for (const role of principal.roles) {
+                if (EXECUTIVE_ROLES.has(role)) {
+                    orConditions.push({ approvals: { some: { approverId: principal.userId } } });
+                    orConditions.push({ participants: { some: { userId: principal.userId } } });
+                }
+            }
+            orConditions.push({ participants: { some: { userId: principal.userId } } });
+            conditions.push({ OR: orConditions });
+        }
+
         return conditions.length > 0 ? { AND: conditions } : {};
     }
 

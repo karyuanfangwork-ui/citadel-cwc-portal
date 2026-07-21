@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { policyService } from '../security/policy.service';
+import { principalFromAuth } from '../security/resource-scope.service';
 
 import prisma from '../utils/prisma';
 import { sanitizeKBContent, sanitizeString } from '../utils/sanitize';
@@ -13,10 +15,22 @@ class KBController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
+        // P02-11: Scope KB articles to principal's department visibility
+        const principal = principalFromAuth(req.user!);
+        const kbVisible = policyService.buildVisibleWhere(principal, 'kb_article');
+
         const where: any = {
             isPublished: true,
             deletedAt: null,
         };
+
+        // Merge policy visibility conditions
+        if (kbVisible.AND || kbVisible.OR) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                kbVisible,
+            ];
+        }
 
         if (serviceDeskId) {
             where.serviceDeskId = serviceDeskId;
@@ -27,10 +41,15 @@ class KBController {
         }
 
         if (search) {
-            where.OR = [
+            const searchConditions = [
                 { title: { contains: search as string, mode: 'insensitive' } },
                 { content: { contains: search as string, mode: 'insensitive' } },
             ];
+            if (where.AND) {
+                where.AND = [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: searchConditions }];
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         const [articles, total] = await Promise.all([

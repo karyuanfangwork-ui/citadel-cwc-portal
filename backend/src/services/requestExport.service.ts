@@ -9,6 +9,8 @@
 
 import ExcelJS from 'exceljs';
 import prisma from '../utils/prisma';
+import { PolicyPrincipal } from '../security/policy.types';
+import { policyService } from '../security/policy.service';
 
 // ── Column Definitions ────────────────────────────────────────────────────
 const COLUMNS = [
@@ -46,11 +48,17 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 // ── Data Fetching ──────────────────────────────────────────────────────────
-export async function fetchRequestsForExport(ids: string[]): Promise<any[]> {
+/**
+ * Fetch requests for export, scoped to the principal's visible requests.
+ * P02-11: Exports must respect department isolation — no cross-desk data leakage.
+ */
+export async function fetchRequestsForExport(ids: string[], principal: PolicyPrincipal): Promise<any[]> {
+  const visible = policyService.buildVisibleWhere(principal, 'request');
   return prisma.request.findMany({
     where: {
       id: { in: ids },
       deletedAt: null,
+      ...(visible.AND || visible.OR ? visible : {}),
     },
     include: {
       requester: { select: { firstName: true, lastName: true, email: true } },
@@ -63,8 +71,8 @@ export async function fetchRequestsForExport(ids: string[]): Promise<any[]> {
 }
 
 // ── Excel Generation ───────────────────────────────────────────────────────
-export async function generateRequestsXlsx(ids: string[]): Promise<Buffer> {
-  const requests = await fetchRequestsForExport(ids);
+export async function generateRequestsXlsx(ids: string[], principal: PolicyPrincipal): Promise<Buffer> {
+  const requests = await fetchRequestsForExport(ids, principal);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CWC Helpdesk';
