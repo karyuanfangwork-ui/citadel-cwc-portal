@@ -45,15 +45,15 @@ for the program governance gates.
 | 31 | Client-driven form configuration | High | 13 | Catalog/Forms | Open | — | — |
 | 32 | No server-side form version enforcement | High | 13 | Catalog/Forms | Open | — | — |
 | 33 | Sensitive data in localStorage | High | 5 | Frontend Security | Open | — | — |
-| 34 | SSE query-token exposure | High | 5 | Frontend Security | Open | — | — |
-| 35 | Password hash/secrets in user response | Critical | 3 | Backend Security | Open | — | — |
+| 34 | SSE query-token exposure | High | 5 | Frontend Security | Mitigated | Query-param token fallback removed from sseAuth; SSE accepts cookie or Authorization header only | — |
+| 35 | Password hash/secrets in user response | Critical | 3 | Backend Security | Mitigated | sanitizeUser/sanitizeUsers in user.controller; responseSanitizer middleware strips all sensitive fields from every JSON response | — |
 | 36 | No CSRF token on state-changing ops | High | 21 | IAM | Open | — | — |
-| 37 | No privileged MFA enforcement | High | 5 | IAM | Open | — | — |
+| 37 | No privileged MFA enforcement | High | 5 | IAM | Mitigated | `requireMfa` middleware mounted on user creation/deletion/password-reset, role mutations, credit admin feature-flag mutations; MFA-enabled users without verification get 403 | — |
 | 38 | Non-atomic password reset | High | 21 | IAM | Open | — | — |
 | 39 | No RLS policies | Critical | 19 | DBA | Open | — | — |
 | 40 | Tenant data not separated at DB level | Critical | 19 | DBA | Open | — | — |
 | 41 | Shared default secret | Critical | 23 | DevOps | Open | — | — |
-| 42 | No operation control register | High | 1 | Program Lead | **In Progress** | operation-control.registry.ts | — |
+| 42 | No operation control register | High | 1 | Program Lead | **Mitigated** | `operation-control.registry.ts` seeded with 21 critical operations; 7 unit tests passing | — |
 | 43 | Direct request status writes | Critical | 15 | Workflow | Open | — | — |
 | 44 | No workflow versioning | Critical | 15, 16 | Workflow | Open | — | — |
 | 45 | No idempotent workflow commands | Critical | 15 | Workflow | Open | — | — |
@@ -116,11 +116,11 @@ for the program governance gates.
 ## Gate Evidence
 
 ### Gate 0 — Containment and trustworthy baseline (Target: Day 15)
-- [ ] Task 1: Control register seeded and test passing
-- [ ] Task 2: Zero failing backend/frontend suites, zero lint errors
-- [ ] Task 3: No forbidden security fields in any user response
-- [ ] Task 4: Cross-user/cross-desk BOLA tests all return 404
-- [ ] Task 5: XSS/MFA/containment tests pass
+- [x] Task 1: Control register seeded and test passing
+- [ ] Task 2: Zero failing backend/frontend suites, zero lint errors (24 integration failures need DB; unit baseline clean)
+- [x] Task 3: No forbidden security fields in any user response
+- [x] Task 4: Cross-user/cross-desk BOLA tests all return 404
+- [x] Task 5: XSS/MFA/containment tests pass
 - [ ] Security sign-off
 - [ ] QA sign-off
 
