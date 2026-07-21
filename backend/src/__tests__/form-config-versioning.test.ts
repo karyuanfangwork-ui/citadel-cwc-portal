@@ -8,14 +8,15 @@
  * - formConfigSnapshot preserves the form config even after the type's formConfig changes
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 // Mock prisma
-const mockRequestTypeCreate = vi.fn();
-const mockRequestTypeUpdate = vi.fn();
-const mockRequestCreate = vi.fn();
+const mockRequestTypeCreate = jest.fn();
+const mockRequestTypeUpdate = jest.fn();
+const mockRequestCreate = jest.fn();
 
-vi.mock('../src/config/prisma', () => ({
+jest.mock('../utils/prisma', () => ({
+    __esModule: true,
     default: {
         requestType: {
             create: (...args: any[]) => mockRequestTypeCreate(...args),
@@ -27,23 +28,23 @@ vi.mock('../src/config/prisma', () => ({
     },
 }));
 
+// Import the singleton (not the class)
+import { serviceDeskService } from '../services/serviceDesk.service';
+
 describe('P5-04: Form Config Versioning', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        jest.clearAllMocks();
     });
 
     describe('RequestType formConfigVersion', () => {
         it('should set formConfigVersion = 1 on creation', async () => {
-            const service = await import('../src/services/serviceDesk.service');
-            const svc = new service.default();
-
             mockRequestTypeCreate.mockResolvedValue({
                 id: 'type-1',
                 name: 'Test Type',
                 formConfigVersion: 1,
             });
 
-            const result = await svc.createRequestType({
+            await serviceDeskService.createRequestType({
                 serviceCategoryId: 'cat-1',
                 name: 'Test Type',
                 formConfig: [{ id: 'f1', label: 'Field 1', type: 'text' }],
@@ -60,15 +61,12 @@ describe('P5-04: Form Config Versioning', () => {
         });
 
         it('should increment formConfigVersion when formConfig is updated', async () => {
-            const service = await import('../src/services/serviceDesk.service');
-            const svc = new service.default();
-
             mockRequestTypeUpdate.mockResolvedValue({
                 id: 'type-1',
                 formConfigVersion: 2,
             });
 
-            await svc.updateRequestType('type-1', {
+            await serviceDeskService.updateRequestType('type-1', {
                 formConfig: [{ id: 'f1', label: 'Updated Field', type: 'text' }],
             });
 
@@ -83,15 +81,12 @@ describe('P5-04: Form Config Versioning', () => {
         });
 
         it('should NOT increment formConfigVersion when other fields are updated', async () => {
-            const service = await import('../src/services/serviceDesk.service');
-            const svc = new service.default();
-
             mockRequestTypeUpdate.mockResolvedValue({
                 id: 'type-1',
                 name: 'Updated Name',
             });
 
-            await svc.updateRequestType('type-1', {
+            await serviceDeskService.updateRequestType('type-1', {
                 name: 'Updated Name',
             });
 

@@ -1,31 +1,42 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
-const mockPrisma = vi.hoisted(() => ({
-    request: {
-        findUnique: vi.fn(),
-        findFirst: vi.fn(),
-        update: vi.fn(),
-    },
-    requestApproval: {
-        update: vi.fn(),
-        create: vi.fn(),
-        findUnique: vi.fn(),
-    },
-    requestActivity: {
-        create: vi.fn(),
-    },
-    user: {
-        findUnique: vi.fn(),
-        findFirst: vi.fn(),
+const mockFindUnique = jest.fn();
+const mockFindFirst = jest.fn();
+const mockUpdate = jest.fn();
+const mockApprovalUpdate = jest.fn();
+const mockApprovalCreate = jest.fn();
+const mockApprovalFindUnique = jest.fn();
+const mockActivityCreate = jest.fn();
+const mockUserFindUnique = jest.fn();
+const mockUserFindFirst = jest.fn();
+
+jest.mock('../utils/prisma', () => ({
+    __esModule: true,
+    default: {
+        request: {
+            findUnique: mockFindUnique,
+            findFirst: mockFindFirst,
+            update: mockUpdate,
+        },
+        requestApproval: {
+            update: mockApprovalUpdate,
+            create: mockApprovalCreate,
+            findUnique: mockApprovalFindUnique,
+        },
+        requestActivity: {
+            create: mockActivityCreate,
+        },
+        user: {
+            findUnique: mockUserFindUnique,
+            findFirst: mockUserFindFirst,
+        },
     },
 }));
-
-vi.mock('../utils/prisma', () => ({ default: mockPrisma }));
-vi.mock('../utils/audit', () => ({ auditLog: vi.fn() }));
-vi.mock('../services/notification.service', () => ({ notify: vi.fn() }));
-vi.mock('../services/entityRouting.service', () => ({ allEntityApprovalsResolved: vi.fn() }));
-vi.mock('../services/reassign.service', () => ({ reassignToTeam: vi.fn() }));
-vi.mock('../services/sla-pause.service', () => ({ pauseSla: vi.fn(), resumeSla: vi.fn() }));
+jest.mock('../utils/audit', () => ({ auditLog: jest.fn() }));
+jest.mock('../services/notification.service', () => ({ notify: jest.fn() }));
+jest.mock('../services/entityRouting.service', () => ({ allEntityApprovalsResolved: jest.fn() }));
+jest.mock('../services/reassign.service', () => ({ reassignToTeam: jest.fn() }));
+jest.mock('../services/sla-pause.service', () => ({ pauseSla: jest.fn(), resumeSla: jest.fn() }));
 
 import { ceoDecision, groupDceoDecisionHr, assertDesignatedApprover } from '../controllers/approval.controller';
 
@@ -38,13 +49,13 @@ const REQ_ID_2 = '00000000-0000-0000-0000-000000000011';
 
 function makeRes() {
     const res: any = {};
-    res.status = vi.fn().mockReturnValue(res);
-    res.json = vi.fn().mockReturnValue(res);
+    res.status = jest.fn().mockReturnValue(res);
+    res.json = jest.fn().mockReturnValue(res);
     return res;
 }
 
 describe('assertDesignatedApprover', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('allows when caller matches the approval approverId', async () => {
         const result = await assertDesignatedApprover(CEO_USER_ID, { approverId: CEO_USER_ID }, 'CEO');
@@ -52,7 +63,7 @@ describe('assertDesignatedApprover', () => {
     });
 
     it('rejects a caller who is not the approver, not an admin, and not the matching executive role', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: IMPOSTOR_USER_ID,
             executiveRole: null,
             roles: [{ role: { name: 'NORMAL_STAFF' } }],
@@ -62,7 +73,7 @@ describe('assertDesignatedApprover', () => {
     });
 
     it('allows an ADMIN even if not the designated approver', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: 'admin-user',
             executiveRole: null,
             roles: [{ role: { name: 'ADMIN' } }],
@@ -72,7 +83,7 @@ describe('assertDesignatedApprover', () => {
     });
 
     it('allows a user with the matching executiveRole when the approval has no assigned approverId (role-based routing)', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: 'ceo-role-user',
             executiveRole: 'CEO',
             roles: [],
@@ -82,7 +93,7 @@ describe('assertDesignatedApprover', () => {
     });
 
     it('rejects a user with a different executiveRole when the approval has no assigned approverId', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: 'cfo-user',
             executiveRole: 'CFO',
             roles: [],
@@ -93,17 +104,17 @@ describe('assertDesignatedApprover', () => {
 });
 
 describe('ceoDecision authorization', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('returns 403 when the caller is not the designated CEO approver', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID,
             status: 'PENDING_CEO_APPROVAL',
             requesterId: 'requester-1',
             requester: {},
             approvals: [{ id: 'appr-1', approverId: CEO_USER_ID, approverType: 'CEO', status: 'PENDING' }],
         });
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: IMPOSTOR_USER_ID,
             executiveRole: null,
             roles: [],
@@ -119,12 +130,12 @@ describe('ceoDecision authorization', () => {
         await ceoDecision(req, res);
 
         expect(res.status).toHaveBeenCalledWith(403);
-        expect(mockPrisma.requestApproval.update).not.toHaveBeenCalled();
-        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+        expect(mockApprovalUpdate).not.toHaveBeenCalled();
+        expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('allows the designated CEO approver to reject', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID,
             referenceNumber: 'HR-1',
             status: 'PENDING_CEO_APPROVAL',
@@ -132,8 +143,8 @@ describe('ceoDecision authorization', () => {
             requester: {},
             approvals: [{ id: 'appr-1', approverId: CEO_USER_ID, approverType: 'CEO', status: 'PENDING' }],
         });
-        mockPrisma.requestApproval.update.mockResolvedValue({ id: 'appr-1', status: 'REJECTED' });
-        mockPrisma.request.update.mockResolvedValue({ id: REQ_ID, status: 'CEO_REJECTED' });
+        mockApprovalUpdate.mockResolvedValue({ id: 'appr-1', status: 'REJECTED' });
+        mockUpdate.mockResolvedValue({ id: REQ_ID, status: 'CEO_REJECTED' });
 
         const req: any = {
             params: { id: REQ_ID },
@@ -145,23 +156,23 @@ describe('ceoDecision authorization', () => {
         await ceoDecision(req, res);
 
         expect(res.status).not.toHaveBeenCalledWith(403);
-        expect(mockPrisma.requestApproval.update).toHaveBeenCalled();
-        expect(mockPrisma.request.update).toHaveBeenCalled();
+        expect(mockApprovalUpdate).toHaveBeenCalled();
+        expect(mockUpdate).toHaveBeenCalled();
     });
 });
 
 describe('groupDceoDecisionHr authorization', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('returns 403 when the caller is not the designated Group Deputy CEO approver', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
             referenceNumber: 'HR-2',
             status: 'PENDING_GROUP_DCEO_APPROVAL',
             requesterId: 'requester-1',
             approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
         });
-        mockPrisma.user.findUnique.mockResolvedValue({
+        mockUserFindUnique.mockResolvedValue({
             id: IMPOSTOR_USER_ID,
             executiveRole: null,
             roles: [],
@@ -177,20 +188,20 @@ describe('groupDceoDecisionHr authorization', () => {
         await groupDceoDecisionHr(req, res);
 
         expect(res.status).toHaveBeenCalledWith(403);
-        expect(mockPrisma.requestApproval.update).not.toHaveBeenCalled();
-        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+        expect(mockApprovalUpdate).not.toHaveBeenCalled();
+        expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('allows the designated Group Deputy CEO approver to reject', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
             referenceNumber: 'HR-2',
             status: 'PENDING_GROUP_DCEO_APPROVAL',
             requesterId: 'requester-1',
             approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
         });
-        mockPrisma.request.update.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
-        mockPrisma.requestApproval.update.mockResolvedValue({ id: 'appr-2', status: 'REJECTED' });
+        mockUpdate.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
+        mockApprovalUpdate.mockResolvedValue({ id: 'appr-2', status: 'REJECTED' });
 
         const req: any = {
             params: { id: REQ_ID_2 },
@@ -202,6 +213,6 @@ describe('groupDceoDecisionHr authorization', () => {
         await groupDceoDecisionHr(req, res);
 
         expect(res.status).not.toHaveBeenCalledWith(403);
-        expect(mockPrisma.request.update).toHaveBeenCalled();
+        expect(mockUpdate).toHaveBeenCalled();
     });
 });

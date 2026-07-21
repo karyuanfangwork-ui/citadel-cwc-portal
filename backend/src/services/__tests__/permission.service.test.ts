@@ -10,8 +10,22 @@
 const redisStore = new Map<string, string>();
 
 jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
+  const handlers: Record<string, Function[]> = {};
+  const client = {
+    on: jest.fn((event: string, handler: Function) => {
+      if (!handlers[event]) handlers[event] = [];
+      handlers[event].push(handler);
+      return client;
+    }),
+    once: jest.fn(() => client),
+    emit: jest.fn((event: string, ...args: any[]) => {
+      (handlers[event] || []).forEach((h: Function) => h(...args));
+      return client;
+    }),
+    removeListener: jest.fn(() => client),
+    removeAllListeners: jest.fn(() => client),
     get: jest.fn(async (key: string) => redisStore.get(key) ?? null),
+    set: jest.fn(async (key: string, val: string) => { redisStore.set(key, val); return 'OK'; }),
     setex: jest.fn(async (key: string, _ttl: number, val: string) => {
       redisStore.set(key, val);
       return 'OK';
@@ -20,7 +34,28 @@ jest.mock('ioredis', () => {
       keys.forEach((k) => redisStore.delete(k));
       return keys.length;
     }),
-  }));
+    keys: jest.fn(async (pattern: string) => {
+      const prefix = pattern.replace('*', '');
+      return Array.from(redisStore.keys()).filter((k) => k.startsWith(prefix));
+    }),
+    exists: jest.fn(async (key: string) => (redisStore.has(key) ? 1 : 0)),
+    incr: jest.fn(async (key: string) => {
+      const v = parseInt(redisStore.get(key) || '0', 10) + 1;
+      redisStore.set(key, String(v));
+      return v;
+    }),
+    pipeline: jest.fn(() => ({
+      setex: jest.fn().mockReturnThis(),
+      del: jest.fn().mockReturnThis(),
+      exec: jest.fn(async () => []),
+    })),
+    connect: jest.fn(async () => 'OK'),
+    disconnect: jest.fn(),
+    quit: jest.fn(async () => 'OK'),
+    ping: jest.fn(async () => 'PONG'),
+    status: 'ready',
+  };
+  return jest.fn().mockImplementation(() => client);
 });
 
 // ── Mock PrismaClient ───────────────────────────────────────────────────────

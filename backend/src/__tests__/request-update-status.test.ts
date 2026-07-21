@@ -1,35 +1,45 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
-const mockPrisma = vi.hoisted(() => ({
-    request: {
-        findUnique: vi.fn(),
-        findFirst: vi.fn(),
-        update: vi.fn(),
-    },
-    requestActivity: {
-        create: vi.fn(),
-    },
-    requestParticipant: {
-        findMany: vi.fn().mockResolvedValue([]),
-    },
-    workflowTransition: {
-        findFirst: vi.fn().mockResolvedValue(null),
-    },
-}));
+// Declare mock functions at module scope so jest.mock factory can access them
+// via the hoisted variable pattern (Jest hoists jest.mock calls)
+const mockFindUnique = jest.fn();
+const mockFindFirst = jest.fn();
+const mockUpdate = jest.fn();
+const mockActivityCreate = jest.fn();
+const mockParticipantFindMany = jest.fn().mockResolvedValue([]);
+const mockWorkflowTransitionFindFirst = jest.fn().mockResolvedValue(null);
 
-vi.mock('../utils/prisma', () => ({ default: mockPrisma }));
-vi.mock('../utils/audit', () => ({ auditLog: vi.fn() }));
-vi.mock('../services/notification.service', () => ({ notify: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('../services/sla-pause.service', () => ({
-    shouldResumeOnTransition: vi.fn().mockResolvedValue({ shouldPause: false, shouldResume: false }),
-    pauseSla: vi.fn(),
-    resumeSla: vi.fn(),
+jest.mock('../utils/prisma', () => ({
+    __esModule: true,
+    default: {
+        request: {
+            findUnique: mockFindUnique,
+            findFirst: mockFindFirst,
+            update: mockUpdate,
+        },
+        requestActivity: {
+            create: mockActivityCreate,
+        },
+        requestParticipant: {
+            findMany: mockParticipantFindMany,
+        },
+        workflowTransition: {
+            findFirst: mockWorkflowTransitionFindFirst,
+        },
+    },
 }));
-vi.mock('../utils/workflowTransitions', () => ({
-    isValidTransition: vi.fn().mockResolvedValue(true),
+jest.mock('../utils/audit', () => ({ auditLog: jest.fn() }));
+jest.mock('../services/notification.service', () => ({ notify: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('../services/sla-pause.service', () => ({
+    shouldResumeOnTransition: jest.fn().mockResolvedValue({ shouldPause: false, shouldResume: false }),
+    pauseSla: jest.fn(),
+    resumeSla: jest.fn(),
 }));
-vi.mock('../services/autoAssignment.service', () => ({
-    autoAssignRequest: vi.fn().mockResolvedValue(undefined),
+jest.mock('../utils/workflowTransitions', () => ({
+    isValidTransition: jest.fn().mockResolvedValue(true),
+}));
+jest.mock('../services/autoAssignment.service', () => ({
+    autoAssignRequest: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { requestController } from '../controllers/request.controller';
@@ -43,8 +53,8 @@ function makeResWithDone() {
     let resolveResponse!: () => void;
     const responseDone = new Promise<void>(resolve => { resolveResponse = resolve; });
     const res: any = {
-        status: vi.fn().mockImplementation(function(this: any) { return this; }),
-        json: vi.fn().mockImplementation(() => { resolveResponse(); }),
+        status: jest.fn().mockImplementation(function(this: any) { return this; }),
+        json: jest.fn().mockImplementation(() => { resolveResponse(); }),
     };
     return { res, responseDone };
 }
@@ -52,22 +62,22 @@ function makeResWithDone() {
 function makeNextWithDone() {
     let resolveNext!: (err?: any) => void;
     const nextDone = new Promise<any>(resolve => { resolveNext = resolve; });
-    const next = vi.fn().mockImplementation((err?: any) => { resolveNext(err); });
+    const next = jest.fn().mockImplementation((err?: any) => { resolveNext(err); });
     return { next, nextDone };
 }
 
 describe('updateStatus terminal-status handling', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('stamps closedAt for GROUP_DCEO_REJECTED, which the old local list omitted', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID,
             status: 'PENDING_GROUP_DCEO_APPROVAL',
             serviceDesk: { code: 'HR' },
             requesterId: 'requester-1',
             referenceNumber: 'HR-3',
         });
-        mockPrisma.request.update.mockResolvedValue({
+        mockUpdate.mockResolvedValue({
             id: REQ_ID,
             requesterId: 'requester-1',
             referenceNumber: 'HR-3',
@@ -89,22 +99,22 @@ describe('updateStatus terminal-status handling', () => {
             throw next.mock.calls[0][0];
         }
 
-        expect(mockPrisma.request.update).toHaveBeenCalledWith(
+        expect(mockUpdate).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({ closedAt: expect.any(Date) }),
-            })
+            }),
         );
     });
 
     it('does not stamp closedAt for a non-terminal status', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
             status: 'SUBMITTED',
             serviceDesk: { code: 'IT' },
             requesterId: 'requester-1',
             referenceNumber: 'IT-4',
         });
-        mockPrisma.request.update.mockResolvedValue({
+        mockUpdate.mockResolvedValue({
             id: REQ_ID_2,
             requesterId: 'requester-1',
             referenceNumber: 'IT-4',
@@ -126,17 +136,17 @@ describe('updateStatus terminal-status handling', () => {
             throw next.mock.calls[0][0];
         }
 
-        expect(mockPrisma.request.update).toHaveBeenCalled();
-        const callArg = mockPrisma.request.update.mock.calls[0][0];
+        expect(mockUpdate).toHaveBeenCalled();
+        const callArg = mockUpdate.mock.calls[0][0];
         expect(callArg.data.closedAt).toBeUndefined();
     });
 });
 
 describe('updateStatus rejection comment requirement', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('rejects with 400 when status is REJECTED and no comment is provided', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_3,
             status: 'SUBMITTED',
             serviceDesk: { code: 'IT' },
@@ -158,18 +168,18 @@ describe('updateStatus rejection comment requirement', () => {
         expect(next).toHaveBeenCalledWith(expect.objectContaining({
             message: expect.stringMatching(/reason/i),
         }));
-        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+        expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('accepts REJECTED with a comment and stores it on the activity log', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_4,
             status: 'SUBMITTED',
             serviceDesk: { code: 'IT' },
             requesterId: 'requester-1',
             referenceNumber: 'IT-6',
         });
-        mockPrisma.request.update.mockResolvedValue({
+        mockUpdate.mockResolvedValue({
             id: REQ_ID_4,
             requesterId: 'requester-1',
             referenceNumber: 'IT-6',
@@ -191,21 +201,21 @@ describe('updateStatus rejection comment requirement', () => {
             throw next.mock.calls[0][0];
         }
 
-        expect(mockPrisma.requestActivity.create).toHaveBeenCalledWith(
+        expect(mockActivityCreate).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
                     message: expect.stringContaining('Duplicate of IT-2'),
                 }),
-            })
+            }),
         );
     });
 });
 
 describe('updateStatus CANCELLED handling', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => jest.clearAllMocks());
 
     it('rejects with 400 when status is CANCELLED and no comment is provided', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID,
             status: 'PROCUREMENT_IN_PROGRESS',
             serviceDesk: { code: 'IT' },
@@ -227,18 +237,18 @@ describe('updateStatus CANCELLED handling', () => {
         expect(next).toHaveBeenCalledWith(expect.objectContaining({
             message: expect.stringMatching(/reason/i),
         }));
-        expect(mockPrisma.request.update).not.toHaveBeenCalled();
+        expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('accepts CANCELLED with a comment, stamps closedAt, and stores the reason', async () => {
-        mockPrisma.request.findUnique.mockResolvedValue({
+        mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
             status: 'PROCUREMENT_IN_PROGRESS',
             serviceDesk: { code: 'IT' },
             requesterId: 'requester-1',
             referenceNumber: 'IT-4',
         });
-        mockPrisma.request.update.mockResolvedValue({
+        mockUpdate.mockResolvedValue({
             id: REQ_ID_2,
             requesterId: 'requester-1',
             referenceNumber: 'IT-4',
@@ -260,17 +270,17 @@ describe('updateStatus CANCELLED handling', () => {
             throw next.mock.calls[0][0];
         }
 
-        expect(mockPrisma.request.update).toHaveBeenCalledWith(
+        expect(mockUpdate).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({ closedAt: expect.any(Date) }),
-            })
+            }),
         );
-        expect(mockPrisma.requestActivity.create).toHaveBeenCalledWith(
+        expect(mockActivityCreate).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
                     message: expect.stringContaining('Submitted against the wrong asset by mistake'),
                 }),
-            })
+            }),
         );
     });
 });

@@ -2,27 +2,28 @@
  * P5-06: Approval Policy Service Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
 // Mock prisma
 const mockPrisma = {
     approvalPolicy: {
-        create: vi.fn(),
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        findFirst: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
     },
     requestApproval: {
-        create: vi.fn(),
+        create: jest.fn(),
     },
     user: {
-        findFirst: vi.fn(),
+        findFirst: jest.fn(),
     },
 };
 
-vi.mock('../../utils/prisma', () => ({
+jest.mock('../utils/prisma', () => ({
+    __esModule: true,
     default: mockPrisma,
 }));
 
@@ -65,7 +66,7 @@ const samplePolicy = {
 
 describe('ApprovalPolicyService', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        jest.clearAllMocks();
     });
 
     describe('createPolicy', () => {

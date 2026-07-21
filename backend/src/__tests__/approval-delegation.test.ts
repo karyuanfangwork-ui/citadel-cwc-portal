@@ -2,36 +2,37 @@
  * P5-08: Approval Delegation, Fallback, and Reminders Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 // Mock prisma
 const mockPrisma = {
     requestApproval: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        update: vi.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
     },
     approvalDelegation: {
-        create: vi.fn(),
-        findMany: vi.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
     },
     approvalReminder: {
-        create: vi.fn(),
-        findMany: vi.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
     },
 };
 
-vi.mock('../utils/prisma', () => ({
+jest.mock('../utils/prisma', () => ({
+    __esModule: true,
     default: mockPrisma,
 }));
 
-vi.mock('../utils/logger', () => ({
-    logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+jest.mock('../utils/logger', () => ({
+    logger: { info: jest.fn(), error: jest.fn(), warn: jest.fn() },
 }));
 
 describe('Approval Delegation Service', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        jest.clearAllMocks();
     });
 
     describe('delegateApproval', () => {

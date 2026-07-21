@@ -2,7 +2,7 @@
  * P5-05: Conditional-field rule validation tests.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from '@jest/globals';
 import {
     findSelfReferences,
     findCircularDependencies,
