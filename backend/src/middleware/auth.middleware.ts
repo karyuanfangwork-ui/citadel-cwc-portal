@@ -6,6 +6,7 @@ import { tokenService } from '../services/token.service';
 import { permissionService } from '../services/permission.service';
 import { runWithTenant } from '../lib/tenant-context';
 import { runWithUser } from '../lib/user-context';
+import { runWithExecutionScope } from '../lib/execution-scope';
 
 import prisma from '../utils/prisma';
 
@@ -77,10 +78,13 @@ export const authenticate = async (
             throw new AppError('Token has been revoked', 401);
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: { roles: { include: { role: true } } },
+            }),
+        );
 
         if (!user || !user.isActive) {
             throw new AppError('User not found or inactive', 401);
@@ -175,10 +179,13 @@ export const optionalAuth = async (
             if (revokedAt > 0 && tokenIssuedAt < revokedAt) return next();
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: { roles: { include: { role: true } } },
+            }),
+        );
 
         if (user?.isActive) {
             const roles = user.roles.map((ur) => ur.role.name);
@@ -304,10 +311,13 @@ export const sseAuth = async (
             return;
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: { roles: { include: { role: true } } },
+            }),
+        );
 
         if (!user || !user.isActive) {
             res.status(401).json({ error: 'User not found or inactive' });

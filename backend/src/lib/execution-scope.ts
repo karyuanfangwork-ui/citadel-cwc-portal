@@ -15,6 +15,7 @@
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
+import crypto from 'crypto';
 
 export type ExecutionScope =
   | { kind: 'tenant'; tenantId: string; actorId?: string }
@@ -26,6 +27,7 @@ interface ScopeEntry {
 }
 
 const scopeStore = new AsyncLocalStorage<ScopeEntry>();
+export { scopeStore }; // For system-scope middleware
 
 /**
  * Run a callback with an explicit execution scope.
@@ -76,6 +78,16 @@ export function getScopeTenantId(): string | undefined {
   if (scope?.kind === 'tenant') return scope.tenantId;
   if (scope?.kind === 'system') return scope.tenantId;
   return undefined;
+}
+
+/**
+ * Run a callback with system-level execution scope.
+ * Use for pre-auth operations (login, register, password reset) and
+ * background jobs that must bypass tenant filtering.
+ * All Prisma queries within the callback will bypass tenant scope checks.
+ */
+export function withSystemScope<T>(jobName: string, fn: () => Promise<T>): Promise<T> {
+    return runWithExecutionScope({ kind: 'system', jobName, runId: crypto.randomUUID() }, fn);
 }
 
 /**
