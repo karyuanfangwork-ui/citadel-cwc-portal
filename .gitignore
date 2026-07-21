@@ -64,6 +64,20 @@ backend/remove-*.js
 docs/credit-training/
 docs
 
+# Keep the enterprise production-readiness audit reviewable in Git.
+!/docs/
+/docs/*
+!/docs/esm-production-readiness/
+!/docs/esm-production-readiness/**
+!/docs/superpowers/
+/docs/superpowers/*
+!/docs/superpowers/specs/
+/docs/superpowers/specs/*
+!/docs/superpowers/specs/2026-07-21-esm-production-readiness-remediation-design.md
+!/docs/superpowers/plans/
+/docs/superpowers/plans/*
+!/docs/superpowers/plans/2026-07-21-esm-production-readiness-remediation.md
+
 # Test/export artifacts
 backend/uploads/exports/
 backups/
