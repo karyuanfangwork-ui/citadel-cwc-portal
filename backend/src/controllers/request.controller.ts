@@ -13,6 +13,8 @@ import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
+import { policyService } from '../security/policy.service';
+import { principalFromAuth } from '../security/resource-scope.service';
 import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
 import prisma from '../utils/prisma';
@@ -59,133 +61,43 @@ class RequestController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
-        // Build where clause
+        // Build where clause starting with soft-delete filter
         const where: any = {
             deletedAt: null,
         };
 
+        // P02-09: Use policy service for visibility scoping instead of
+        // hardcoded ADMIN/AGENT bypasses. buildVisibleWhere produces a
+        // tenant-aware, team-scoped, ownership-based Prisma filter that
+        // respects all policy rules including department grants.
+        const principal = principalFromAuth(req.user!);
+        const visibleWhere = policyService.buildVisibleWhere(principal, 'request');
+        if (visibleWhere.AND || visibleWhere.OR) {
+            // Merge the policy visibility conditions into our where clause
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                visibleWhere,
+            ];
+        }
+
         // Confidentiality gate: users without request:confidential permission
-        // cannot see confidential requests (unless they are the requester or a designated approver).
-        // ADMIN bypasses this gate entirely.
-        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
-
-        // Users can only see their own requests unless they're agents/admins
-        // Exception: CEO can see requests in hiring workflow
-        if (!hasRole(req, 'ADMIN', 'AGENT')) {
-            if (hasRole(req, 'CEO')) {
-                // CEO can see their own requests, hiring workflow requests, IT approval requests, chargeback from-entity requests, and any request where they are a designated approver
-                const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: { in: ceoHiringStatuses } },
-                    { status: 'PENDING_CEO_APPROVAL_IT' },
-                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
-                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'CTO')) {
-                // CTO can see their own requests and any IT request pending CTO approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_CTO_APPROVAL_IT' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'CFO')) {
-                // CFO can see their own requests, IT requests pending CFO approval, Finance Purchase Requisitions pending CFO approval, and Expense Reimbursement requests pending Finance Head approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_CFO_APPROVAL_IT' },
-                    { status: 'PENDING_CFO_APPROVAL_FIN' },
-                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'FINANCE_HEAD')) {
-                // FINANCE_HEAD can see their own requests and Expense Reimbursement requests pending Finance Head approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'GROUP_DCEO')) {
-                // GROUP_DCEO can see their own requests, Finance Purchase Requisitions pending their approval,
-                // chargeback requests where they're involved, and requests assigned to them
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_GROUP_DCEO_APPROVAL' },
-                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
-                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
-                    { status: 'CHARGEBACK_FINANCE_REVIEW' },
-                    { assignedToId: req.user!.id },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            } else {
-                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback) or a participant
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            }
-        }
-
-        // Agents are scoped to their assigned service desk only.
-        // An HR agent cannot see IT or Finance tickets, and vice versa.
-        // However, agents CAN see tickets from other service desks that are assigned to their team
-        // (e.g., a FINANCE agent processing payment on an IT ticket via CFO workflow).
-        // Agents can also see tickets where they are a participant (e.g. added to a FINANCE ticket).
-        if (hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN')) {
-            const agentTeam = (req.user as any)?.agentTeam;
-            if (agentTeam) {
-                where.OR = [
-                    { serviceDesk: { code: agentTeam } },
-                    { assignedTeam: agentTeam },
-                    { participants: { some: { userId: req.user!.id } } },
-                ];
-            }
-        }
-
-        // Apply confidentiality filter for users without request:confidential permission.
-        // They can only see confidential requests where they are the requester, a designated approver, or the assigned agent.
+        // cannot see confidential requests unless they own, are assigned, are an
+        // approver, or are a participant. ADMIN within their tenant can see all.
+        const canSeeConfidential = principal.roles.includes('ADMIN') || principal.permissions.includes('request:confidential');
         if (!canSeeConfidential) {
-            if (where.OR) {
-                // Users already have visibility OR conditions (their own requests, etc.).
-                // We MUST preserve those visibility restrictions AND add confidentiality filtering.
-                // The confidentiality condition: show non-confidential OR (confidential + own/approver/assigned).
-                // We wrap the original OR with confidentiality by converting to AND:
-                //   AND[ original_visibility_OR, confidentiality_OR ]
-                // This ensures users only see requests within their visibility scope
-                // AND excludes confidential requests unless they own them, are an approver, or are assigned.
-                const visibilityOR = where.OR;
-                delete where.OR;
-                where.AND = [
-                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-                    { OR: visibilityOR },
-                    {
-                        OR: [
-                            { isConfidential: false },
-                            { requesterId: req.user!.id },
-                            { approvals: { some: { approverId: req.user!.id } } },
-                            { assignedToId: req.user!.id },
-                            { participants: { some: { userId: req.user!.id } } },
-                        ],
-                    },
-                ];
-            } else {
-                // ADMIN/AGENT without request:confidential — they see all non-confidential,
-                // plus confidential requests where they are requester, approver, or assigned agent.
-                where.OR = [
+            const confFilter = {
+                OR: [
                     { isConfidential: false },
                     { requesterId: req.user!.id },
-                    { approvals: { some: { approverId: req.user!.id } } },
                     { assignedToId: req.user!.id },
+                    { approvals: { some: { approverId: req.user!.id } } },
                     { participants: { some: { userId: req.user!.id } } },
-                ];
-            }
+                ],
+            };
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                confFilter,
+            ];
         }
 
         // Valid RequestStatus enum members for runtime validation
@@ -1596,86 +1508,13 @@ class RequestController {
             }));
         }
 
-        // Check permissions
-        // Allow access if:
-        // 1. User is the requester
-        // 2. User is ADMIN (full access)
-        // 3. User is AGENT and the ticket is within their agentTeam scope (service desk or assignedTeam)
-        // 4. User is CEO and request is in hiring workflow or IT CEO approval
-        // 5. User is CTO/CFO and request is pending their IT approval
-        // 6. User is a designated approver on this request
-        const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-        const isParticipant = (request as any).participants?.some((p: any) => p.userId === req.user!.id) ?? false;
-        const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
-        const isCEOApprover = hasRole(req, 'CEO') && (
-            ceoHiringStatuses.includes(request.status) ||
-            request.status === 'PENDING_CEO_APPROVAL_IT' ||
-            isDesignatedApprover
-        );
-        const isCTOApprover = hasRole(req, 'CTO') && (
-            request.status === 'PENDING_CTO_APPROVAL_IT' ||
-            isDesignatedApprover
-        );
-        const isCFOApprover = hasRole(req, 'CFO') && (
-            request.status === 'PENDING_CFO_APPROVAL_IT' ||
-            request.status === 'PENDING_CFO_APPROVAL_FIN' ||
-            isDesignatedApprover
-        );
-        const chargebackStatuses = [
-            'PENDING_FROM_ENTITY_APPROVAL',
-            'FROM_ENTITY_REJECTED',
-            'PENDING_TO_ENTITY_APPROVAL',
-            'TO_ENTITY_REJECTED',
-            'CHARGEBACK_FINANCE_REVIEW',
-            'AWAITING_CHARGEBACK_CONFIRMATION',
-            'CHARGEBACK_COMPLETED',
-        ];
-        const isGroupDceoApprover = hasRole(req, 'GROUP_DCEO') && (
-            request.status === 'PENDING_GROUP_DCEO_APPROVAL' ||
-            chargebackStatuses.includes(request.status) ||
-            isDesignatedApprover ||
-            request.assignedToId === req.user!.id
-        );
-
-        // Agent team scoping: agents (without ADMIN) can only view tickets in their team's scope,
-        // matching the getAllRequests visibility logic (serviceDesk.code or assignedTeam matches agentTeam).
-        const agentTeam = (req.user as any)?.agentTeam;
-        const isAgentWithTeamScope = hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN') && agentTeam;
-        const isWithinAgentTeamScope = isAgentWithTeamScope && (
-            (request as any).serviceDesk?.code === agentTeam ||
-            (request as any).assignedTeam === agentTeam
-        );
-
-        if (
-            request.requesterId !== req.user!.id &&
-            !hasRole(req, 'ADMIN') &&
-            !isWithinAgentTeamScope &&
-            !isCEOApprover &&
-            !isCTOApprover &&
-            !isCFOApprover &&
-            !isGroupDceoApprover &&
-            !isParticipant
-        ) {
-            throw new AppError('You do not have permission to view this request', 403);
-        }
-
-        // Confidentiality gate: users without request:confidential
-        // cannot view confidential requests unless they are the requester, a designated approver, or the assigned agent.
-        if (
-            request.isConfidential &&
-            request.requesterId !== req.user!.id &&
-            request.assignedToId !== req.user!.id &&
-            !hasRole(req, 'ADMIN') &&
-            !(req.user?.permissions?.includes('request:confidential')) &&
-            !isDesignatedApprover &&
-            !isCEOApprover &&
-            !isCTOApprover &&
-            !isCFOApprover &&
-            !isGroupDceoApprover &&
-            !isParticipant
-        ) {
-            throw new AppError('This request is confidential and cannot be viewed', 403);
-        }
+        // P02-09: Use policy-based access check instead of hardcoded ADMIN/AGENT bypass.
+        // assertRequestAccess enforces tenant boundary, team scope, department grant,
+        // ownership, participant, designated approver, and executive role — returning 404
+        // for unauthorized access to avoid leaking resource existence.
+        await assertRequestAccess(req.user, request.id, {
+            requireConfidential: true,
+        });
 
         // Audit: log access to confidential requests (only for non-requesters)
         if (request.isConfidential && request.requesterId !== req.user!.id) {

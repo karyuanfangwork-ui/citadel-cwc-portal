@@ -1,39 +1,29 @@
 import { Response, NextFunction } from 'express';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
-import { AuthRequest, hasRole } from '../middleware/auth.middleware';
+import { AuthRequest } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
+import { assertRequestAccess } from '../services/requestAccess.service';
 import { auditLog } from '../utils/audit';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+
 class ParticipantController {
     /**
      * GET /api/v1/requests/:id/participants
-     * Accessible by requester, agents, admins, and existing participants.
+     * Accessible by users with read access to the request (owner, assignee,
+     * team-scoped agent, participant, designated approver, tenant admin).
+     *
+     * P02-09: Replaced hasRole('ADMIN', 'AGENT') bypass with policy-based
+     * assertRequestAccess which enforces tenant boundary and team scope.
      */
     listParticipants = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const idOrRef = String(req.params.id);
         const requestId = await resolveRequestId(idOrRef);
         if (!requestId) throw new AppError('Request not found', 404);
 
-        const request = await prisma.request.findUnique({
-            where: { id: requestId },
-            select: { id: true, requesterId: true, assignedToId: true },
-        });
-        if (!request) throw new AppError('Request not found', 404);
-
-        const isParticipant = !!(await prisma.requestParticipant.findUnique({
-            where: { requestId_userId: { requestId, userId: req.user!.id } },
-        }));
-
-        if (
-            request.requesterId !== req.user!.id &&
-            request.assignedToId !== req.user!.id &&
-            !hasRole(req, 'ADMIN', 'AGENT') &&
-            !isParticipant
-        ) {
-            throw new AppError('Forbidden', 403);
-        }
+        // P02-09: Use policy-based access check instead of hasRole bypass
+        await assertRequestAccess(req.user, requestId);
 
         const participants = await prisma.requestParticipant.findMany({
             where: { requestId },
@@ -50,7 +40,10 @@ class ParticipantController {
     /**
      * POST /api/v1/requests/:id/participants
      * Body: { userId: string }
-     * Allowed: requester, agents, admins.
+     * Allowed: users with manage access (owner, assignee, team-scoped agent, admin).
+     *
+     * P02-09: Replaced hasRole('ADMIN', 'AGENT') bypass with policy-based check.
+     * Adding participants requires 'manage' action authority, not just read.
      */
     addParticipant = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const idOrRef = String(req.params.id);
@@ -62,19 +55,9 @@ class ParticipantController {
             throw new AppError('userId is required', 400);
         }
 
-        const request = await prisma.request.findUnique({
-            where: { id: requestId },
-            select: { id: true, requesterId: true, assignedToId: true, referenceNumber: true, summary: true },
-        });
-        if (!request) throw new AppError('Request not found', 404);
-
-        if (
-            request.requesterId !== req.user!.id &&
-            request.assignedToId !== req.user!.id &&
-            !hasRole(req, 'ADMIN', 'AGENT')
-        ) {
-            throw new AppError('Only the requester, assigned agent, or an admin can add participants', 403);
-        }
+        // P02-09: Use policy-based access check for 'manage' action
+        // (covers owner, assignee, team-scoped agent, admin — not generic AGENT)
+        const request = await assertRequestAccess(req.user, requestId, { action: 'manage' });
 
         // Cannot add the requester themselves as a participant
         if (userId === request.requesterId) {
@@ -125,7 +108,9 @@ class ParticipantController {
 
     /**
      * DELETE /api/v1/requests/:id/participants/:userId
-     * Allowed: requester, agents, admins.
+     * Allowed: users with manage access (owner, assignee, team-scoped agent, admin).
+     *
+     * P02-09: Replaced hasRole('ADMIN', 'AGENT') bypass with policy-based check.
      */
     removeParticipant = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const idOrRef = String(req.params.id);
@@ -133,19 +118,8 @@ class ParticipantController {
         if (!requestId) throw new AppError('Request not found', 404);
         const targetUserId = String(req.params.userId);
 
-        const request = await prisma.request.findUnique({
-            where: { id: requestId },
-            select: { id: true, requesterId: true, assignedToId: true },
-        });
-        if (!request) throw new AppError('Request not found', 404);
-
-        if (
-            request.requesterId !== req.user!.id &&
-            request.assignedToId !== req.user!.id &&
-            !hasRole(req, 'ADMIN', 'AGENT')
-        ) {
-            throw new AppError('Only the requester, assigned agent, or an admin can remove participants', 403);
-        }
+        // P02-09: Use policy-based access check for 'manage' action
+        await assertRequestAccess(req.user, requestId, { action: 'manage' });
 
         await prisma.requestParticipant.delete({
             where: { requestId_userId: { requestId, userId: targetUserId } },

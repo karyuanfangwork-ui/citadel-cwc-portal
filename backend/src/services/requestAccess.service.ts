@@ -1,11 +1,36 @@
-import { AuthRequest, hasRole } from '../middleware/auth.middleware';
+/**
+ * Request Access Service — P02 Task 9 (Findings #8, #10–#12, #16, #42, #55)
+ *
+ * Replaces the previous hardcoded ADMIN/AGENT bypass logic with the central
+ * policy service. All access checks now flow through `policyService.authorize()`,
+ * which enforces tenant boundary, team scope, department grant, ownership,
+ * designated approver, participant, and executive role rules — without any
+ * generic ADMIN or AGENT bypass that crosses desk boundaries.
+ *
+ * Key changes from the old implementation:
+ * - ADMIN bypass is now tenant-scoped (cross-tenant ADMIN is denied)
+ * - AGENT team scope is enforced via policy, not ad-hoc hasRole checks
+ * - Department membership grants are evaluated by the policy service
+ * - Confidentiality gate uses policy decisions instead of inline checks
+ * - `getAuthorizedRequest()` is the new recommended entry point for controllers
+ */
+
+import { AuthRequest } from '../middleware/auth.middleware';
 import { AppError } from '../middleware/error.middleware';
+import { policyService } from '../security/policy.service';
+import { PolicyPrincipal, PolicyAction, ResourceDescriptor } from '../security/policy.types';
+import { principalFromAuth } from '../security/resource-scope.service';
 import prisma from '../utils/prisma';
 import { UUID_RE } from '../utils/resolve';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface AuthorizedRequestResult {
+    request: any;
+    decision: { allowed: true; reason: string; allowedFields?: string[] };
+}
 
 // ---------------------------------------------------------------------------
 // Core access-check function
@@ -14,29 +39,33 @@ import { UUID_RE } from '../utils/resolve';
 /**
  * Verify that the authenticated user can access the given request.
  *
- * Mirrors the logic in RequestController.getRequestById (lines 1554-1565)
- * but extracted so it can be reused by attachment, activity, and other
- * sub-resource endpoints.
+ * Uses the central policy service for authorization decisions, replacing
+ * the previous hardcoded ADMIN/AGENT bypass pattern.
  *
- * Returns the request row (with the fields needed for access decisions) if
- * access is granted; throws AppError 403/404 if not.
+ * Returns the request row (with access-relevant fields) if access is granted;
+ * throws AppError 404 if not found or not authorized (404 for both, to avoid
+ * leaking resource existence).
  *
  * @param user       - The authenticated user from req.user
  * @param requestId  - The request UUID (must already be resolved from ref)
- * @param options    - `requireConfidential` — if true, also checks the
- *                     confidentiality gate (default: true for reads)
+ * @param options    - `action` — the policy action (default: 'read')
+ *                     `requireConfidential` — if true, also checks confidentiality (default: true for reads)
  */
 export async function assertRequestAccess(
     user: AuthRequest['user'],
     requestId: string,
-    options: { requireConfidential?: boolean } = {},
+    options: { action?: PolicyAction; requireConfidential?: boolean } = {},
 ): Promise<any> {
     if (!user) throw new AppError('Authentication required', 401);
 
+    const action: PolicyAction = options.action ?? 'read';
+
+    // Load the request with all fields needed for policy evaluation
     const request = await prisma.request.findFirst({
         where: { id: requestId, deletedAt: null },
         select: {
             id: true,
+            tenantId: true,
             referenceNumber: true,
             requesterId: true,
             assignedToId: true,
@@ -51,90 +80,122 @@ export async function assertRequestAccess(
 
     if (!request) throw new AppError('Request not found', 404);
 
-    // ── Access gate ──────────────────────────────────────────────────────
-    // 1. Requester always has access
-    // 2. ADMIN always has access
-    // 3. AGENT scoped to their team (serviceDesk.code or assignedTeam matches agentTeam)
-    // 4. CEO/CTO/CFO/GROUP_DCEO with status-based approver access
-    // 5. Participant in the request
-    // 6. Designated approver on the request
+    // Build the resource descriptor for policy evaluation
+    const resource: ResourceDescriptor = {
+        type: 'request',
+        id: request.id,
+        ownerId: request.requesterId ?? undefined,
+        tenantId: request.tenantId ?? undefined,
+        assignedToId: request.assignedToId ?? undefined,
+        isConfidential: request.isConfidential,
+        serviceDeskCode: (request as any).serviceDesk?.code ?? undefined,
+        assignedTeam: request.assignedTeam ?? undefined,
+        status: request.status ?? undefined,
+        approverIds: request.approvals?.map((a: any) => a.approverId) ?? [],
+        participantIds: request.participants?.map((p: any) => p.userId) ?? [],
+    };
 
-    const isParticipant = request.participants?.some((p: any) => p.userId === user.id) ?? false;
-    const isDesignatedApprover = request.approvals?.some((a: any) => a.approverId === user.id);
+    // Build the principal descriptor from the user
+    const principal: PolicyPrincipal = principalFromAuth(user);
 
-    const ceoHiringStatuses = [
-        'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
-        'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
-    ];
-    const isCEOApprover = hasRole({ user } as AuthRequest, 'CEO') && (
-        ceoHiringStatuses.includes(request.status) ||
-        request.status === 'PENDING_CEO_APPROVAL_IT' ||
-        isDesignatedApprover
-    );
-    const isCTOApprover = hasRole({ user } as AuthRequest, 'CTO') && (
-        request.status === 'PENDING_CTO_APPROVAL_IT' ||
-        isDesignatedApprover
-    );
-    const isCFOApprover = hasRole({ user } as AuthRequest, 'CFO') && (
-        request.status === 'PENDING_CFO_APPROVAL_IT' ||
-        request.status === 'PENDING_CFO_APPROVAL_FIN' ||
-        isDesignatedApprover
-    );
+    // Evaluate the policy decision
+    const decision = policyService.authorize(principal, action, resource);
 
-    const chargebackStatuses = [
-        'PENDING_FROM_ENTITY_APPROVAL', 'FROM_ENTITY_REJECTED',
-        'PENDING_TO_ENTITY_APPROVAL', 'TO_ENTITY_REJECTED',
-        'CHARGEBACK_FINANCE_REVIEW',
-        'AWAITING_CHARGEBACK_CONFIRMATION', 'CHARGEBACK_COMPLETED',
-    ];
-    const isGroupDceoApprover = hasRole({ user } as AuthRequest, 'GROUP_DCEO') && (
-        request.status === 'PENDING_GROUP_DCEO_APPROVAL' ||
-        chargebackStatuses.includes(request.status) ||
-        isDesignatedApprover ||
-        request.assignedToId === user.id
-    );
-
-    const agentTeam = (user as any)?.agentTeam;
-    const isAgentWithTeamScope = hasRole({ user } as AuthRequest, 'AGENT') &&
-        !hasRole({ user } as AuthRequest, 'ADMIN') && agentTeam;
-    const isWithinAgentTeamScope = isAgentWithTeamScope && (
-        (request as any).serviceDesk?.code === agentTeam ||
-        request.assignedTeam === agentTeam
-    );
-
-    const canAccess =
-        request.requesterId === user.id ||
-        hasRole({ user } as AuthRequest, 'ADMIN') ||
-        isWithinAgentTeamScope ||
-        isCEOApprover ||
-        isCTOApprover ||
-        isCFOApprover ||
-        isGroupDceoApprover ||
-        isParticipant;
-
-    if (!canAccess) {
-        throw new AppError('You do not have permission to access this request', 403);
+    if (!decision.allowed) {
+        // Return 404 rather than 403 to avoid leaking resource existence
+        throw new AppError('Request not found', 404);
     }
 
     // ── Confidentiality gate ─────────────────────────────────────────────
+    // For read actions on confidential requests, check if the principal has
+    // explicit confidential access. The policy service already handles this
+    // in the `authorize()` flow, but we add an explicit gate here for
+    // backward compatibility with controllers that pass `requireConfidential`.
     if (options.requireConfidential !== false && request.isConfidential) {
-        if (
-            request.requesterId !== user.id &&
-            request.assignedToId !== user.id &&
-            !hasRole({ user } as AuthRequest, 'ADMIN') &&
-            !(user.permissions?.includes('request:confidential')) &&
-            !isDesignatedApprover &&
-            !isCEOApprover &&
-            !isCTOApprover &&
-            !isCFOApprover &&
-            !isGroupDceoApprover &&
-            !isParticipant
-        ) {
-            throw new AppError('This request is confidential and cannot be accessed', 403);
+        // The policy service's `authorize()` already denies cross-desk
+        // confidential access. If we reached here, the policy allowed access.
+        // But we still need to check the `confidential_read` action for
+        // principals who have team scope but lack the confidential permission.
+        if (action === 'read' && principal.roles.includes('AGENT') && !principal.permissions.includes('request:confidential')) {
+            // Re-evaluate with the stricter confidential_read action
+            const confDecision = policyService.authorize(principal, 'confidential_read', resource);
+            if (!confDecision.allowed) {
+                throw new AppError('This request is confidential and cannot be accessed', 403);
+            }
         }
     }
 
     return request;
+}
+
+/**
+ * Get an authorized request, returning both the request data and the policy
+ * decision. This is the recommended entry point for controllers that need
+ * both the data and the authorization context.
+ */
+export async function getAuthorizedRequest(
+    user: AuthRequest['user'],
+    requestId: string,
+    options: { action?: PolicyAction; requireConfidential?: boolean } = {},
+): Promise<AuthorizedRequestResult> {
+    if (!user) throw new AppError('Authentication required', 401);
+
+    const action: PolicyAction = options.action ?? 'read';
+
+    const request = await prisma.request.findFirst({
+        where: { id: requestId, deletedAt: null },
+        select: {
+            id: true,
+            tenantId: true,
+            referenceNumber: true,
+            requesterId: true,
+            assignedToId: true,
+            isConfidential: true,
+            status: true,
+            assignedTeam: true,
+            serviceDesk: { select: { code: true } },
+            approvals: { select: { approverId: true } },
+            participants: { select: { userId: true } },
+        },
+    });
+
+    if (!request) throw new AppError('Request not found', 404);
+
+    const resource: ResourceDescriptor = {
+        type: 'request',
+        id: request.id,
+        ownerId: request.requesterId ?? undefined,
+        tenantId: request.tenantId ?? undefined,
+        assignedToId: request.assignedToId ?? undefined,
+        isConfidential: request.isConfidential,
+        serviceDeskCode: (request as any).serviceDesk?.code ?? undefined,
+        assignedTeam: request.assignedTeam ?? undefined,
+        status: request.status ?? undefined,
+        approverIds: request.approvals?.map((a: any) => a.approverId) ?? [],
+        participantIds: request.participants?.map((p: any) => p.userId) ?? [],
+    };
+
+    const principal = principalFromAuth(user);
+    const decision = policyService.authorize(principal, action, resource);
+
+    if (!decision.allowed) {
+        throw new AppError('Request not found', 404);
+    }
+
+    // Confidentiality gate for agents without confidential permission
+    if (options.requireConfidential !== false && request.isConfidential) {
+        if (action === 'read' && principal.roles.includes('AGENT') && !principal.permissions.includes('request:confidential')) {
+            const confDecision = policyService.authorize(principal, 'confidential_read', resource);
+            if (!confDecision.allowed) {
+                throw new AppError('This request is confidential and cannot be accessed', 403);
+            }
+        }
+    }
+
+    return {
+        request,
+        decision: decision as AuthorizedRequestResult['decision'],
+    };
 }
 
 /**
@@ -143,7 +204,7 @@ export async function assertRequestAccess(
 export async function resolveAndAssertAccess(
     user: AuthRequest['user'],
     idOrRef: string,
-    options?: { requireConfidential?: boolean },
+    options?: { action?: PolicyAction; requireConfidential?: boolean },
 ): Promise<any> {
     const requestId = UUID_RE.test(idOrRef)
         ? idOrRef
