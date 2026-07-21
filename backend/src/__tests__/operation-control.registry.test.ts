@@ -99,6 +99,62 @@ describe('Operation Control Registry', () => {
     expect(deptOps.length).toBeGreaterThanOrEqual(7);
   });
 
+  it('covers announcement endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/announcements'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('covers approval domain endpoints', () => {
+    const approvalOps = operationControls.filter((c) =>
+      c.path.startsWith('/approvals') || c.path.startsWith('/approval-'),
+    );
+    expect(approvalOps.length).toBeGreaterThanOrEqual(14);
+  });
+
+  it('covers asset management endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/assets'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('covers tenant management endpoints (findings #1–#2)', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/tenants'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('covers knowledge base endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/kb'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('covers search endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/search'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('covers service desk endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/service-desks'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('covers report endpoints', () => {
+    const ops = operationControls.filter((c) =>
+      c.path.startsWith('/reports'),
+    );
+    expect(ops.length).toBeGreaterThanOrEqual(6);
+  });
+
   it('every request endpoint with :id has resourcePolicy set', () => {
     const requestOpsWithId = operationControls.filter((c) =>
       c.path.startsWith('/requests') && c.path.includes(':id'),
@@ -117,7 +173,8 @@ describe('Operation Control Registry', () => {
     }
 
     const sensitiveOps = operationControls.filter((c) => c.rateTier === 'sensitive');
-    // Sensitive tier should be for deletes, exports, file downloads, and privilege operations
+    // Sensitive tier should be for deletes, exports, file downloads, privilege operations,
+    // and platform-admin-only reads (audit logs, tenant admin)
     for (const op of sensitiveOps) {
       const isDelete = op.method === 'DELETE';
       const isExport = op.path.includes('/export');
@@ -125,8 +182,10 @@ describe('Operation Control Registry', () => {
       const isAdminDelete = op.path.startsWith('/users') && op.method === 'DELETE';
       const isDeptDelete = op.path.startsWith('/departments') && op.method === 'DELETE';
       const isPrivilegeOp = op.path.includes('/roles') || op.path.includes('/password');
+      const isAdminRead = op.authentication === 'platform-admin' && op.method === 'GET';
+      const isAssetDelete = op.path.startsWith('/assets') && op.method === 'DELETE';
       expect(
-        isDelete || isExport || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp,
+        isDelete || isExport || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete,
       ).toBe(true);
     }
   });
