@@ -76,6 +76,13 @@ const MyTasksWidget: React.FC<Props> = ({ activities, overdueDeals = 0, staleLea
         const done = checked.has(task.id);
         return (
           <div key={task.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-[#f8f9ff] transition-colors">
+            <input
+              type="checkbox"
+              className="w-4 h-4 flex-shrink-0 accent-[#006a61]"
+              checked={done}
+              onChange={() => toggle(task.id)}
+              aria-label={`Mark "${task.title}" done`}
+            />
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#86f2e4]/30 text-[#006a61]">
               <span className="material-symbols-outlined text-[18px]">{task.icon}</span>
             </div>

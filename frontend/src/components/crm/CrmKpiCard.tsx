@@ -23,7 +23,7 @@ const CrmKpiCard: React.FC<CrmKpiCardProps> = ({
   const badgeContent = trendPercent !== undefined
     ? `${trendPercent >= 0 ? '+' : ''}${trendPercent}%`
     : trendLabel
-      ? `${isPositive ? '+' : ''}${trendLabel}`
+      ? trendLabel
       : null;
 
   const badgeColor = trendPercent !== undefined

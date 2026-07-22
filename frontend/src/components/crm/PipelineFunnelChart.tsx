@@ -69,12 +69,11 @@ const PipelineFunnelChart: React.FC<Props> = ({ items, opportunitiesByStage, for
       });
     }
 
-    // Fallback: use items directly as funnel data
+    // Fallback: use items directly as funnel data, preserving their own names
     const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
-    return items.slice(0, 4).map((item, i) => {
-      const stage = FUNNEL_STAGES[i] ?? FUNNEL_STAGES[FUNNEL_STAGES.length - 1];
+    return items.slice(0, 4).map((item) => {
       const pct = total > 0 ? Math.round((item.value / (items[0]?.value || 1)) * 100) : 0;
-      return { label: stage.label, count: Math.round(item.value), pct, value: item.value };
+      return { label: item.name, count: Math.round(item.value), pct, value: item.value };
     });
   }, [items, opportunitiesByStage]);
 
@@ -90,7 +89,7 @@ const PipelineFunnelChart: React.FC<Props> = ({ items, opportunitiesByStage, for
       {funnelData.map((stage) => (
         <div key={stage.label} className="space-y-1">
           <div className="flex justify-between text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-70">
-            <span>{stage.label} ({stage.count})</span>
+            <span>{`${stage.label} (${stage.count})`}</span>
             <span>{stage.pct}%</span>
           </div>
           <div className="h-8 bg-[#e5e7eb] rounded-sm overflow-hidden border border-[#e2e8f0]">

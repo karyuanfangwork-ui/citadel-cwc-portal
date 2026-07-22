@@ -73,7 +73,10 @@ describe('workflowTransitions', () => {
         'ACTION_REQUIRED',
         'WAITING',
         'REJECTED',
+        'CANCELLED',
         'RESOLVED',
+        'PENDING_CEO_APPROVAL',
+        'PENDING_GROUP_DCEO_APPROVAL',
       ]);
     });
   });

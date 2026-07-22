@@ -10,9 +10,9 @@ const items = [
 describe('PipelineFunnelChart', () => {
   it('renders all pipeline stage names', () => {
     render(<PipelineFunnelChart items={items} />);
-    expect(screen.getByText('Qualifying')).toBeInTheDocument();
-    expect(screen.getByText('Analysis')).toBeInTheDocument();
-    expect(screen.getByText('Funding')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.startsWith('Qualifying'))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.startsWith('Analysis'))).toBeInTheDocument();
+    expect(screen.getByText((content) => content.startsWith('Funding'))).toBeInTheDocument();
   });
 
   it('shows empty state when no items', () => {

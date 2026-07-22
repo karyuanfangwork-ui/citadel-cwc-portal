@@ -35,6 +35,7 @@ const MonthlyTrendChart: React.FC<Props> = ({ data }) => {
           tick={{ fontSize: 11, fill: '#45464d' }}
           axisLine={false}
           tickLine={false}
+          interval={0}
         />
         <YAxis
           yAxisId="left"
