@@ -69,9 +69,10 @@ describe('CrmImportExport', () => {
     expect(screen.getByText('Importing')).toBeInTheDocument();
     expect(screen.getByText('Complete')).toBeInTheDocument();
 
+    // Entity labels use ENTITY_LABELS: Leads, Contacts, Clients, Opportunities
     expect(screen.getByRole('button', { name: /leads/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /contacts/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /accounts/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /clients/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /opportunities/i })).toBeInTheDocument();
 
     expect(screen.getByText(/column reference/i)).toBeInTheDocument();

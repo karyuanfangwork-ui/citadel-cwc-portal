@@ -10,16 +10,24 @@ import prisma from '../utils/prisma';
 import { ResourceDescriptor } from './policy.types';
 import { PolicyPrincipal } from './policy.types';
 import { getExecutionScope } from '../lib/execution-scope';
+import { resolveRequestId } from '../utils/resolve';
 
 // ── Scope Loaders ──────────────────────────────────────────────────────
 
 /**
  * Load a request's descriptor from the database.
+ * Accepts either a UUID or a reference number (e.g. "IT-00015").
  * Uses the execution scope's tenantId for tenant filtering.
  */
-export async function loadRequestScope(requestId: string, principal: PolicyPrincipal): Promise<ResourceDescriptor> {
+export async function loadRequestScope(requestIdOrRef: string, principal: PolicyPrincipal): Promise<ResourceDescriptor> {
     const scope = getExecutionScope();
     const tenantId = scope?.kind === 'tenant' ? scope.tenantId : principal.tenantId;
+
+    // Resolve reference number to UUID if needed
+    const requestId = await resolveRequestId(requestIdOrRef);
+    if (!requestId) {
+        return { type: 'request', id: requestIdOrRef };
+    }
 
     const request = await prisma.request.findFirst({
         where: {
@@ -30,6 +38,7 @@ export async function loadRequestScope(requestId: string, principal: PolicyPrinc
         select: {
             id: true,
             tenantId: true,
+            departmentId: true,
             requesterId: true,
             assignedToId: true,
             isConfidential: true,
@@ -50,6 +59,7 @@ export async function loadRequestScope(requestId: string, principal: PolicyPrinc
         id: request.id,
         ownerId: request.requesterId ?? undefined,
         tenantId: request.tenantId ?? undefined,
+        departmentId: request.departmentId ?? undefined,
         assignedToId: request.assignedToId ?? undefined,
         isConfidential: request.isConfidential,
         serviceDeskCode: (request as any).serviceDesk?.code ?? undefined,
@@ -96,6 +106,8 @@ export function principalFromAuth(user: {
     roles: string[];
     permissions: string[];
     agentTeam?: string | null;
+    departmentIds?: string[];
+    entityId?: string | null;
 }): PolicyPrincipal {
     return {
         userId: user.id,
@@ -103,5 +115,7 @@ export function principalFromAuth(user: {
         roles: user.roles,
         permissions: user.permissions,
         agentTeam: user.agentTeam,
+        departmentIds: user.departmentIds,
+        entityId: user.entityId,
     };
 }

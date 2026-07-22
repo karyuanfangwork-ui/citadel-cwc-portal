@@ -43,14 +43,33 @@ async function main() {
     });
     console.log('✅ Default tenant created:', defaultTenant.id);
 
+    // Canonical departments are the source of department scope for desks,
+    // requests, attachments, policy decisions, and department memberships.
+    const departmentDefinitions = [
+        { code: 'IT', name: 'IT Support', description: 'Technical support and infrastructure' },
+        { code: 'HR', name: 'Group HR', description: 'Human resources services' },
+        { code: 'FINANCE', name: 'Group Finance', description: 'Finance services and expense management' },
+        { code: 'ESM', name: 'Executive Services', description: 'Executive service management' },
+    ] as const;
+    const departments = new Map<string, { id: string }>();
+    for (const definition of departmentDefinitions) {
+        const department = await prisma.department.upsert({
+            where: { tenantId_code: { tenantId: defaultTenant.id, code: definition.code } },
+            update: RETAIN_ADMIN_CONFIG ? {} : { name: definition.name, description: definition.description, isActive: true },
+            create: { tenantId: defaultTenant.id, ...definition, isActive: true },
+        });
+        departments.set(definition.code, department);
+    }
+
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
         where: { tenantId_code: { tenantId: defaultTenant.id, code: 'IT' } },
         update: RETAIN_ADMIN_CONFIG
-            ? {}
-            : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+            ? { departmentId: departments.get('IT')!.id }
+            : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', departmentId: departments.get('IT')!.id, autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             tenantId: defaultTenant.id,
+            departmentId: departments.get('IT')!.id,
             name: 'IT Support',
             code: 'IT',
             description: 'Technical support for hardware, software, and infrastructure',
@@ -63,10 +82,11 @@ async function main() {
     const hrDesk = await prisma.serviceDesk.upsert({
         where: { tenantId_code: { tenantId: defaultTenant.id, code: 'HR' } },
         update: RETAIN_ADMIN_CONFIG
-            ? {}
-            : { name: 'Group HR', description: 'Human resources support for employees', autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+            ? { departmentId: departments.get('HR')!.id }
+            : { name: 'Group HR', description: 'Human resources support for employees', departmentId: departments.get('HR')!.id, autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             tenantId: defaultTenant.id,
+            departmentId: departments.get('HR')!.id,
             name: 'Group HR',
             code: 'HR',
             description: 'Human resources support for employees',
@@ -79,10 +99,11 @@ async function main() {
     const financeDesk = await prisma.serviceDesk.upsert({
         where: { tenantId_code: { tenantId: defaultTenant.id, code: 'FINANCE' } },
         update: RETAIN_ADMIN_CONFIG
-            ? {}
-            : { name: 'Group Finance', description: 'Financial services and expense management', autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+            ? { departmentId: departments.get('FINANCE')!.id }
+            : { name: 'Group Finance', description: 'Financial services and expense management', departmentId: departments.get('FINANCE')!.id, autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             tenantId: defaultTenant.id,
+            departmentId: departments.get('FINANCE')!.id,
             name: 'Group Finance',
             code: 'FINANCE',
             description: 'Financial services and expense management',
@@ -1133,6 +1154,7 @@ async function main() {
                         description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
                         formConfig,
                         slaHours: category.slaHours || null,
+                        lifecycleStatus: 'PUBLISHED',
                         ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                     },
             });
@@ -1155,6 +1177,7 @@ async function main() {
                     icon: category.icon,
                     formConfig,
                     isActive: true,
+                    lifecycleStatus: 'PUBLISHED',
                     ...(category.slaHours ? { slaHours: category.slaHours } : {}),
                     ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
@@ -1431,10 +1454,11 @@ async function main() {
     const esmDesk = await prisma.serviceDesk.upsert({
         where: { tenantId_code: { tenantId: defaultTenant.id, code: 'ESM' } },
         update: RETAIN_ADMIN_CONFIG
-            ? {}
-            : { name: 'Executive Services', description: 'Executive service requests including travel, bookings, and executive-level approvals', autoAssignTeam: 'NONE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+            ? { departmentId: departments.get('ESM')!.id }
+            : { name: 'Executive Services', description: 'Executive service requests including travel, bookings, and executive-level approvals', departmentId: departments.get('ESM')!.id, autoAssignTeam: 'NONE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             tenantId: DEFAULT_TENANT_ID,
+            departmentId: departments.get('ESM')!.id,
             name: 'Executive Services',
             code: 'ESM',
             description: 'Executive service requests including travel, bookings, and executive-level approvals',

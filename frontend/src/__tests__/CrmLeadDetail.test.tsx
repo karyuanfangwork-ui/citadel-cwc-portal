@@ -155,8 +155,9 @@ describe('CrmLeadDetail header redesign', () => {
     expect(screen.getByRole('link', { name: /Email Aisha Rahman at aisha@acme.test/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Activities' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
+    // Tabs: Overview, Activities, Notes & Documents, Audit Trail
     expect(screen.getByRole('button', { name: 'Notes & Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Audit Trail' })).toBeInTheDocument();
   });
 
   it('uses company and contact context in the left rail instead of duplicating the lead title', async () => {
@@ -195,22 +196,21 @@ describe('CrmLeadDetail header redesign', () => {
     expect(ownerEmail).toHaveAttribute('title', 'amirul.hafiz.bin.abdullah@capitalcore.example.my');
   });
 
-  it('renders overview as cards with financial health and related opportunities', async () => {
+  it('renders overview with lead information and related opportunities', async () => {
     await renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Lead Information')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Financial Health')).toBeInTheDocument();
-    expect(screen.getByText('Related Opportunities')).toBeInTheDocument();
+    // Lead Information card with Industry, Lead Source, etc.
     expect(screen.getByText('Industry')).toBeInTheDocument();
     expect(screen.getByText('Logistics & Transportation')).toBeInTheDocument();
-    expect(screen.getByText('CTOS Availability')).toBeInTheDocument();
-    expect(screen.getByText('Verified · 84% confidence')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /CTOS Availability: Verified, 84% confidence/i })).toBeInTheDocument();
+    expect(screen.getByText('Related Opportunities')).toBeInTheDocument();
     expect(screen.getByText('Working Capital Expansion')).toBeInTheDocument();
+    // Description is rendered via ReactMarkdown
     expect(screen.getByText('Referral from RHB Private Banking — converting existing corporate trust')).toBeInTheDocument();
+    // Old label "Lead Info" should not exist (current label is "Lead Information")
     expect(screen.queryByText('Lead Info')).not.toBeInTheDocument();
   });
 
@@ -218,17 +218,18 @@ describe('CrmLeadDetail header redesign', () => {
 
 
 
-  it('explains financial health metrics and score rationale without duplicating the AI score', async () => {
+  it('shows the AI score badge in the header and description in overview', async () => {
     await renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Financial Health')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'ACME Expansion Deal' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Strong referral source, verified financial profile, and high conversion likelihood.')).toBeInTheDocument();
-    expect(screen.getByText('Positive · 70% confidence')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /Cash Flow Growth: Positive, 70% confidence/i })).toBeInTheDocument();
-    expect(screen.getAllByText('95/100')).toHaveLength(1);
+    // AI score appears as "95/100" badge in the header
+    expect(screen.getByText('95/100')).toBeInTheDocument();
+    // Description appears in the overview via ReactMarkdown
+    expect(screen.getByText('Referral from RHB Private Banking — converting existing corporate trust')).toBeInTheDocument();
+    // The label "AI Score" should not appear as a standalone label
     expect(screen.queryByText('AI Score')).not.toBeInTheDocument();
   });
 

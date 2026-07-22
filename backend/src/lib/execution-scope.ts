@@ -89,9 +89,3 @@ export function getScopeTenantId(): string | undefined {
 export function withSystemScope<T>(jobName: string, fn: () => Promise<T>): Promise<T> {
     return runWithExecutionScope({ kind: 'system', jobName, runId: crypto.randomUUID() }, fn);
 }
-
-/**
- * Backward-compatible wrapper: `runWithTenant` now delegates to
- * `runWithExecutionScope` with kind='tenant'.
- */
-export { runWithTenant, getTenantId } from './tenant-context';

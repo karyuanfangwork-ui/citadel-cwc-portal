@@ -36,6 +36,7 @@ beforeAll(async () => {
 
   const user = await prisma.user.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       email: aiUserEmail,
       passwordHash: 'test-hash',
       firstName: 'AI',

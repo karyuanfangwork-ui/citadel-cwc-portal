@@ -66,6 +66,7 @@ export async function assertRequestAccess(
         select: {
             id: true,
             tenantId: true,
+            departmentId: true,
             referenceNumber: true,
             requesterId: true,
             assignedToId: true,
@@ -86,6 +87,7 @@ export async function assertRequestAccess(
         id: request.id,
         ownerId: request.requesterId ?? undefined,
         tenantId: request.tenantId ?? undefined,
+        departmentId: request.departmentId ?? undefined,
         assignedToId: request.assignedToId ?? undefined,
         isConfidential: request.isConfidential,
         serviceDeskCode: (request as any).serviceDesk?.code ?? undefined,
@@ -147,6 +149,7 @@ export async function getAuthorizedRequest(
         select: {
             id: true,
             tenantId: true,
+            departmentId: true,
             referenceNumber: true,
             requesterId: true,
             assignedToId: true,
@@ -166,6 +169,7 @@ export async function getAuthorizedRequest(
         id: request.id,
         ownerId: request.requesterId ?? undefined,
         tenantId: request.tenantId ?? undefined,
+        departmentId: request.departmentId ?? undefined,
         assignedToId: request.assignedToId ?? undefined,
         isConfidential: request.isConfidential,
         serviceDeskCode: (request as any).serviceDesk?.code ?? undefined,

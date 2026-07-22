@@ -21,6 +21,7 @@ beforeAll(async () => {
       productType: 'TERM_LOAN',
       requestedAmount: 500000,
       state: 'DRAFT',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
   testAppId = app.id;

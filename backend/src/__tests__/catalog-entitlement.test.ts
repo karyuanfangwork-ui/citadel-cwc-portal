@@ -9,18 +9,53 @@
  */
 
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import app from '../app';
 import prisma from '../utils/prisma';
 
 let adminToken: string;
 let testTypeId: string;
 let testEntitlementId: string;
+const ADMIN_EMAIL = 'catalog-ent-test@test.local';
+const ADMIN_PASSWORD = 'TestPass123!';
+const TEST_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 beforeAll(async () => {
+    // Create a test admin user (seeded admin has mustResetPassword=true which blocks login)
+    const [adminAccessPerm, adminSettingPerm] = await Promise.all([
+        prisma.permission.upsert({ where: { name: 'admin:access' }, update: {}, create: { name: 'admin:access', resource: 'admin', action: 'access' } }),
+        prisma.permission.upsert({ where: { name: 'admin:settings' }, update: {}, create: { name: 'admin:settings', resource: 'admin', action: 'settings' } }),
+    ]);
+    const role = await prisma.role.upsert({
+        where: { name: 'CATALOG_ENT_ADMIN' },
+        update: {},
+        create: { name: 'CATALOG_ENT_ADMIN' },
+    });
+    await prisma.rolePermission.createMany({
+        data: [
+            { roleId: role.id, permissionId: adminAccessPerm.id },
+            { roleId: role.id, permissionId: adminSettingPerm.id },
+        ],
+        skipDuplicates: true,
+    });
+    await prisma.user.upsert({
+        where: { email: ADMIN_EMAIL },
+        update: {},
+        create: {
+            email: ADMIN_EMAIL,
+            passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 12),
+            firstName: 'Catalog',
+            lastName: 'Admin',
+            isActive: true,
+            tenantId: TEST_TENANT_ID,
+            roles: { create: { roleId: role.id } },
+        },
+    });
+
     const loginRes = await request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'admin@test.local', password: 'Admin123!' });
-    adminToken = loginRes.body.data?.token || loginRes.body.token;
+        .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    adminToken = loginRes.body.data?.accessToken || loginRes.body.accessToken;
 
     // Create a request type for testing
     const desksRes = await request(app)
@@ -59,6 +94,10 @@ afterAll(async () => {
     if (testTypeId) {
         await prisma.requestType.deleteMany({ where: { id: testTypeId } }).catch(() => {});
     }
+    // Cleanup test user
+    await prisma.userRole.deleteMany({ where: { user: { email: ADMIN_EMAIL } } }).catch(() => {});
+    await prisma.role.deleteMany({ where: { name: 'CATALOG_ENT_ADMIN' } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: ADMIN_EMAIL } }).catch(() => {});
     await prisma.$disconnect();
 });
 

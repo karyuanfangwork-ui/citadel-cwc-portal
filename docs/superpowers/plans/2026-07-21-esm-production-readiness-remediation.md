@@ -57,6 +57,77 @@
 
 ---
 
+## Live implementation reconciliation — 2026-07-22
+
+This table reconciles the task labels against the current working tree, Git
+history, focused execution evidence, and the full acceptance contract below.
+The task checkboxes remain unchecked unless every code, integration, evidence,
+and external approval gate is complete.
+
+**Status definitions:** Implemented = code acceptance contract is present and
+verified; Partial = useful implementation exists but one or more acceptance
+gates remain; Missing = the planned boundary does not exist. “Operational gate”
+means repository code cannot by itself prove closure.
+
+| Task | Status | Current evidence and remaining gate |
+|---|---|---|
+| 1 | **Partial / operational gate** | Typed register and tests landed in `bb599e9`, but declared registry metadata is not implementation proof while the Task 10 route verifier is broken. Release freeze, closure reviewers and independent sign-off still require retained program evidence. |
+| 2 | **Partial — Gate 0 red** | Baseline repairs landed in `7bdee07`, but the required Gate 0 evidence file and proven zero-failure full lint/test/build/Prisma CI baseline are absent. A late acceptance audit reported broad backend/frontend full-suite failures; direct reruns were not approved in this session. Backend lint was independently reproduced as failing with 1 error and 1,504 warnings. |
+| 3 | **Partial** | DTOs, response sanitizer and `sensitive-field-stripping.test.ts` landed in `518c1f6`, but the planned list/detail/search/auth HTTP DTO integration contract is absent; recursive denylist stripping and `any`-typed DTO mapping do not prove explicit allowlists on every endpoint. |
+| 4 | **Partial** | BOLA containment landed in `8a1d7cc` and focused BOLA tests pass, but the complete real-principal activity/participant/file/job matrix and stable Task 12 attachment closure remain evidence gates. |
+| 5 | **Partial** | Privileged MFA landed in `6126c59`; announcement HTML rendering remains an unsanitized browser-containment gap, while the planned frontend containment suite and complete browser/SSE/draft-storage acceptance evidence are absent. Middleware tests also do not prove that every privileged account must enroll. |
+| 6 | **Partial** | Explicit execution-scope infrastructure landed in `4db8f41` with follow-ups, but enforcement is warn-by-default and strict mode does not reject unscoped reads. The planned real-PostgreSQL completeness/isolation suites are absent. |
+| 7 | **Partial — materially advanced** | Canonical `ServiceDesk.departmentId` and `Request.departmentId`, membership-derived principal departments, seed ownership and migration `20260722090000_canonical_department_scope` are implemented. Local migration, Prisma validation, generation, build and focused isolation tests pass. Nullable legacy reconciliation, legacy string-scope retirement, tenant-bound time-limited grant contract and the full real-DB isolation matrix remain. |
+| 8 | **Partial** | Central policy decision/query-scope infrastructure landed in `c053de2` and current work adds canonical departments, entity context and attachment actions. The service still grants same-tenant `ADMIN` an unconditional business-data bypass, contrary to the plan matrix that denies an ungranted tenant admin access to HR payroll. |
+| 9 | **Partial** | Request isolation landed in `162d35a`; focused request-access/department matrices pass, but they encode same-tenant ADMIN cross-department access and do not exercise the planned two-tenant real-PostgreSQL matrix across every read/mutation/export/download cell. |
+| 10 | **Partial — exact registry parity implemented** | The verifier now uses the TypeScript AST for live route declarations and the executable typed registry for controls, excluding commented-out routes and detecting uncovered, extra and duplicate keys. All **883/883** live method+path operations have complete typed control records with zero extras/duplicates, and the focused registry/coverage tests pass. Route metadata parity is proven; complete middleware-behavior and per-operation denial-test evidence remains. |
+| 11 | **Partial** | Authorized search/report/KB/export query scoping landed in `42f027b`; durable export scope snapshots, result reauthorization, allowed fields/classification, expiry, watermark and complete real-DB export tests remain. |
+| 12 | **Partial — governed backend lifecycle implemented** | Migration `20260722093000_governed_attachment_lifecycle`, `attachmentAccess.service.ts`, controlled upload/download/delete routes, clean-only access, immutable object identity, callback binding/replay defense, retention/legal-hold fields and focused lifecycle tests are present. A real malware scanner worker/provider, quarantine movement/deletion evidence, route-level scanner callback integration tests and strict non-null ownership contract remain. |
+| 13 | **Partial — backend authority boundary implemented** | `requestCreationPolicy.service.ts` now binds type→category→desk→tenant, requires active/published catalog metadata, enforces role/entitlement, mandatory form version, required/conditional/type/option validation, and server-owned tenant/department/workflow/SLA/confidentiality. Unit and HTTP integration tests pass; migrations `20260722100000_publish_seeded_catalog_items` and `20260722101000_backfill_request_type_form_versions` are applied locally. Shared backend/frontend schema reuse, frontend validation tests and governed per-type classification metadata remain. |
+| 14 | **Missing under the plan contract** | Legacy `ProtectedRoute`, permission guards and navigation filtering exist, but no planned `types/policy.ts`, server `allowedActions` consumption, authenticated department-grant model, `requireAllPermissions`, `requireDepartment`, department-aware navigation or two-department/direct-API E2E matrix exists. Legacy global ADMIN/role checks remain. |
+| 15 | **Partial** | `requestTransition.service.ts` is a useful foundation but state, history, audit and notifications do not commit in one versioned/idempotent transaction; no command record or transactional outbox exists. |
+| 16 | **Partial** | Mutable approval policies/delegation exist, but immutable published versions, tenant-scoped approver resolution, cycle/SoD controls and Task 15 transactional runtime are absent. |
+| 17 | **Partial** | SLA logic exists, but ordinary execution remains in-process cron/batch scanning without durable queue ownership/idempotency; timeout behavior is not fail-safe. |
+| 18 | **Partial** | In-app/SSE/email delivery exists, but no transactional outbox, unique retryable delivery records, worker isolation or cursor replay contract exists. |
+| 19 | **Missing** | No PostgreSQL `ENABLE/FORCE ROW LEVEL SECURITY` migration, scoped DB-session helper, parity report or real RLS integration suite exists. DBA ownership/BYPASSRLS and staged rollout are external gates. |
+| 20 | **Partial** | Credit has a domain audit chain, but platform audit remains best-effort and failure-tolerant; no platform chain, governed retention service or legal-hold integration suite exists. Compliance/Legal policy approval remains external. |
+| 21 | **Missing** | No OIDC authorization-code/PKCE service, SCIM lifecycle, scoped group mapping or deprovision/session-revocation integration exists. IdP/IAM acceptance is external. |
+| 22 | **Partial** | CI runs several build/test gates, but still lacks OpenAPI parity, safe migration checks, Playwright, SAST/SCA/license/secret/container scanning, SBOM, changed-code coverage and bundle budgets; prohibited `prisma db push` remains in CI. |
+| 23 | **Partial** | Multi-stage Docker and Compose foundations exist, but images/base tags are mutable, containers run as root, shared-default-secret risk remains, and no signed immutable promotion/canary/rollback proof exists. |
+| 24 | **Partial** | Prometheus metrics exist; OpenTelemetry tracing, protected metrics topology proof, SLOs, readiness integration tests, runbooks and on-call/tabletop evidence remain. |
+| 25 | **Partial / operational gate** | A logical backup script exists, but no HA topology, immutable off-site backup guarantee, PITR/failover proof, isolated restore script or signed DR exercise exists. |
+| 26 | **Partial** | Scoped reports and basic i18n foundations exist, but no governed versioned/scheduled analytics runtime, metadata-driven department navigation, localization/bundle parity suite or approved Privacy/Terms/Support content exists. |
+| 27 | **Missing / external gate** | No ITSM expansion decision or final independent certification/evidence index exists. Product Board, penetration/isolation/IAM/DBA/privacy/operations reviews and Go/No-Go signatures must be external. |
+
+### Verification recorded for the current Task 7/12/13 working tree
+
+- Local PostgreSQL: all 81 migrations applied; schema reported up to date.
+- Prisma schema validation, client generation and tenant-model generation: pass.
+- Backend focused regression: 10 suites, 132 tests: pass.
+- Additional Task 13 unit/HTTP/request regression after mandatory version and field-contract hardening: 3 suites, 20 tests: pass.
+- Backend TypeScript build: pass.
+- Frontend production build: pass, with pre-existing chunk-size/dynamic-import warnings only.
+- Task 10 verifier: 883/883 bidirectional route/registry parity, zero extra or duplicate controls.
+- `git diff --check`: pass.
+
+### Late full-acceptance audit correction
+
+- No Task 1–14 currently satisfies its **entire** plan acceptance contract; earlier “Implemented” labels for Tasks 1, 3 and 8 were code-boundary assessments and are corrected above.
+- Independently reproduced in this session: backend lint fails with **1 error and 1,504 warnings**.
+- The operation-control verifier parser failure is repaired; current direct execution reports **883/883 (100.0%)** bidirectional parity with zero extras/duplicates.
+- The late audit reported full-suite results of backend **23 failed suites / 228 failed tests** and frontend **11 failed files / 13 failed tests**. Direct reproduction commands were not approved in this session, so these counts remain audit evidence rather than independently confirmed tracker evidence.
+
+### Recommended implementation order from this point
+
+1. Finish Task 12 operational scanner/quarantine integration and strict ownership contract.
+2. Finish Task 13 shared schemas, metadata-driven classification and frontend validation; then implement Task 14 server-policy consumption.
+3. Implement Task 15 before Tasks 16–18; it owns the transaction, version, idempotency, audit and outbox boundary.
+4. Build Task 16 on Task 15, then execute Tasks 17 and 18 in parallel against the durable command/outbox contracts.
+5. Complete Task 20 platform audit/retention, then isolate Task 19 RLS backfill/parity/enforcement from the workflow schema window.
+6. Proceed through Tasks 21–26 in dependency order; Task 27 remains the final independent certification gate.
+
+---
+
 ## Program P01 — Containment and trustworthy baseline, days 0–15
 
 ### Task 1: Establish the remediation control register and release freeze
@@ -635,7 +706,7 @@ Every batch updates the registry, adds denial tests and passes before the next b
 - [ ] **Step 4: Verify and commit each batch**
 
 Run: `npm test -- operation-control.coverage.test.ts --runInBand` plus the batch’s integration tests.
-Expected at completion: 876/876 operations have complete control metadata and zero duplicate route keys.
+Expected at completion: every live operation (currently 883/883) has complete control metadata and zero duplicate route keys.
 
 Use these bounded commits in order: `fix(authz): migrate identity and admin operations`, `fix(authz): migrate request operations`, `fix(authz): migrate ESM domain operations`, `fix(authz): migrate file and reporting operations`, `fix(authz): migrate CRM operations`, and `fix(authz): migrate credit operations`.
 
@@ -1441,7 +1512,7 @@ Maximum parallel work is four streams: containment/baseline, schema/policy, work
 - [ ] Two-tenant × IT/HR/Finance × principal × action × classification tests pass against real PostgreSQL and forced RLS.
 - [ ] Workflow/approval/timer/outbox concurrency, idempotency, provider outage, crash/restart and replay tests pass.
 - [ ] Backend lint/build/tests, Prisma validation/migrations, frontend tests/build and Playwright suites pass with zero failures.
-- [ ] OpenAPI and operation-control coverage is 876/876; SAST/SCA/secret/container/license scans and SBOM gates pass.
+- [ ] OpenAPI and operation-control coverage matches the complete live inventory (currently 883/883); SAST/SCA/secret/container/license scans and SBOM gates pass.
 - [ ] Load/soak, immutable deployment, canary, rollback, backup, PITR, restore and failover exercises meet signed targets.
 - [ ] Independent penetration, isolation, IAM, DBA/RLS, compliance and operational reviews have no open Critical/High findings.
 - [ ] The control register contains owner, remediation commit/PR, test evidence, independent verifier and closure date for all 100 findings.

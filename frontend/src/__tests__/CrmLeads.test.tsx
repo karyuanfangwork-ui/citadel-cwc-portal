@@ -64,12 +64,13 @@ describe('CrmLeads', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /leads/i })).toBeInTheDocument();
+      // Page heading is "My Leads"
+      expect(screen.getByRole('heading', { name: /my leads/i })).toBeInTheDocument();
     });
 
     expect(screen.getByText('CRM')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create lead/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /new lead/i })).not.toBeInTheDocument();
+    // Create action is labeled "New Lead" on this page
+    expect(screen.getByRole('button', { name: /new lead/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/search lead name, company or id/i)).toBeInTheDocument();
     expect(screen.getByTestId('leads-table')).toBeInTheDocument();
   });

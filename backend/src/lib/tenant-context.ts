@@ -1,6 +1,4 @@
-import { AsyncLocalStorage } from 'async_hooks';
-
-const store = new AsyncLocalStorage<string>();
+import { getScopeTenantId, runWithExecutionScope } from './execution-scope';
 
 /**
  * Run a callback with a tenant context. All Prisma queries within the callback
@@ -11,7 +9,7 @@ const store = new AsyncLocalStorage<string>();
  * platform and system scopes.
  */
 export function runWithTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
-  return store.run(tenantId, fn);
+  return runWithExecutionScope({ kind: 'tenant', tenantId }, fn);
 }
 
 /**
@@ -19,5 +17,5 @@ export function runWithTenant<T>(tenantId: string, fn: () => Promise<T>): Promis
  * Returns undefined if called outside a runWithTenant scope.
  */
 export function getTenantId(): string | undefined {
-  return store.getStore();
+  return getScopeTenantId();
 }

@@ -344,8 +344,12 @@ model Department {
   // Relations
   tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   memberships  DepartmentMembership[]
+  serviceDesks ServiceDesk[]
+  requests     Request[]
+  attachments  RequestAttachment[]
 
   @@unique([tenantId, code])
+  @@unique([tenantId, id])
   @@index([tenantId, isActive])
   @@map("departments")
 }
@@ -411,6 +415,7 @@ model PasswordResetToken {
 model ServiceDesk {
   id          String   @id @default(uuid()) @db.Uuid
   tenantId  String?  @map("tenant_id") @db.Uuid
+  departmentId String? @map("department_id") @db.Uuid
   name        String   @db.VarChar(100) // P2-09: removed @unique, replaced with @@unique([tenantId, name])
   code        String   @db.VarChar(20) // P2-09: removed @unique, replaced with @@unique([tenantId, code])
   description String?  @db.Text
@@ -423,6 +428,7 @@ model ServiceDesk {
   lastAssignedIndex  Int    @default(0) @map("last_assigned_index")
 
   // Relations
+  department Department?           @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
   categories ServiceCategory[]
   requests   Request[]
   kbArticles KnowledgeBaseArticle[]
@@ -430,6 +436,7 @@ model ServiceDesk {
   @@unique([tenantId, name]) // P2-09: tenant-local unique
   @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@index([tenantId])
+  @@index([departmentId])
   @@map("service_desks")
 }
 
@@ -468,7 +475,7 @@ model RequestType {
   isActive          Boolean  @default(true) @map("is_active")
   formConfig        Json?    @map("form_config") @db.JsonB
   // P5-04: Version counter, incremented each time formConfig is updated
-  formConfigVersion Int?     @map("form_config_version")
+  formConfigVersion Int?     @default(1) @map("form_config_version")
   requiredRole      String?  @map("required_role") @db.VarChar(50)
   workflowTypeId    String?  @map("workflow_type_id") @db.Uuid
   // P5-01: Catalog governance fields
@@ -735,6 +742,7 @@ enum RequestPriority {
 model Request {
   id              String  @id @default(uuid()) @db.Uuid
   tenantId  String?  @map("tenant_id") @db.Uuid
+  departmentId    String? @map("department_id") @db.Uuid
   referenceNumber String  @unique @map("reference_number") @db.VarChar(50)
   requestTypeId   String? @map("request_type_id") @db.Uuid
   serviceDeskId   String? @map("service_desk_id") @db.Uuid
@@ -778,6 +786,7 @@ model Request {
   deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
+  department           Department?                  @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
   requestType          RequestType?                 @relation(fields: [requestTypeId], references: [id])
   serviceDesk          ServiceDesk?                 @relation(fields: [serviceDeskId], references: [id])
   requester            User                         @relation("RequestRequester", fields: [requesterId], references: [id])
@@ -813,6 +822,7 @@ model Request {
   @@index([assignedToId])
   @@index([createdAt(sort: Desc)])
   @@index([tenantId])
+  @@index([departmentId])
   @@index([tenantId, status]) // P2-08: composite for agent dashboard / list filters
   @@index([tenantId, createdAt(sort: Desc)]) // P2-08: composite for pagination
   @@index([tenantId, assignedToId]) // P2-08: composite for "my tickets" view
@@ -832,6 +842,26 @@ enum ActivityType {
   SYSTEM
   APPROVAL
   REJECTION
+}
+
+enum AttachmentScanStatus {
+  PENDING_SCAN
+  CLEAN
+  INFECTED
+  SCAN_FAILED
+}
+
+enum AttachmentClassification {
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum AttachmentRetentionStatus {
+  ACTIVE
+  LEGAL_HOLD
+  PENDING_DELETION
+  DELETED
 }
 
 model RequestActivity {
@@ -865,9 +895,11 @@ model RequestActivity {
 }
 
 model RequestAttachment {
-  id         String  @id @default(uuid()) @db.Uuid
-  requestId  String  @map("request_id") @db.Uuid
-  activityId String? @map("activity_id") @db.Uuid
+  id           String  @id @default(uuid()) @db.Uuid
+  tenantId     String? @map("tenant_id") @db.Uuid
+  departmentId String? @map("department_id") @db.Uuid
+  requestId    String  @map("request_id") @db.Uuid
+  activityId   String? @map("activity_id") @db.Uuid
 
   uploadedById String? @map("uploaded_by_id") @db.Uuid
 
@@ -877,20 +909,36 @@ model RequestAttachment {
   mimeType    String? @map("mime_type") @db.VarChar(100)
   storagePath String  @map("storage_path") @db.Text
   storageUrl  String  @map("storage_url") @db.Text
+  contentHash String? @map("content_hash") @db.VarChar(64)
 
-  isScanned  Boolean @default(false) @map("is_scanned")
-  scanResult String? @map("scan_result") @db.VarChar(50)
+  classification AttachmentClassification @default(INTERNAL)
+
+  isScanned              Boolean              @default(false) @map("is_scanned")
+  scanResult             String?              @map("scan_result") @db.VarChar(50)
+  scanStatus             AttachmentScanStatus @default(PENDING_SCAN) @map("scan_status")
+  scanJobId              String?              @unique @map("scan_job_id") @db.Uuid
+  scanCallbackNonceHash  String?              @map("scan_callback_nonce_hash") @db.VarChar(64)
+  scanCallbackExpiresAt  DateTime?            @map("scan_callback_expires_at") @db.Timestamp(6)
+  scanCallbackConsumedAt DateTime?            @map("scan_callback_consumed_at") @db.Timestamp(6)
+  scanCompletedAt        DateTime?            @map("scan_completed_at") @db.Timestamp(6)
+
+  retentionStatus AttachmentRetentionStatus @default(ACTIVE) @map("retention_status")
+  retentionUntil  DateTime?                 @map("retention_until") @db.Timestamp(6)
+  legalHoldAt     DateTime?                 @map("legal_hold_at") @db.Timestamp(6)
 
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
+  department       Department?       @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
   request          Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
   activity         RequestActivity?  @relation(fields: [activityId], references: [id], onDelete: SetNull)
   uploadedBy       User?             @relation(fields: [uploadedById], references: [id])
   expenseLineItems ExpenseLineItem[]
 
   @@index([requestId])
+  @@index([tenantId, departmentId])
+  @@index([scanStatus])
   @@map("request_attachments")
 }
 

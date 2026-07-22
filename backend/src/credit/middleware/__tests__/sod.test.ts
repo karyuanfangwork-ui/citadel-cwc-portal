@@ -42,7 +42,12 @@ const mockedAuditAppend = AuditChainService.appendEvent as jest.Mock;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeReq(overrides: Partial<{ id: string; roles: string[] }> = {}) {
+// Valid UUIDs for params that are now validated as UUIDs
+const APP_ID = '00000000-0000-0000-0000-000000000001';
+const ITEM_ID = '00000000-0000-4000-8000-000000000002';
+
+function makeReq(overrides: Partial<{ id: string; roles: string[] }> = {})
+ {
   return {
     user: {
       id: overrides.id ?? 'user-1',
@@ -52,11 +57,12 @@ function makeReq(overrides: Partial<{ id: string; roles: string[] }> = {}) {
       roles: overrides.roles ?? ['CREDIT_MANAGER'],
       permissions: ['credit:approve'],
     },
-    params: { id: 'app-1' },
+    params: { id: APP_ID },
   } as any;
 }
 
-function makeCommitteeReq(overrides: Partial<{ id: string; roles: string[] }> = {}) {
+function makeCommitteeReq(overrides: Partial<{ id: string; roles: string[] }> = {})
+ {
   return {
     user: {
       id: overrides.id ?? 'user-1',
@@ -66,10 +72,9 @@ function makeCommitteeReq(overrides: Partial<{ id: string; roles: string[] }> = 
       roles: overrides.roles ?? ['CREDIT_MANAGER'],
       permissions: ['credit:approve'],
     },
-    params: { itemId: 'item-1' },
+    params: { itemId: ITEM_ID },
   } as any;
 }
-
 function makeRes() {
   return {} as any;
 }
@@ -259,7 +264,7 @@ describe('enforceCreditSOD', () => {
       expect(next).toHaveBeenCalledWith();
       // SOD_BYPASSED audit event should have been logged
       expect(mockedAuditAppend).toHaveBeenCalledWith(
-        'app-1',
+        APP_ID,
         'SOD_BYPASSED',
         'admin-user',
         'SOD bypassed by ADMIN',
@@ -288,7 +293,7 @@ describe('enforceCreditSOD', () => {
 
       expect(next).toHaveBeenCalledWith();
       expect(mockedAuditAppend).toHaveBeenCalledWith(
-        'app-1',
+        APP_ID,
         'SOD_BYPASSED',
         'credit-admin-user',
         'SOD bypassed by CREDIT_ADMIN',
@@ -329,7 +334,7 @@ describe('enforceCommitteeSOD', () => {
     it('blocks CREDIT_ADMIN who is the assigned RM from voting', async () => {
       const req = makeCommitteeReq({ id: 'rm-user', roles: ['CREDIT_ADMIN'] });
       mockedPrisma.committeeAgendaItem.findUnique.mockResolvedValue({
-        applicationId: 'app-1',
+        applicationId: APP_ID,
       });
       mockedPrisma.creditApplication.findUnique.mockResolvedValue({
         assignedRmId: 'rm-user',
@@ -350,7 +355,7 @@ describe('enforceCommitteeSOD', () => {
     it('blocks ADMIN who is the assigned RM from voting', async () => {
       const req = makeCommitteeReq({ id: 'rm-user', roles: ['ADMIN'] });
       mockedPrisma.committeeAgendaItem.findUnique.mockResolvedValue({
-        applicationId: 'app-1',
+        applicationId: APP_ID,
       });
       mockedPrisma.creditApplication.findUnique.mockResolvedValue({
         assignedRmId: 'rm-user',
@@ -373,7 +378,7 @@ describe('enforceCommitteeSOD', () => {
     it('blocks CREDIT_ADMIN who originated the last transition from voting', async () => {
       const req = makeCommitteeReq({ id: 'maker-user', roles: ['CREDIT_ADMIN'] });
       mockedPrisma.committeeAgendaItem.findUnique.mockResolvedValue({
-        applicationId: 'app-1',
+        applicationId: APP_ID,
       });
       mockedPrisma.creditApplication.findUnique.mockResolvedValue({
         assignedRmId: 'different-rm',
@@ -402,7 +407,7 @@ describe('enforceCommitteeSOD', () => {
     it('ADMIN not the RM and not the maker passes and logs SOD_BYPASSED', async () => {
       const req = makeCommitteeReq({ id: 'admin-user', roles: ['ADMIN'] });
       mockedPrisma.committeeAgendaItem.findUnique.mockResolvedValue({
-        applicationId: 'app-1',
+        applicationId: APP_ID,
       });
       mockedPrisma.creditApplication.findUnique.mockResolvedValue({
         assignedRmId: 'rm-user',
@@ -421,7 +426,7 @@ describe('enforceCommitteeSOD', () => {
 
       expect(next).toHaveBeenCalledWith();
       expect(mockedAuditAppend).toHaveBeenCalledWith(
-        'app-1',
+        APP_ID,
         'SOD_BYPASSED',
         'admin-user',
         'SOD bypassed by ADMIN',

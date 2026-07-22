@@ -1,14 +1,10 @@
 import { Router } from 'express';
 import { fileController } from '../controllers/file.controller';
-import { authenticate } from '../middleware/auth.middleware';
-import { uploadSingleFile } from '../middleware/upload.middleware';
+import { authenticate, requireServiceApiKey } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// All file access requires authentication
-router.use(authenticate);
-
-router.get('/download/*', fileController.downloadFile);
-router.post('/upload', uploadSingleFile('file'), fileController.uploadFile);
+router.get('/attachments/:attachmentId/download', authenticate, fileController.downloadFile);
+router.patch('/attachments/:attachmentId/scan-result', requireServiceApiKey, fileController.markScanResult);
 
 export default router;

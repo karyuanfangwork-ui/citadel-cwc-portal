@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
-import path from 'path';
 import { RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
+import { registerUpload } from '../services/attachmentAccess.service';
 import { auditLog } from '../utils/audit';
 import { reassignToTeam } from '../services/reassign.service';
 import { transitionRequest } from '../services/requestTransition.service';
 import prisma from '../utils/prisma';
+import { principalFromAuth } from '../security/resource-scope.service';
 
 // Group Deputy CEO approval threshold — no longer used for routing (all amounts go to GROUP_DCEO)
 // Config import removed; threshold not needed after DCEO→GROUP_DCEO merge.
@@ -210,17 +211,18 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
 
         if (invoiceFiles && invoiceFiles.length > 0) {
             for (const f of invoiceFiles) {
-                await prisma.requestAttachment.create({
-                    data: {
-                        requestId: id,
-                        uploadedById: currentUser?.id || null,
-                        activityId: activity.id,
-                        fileName: f.originalname,
-                        fileSize: BigInt(f.size),
-                        mimeType: f.mimetype,
-                        fileType: path.extname(f.originalname).replace('.', ''),
-                        storagePath: (f as any).key,
-                        storageUrl: (f as any).key,
+                if (!currentUser?.id) throw new Error('Authenticated uploader is required');
+                await registerUpload({
+                    principal: principalFromAuth(currentUser),
+                    requestId: id,
+                    uploadedById: currentUser.id,
+                    activityId: activity.id,
+                    file: {
+                        originalname: f.originalname,
+                        mimetype: f.mimetype,
+                        size: f.size,
+                        buffer: f.buffer,
+                        key: (f as any).key,
                     },
                 });
             }

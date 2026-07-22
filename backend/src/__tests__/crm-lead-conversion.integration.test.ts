@@ -45,6 +45,7 @@ beforeAll(async () => {
   const [owner, other] = await Promise.all([
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: ownerEmail,
         passwordHash: 'test-hash',
         firstName: 'Conv',
@@ -55,6 +56,7 @@ beforeAll(async () => {
     }),
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: otherEmail,
         passwordHash: 'test-hash',
         firstName: 'Conv',
@@ -71,6 +73,7 @@ beforeAll(async () => {
 
   const pipeline = await prisma.crmPipeline.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Conv Pipeline ${suffix}`,
       stages: {
         create: [{ name: 'Prospect', displayOrder: 1, probability: 10 }],
@@ -82,11 +85,12 @@ beforeAll(async () => {
   stageId = pipeline.stages[0].id;
 
   const ownerAccount = await prisma.crmAccount.create({
-    data: { name: `Conv Owner Account ${suffix}`, ownerId: owner.id },
+    data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `Conv Owner Account ${suffix}`, ownerId: owner.id },
   });
 
   const ownedLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Conv Owned Lead ${suffix}`,
       companyName: `Conv Owned Co ${suffix}`,
       ownerId: owner.id,
@@ -96,11 +100,12 @@ beforeAll(async () => {
   ownedLeadId = ownedLead.id;
 
   const otherAccount = await prisma.crmAccount.create({
-    data: { name: `Conv Other Account ${suffix}`, ownerId: other.id },
+    data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `Conv Other Account ${suffix}`, ownerId: other.id },
   });
 
   const otherLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Conv Other Lead ${suffix}`,
       companyName: `Conv Other Co ${suffix}`,
       ownerId: other.id,
@@ -111,6 +116,7 @@ beforeAll(async () => {
 
   const alreadyConverted = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Conv Already Converted ${suffix}`,
       companyName: `Conv Converted Co ${suffix}`,
       ownerId: owner.id,

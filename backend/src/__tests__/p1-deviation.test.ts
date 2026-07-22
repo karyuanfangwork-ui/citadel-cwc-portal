@@ -27,6 +27,7 @@ beforeAll(async () => {
       purpose: 'Test deviation register',
       requestedAmount: 500000,
       state: 'UNDERWRITING',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
 
@@ -352,6 +353,7 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
           productType: 'TERM_LOAN',
           requestedAmount: 100000,
           state: 'DRAFT',
+          tenantId: '00000000-0000-0000-0000-000000000001',
         },
       });
 

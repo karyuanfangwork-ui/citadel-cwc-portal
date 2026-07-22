@@ -14,6 +14,7 @@ beforeAll(async () => {
       passwordHash: '$2b$10$dummyhash',
       firstName: 'MFA',
       lastName: 'Tester',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
   testUserId = user.id;

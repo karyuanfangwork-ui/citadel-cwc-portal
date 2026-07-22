@@ -99,7 +99,7 @@ beforeAll(async () => {
 
   // Create admin user (ADMIN role = announcement:admin + announcement:write + announcement:read)
   const adminUser = await prisma.user.create({
-    data: { email: ADMIN_EMAIL, passwordHash, firstName: 'Admin', lastName: 'AnnTest', isActive: true },
+    data: { email: ADMIN_EMAIL, passwordHash, firstName: 'Admin', lastName: 'AnnTest', isActive: true, tenantId: '00000000-0000-0000-0000-000000000001' },
   });
   adminUserId = adminUser.id;
 
@@ -109,7 +109,7 @@ beforeAll(async () => {
 
   // Create reader user (NORMAL_STAFF role = announcement:read only)
   const readerUser = await prisma.user.create({
-    data: { email: READER_EMAIL, passwordHash, firstName: 'Reader', lastName: 'AnnTest', isActive: true },
+    data: { email: READER_EMAIL, passwordHash, firstName: 'Reader', lastName: 'AnnTest', isActive: true, tenantId: '00000000-0000-0000-0000-000000000001' },
   });
   readerUserId = readerUser.id;
 

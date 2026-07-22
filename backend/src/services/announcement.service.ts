@@ -484,18 +484,22 @@ class AnnouncementService {
   // ── Mark as read ───────────────────────────────────────────────────────────
 
   async markAsRead(announcementId: string, userId: string) {
+    const announcement = await prisma.announcement.findUnique({ where: { id: announcementId }, select: { tenantId: true } });
+    const tenantId = announcement?.tenantId ?? '00000000-0000-0000-0000-000000000001';
     return prisma.announcementRead.upsert({
       where: {
         announcementId_userId: { announcementId, userId },
       },
       update: {},
-      create: { announcementId, userId },
+      create: { announcementId, userId, tenantId },
     });
   }
 
   // ── Mark all as read ───────────────────────────────────────────────────────
 
   async markAllAsRead(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { tenantId: true } });
+    const tenantId = user?.tenantId ?? '00000000-0000-0000-0000-000000000001';
     const unreadIds = await prisma.announcement.findMany({
       where: {
         isPublished: true,
@@ -517,6 +521,7 @@ class AnnouncementService {
       data: unreadIds.map(a => ({
         announcementId: a.id,
         userId,
+        tenantId,
       })),
       skipDuplicates: true,
     });

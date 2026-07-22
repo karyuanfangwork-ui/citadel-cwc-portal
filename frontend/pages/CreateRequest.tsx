@@ -52,6 +52,7 @@ const CreateRequest = () => {
             const request = await requestService.createRequest({
                 serviceDeskId: deskId,
                 requestTypeId: wizard.selectedRequestType.id,
+                formVersion: wizard.selectedRequestType.formConfigVersion,
                 summary: wizard.formData.summary.trim() || wizard.autoSummary,
                 description: wizard.formData.description,
                 priority: wizard.formData.urgency as any,

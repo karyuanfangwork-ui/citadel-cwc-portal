@@ -658,7 +658,7 @@ describe('P6-04: Transition Guards', () => {
           userName: 'Test User',
           skipValidation: true,
         }),
-      ).rejects.toThrow(/only allowed for FINANCE service desk/i);
+      ).rejects.toThrow(/only allowed for FINANCE or ESM service desk/i);
     });
 
     it('allows FINANCE_ACKNOWLEDGED on FINANCE service desk', async () => {
@@ -695,7 +695,7 @@ describe('P6-04: Transition Guards', () => {
           userName: 'Test User',
           skipValidation: true,
         }),
-      ).rejects.toThrow(/only allowed for FINANCE service desk/i);
+      ).rejects.toThrow(/only allowed for FINANCE or ESM service desk/i);
     });
   });
 

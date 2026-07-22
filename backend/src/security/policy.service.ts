@@ -98,7 +98,7 @@ class PolicyServiceImpl implements IPolicyService {
                 // Confidentiality gate: team scope doesn't bypass confidentiality
                 if (resource.isConfidential && !principal.permissions.includes('request:confidential') && principal.userId !== resource.ownerId && principal.userId !== resource.assignedToId) {
                     // Continue checking — maybe executive role or designated approver grants access
-                } else if (action === 'read' || action === 'update' || action === 'create' || action === 'manage') {
+                } else if (action === 'read' || action === 'download' || action === 'update' || action === 'create' || action === 'manage') {
                     return { allowed: true, reason: 'team_scope' };
                 }
             }

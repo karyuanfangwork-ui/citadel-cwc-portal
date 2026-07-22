@@ -1,23 +1,22 @@
-jest.mock('../../../utils/prisma', () => {
-  const createMock = jest.fn();
-  const updateManyMock = jest.fn();
-  return {
-    __esModule: true,
-    default: {
-      creditScoreRun: {
-        findFirst: jest.fn(),
-      },
-      bureauChecklist: {
-        findUnique: jest.fn().mockResolvedValue({ noAdverseRecord: true, amlScreeningDone: true }),
-      },
-      applicationAssessmentResult: {
-        findMany: jest.fn().mockResolvedValue([]),
-        create: createMock,
-        updateMany: updateManyMock,
-        findFirst: jest.fn(),
-      },
+const createMock = jest.fn();
+const updateManyMock = jest.fn();
+
+jest.mock('../../../utils/prisma', () => ({
+  __esModule: true,
+  default: {
+    creditScoreRun: {
+      findFirst: jest.fn(),
     },
-  };
+    bureauChecklist: {
+      findUnique: jest.fn().mockResolvedValue({ noAdverseRecord: true, amlScreeningDone: true }),
+    },
+    applicationAssessmentResult: {
+      findMany: jest.fn().mockResolvedValue([]),
+      create: createMock,
+      updateMany: updateManyMock,
+      findFirst: jest.fn(),
+    },
+  },
 }));
 
 jest.mock('../decisionEngine.service', () => ({

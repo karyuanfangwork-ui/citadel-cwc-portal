@@ -3,8 +3,8 @@ import { notify } from '../services/notification.service';
 import { hasRole } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { transitionRequest } from '../services/requestTransition.service';
-import path from 'path';
 import { reassignToTeam } from '../services/reassign.service';
+import { registerUpload } from '../services/attachmentAccess.service';
 
 /** Infer an IT asset category from the hardware name/description. */
 function inferCategoryFromName(name: string): string {
@@ -22,6 +22,7 @@ function inferCategoryFromName(name: string): string {
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { principalFromAuth } from '../security/resource-scope.service';
 /**
  * Helper: extract common transition options from an Express request.
  * Reduces boilerplate in each handler.
@@ -692,17 +693,17 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     });
 
     for (const file of files) {
-      await prisma.requestAttachment.create({
-        data: {
-          requestId: id,
-          uploadedById: currentUser.id,
-          activityId: activity.id,
-          fileName: file.originalname,
-          fileSize: BigInt(file.size),
-          mimeType: file.mimetype,
-          fileType: path.extname(file.originalname).replace('.', ''),
-          storagePath: (file as any).key,
-          storageUrl: (file as any).key,
+      await registerUpload({
+        principal: principalFromAuth(currentUser),
+        requestId: id,
+        uploadedById: currentUser.id,
+        activityId: activity.id,
+        file: {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          buffer: file.buffer,
+          key: (file as any).key,
         },
       });
     }

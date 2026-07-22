@@ -68,6 +68,7 @@ beforeAll(async () => {
   const [admin, rep, otherAdmin] = await Promise.all([
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: adminEmail,
         passwordHash: 'test-hash',
         firstName: 'Import',
@@ -78,6 +79,7 @@ beforeAll(async () => {
     }),
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: repEmail,
         passwordHash: 'test-hash',
         firstName: 'Import',
@@ -88,6 +90,7 @@ beforeAll(async () => {
     }),
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: otherAdminEmail,
         passwordHash: 'test-hash',
         firstName: 'Import',

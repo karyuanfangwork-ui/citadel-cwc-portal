@@ -70,76 +70,82 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 <claude-mem-context>
 # Memory Context
 
-# [citadel-cwc-portal] recent context, 2026-06-17 7:52pm GMT+8
+# [citadel-cwc-portal] recent context, 2026-07-21 3:52pm GMT+8
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (17,535t read) | 316,456t work | 94% savings
+Stats: 50 obs (30,340t read) | 2,281,279t work | 99% savings
 
-### Jun 16, 2026
-2080 12:35p 🔵 CrmDashboard "My Deals Only" filter: live feature, not dead code
-2082 12:39p 🔴 CrmDashboard Hot Leads Card: Blank Space and LendScore Layout Fixed
-2083 12:55p 🔵 CRM Lead Score: ruleScore ?? aiScore fallback chain
-2084 12:57p ✅ CrmDashboard: "LendScore" label renamed to "Lead Score"
-2085 5:02p 🔵 Multi-tenancy implementation started: new files untracked, 60+ backend/frontend files modified uncommitted
-2086 10:53p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
-2088 " 🔵 CRIT-1: OAuth Tokens Stored Plaintext — Full Attack Surface Mapped
-2089 10:54p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
-2091 " 🔵 CRIT-1 OAuth Token Plaintext Storage: Full Codebase Audit Complete
-2092 10:58p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
-2093 11:01p ⚖️ CRIT-1: OAuth Access Tokens Stored in Plaintext — Implementation Plan Commissioned
-2094 11:14p 🔵 Pipeline progress UI bug investigation: no dedicated PipelineProgress component found
-2095 " 🔵 Progress pipeline UI not correctly reflecting Qualification stage
-S551 CrmOpportunityDetail: Pipeline progress bar now correctly renders "Closed Lost" state in red (Jun 16 at 11:14 PM)
-2096 11:16p 🔵 CRM Opportunity Detail: Pipeline progress bar uses displayOrder and stage flags for rendering
-2097 11:17p 🔴 CrmOpportunityDetail: Pipeline progress bar now correctly renders "Closed Lost" state in red
-S552 Credit Dashboard Redesign: HTML Mockup Study Commissioned (Jun 16 at 11:17 PM)
-2098 11:19p 🔵 CRM "Create New Lead" modal header render issue investigated
-2099 11:21p 🔵 CRM "Create New Lead" modal was redesigned — top header rendering issue traced
-2100 11:23p 🔵 CrmLayout.tsx: z-index and sticky/fixed layers mapped for search bar blend issue
-2101 " 🔵 TopBar.tsx search bar uses hardcoded bg-[#f0f2f5] — won't blend with translucent header
-2102 11:24p 🔴 TopBar.tsx: z-index reduced from z-[65] to z-40 to fix search bar blending
-### Jun 17, 2026
-2103 10:33a ⚖️ Credit Dashboard Redesign: HTML Mockup Study Commissioned
-2104 10:34a ⚖️ Credit Dashboard Redesign: HTML Mockup Study Commissioned
-S553 CWC Navigation: Option B chosen — shared sidebar approach (Jun 17 at 10:34 AM)
-2105 10:37a ⚖️ CWC Navigation: Option B chosen — shared sidebar approach
-S554 Credit Officer Dashboard Redesign — architecture option recommendation (Option C: phased delivery) (Jun 17 at 10:37 AM)
-S556 Credit Officer Dashboard: Work Queue Table — Option B selected (visual upgrade only) (Jun 17 at 10:42 AM)
-2106 10:44a 🔵 credit.service.ts: MyWorkDashboard and MyWorkItem interfaces located
-2107 10:47a ⚖️ Credit Officer Dashboard: Work Queue Table — Option B selected (visual upgrade only)
-S557 Credit Officer Dashboard Redesign — Full Design Spec Created (Jun 17 at 10:47 AM)
-2109 10:50a 🔵 citadel-cwc-portal dev2.0 branch: recent commits focused on CRM module and multi-tenancy
-2110 " ⚖️ Credit Officer Dashboard Redesign — Full Design Spec Created
-S559 Codex hyperpersonalized suggestions for citadel-cwc-portal — Jun 17 afternoon scan (Jun 17 at 10:50 AM)
-2111 10:51a 🔵 Credit Module Design System Tokens: Full CSS Variable Map
-2112 " 🔵 CreditApplication Prisma Schema: Full Field Map Around Core and CA Memo Sections
-2113 11:06a 🔵 Credit module redesign: large uncommitted working tree on dev2.0
-2114 11:11a 🟣 Full Multi-Tenancy Isolation Implemented Across citadel-cwc-portal
-2116 11:12a 🔵 Tenant Isolation Implementation: AsyncLocalStorage + Prisma Extension Pattern
-2118 11:15a 🔵 Playwright Tests Require Running Dev Server at localhost:5173
-2119 11:16a ✅ Credit Dashboard E2E Verification Script Created
-2121 11:18a 🔵 Credit Dashboard: 2 Tabs Confirmed, Chevron and Arrow Links Missing
-2122 11:19a 🔵 Backend CORS Hardcoded to Port 5173, Frontend Runs on 5174
-2123 11:20a 🔵 Frontend Dev Server Also Running on Port 5173
-2125 1:17p 🟣 Credit officer dashboard Phase 1 shipped: KPI cards + enhanced work queue
-2126 " 🔴 CRIT-1 and CRIT-2 security fixes landed: OAuth token encryption and tenant isolation enforced
-2127 4:18p 🔵 citadel-cwc-portal dev2.0 branch: credit redesign phases 1-3 shipped, CRM and multi-tenancy complete
-2128 4:44p 🟣 Credit officer dashboard Phase 2: backend endpoints shipped, frontend still on mock data
-2129 4:45p 🔵 CRIT-1 and CRIT-2 implementation plans: full architecture mapped and ready to execute
-2130 4:46p 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints identified as top priority
-2131 " 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints identified as top priority
-2132 4:47p 🔵 Codex hyperpersonalized suggestions: Phase 2 credit officer dashboard backend endpoints are the top actionable candidate
-S561 Application 360 Workspace: Existing Credit Module Architecture Mapped (Jun 17 at 4:47 PM)
-2133 6:17p ⚖️ Application 360 Universal LOS Workspace — Design Commissioned
-2135 " 🔵 Application 360 Workspace: Existing Credit Module Architecture Mapped
-S562 Universal Application 360 Workspace — Enterprise LOS redesign delivery strategy decision (phased vs full vs tabs) (Jun 17 at 6:17 PM)
-2136 6:53p ⚖️ Universal Application 360 Workspace — Full Design Spec Written
-S563 Universal Application 360 Workspace — Full Design Spec Written (Jun 17 at 6:53 PM)
-2137 6:54p 🔵 CreditApplicationDetail.tsx: Full architecture and state management mapped
-2138 6:56p 🔵 creditUtils.ts: Complete TAB_GROUPS and DetailTab type structure mapped
+### Jun 24, 2026
+S623 CREDIT_SCORING_RISK_RATING_AUDIT.md: Post-Remediation Reconciliation and Implementation Plan Added (Jun 24 at 5:03 PM)
+### Jun 25, 2026
+S628 Credit Assessment Module: Complete FSD/SDD Commissioned for Malaysian Non-Bank Lender (Jun 25 at 11:02 AM)
+### Jun 26, 2026
+S631 Credit Decision Engine Design Document (Volume 2) — 15-section enterprise FDS/SDD generation, grounded in actual citadel-cwc-portal codebase (Jun 26 at 12:41 AM)
+S634 Credit Decision Engine: Complete Architecture Map of citadel-cwc-portal (Jun 26 at 10:52 AM)
+S638 Credit Assessment Module: Volume 4 Technical Architecture & Engineering Design Document (19 sections) commissioned (Jun 26 at 10:55 AM)
+### Jun 27, 2026
+S645 Implementation Plan: Tasks 6–9 Added for Full CANCELLED Status End-to-End Implementation (Jun 27 at 9:25 AM)
+### Jul 6, 2026
+2464 2:01p 🔵 Bulk Approval Workflow with Status Transitions and Cascading Routes
+2465 " 🔵 Terminal Status Constants: 50+ Closed Statuses Across Six Workflow Types
+2466 2:06p ⚖️ Ticket Workflow: Cancelled vs Rejected Status Distinction Required
+2467 2:07p ⚖️ Ticket Request Workflow: CANCELLED vs REJECTED States Must Be Distinct
+2468 2:08p 🔵 RequestStatus Enum: Precedent Pattern for Adding New Status Values via Migration
+2469 2:10p ✅ Implementation Plan Updated: CANCELLED Status Added as Fourth Task Group
+2470 2:13p ✅ Implementation Plan: Tasks 6–9 Added for Full CANCELLED Status End-to-End Implementation
+S647 Phase 6 Workflow Engine Consolidation — Implementation Correctness Verification for citadel-cwc-portal ESM plan (Jul 6 at 2:13 PM)
+### Jul 7, 2026
+2471 12:20a 🔵 Phase 6 Workflow Engine Consolidation: Implementation Status Check Requested
+2472 " 🔵 Phase 6 Workflow Engine Consolidation: Largely Implemented with Residual Direct DB Updates
+S648 Phase 6 Workflow Engine Consolidation — Implementation Correctness Audit (citadel-cwc-portal) (Jul 7 at 12:21 AM)
+2476 12:25a 🔵 citadel-cwc-portal: Phase 6 Workflow Engine Consolidation — Implementation Audit Commissioned
+2477 " 🔵 citadel-cwc-portal: Workflow Engine — DB-First Runtime with Hardcoded Fallback Map
+2478 12:26a 🔵 citadel-cwc-portal: Phase 6 Workflow Engine — Admin UI Exists for Transitions; P6-07/P6-08 Unimplemented
+S651 ESM Platform: 16-Phase Enterprise Architecture Audit Commissioned (Jul 7 at 12:27 AM)
+2479 9:52a ⚖️ ESM Platform: 16-Phase Enterprise Audit Commissioned
+2480 " ⚖️ ESM Platform: Comprehensive 16-Phase Enterprise Audit Commissioned
+2482 9:53a 🔵 citadel-cwc-portal: Full ESM Platform Architecture Deep Scan — Schema, Services, Routes, Frontend
+2483 " 🔵 ESM Platform: Backend Architecture, Auth, Security Config, and Frontend Routing Deep Scan
+2484 9:54a ⚖️ ESM Platform: 16-Phase Enterprise Architecture Audit Commissioned
+2486 9:55a ⚖️ ESM Platform: 16-Phase Enterprise Architecture Audit Commissioned
+2487 9:56a ⚖️ ESM Platform: 16-Phase Enterprise Architecture Audit Commissioned
+2488 9:57a 🔵 citadel-cwc-portal: Workflow & Approval Engine Deep Audit
+2489 9:58a 🔵 ESM Platform: Comprehensive Service Desk Module Architecture Audit
+2490 " ⚖️ ESM Platform: 16-Phase Enterprise Architecture Audit Commissioned
+2491 9:59a 🔵 ESM Platform: SSE Client Registry Located in utils/sseClients.ts
+2492 10:00a 🔵 ESM Platform: 87 Potential N+1 Query Sites and Inconsistent Pagination
+2493 10:06a ✅ ESM Platform: 16-Phase Enterprise Architecture Review Report Exported to docs/
+S652 ESM Platform: 16-Phase Enterprise Architecture Review Report Exported to docs/ (Jul 7 at 10:06 AM)
+### Jul 14, 2026
+2719 10:01p ⚖️ Credit Assessment Module: Full 24-Domain Enterprise Audit Commissioned
+2720 " ⚖️ Credit Assessment Module: Full 24-Domain Codebase Audit Commissioned
+2721 10:02p ⚖️ Credit Assessment Module: Full 24-Domain Codebase Audit Commissioned
+2722 " ⚖️ Credit Assessment Module: Full 24-Domain Enterprise Codebase Audit Commissioned
+2725 10:03p 🔵 Credit Assessment: Application State Machine Fully Traced — 19-State Workflow with RBAC-Gated Transitions
+2726 " 🔵 Credit Assessment: BorrowerProfile Service — Full CRUD with Encrypted PII, Duplicate Detection, and Activity Logging
+2727 " 🔵 Credit Assessment: Borrower Risk Scoring Engine — Real Multi-Factor Scorecard with Bureau Caps and Versioned Runs
+2728 " 🔵 Credit Assessment: Application 360 Workspace — 12 Primary Tabs + 27 Sub-Sections, 3-Column Layout
+2729 " 🔵 Credit Assessment: Document Management — S3-backed with AV Scanning, SHA-256 Integrity, Versioning, and Rule Engine Checklist
+2730 " 🔵 Credit Assessment: Borrower Financial Data — DSR/Net-DSR Calculation, Income Persistence, AML Manual Screening, Bureau Report Ingestion
+### Jul 21, 2026
+2867 2:08p ⚖️ ESM Platform: Full 16-Phase Enterprise Production Readiness Audit Commissioned
+2868 " 🔵 ESM Platform (citadel-cwc-portal): Full Repository Structure Mapped for Production Audit
+2869 2:09p ⚖️ ESM Platform: Full 16-Domain Production Readiness Audit Commissioned
+2870 " ⚖️ ESM Production Readiness Audit: Parallel Subagents Spawned for Backend/Security/DB and Frontend/Isolation Domains
+2881 " ⚖️ ESM Platform: Full 16-Domain Production Readiness Audit Commissioned
+2872 " ⚖️ ESM Platform: Full 16-Domain Enterprise Production Readiness Audit Commissioned
+2871 " 🔵 ESM Platform Prior Audit Findings: Overall Maturity Scored 62/100 (Jul 7, 2026)
+2875 2:11p 🔵 Enterprise Service Management Platform Production Readiness Audit Initiated
+2874 " 🔵 ESM Audit: Frontend Architecture Deep-Scan — Route Guards, Auth Flow, Nav, Test Coverage
+2876 2:13p 🔵 ESM Backend Architecture — Core Infrastructure Stack Mapped
+2877 " 🔵 Workflow Engine — Request Transition Service with Guard Registry
+2878 " 🔵 Notification Engine — In-App + Email + SSE with Redis Pub/Sub Fan-out
+2879 " 🔵 Approval Workflow — Multi-Level with Delegation, Timeouts, Reminders, and Entity Routing
+2880 " 🔵 Codebase Structure — 647 Files, 2091 Symbols Across ESM, CRM, and Credit Modules
+2882 2:14p 🔵 ESM Audit: Complete Build/Test Results + Full API/Service Layer Architecture Map
 
-Access 316k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 2281k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

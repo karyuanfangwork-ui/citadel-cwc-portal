@@ -15,7 +15,8 @@ interface RequestFilters {
 
 interface CreateRequestData {
     serviceDeskId: string;
-    requestTypeId?: string;
+    requestTypeId: string;
+    formVersion: number;
     summary: string;
     description?: string;
     priority?: RequestPriority;

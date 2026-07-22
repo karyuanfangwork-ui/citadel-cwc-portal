@@ -5,9 +5,23 @@ import { ConsentPurpose, ConsentStatus } from '@prisma/client';
 // ── Test data ──────────────────────────────────────────────────────────────
 let testBorrowerId: string;
 let testApplicationId: string;
+let testWithdrawnById: string;
 let createdConsentIds: string[] = [];
 
 beforeAll(async () => {
+  // Create a test user for FK constraints (withdrawnById, etc.)
+  const testUser = await prisma.user.create({
+    data: {
+      email: `p1-consent-${Date.now()}@test.local`,
+      passwordHash: '$2a$12$fakehash',
+      firstName: 'Consent',
+      lastName: 'Tester',
+      isActive: true,
+      tenantId: '00000000-0000-0000-0000-000000000001',
+    },
+  });
+  testWithdrawnById = testUser.id;
+
   const borrower = await prisma.borrowerProfile.create({
     data: { borrowerType: 'INDIVIDUAL', name: 'Consent Test Borrower' },
   });
@@ -21,6 +35,7 @@ beforeAll(async () => {
       productType: 'TERM_LOAN',
       requestedAmount: 100000,
       state: 'DRAFT',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
   testApplicationId = application.id;
@@ -35,6 +50,9 @@ afterAll(async () => {
   }
   if (testBorrowerId) {
     await prisma.borrowerProfile.delete({ where: { id: testBorrowerId } }).catch(() => {});
+  }
+  if (testWithdrawnById) {
+    await prisma.user.delete({ where: { id: testWithdrawnById } }).catch(() => {});
   }
   await prisma.$disconnect();
 });
@@ -150,20 +168,20 @@ describe('P1-2: PDPA Consent Records', () => {
 
     it('should withdraw an active consent', async () => {
       const withdrawn = await consentService.withdrawConsent(marketingConsentId, {
-        withdrawnById: 'd116ac9e-80de-426f-bdc2-93dd869e51c8',
+        withdrawnById: testWithdrawnById,
         reason: 'User requested withdrawal via portal',
       });
 
       expect(withdrawn.status).toBe(ConsentStatus.WITHDRAWN);
       expect(withdrawn.withdrawnAt).toBeDefined();
-      expect(withdrawn.withdrawnById).toBe('d116ac9e-80de-426f-bdc2-93dd869e51c8');
+      expect(withdrawn.withdrawnById).toBe(testWithdrawnById);
       expect(withdrawn.withdrawalReason).toBe('User requested withdrawal via portal');
     });
 
     it('should not allow withdrawing an already-withdrawn consent', async () => {
       await expect(
         consentService.withdrawConsent(marketingConsentId, {
-          withdrawnById: 'd116ac9e-80de-426f-bdc2-93dd869e51c8',
+          withdrawnById: testWithdrawnById,
           reason: 'Double withdrawal attempt',
         })
       ).rejects.toThrow(/cannot withdraw consent/i);

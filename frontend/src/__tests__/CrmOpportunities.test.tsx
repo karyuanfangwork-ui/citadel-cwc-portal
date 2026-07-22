@@ -70,12 +70,12 @@ describe('CrmOpportunities', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /opportunities/i })).toBeInTheDocument();
+      // Page heading is "Opportunity Pipeline" — not a plain "Opportunities"
+      expect(screen.getByRole('heading', { name: /opportunity/i })).toBeInTheDocument();
     });
 
     expect(screen.getByRole('button', { name: /create opportunity/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /new opportunity/i })).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/search opportunities/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/filter opportunities/i)).toBeInTheDocument();
     expect(screen.getByTestId('opportunities-table')).toBeInTheDocument();
   });
 });

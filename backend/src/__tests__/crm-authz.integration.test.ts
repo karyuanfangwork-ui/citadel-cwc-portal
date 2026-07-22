@@ -55,6 +55,7 @@ beforeAll(async () => {
   const [salesRep, otherOwner] = await Promise.all([
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: salesRepEmail,
         passwordHash: 'test-hash',
         firstName: 'Visible',
@@ -65,6 +66,7 @@ beforeAll(async () => {
     }),
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: otherOwnerEmail,
         passwordHash: 'test-hash',
         firstName: 'Other',
@@ -82,6 +84,7 @@ beforeAll(async () => {
 
   const pipeline = await prisma.crmPipeline.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Authz Pipeline ${suffix}`,
       stages: {
         create: [
@@ -106,6 +109,7 @@ beforeAll(async () => {
 
   const visibleAccount = await prisma.crmAccount.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Visible Owner Account ${suffix}`,
       email: `visible-account-${suffix}@test.local`,
       ownerId: salesRep.id,
@@ -115,6 +119,7 @@ beforeAll(async () => {
 
   const otherAccount = await prisma.crmAccount.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Other Owner Account ${suffix}`,
       email: `other-account-${suffix}@test.local`,
       ownerId: otherOwner.id,
@@ -124,6 +129,7 @@ beforeAll(async () => {
 
   const otherContact = await prisma.crmContact.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       accountId: otherAccount.id,
       firstName: 'Other',
       lastName: `Owner ${suffix}`,
@@ -134,6 +140,7 @@ beforeAll(async () => {
 
   const otherLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Other Owner Lead ${suffix}`,
       companyName: `Other Owner Company ${suffix}`,
       ownerId: otherOwner.id,
@@ -145,6 +152,7 @@ beforeAll(async () => {
 
   const otherDuplicateLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Other Owner Duplicate Lead ${suffix}`,
       companyName: `Other Owner Duplicate Company ${suffix}`,
       ownerId: otherOwner.id,
@@ -154,7 +162,7 @@ beforeAll(async () => {
 
   const otherDuplicateMatch = await prisma.crmDuplicateMatch.create({
     data: {
-      entityType: 'LEAD',
+            entityType: 'LEAD',
       entityAId: otherLead.id,
       entityBId: otherDuplicateLead.id,
       confidence: 0.95,
@@ -165,6 +173,7 @@ beforeAll(async () => {
 
   const otherOpportunity = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Other Owner Opportunity ${suffix}`,
       accountId: otherAccount.id,
       contactId: otherContact.id,
@@ -178,6 +187,7 @@ beforeAll(async () => {
 
   await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `Visible Opportunity ${suffix}`,
       accountId: visibleAccount.id,
       pipelineId: pipeline.id,
@@ -189,7 +199,7 @@ beforeAll(async () => {
 
   const otherTrustProduct = await prisma.crmTrustProduct.create({
     data: {
-      accountId: otherAccount.id,
+            accountId: otherAccount.id,
       contactId: otherContact.id,
       trustType: 'FAMILY',
       ownerId: otherOwner.id,
@@ -199,7 +209,7 @@ beforeAll(async () => {
 
   await prisma.crmActivity.create({
     data: {
-      activityType: 'CALL',
+            activityType: 'CALL',
       subject: `Other Owner Activity ${suffix}`,
       accountId: otherAccount.id,
       userId: otherOwner.id,
@@ -208,7 +218,7 @@ beforeAll(async () => {
 
   await prisma.crmNote.create({
     data: {
-      content: `Other Owner Note ${suffix}`,
+            content: `Other Owner Note ${suffix}`,
       accountId: otherAccount.id,
       authorId: otherOwner.id,
     },
@@ -216,14 +226,14 @@ beforeAll(async () => {
 
   await prisma.crmKycRecord.create({
     data: {
-      contactId: otherContact.id,
+            contactId: otherContact.id,
       status: 'PENDING',
     },
   });
 
   await prisma.crmBeneficiary.create({
     data: {
-      contactId: otherContact.id,
+            contactId: otherContact.id,
       firstName: 'Other',
       lastName: `Beneficiary ${suffix}`,
       relationship: 'OTHER',
@@ -233,7 +243,7 @@ beforeAll(async () => {
 
   await prisma.crmContactAccountRole.create({
     data: {
-      accountId: otherAccount.id,
+            accountId: otherAccount.id,
       contactId: otherContact.id,
       role: 'DECISION_MAKER',
     },
@@ -241,7 +251,7 @@ beforeAll(async () => {
 
   const tag = await prisma.crmTag.create({
     data: {
-      name: `Authz Tag ${suffix}`,
+            name: `Authz Tag ${suffix}`,
       color: '#111827',
     },
   });
@@ -249,7 +259,7 @@ beforeAll(async () => {
 
   await prisma.crmTagAssignment.create({
     data: {
-      tagId: tag.id,
+            tagId: tag.id,
       entityType: 'ACCOUNT',
       entityId: otherAccount.id,
       assignedBy: otherOwner.id,
@@ -258,7 +268,7 @@ beforeAll(async () => {
 
   await prisma.crmFieldChange.create({
     data: {
-      entityType: 'ACCOUNT',
+            entityType: 'ACCOUNT',
       entityId: otherAccount.id,
       field: 'name',
       oldValue: 'before',
@@ -269,6 +279,7 @@ beforeAll(async () => {
 
   const visibleLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Visible Lead ${suffix}`,
       companyName: `Visible Company ${suffix}`,
       ownerId: salesRep.id,
@@ -280,6 +291,7 @@ beforeAll(async () => {
 
   const visibleDuplicateLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Visible Duplicate Lead ${suffix}`,
       companyName: `Visible Duplicate Company ${suffix}`,
       ownerId: salesRep.id,
@@ -289,7 +301,7 @@ beforeAll(async () => {
 
   const visibleDuplicateMatch = await prisma.crmDuplicateMatch.create({
     data: {
-      entityType: 'LEAD',
+            entityType: 'LEAD',
       entityAId: visibleLead.id,
       entityBId: visibleDuplicateLead.id,
       confidence: 0.9,
@@ -300,6 +312,7 @@ beforeAll(async () => {
 
   const visibleDismissLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Visible Dismiss Lead ${suffix}`,
       companyName: `Visible Dismiss Company ${suffix}`,
       ownerId: salesRep.id,
@@ -309,6 +322,7 @@ beforeAll(async () => {
 
   const visibleDismissDuplicateLead = await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `Visible Dismiss Duplicate Lead ${suffix}`,
       companyName: `Visible Dismiss Duplicate Company ${suffix}`,
       ownerId: salesRep.id,
@@ -318,7 +332,7 @@ beforeAll(async () => {
 
   const visibleDismissDuplicateMatch = await prisma.crmDuplicateMatch.create({
     data: {
-      entityType: 'LEAD',
+            entityType: 'LEAD',
       entityAId: visibleDismissLead.id,
       entityBId: visibleDismissDuplicateLead.id,
       confidence: 0.88,
@@ -329,6 +343,7 @@ beforeAll(async () => {
 
   await prisma.crmLead.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       title: `=HYPERLINK("http://evil.test","x") ${suffix}`,
       companyName: `Formula Company ${suffix}`,
       ownerId: salesRep.id,

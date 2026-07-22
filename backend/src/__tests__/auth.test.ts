@@ -30,6 +30,7 @@ beforeAll(async () => {
       lastName: 'User',
       isActive: true,
       mustResetPassword: false,
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
 });
@@ -105,6 +106,7 @@ describe('POST /auth/login — mustResetPassword', () => {
         lastName: 'Reset',
         isActive: true,
         mustResetPassword: true,
+        tenantId: '00000000-0000-0000-0000-000000000001',
       },
     });
   });

@@ -13,6 +13,8 @@ import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
+import { getAuthorizedAttachment, registerUpload } from '../services/attachmentAccess.service';
+import { resolveRequestCreationPolicy } from '../services/requestCreationPolicy.service';
 import { policyService } from '../security/policy.service';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { CLOSED_STATUSES } from '../constants/requestStatuses';
@@ -583,19 +585,20 @@ class RequestController {
             priority,
             customFields,
             isConfidential,
+            formVersion,
         } = req.body;
 
         // Sanitize highest-risk text fields before storing
         const summary = sanitizeString(rawSummary);
 
-        // Generate reference number
-        const serviceDesk = await prisma.serviceDesk.findUnique({
-            where: { id: serviceDeskId },
+        const creationPolicy = await resolveRequestCreationPolicy(principalFromAuth(req.user!), {
+            requestTypeId,
+            serviceDeskId,
+            formVersion,
+            values: (customFields || {}) as Record<string, unknown>,
+            requestedConfidentiality: isConfidential,
         });
-
-        if (!serviceDesk) {
-            throw new AppError('Service desk not found', 404);
-        }
+        const { serviceDesk, requestType } = creationPolicy;
 
         // IT Support uses rich-text editor — allow safe HTML; others stay plain text
         const description = rawDescription
@@ -608,20 +611,14 @@ class RequestController {
         // This was not safe under concurrent requests.
         const referenceNumber = await generateRequestRefNum(serviceDesk.code);
 
-        // Calculate SLA due date from request type
+        // Calculate SLA due date from the server-resolved published request type.
         let slaDueAt: Date | undefined;
-        if (requestTypeId) {
-          const requestType = await prisma.requestType.findUnique({ where: { id: requestTypeId } });
-          if (requestType?.slaHours) {
+        if (creationPolicy.slaHours) {
             slaDueAt = new Date();
-            slaDueAt.setHours(slaDueAt.getHours() + requestType.slaHours);
-          }
+            slaDueAt.setHours(slaDueAt.getHours() + creationPolicy.slaHours);
         }
 
         // Detect manual onboarding/offboarding/finance submission
-        const requestType = requestTypeId
-            ? await prisma.requestType.findUnique({ where: { id: requestTypeId } })
-            : null;
         const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
@@ -1028,6 +1025,8 @@ class RequestController {
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({
                 data: {
+                    tenantId: creationPolicy.tenantId,
+                    departmentId: creationPolicy.departmentId,
                     referenceNumber,
                     requestTypeId,
                     serviceDeskId,
@@ -1037,13 +1036,13 @@ class RequestController {
                     description: finalDescription,
                     priority,
                     customFields,
-                    isConfidential: isConfidential === true,
+                    isConfidential: creationPolicy.isConfidential,
                     status: initialStatus as any,
                     assignedToId: esmSelectedCeo?.id,
                     slaDueAt,
                     // P5-04: Snapshot form config at submission time
-                    formConfigSnapshot: requestType?.formConfig ?? undefined,
-                    formConfigVersion: requestType?.formConfigVersion ?? undefined,
+                    formConfigSnapshot: creationPolicy.formConfig ?? undefined,
+                    formConfigVersion: creationPolicy.formVersion ?? undefined,
                 },
                 include: {
                     requester: {
@@ -1823,19 +1822,16 @@ class RequestController {
             throw new AppError('Request not found', 404);
         }
 
-        const s3Key = (file as any).key;
-
-        const attachment = await prisma.requestAttachment.create({
-            data: {
-                requestId: id,
-                uploadedById: req.user!.id,
-                fileName: file.originalname,
-                fileSize: BigInt(file.size),
-                mimeType: file.mimetype,
-                storagePath: s3Key,
-                storageUrl: s3Key,
-                isScanned: false,       // stub for future ClamAV integration
-                scanResult: null,
+        const { attachment } = await registerUpload({
+            principal: principalFromAuth(req.user!),
+            requestId: id,
+            uploadedById: req.user!.id,
+            file: {
+                originalname: file.originalname,
+                mimetype: file.mimetype,
+                size: file.size,
+                buffer: file.buffer,
+                key: (file as any).key,
             },
         });
 
@@ -1858,8 +1854,8 @@ class RequestController {
                 fileName: attachment.fileName,
                 fileSize: Number(attachment.fileSize),
                 mimeType: attachment.mimeType,
-                storageUrl: attachment.storageUrl,
                 isScanned: attachment.isScanned,
+                scanStatus: attachment.scanStatus,
                 createdAt: attachment.createdAt,
             },
         });
@@ -1871,25 +1867,12 @@ class RequestController {
      * Sets Content-Disposition header for browser download.
      */
     downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
-        const { id, attachmentId }  = req.params as Record<string, string>;
-
-        // P2-02: Verify user has access to the parent request before allowing download
-        // This replaces the partial confidentiality-only check with a full access gate
-        // that covers both confidential and non-confidential requests.
-        const attachmentRequest = await assertRequestAccess(req.user!, id, { requireConfidential: true });
-
-        // Verify the attachment belongs to the request and is not deleted
-        const attachment = await prisma.requestAttachment.findFirst({
-            where: {
-                id: attachmentId,
-                requestId: id,
-                deletedAt: null,
-            },
-        });
-
-        if (!attachment) {
-            throw new AppError('Attachment not found', 404);
-        }
+        const { id: idOrRef, attachmentId } = req.params as Record<string, string>;
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+        const attachmentRequest = await assertRequestAccess(req.user!, id, { action: 'download', requireConfidential: true });
+        const attachment = await getAuthorizedAttachment(principalFromAuth(req.user!), attachmentId);
+        if (attachment.requestId !== id) throw new AppError('Attachment not found', 404);
 
         // Audit: log download for confidential requests by non-requesters
         if (attachmentRequest.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
@@ -1939,7 +1922,9 @@ class RequestController {
      * Delete attachment
      */
     deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const { id, attachmentId }  = req.params as Record<string, string>;
+        const { id: idOrRef, attachmentId } = req.params as Record<string, string>;
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
 
         // P2-03: Verify user has access to the parent request before allowing delete
         const attachmentRequest = await assertRequestAccess(req.user!, id);
@@ -1956,6 +1941,9 @@ class RequestController {
         if (!attachment) {
             throw new AppError('Attachment not found', 404);
         }
+        if (attachment.retentionStatus === 'LEGAL_HOLD' || attachment.legalHoldAt) {
+            throw new AppError('Attachment is subject to legal hold', 409);
+        }
 
         // Only allow the uploader, the requester, the assigned agent, or an admin to delete
         const isUploader = attachment.uploadedById === req.user?.id;
@@ -1969,7 +1957,7 @@ class RequestController {
 
         await prisma.requestAttachment.update({
             where: { id: attachmentId },
-            data: { deletedAt: new Date() },
+            data: { deletedAt: new Date(), retentionStatus: 'PENDING_DELETION' },
         });
 
         // P2-04: Audit log for attachment delete

@@ -19,6 +19,7 @@ export interface AuthRequest extends Request {
         roles: string[];
         permissions: string[];
         agentTeam?: string | null;
+        departmentIds?: string[];
         tenantId?: string;
         entityId?: string | null; // P5-02: catalog entitlement filtering
         // P1-8 — MFA fields for requireMfa middleware
@@ -78,11 +79,21 @@ export const authenticate = async (
             throw new AppError('Token has been revoked', 401);
         }
 
+        const membershipNow = new Date();
         const user = await runWithExecutionScope(
             { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
             async () => prisma.user.findUnique({
                 where: { id: decoded.userId },
-                include: { roles: { include: { role: true } } },
+                include: {
+                    roles: { include: { role: true } },
+                    departmentMemberships: {
+                        where: {
+                            validFrom: { lte: membershipNow },
+                            OR: [{ validUntil: null }, { validUntil: { gte: membershipNow } }],
+                        },
+                        select: { departmentId: true },
+                    },
+                },
             }),
         );
 
@@ -108,6 +119,7 @@ export const authenticate = async (
             roles,
             permissions,
             agentTeam: user.agentTeam,
+            departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
             tenantId: user.tenantId ?? undefined,
             entityId: user.entityId ?? undefined, // P5-02
             // P1-8 — MFA fields for requireMfa middleware
@@ -179,11 +191,21 @@ export const optionalAuth = async (
             if (revokedAt > 0 && tokenIssuedAt < revokedAt) return next();
         }
 
+        const membershipNow = new Date();
         const user = await runWithExecutionScope(
             { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
             async () => prisma.user.findUnique({
                 where: { id: decoded.userId },
-                include: { roles: { include: { role: true } } },
+                include: {
+                    roles: { include: { role: true } },
+                    departmentMemberships: {
+                        where: {
+                            validFrom: { lte: membershipNow },
+                            OR: [{ validUntil: null }, { validUntil: { gte: membershipNow } }],
+                        },
+                        select: { departmentId: true },
+                    },
+                },
             }),
         );
 
@@ -205,6 +227,7 @@ export const optionalAuth = async (
                 roles,
                 permissions,
                 agentTeam: user.agentTeam,
+                departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
                 tenantId: user.tenantId ?? undefined,
             };
         }

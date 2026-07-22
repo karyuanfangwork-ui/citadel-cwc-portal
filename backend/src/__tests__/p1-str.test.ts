@@ -5,8 +5,22 @@ import { StrStatus } from '@prisma/client';
 // ── Test data ──────────────────────────────────────────────────────────────
 let testAppId: string;
 let testStrId: string;
+let testUserId: string;
 
 beforeAll(async () => {
+  // Create a test user for FK constraints (triggeredById, acknowledgeStr, etc.)
+  const testUser = await prisma.user.create({
+    data: {
+      email: `p1-str-${Date.now()}@test.local`,
+      passwordHash: '$2a$12$fakehash',
+      firstName: 'STR',
+      lastName: 'Tester',
+      isActive: true,
+      tenantId: '00000000-0000-0000-0000-000000000001',
+    },
+  });
+  testUserId = testUser.id;
+
   const borrower = await prisma.borrowerProfile.create({
     data: { borrowerType: 'INDIVIDUAL', name: 'STR Test Borrower' },
   });
@@ -18,6 +32,7 @@ beforeAll(async () => {
       productType: 'TERM_LOAN',
       requestedAmount: 200000,
       state: 'DRAFT',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
   testAppId = app.id;
@@ -27,6 +42,9 @@ afterAll(async () => {
   await prisma.strAttachment.deleteMany({ where: { strId: testStrId } }).catch(() => {});
   await prisma.suspiciousTransaction.deleteMany({ where: { applicationId: testAppId } }).catch(() => {});
   await prisma.creditApplication.deleteMany({ where: { id: testAppId } }).catch(() => {});
+  if (testUserId) {
+    await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
+  }
   await prisma.$disconnect();
 });
 
@@ -128,7 +146,7 @@ describe('P1-7: STR Register', () => {
     });
 
     it('should transition FILED → ACKNOWLEDGED', async () => {
-      const adminUserId = 'd116ac9e-80de-426f-bdc2-93dd869e51c8';
+      const adminUserId = testUserId;
       const str = await strService.acknowledgeStr(lifecycleStrId, adminUserId);
       expect(str.status).toBe('ACKNOWLEDGED');
       expect(str.reviewedById).toBe(adminUserId);
@@ -137,7 +155,7 @@ describe('P1-7: STR Register', () => {
 
     it('should not acknowledge a non-FILED STR', async () => {
       await expect(
-        strService.acknowledgeStr(lifecycleStrId, 'd116ac9e-80de-426f-bdc2-93dd869e51c8')
+        strService.acknowledgeStr(lifecycleStrId, testUserId)
       ).rejects.toThrow(/only filed/i);
     });
 
@@ -187,7 +205,7 @@ describe('P1-7: STR Register', () => {
           screeningSource: 'PERIODIC',
           outcome: 'CONFIRMED_HIT',
           actionTaken: 'FILED_STR',
-          triggeredById: 'd116ac9e-80de-426f-bdc2-93dd869e51c8',
+          triggeredById: testUserId,
         },
       });
 

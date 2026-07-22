@@ -23,7 +23,6 @@ const TENANT_SCOPED_MODELS = new Set([
   'serviceTarget',
   'department',
   'departmentMembership',
-  'role',
 ]);
 
 // ── Tenant Scope Enforcement Mode ─────────────────────────────────────

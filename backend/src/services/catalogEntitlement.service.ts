@@ -124,7 +124,7 @@ class CatalogEntitlementService {
      * - The request type has no entitlements (open access), OR
      * - The user matches at least one active entitlement rule.
      */
-    async isUserEntitled(requestTypeId: string, user: { id: string; roles: string[]; agentTeam?: string | null; entityId?: string | null }): Promise<boolean> {
+    async isUserEntitled(requestTypeId: string, user: { id: string; roles: string[]; agentTeam?: string | null; departmentIds?: string[]; entityId?: string | null }): Promise<boolean> {
         const entitlements = await prisma.catalogEntitlement.findMany({
             where: { requestTypeId, isActive: true },
         });
@@ -140,7 +140,7 @@ class CatalogEntitlementService {
                     if (user.roles.includes(ent.targetId!)) return true;
                     break;
                 case 'DEPARTMENT':
-                    if (user.agentTeam === ent.targetId) return true;
+                    if (user.departmentIds?.includes(ent.targetId!) || user.agentTeam === ent.targetId) return true;
                     break;
                 case 'ENTITY':
                     if (user.entityId === ent.targetId) return true;
@@ -156,7 +156,7 @@ class CatalogEntitlementService {
      */
     async filterEntitledRequestTypes(
         requestTypeIds: string[],
-        user: { id: string; roles: string[]; agentTeam?: string | null; entityId?: string | null },
+        user: { id: string; roles: string[]; agentTeam?: string | null; departmentIds?: string[]; entityId?: string | null },
     ): Promise<string[]> {
         const entitlements = await prisma.catalogEntitlement.findMany({
             where: { requestTypeId: { in: requestTypeIds }, isActive: true },
@@ -187,7 +187,7 @@ class CatalogEntitlementService {
                         if (user.roles.includes(ent.targetId!)) { result.push(typeId); break; }
                         continue;
                     case 'DEPARTMENT':
-                        if (user.agentTeam === ent.targetId) { result.push(typeId); break; }
+                        if (user.departmentIds?.includes(ent.targetId!) || user.agentTeam === ent.targetId) { result.push(typeId); break; }
                         continue;
                     case 'ENTITY':
                         if (user.entityId === ent.targetId) { result.push(typeId); break; }

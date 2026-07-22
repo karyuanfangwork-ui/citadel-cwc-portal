@@ -4,9 +4,23 @@ import { collateralService, LtvResult } from '../credit/services/collateral.serv
 // ── Test data ──────────────────────────────────────────────────────────────
 let testAppId: string;
 let testFacilityId: string;
+let testUserId: string;
 let testCollateralIds: string[] = [];
 
 beforeAll(async () => {
+  // Create a test user for FK constraints (softDeletedById, etc.)
+  const testUser = await prisma.user.create({
+    data: {
+      email: `p1-ltv-${Date.now()}@test.local`,
+      passwordHash: '$2a$12$fakehash',
+      firstName: 'LTV',
+      lastName: 'Tester',
+      isActive: true,
+      tenantId: '00000000-0000-0000-0000-000000000001',
+    },
+  });
+  testUserId = testUser.id;
+
   // Seed haircut configs
   const configs = [
     { securityCategory: 'PROPERTY', haircutPercent: 0.30, minValuationAgeMonths: 12 },
@@ -34,6 +48,7 @@ beforeAll(async () => {
       productType: 'TERM_LOAN',
       requestedAmount: 500000,
       state: 'DRAFT',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     },
   });
   testAppId = app.id;
@@ -55,6 +70,9 @@ afterAll(async () => {
   }
   await prisma.applicationFacility.deleteMany({ where: { id: testFacilityId } }).catch(() => {});
   await prisma.creditApplication.deleteMany({ where: { id: testAppId } }).catch(() => {});
+  if (testUserId) {
+    await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
+  }
   await prisma.$disconnect();
 });
 
@@ -226,7 +244,7 @@ describe('P1-4: LTV Gate + Collateral Hardening', () => {
         },
       });
 
-      const deletedById = 'd116ac9e-80de-426f-bdc2-93dd869e51c8';
+      const deletedById = testUserId;
       const result = await collateralService.softDeleteCollateral(
         collateral.id, deletedById, 'Test soft delete'
       );
@@ -263,7 +281,7 @@ describe('P1-4: LTV Gate + Collateral Hardening', () => {
         },
       });
 
-      const deletedById = 'd116ac9e-80de-426f-bdc2-93dd869e51c8';
+      const deletedById = testUserId;
       await collateralService.softDeleteCollateral(collateral.id, deletedById, 'First delete');
 
       await expect(
@@ -311,7 +329,7 @@ describe('P1-4: LTV Gate + Collateral Hardening', () => {
       });
 
       // Soft-delete one
-      await collateralService.softDeleteCollateral(c2.id, 'd116ac9e-80de-426f-bdc2-93dd869e51c8', 'remove vehicle');
+      await collateralService.softDeleteCollateral(c2.id, testUserId, 'remove vehicle');
 
       const listed = await collateralService.listCollateral(testAppId);
       const ids = listed.map((c: any) => c.id);

@@ -26,6 +26,7 @@ let testUserId: string;
 let testRequestId: string;
 let serviceDeskId: string;
 let requestTypeId: string;
+let requestTypeFormVersion: number;
 
 beforeAll(async () => {
   // Clean up any pre-existing test data
@@ -39,7 +40,23 @@ beforeAll(async () => {
   await prisma.userRole.deleteMany({ where: { user: { email: TEST_EMAIL } } });
   await prisma.user.deleteMany({ where: { email: TEST_EMAIL } });
 
-  // Create test user
+  // Use the seeded Get IT Help catalog item so this covers the real request path.
+  const requestType = await prisma.requestType.findFirst({
+    where: { code: 'GET_IT_HELP' },
+    include: {
+      serviceCategory: {
+        include: { serviceDesk: true },
+      },
+    },
+  });
+  if (!requestType || !requestType.serviceCategory.serviceDesk.tenantId) {
+    throw new Error('Get IT Help request type is not seeded with a tenant-scoped service desk.');
+  }
+  requestTypeId = requestType.id;
+  requestTypeFormVersion = requestType.formConfigVersion!;
+  serviceDeskId = requestType.serviceCategory.serviceDesk.id;
+
+  // Create a tenant-scoped test user
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
   const user = await prisma.user.upsert({
     where: { email: TEST_EMAIL },
@@ -50,6 +67,7 @@ beforeAll(async () => {
       firstName: 'Test',
       lastName: 'RequestUser',
       isActive: true,
+      tenantId: requestType.serviceCategory.serviceDesk.tenantId,
     },
   });
   testUserId = user.id;
@@ -62,25 +80,6 @@ beforeAll(async () => {
     { expiresIn: '1h' }
   );
 
-  // Get first service desk for test requests
-  const serviceDesk = await prisma.serviceDesk.findFirst();
-  if (!serviceDesk) {
-    throw new Error('No service desk found in database. Run seed first.');
-  }
-  serviceDeskId = serviceDesk.id;
-
-  // Get first request type for that service desk
-  const requestType = await prisma.requestType.findFirst({
-    where: {
-      serviceCategory: {
-        serviceDeskId: serviceDesk.id,
-      },
-    },
-  });
-  if (!requestType) {
-    throw new Error('No request type found for service desk. Run seed first.');
-  }
-  requestTypeId = requestType.id;
 });
 
 afterAll(async () => {
@@ -96,21 +95,24 @@ afterAll(async () => {
 });
 
 describe('POST /api/v1/requests', () => {
-  it('creates a request and returns 201', async () => {
+  it('creates a tenant-scoped Get IT Help request and returns 201', async () => {
     const res = await request(app)
       .post('/api/v1/requests')
       .set('Authorization', `Bearer ${authToken}`)
       .send({
         serviceDeskId,
         requestTypeId,
-        summary: 'Test request summary',
-        description: 'Test request description',
+        formVersion: requestTypeFormVersion,
+        summary: 'Get IT Help: Test request summary',
+        description: '<p>Test request description</p>',
         priority: 'MEDIUM',
       });
 
     expect(res.status).toBe(201);
     const body = res.body.data ?? res.body;
     expect(body.request).toBeDefined();
+    expect(body.request.tenantId).toBeDefined();
+    expect(body.request.requestType.code).toBe('GET_IT_HELP');
     testRequestId = body.request.id;
   });
 });

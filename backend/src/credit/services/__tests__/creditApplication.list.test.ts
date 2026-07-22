@@ -166,19 +166,17 @@ describe('listApplications — server-side quick filters + sort (F8)', () => {
     expect(orderByArg).toEqual({ createdAt: 'desc' });
   });
 
-  it('adds _slaBreached flag to each application in the list payload', async () => {
+  it('does not leak slaBreaches relation into the list payload', async () => {
     const appWithBreach = makeAppResult(makeApp(1));
     const appNoBreach = makeAppResult(makeApp(2));
     mockedFindMany.mockResolvedValue([appWithBreach, appNoBreach]);
     mockedCount.mockResolvedValue(2);
-    // app-1 has a breach, app-2 doesn't
-    mockedSlaBreachFindMany.mockResolvedValue([{ applicationId: 'app-1' }]);
 
     const result = await creditApplicationService.listApplications({});
 
-    expect(result.applications[0]._slaBreached).toBe(true);
-    expect(result.applications[1]._slaBreached).toBe(false);
+    // The _slaBreached computed flag was removed; verify the relation is not leaked
     expect((result.applications[0] as any).slaBreaches).toBeUndefined();
+    expect((result.applications[1] as any).slaBreaches).toBeUndefined();
   });
 
   it('combines assignedToMe with overdueSla filter', async () => {

@@ -48,6 +48,7 @@ beforeAll(async () => {
   const [owner, other] = await Promise.all([
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: ownerEmail,
         passwordHash: 'test-hash',
         firstName: 'SG',
@@ -58,6 +59,7 @@ beforeAll(async () => {
     }),
     prisma.user.create({
       data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
         email: otherEmail,
         passwordHash: 'test-hash',
         firstName: 'SG',
@@ -73,6 +75,7 @@ beforeAll(async () => {
 
   const pipeline = await prisma.crmPipeline.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG Pipeline ${suffix}`,
       stages: {
         create: [
@@ -121,15 +124,16 @@ beforeAll(async () => {
   [stage1Id, stage2Id, stage3Id, stage4Id] = pipeline.stages.map((stage) => stage.id);
 
   const ownerAccount = await prisma.crmAccount.create({
-    data: { name: `SG Owner Account ${suffix}`, ownerId: owner.id },
+    data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `SG Owner Account ${suffix}`, ownerId: owner.id },
   });
 
   const otherAccount = await prisma.crmAccount.create({
-    data: { name: `SG Other Account ${suffix}`, ownerId: other.id },
+    data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `SG Other Account ${suffix}`, ownerId: other.id },
   });
 
   const oppAtStage2 = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG At Stage2 ${suffix}`,
       accountId: ownerAccount.id,
       pipelineId: pipeline.id,
@@ -142,6 +146,7 @@ beforeAll(async () => {
 
   const oppForward = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG Forward ${suffix}`,
       accountId: ownerAccount.id,
       pipelineId: pipeline.id,
@@ -154,6 +159,7 @@ beforeAll(async () => {
 
   const oppMissingField = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG Missing Field ${suffix}`,
       accountId: ownerAccount.id,
       pipelineId: pipeline.id,
@@ -167,6 +173,7 @@ beforeAll(async () => {
 
   const oppHighValue = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG High Value ${suffix}`,
       accountId: ownerAccount.id,
       pipelineId: pipeline.id,
@@ -179,6 +186,7 @@ beforeAll(async () => {
 
   const otherOpp = await prisma.crmOpportunity.create({
     data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
       name: `SG Other Owner Opp ${suffix}`,
       accountId: otherAccount.id,
       pipelineId: pipeline.id,

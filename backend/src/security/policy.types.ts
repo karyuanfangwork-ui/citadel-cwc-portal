@@ -18,6 +18,7 @@ export type PolicyAction =
     | 'assign'
     | 'escalate'
     | 'export'
+    | 'download'
     | 'manage'
     | 'confidential_read';
 
@@ -36,6 +37,7 @@ export interface PolicyPrincipal {
     permissions: string[];
     agentTeam?: string | null;
     departmentIds?: string[];
+    entityId?: string | null;
 }
 
 // ── Resource Descriptor ───────────────────────────────────────────────
