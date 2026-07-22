@@ -8,7 +8,7 @@ import {
 import {
     getAttachmentScanTarget,
     markQuarantineFailure,
-    markScanResult,
+    markWorkerScanResult,
     quarantineInfectedAttachment,
 } from '../services/attachmentAccess.service';
 import { clamAvService } from '../services/clamAv.service';
@@ -39,12 +39,10 @@ export async function processAttachmentScan(data: AttachmentScanJobData): Promis
 
         const stream = await s3Service.streamObject(attachment.storagePath);
         const scan = await clamAvService.scanStream(stream);
-        await markScanResult({
+        await markWorkerScanResult({
             attachmentId: attachment.id,
             scanJobId: data.scanJobId,
             contentHash: data.contentHash,
-            nonce: data.nonce,
-            timestamp: new Date(),
             result: scan.status,
         });
 
@@ -77,12 +75,10 @@ export async function markTerminalScanFailure(job: Job<AttachmentScanJobData>): 
                 });
                 return;
             }
-            await markScanResult({
+            await markWorkerScanResult({
                 attachmentId: data.attachmentId,
                 scanJobId: data.scanJobId,
                 contentHash: data.contentHash,
-                nonce: data.nonce,
-                timestamp: new Date(),
                 result: 'SCAN_FAILED',
             });
         } catch (error) {
@@ -112,6 +108,9 @@ export function startAttachmentScanWorker(): Worker<AttachmentScanJobData> | nul
     worker.on('failed', async (job, error) => {
         logger.error(`[AttachmentScanner] Job ${job?.id} failed: ${error.message}`);
         if (job) await markTerminalScanFailure(job);
+    });
+    worker.on('error', (error) => {
+        logger.error('[AttachmentScanner] Worker infrastructure error', { error });
     });
     logger.info(`[AttachmentScanner] Started (concurrency: ${config.attachmentScanner.concurrency})`);
     return worker;

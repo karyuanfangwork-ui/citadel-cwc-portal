@@ -7,6 +7,7 @@ import { startWorkflowEngine } from './services/crm-workflow.service';
 import { startPdfWorker } from './workers/pdf.worker';
 import { startAttachmentScanWorker } from './workers/attachmentScan.worker';
 import { attachmentScanQueue } from './queues/attachmentScan.queue';
+import { startAttachmentLifecycleReconciler } from './services/attachmentLifecycleReconciler.service';
 import app from './app';
 
 // Load environment variables
@@ -20,6 +21,7 @@ const PORT = config.port;
 let isShuttingDown = false;
 let pdfWorker: ReturnType<typeof startPdfWorker> | null = null;
 let attachmentScanWorker: ReturnType<typeof startAttachmentScanWorker> = null;
+let stopAttachmentReconciler: (() => void) | null = null;
 
 const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
@@ -38,6 +40,7 @@ const server = app.listen(PORT, () => {
 
     // Start governed malware scanning and quarantine worker (BullMQ)
     attachmentScanWorker = startAttachmentScanWorker();
+    stopAttachmentReconciler = startAttachmentLifecycleReconciler();
 });
 
 // Graceful shutdown
@@ -58,6 +61,7 @@ const gracefulShutdown = (signal: string, error?: unknown, exitCode = 0) => {
 
     // Stop scheduled jobs
     shutdownScheduler();
+    stopAttachmentReconciler?.();
 
     const workerShutdown = Promise.allSettled([
         pdfWorker?.close(),

@@ -9,7 +9,6 @@ export interface AttachmentScanJobData {
     tenantId: string;
     scanJobId: string;
     contentHash: string;
-    nonce: string;
 }
 
 export const attachmentScanQueue = new Queue<AttachmentScanJobData>(ATTACHMENT_SCAN_QUEUE_NAME, {
@@ -23,5 +22,11 @@ export const attachmentScanQueue = new Queue<AttachmentScanJobData>(ATTACHMENT_S
 });
 
 export async function dispatchAttachmentScan(data: AttachmentScanJobData): Promise<void> {
+    const existing = await attachmentScanQueue.getJob(data.scanJobId);
+    if (existing) {
+        const state = await existing.getState();
+        if (!['completed', 'failed'].includes(state)) return;
+        await existing.remove();
+    }
     await attachmentScanQueue.add('scan', data, { jobId: data.scanJobId });
 }

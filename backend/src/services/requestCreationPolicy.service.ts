@@ -155,6 +155,13 @@ export async function resolveRequestCreationPolicy(
 
     validatePublishedForm(requestType.formConfig, input.values);
 
+    // Confidentiality is governed by the request type's classification metadata.
+    // CONFIDENTIAL and RESTRICTED types force isConfidential=true regardless
+    // of any client-supplied flag. INTERNAL types respect the user's choice.
+    const isConfidential = requestType.classification === 'CONFIDENTIAL'
+        || requestType.classification === 'RESTRICTED'
+        || (requestType.classification === 'INTERNAL' && !!input.requestedConfidentiality);
+
     return {
         requestType,
         serviceDesk,
@@ -164,9 +171,7 @@ export async function resolveRequestCreationPolicy(
         slaHours: requestType.slaHours,
         formVersion: requestType.formConfigVersion,
         formConfig: requestType.formConfig,
-        // Confidentiality is derived server-side. Existing HR and Finance desks
-        // are classified confidential until catalog classification metadata is
-        // introduced as a separately governed field.
-        isConfidential: serviceDesk.code === 'HR' || serviceDesk.code === 'FINANCE',
+        classification: requestType.classification,
+        isConfidential,
     };
 }

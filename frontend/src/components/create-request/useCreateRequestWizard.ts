@@ -4,6 +4,7 @@ import { entityService } from '../../services/entity.service';
 import apiClient from '../../services/api';
 import { friendlyMessage } from '../../utils/errorMessages';
 import { parseFormConfig } from '../../utils/formConfig';
+import { validateFormValues, isConfidentialForClassification, type RequestClassification } from '../../utils/requestValidation';
 import { useAuth } from '../../context/AuthContext';
 
 export type WizardStep = 'type' | 'details' | 'review';
@@ -66,6 +67,9 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     isConfidential: false,
     customFields: {},
   });
+
+  // P03 Task 13: Client-side validation errors for step transitions
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const { user } = useAuth();
 
@@ -300,8 +304,17 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     const summary = parts.join(' ').trim();
     return summary ? `New Hire: ${summary}` : '';
   }, [isAutoSummary, formData.customFields, entityOptions, selectedRequestType]);
-  // Auto-set confidential for HR requests — all HR requests are confidential by default
-  const isAutoConfidential = useMemo(() => deskType === 'hr', [deskType]);
+  // P03 Task 13: Classification-driven confidentiality.
+  // CONFIDENTIAL/RESTRICTED types always force confidentiality.
+  // INTERNAL types allow the user to toggle. If the type doesn't yet
+  // have classification metadata, fall back to the desk code for compatibility.
+  const isAutoConfidential = useMemo(() => {
+    const classification = selectedRequestType?.classification as RequestClassification | undefined;
+    if (classification === 'CONFIDENTIAL' || classification === 'RESTRICTED') return true;
+    if (classification === 'INTERNAL') return false;
+    // Fallback for types without classification metadata yet
+    return deskType === 'hr' || deskType === 'finance';
+  }, [selectedRequestType?.classification, deskType]);
 
   const isRoleBlocked = !!(
     selectedRequestType?.requiredRole &&
@@ -427,6 +440,21 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   const next = () => {
     if (!canProceed) return;
+
+    // P03 Task 13: Validate form fields on step transitions using published form schema
+    if (step === 'details' && selectedRequestType?.formConfig) {
+      const failures = validateFormValues(
+        selectedRequestType.formConfig,
+        formData.customFields,
+      );
+      if (failures.length > 0) {
+        setValidationErrors(failures.map(f => f.message));
+        return;
+      }
+    }
+
+    // Clear validation errors on successful transition
+    setValidationErrors([]);
     switch (step) {
       case 'type': setStep('details'); break;
       case 'details': setStep('review'); break;
@@ -477,5 +505,6 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     isAutoSummary,
     isAutoConfidential,
     workflow,
+    validationErrors,
   };
 }

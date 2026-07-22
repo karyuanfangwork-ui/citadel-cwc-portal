@@ -636,7 +636,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         </div>
       )}
 
-      {/* Confidentiality — HR auto-confidential, Finance manual toggle */}
+      {/* Confidentiality — P03 Task 13: governed by classification metadata */}
       {isAutoConfidential && (
         <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-cwc-xl">
           <span className="material-symbols-outlined text-amber-600 mt-0.5 text-lg">lock</span>
@@ -649,12 +649,12 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               </span>
             </div>
             <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-              All HR requests are confidential by default. Only you, designated approvers, and authorized personnel will see this request.
+              This request type is classified as confidential. Only you, designated approvers, and authorized personnel will see this request.
             </p>
           </div>
         </div>
       )}
-      {!isAutoConfidential && deskType === 'finance' && (
+      {!isAutoConfidential && (selectedRequestType?.classification === 'INTERNAL' || (!selectedRequestType?.classification && (deskType === 'hr' || deskType === 'finance'))) && (
         <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-cwc-xl">
           <label className="flex items-center gap-3 cursor-pointer select-none">
             <input

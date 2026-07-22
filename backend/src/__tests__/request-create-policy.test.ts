@@ -50,6 +50,7 @@ const publishedType = {
     slaHours: 24,
     workflowTypeId: 'workflow-1',
     requiredRole: null,
+    classification: 'INTERNAL',
     serviceCategory: {
         id: 'category-it',
         serviceDesk: {
@@ -138,13 +139,12 @@ describe('Task 13 request creation policy', () => {
         })).rejects.toThrow('Needs Accessories contains an invalid option');
     });
 
-    it('returns server-owned desk, department, workflow, SLA and confidentiality', async () => {
+    it('returns server-owned desk, department, workflow, SLA and classification', async () => {
         const result = await resolveRequestCreationPolicy(principal, {
             requestTypeId: 'type-it',
             serviceDeskId: 'desk-it',
             formVersion: 3,
             values: { hardwareName: 'Laptop', needsAccessories: 'No' },
-            requestedConfidentiality: true,
         });
 
         expect(result).toMatchObject({
@@ -154,14 +154,16 @@ describe('Task 13 request creation policy', () => {
             departmentId: 'department-it',
             workflowTypeId: 'workflow-1',
             slaHours: 24,
+            classification: 'INTERNAL',
             isConfidential: false,
             formVersion: 3,
         });
     });
 
-    it('forces confidentiality for HR and Finance regardless of a false client flag', async () => {
+    it('forces confidentiality for CONFIDENTIAL classification regardless of a false client flag', async () => {
         mockRequestTypeFindFirst.mockResolvedValue({
             ...publishedType,
+            classification: 'CONFIDENTIAL',
             serviceCategory: {
                 ...publishedType.serviceCategory,
                 serviceDesk: {
@@ -182,5 +184,33 @@ describe('Task 13 request creation policy', () => {
         });
 
         expect(result.isConfidential).toBe(true);
+    });
+
+    it('allows user choice for INTERNAL classification', async () => {
+        const result = await resolveRequestCreationPolicy(principal, {
+            requestTypeId: 'type-it',
+            serviceDeskId: 'desk-it',
+            formVersion: 3,
+            values: { hardwareName: 'Laptop', needsAccessories: 'No' },
+            requestedConfidentiality: true,
+        });
+
+        expect(result.isConfidential).toBe(true);
+    });
+
+    it('returns classification metadata for frontend consumption', async () => {
+        const result = await resolveRequestCreationPolicy(principal, {
+            requestTypeId: 'type-it',
+            serviceDeskId: 'desk-it',
+            formVersion: 3,
+            values: { hardwareName: 'Laptop', needsAccessories: 'No' },
+        });
+
+        expect(result.classification).toBe('INTERNAL');
+        expect(result).toHaveProperty('tenantId');
+        expect(result).toHaveProperty('departmentId');
+        expect(result).toHaveProperty('workflowTypeId');
+        expect(result).toHaveProperty('slaHours');
+        expect(result).toHaveProperty('formVersion');
     });
 });

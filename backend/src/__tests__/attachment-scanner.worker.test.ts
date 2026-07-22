@@ -1,7 +1,7 @@
 import { Readable } from 'stream';
 
 const mockGetTarget = jest.fn();
-const mockMarkScanResult = jest.fn();
+const mockMarkWorkerScanResult = jest.fn();
 const mockMarkQuarantineFailure = jest.fn();
 const mockQuarantine = jest.fn();
 const mockStreamObject = jest.fn();
@@ -18,7 +18,7 @@ jest.mock('../lib/execution-scope', () => ({
 jest.mock('../services/attachmentAccess.service', () => ({
     getAttachmentScanTarget: mockGetTarget,
     markQuarantineFailure: mockMarkQuarantineFailure,
-    markScanResult: mockMarkScanResult,
+    markWorkerScanResult: mockMarkWorkerScanResult,
     quarantineInfectedAttachment: mockQuarantine,
 }));
 
@@ -41,7 +41,6 @@ const job = {
     tenantId: 'tenant-1',
     scanJobId: 'job-1',
     contentHash: 'a'.repeat(64),
-    nonce: 'nonce-1',
 };
 
 const target = {
@@ -58,7 +57,7 @@ describe('Task 12 attachment scanner worker', () => {
         jest.clearAllMocks();
         mockGetTarget.mockResolvedValue(target);
         mockStreamObject.mockResolvedValue(Readable.from(Buffer.from('file')));
-        mockMarkScanResult.mockResolvedValue(undefined);
+        mockMarkWorkerScanResult.mockResolvedValue(undefined);
         mockMarkQuarantineFailure.mockResolvedValue(false);
         mockQuarantine.mockResolvedValue(undefined);
     });
@@ -69,7 +68,7 @@ describe('Task 12 attachment scanner worker', () => {
         await processAttachmentScan(job);
 
         expect(mockStreamObject).toHaveBeenCalledWith('cwc/object.pdf');
-        expect(mockMarkScanResult).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mockMarkWorkerScanResult).toHaveBeenCalledWith(expect.objectContaining({
             attachmentId: job.attachmentId,
             result: 'CLEAN',
         }));
@@ -81,7 +80,7 @@ describe('Task 12 attachment scanner worker', () => {
 
         await processAttachmentScan(job);
 
-        expect(mockMarkScanResult).toHaveBeenCalledWith(expect.objectContaining({ result: 'INFECTED' }));
+        expect(mockMarkWorkerScanResult).toHaveBeenCalledWith(expect.objectContaining({ result: 'INFECTED' }));
         expect(mockQuarantine).toHaveBeenCalledWith(job.attachmentId);
     });
 
@@ -113,6 +112,6 @@ describe('Task 12 attachment scanner worker', () => {
         await markTerminalScanFailure(failedJob);
 
         expect(mockMarkQuarantineFailure).toHaveBeenCalledWith(job.attachmentId, job.scanJobId);
-        expect(mockMarkScanResult).not.toHaveBeenCalled();
+        expect(mockMarkWorkerScanResult).not.toHaveBeenCalled();
     });
 });

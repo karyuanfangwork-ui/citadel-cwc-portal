@@ -44,6 +44,7 @@ jest.mock('../utils/logger', () => ({
 import {
     getAuthorizedDownloadUrl,
     markScanResult,
+    markWorkerScanResult,
     quarantineInfectedAttachment,
     registerUpload,
 } from '../services/attachmentAccess.service';
@@ -113,7 +114,6 @@ describe('Task 12 attachment lifecycle', () => {
             tenantId: 'tenant-1',
             scanJobId: result.scanRegistration.scanJobId,
             contentHash: result.scanRegistration.contentHash,
-            nonce: result.scanRegistration.nonce,
         }));
     });
 
@@ -223,6 +223,26 @@ describe('Task 12 attachment lifecycle', () => {
                 isScanned: true,
                 scanCallbackConsumedAt: expect.any(Date),
             }),
+        }));
+    });
+
+    it('allows a delayed internal worker result without relying on callback expiry', async () => {
+        mockAttachmentUpdateMany.mockResolvedValue({ count: 1 });
+
+        await markWorkerScanResult({
+            attachmentId: 'attachment-1',
+            scanJobId: 'job-1',
+            contentHash: 'hash-1',
+            result: 'CLEAN',
+        });
+
+        expect(mockAttachmentFindFirst).not.toHaveBeenCalled();
+        expect(mockAttachmentUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: expect.objectContaining({
+                scanJobId: 'job-1',
+                scanStatus: 'PENDING_SCAN',
+            }),
+            data: expect.objectContaining({ scanStatus: 'CLEAN' }),
         }));
     });
 

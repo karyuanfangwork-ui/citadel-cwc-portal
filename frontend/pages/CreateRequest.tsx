@@ -4,6 +4,7 @@ import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { useToast } from '../src/context/ToastContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { validateFormValues } from '../src/utils/requestValidation';
 import { useCreateRequestWizard, WizardStep } from '../src/components/create-request/useCreateRequestWizard';
 import WizardStepper from '../src/components/create-request/WizardStepper';
 import StepRequestType from '../src/components/create-request/StepRequestType';
@@ -46,10 +47,22 @@ const CreateRequest = () => {
         if (wizard.isRoleBlocked) return;
 
         try {
-            wizard.setSubmitting(true);
-            wizard.setError(null);
+          wizard.setSubmitting(true);
+          wizard.setError(null);
 
-            const request = await requestService.createRequest({
+          // P03 Task 13: Final validation before submit using published form schema
+          if (wizard.selectedRequestType?.formConfig) {
+            const failures = validateFormValues(
+              wizard.selectedRequestType.formConfig,
+              wizard.formData.customFields,
+            );
+            if (failures.length > 0) {
+              wizard.setError(failures.map(f => f.message).join('. '));
+              return;
+            }
+          }
+
+          const request = await requestService.createRequest({
                 serviceDeskId: deskId,
                 requestTypeId: wizard.selectedRequestType.id,
                 formVersion: wizard.selectedRequestType.formConfigVersion,
@@ -128,6 +141,15 @@ const CreateRequest = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-8">
+                            {/* P03 Task 13: Step-transition validation errors */}
+                            {wizard.validationErrors.length > 0 && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-cwc-md text-red-700 text-sm">
+                                    {wizard.validationErrors.map((msg, i) => (
+                                        <p key={i}>{msg}</p>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Step Content */}
                             {wizard.step === 'type' && (
                                 <StepRequestType

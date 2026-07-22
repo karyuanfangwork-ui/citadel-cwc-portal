@@ -481,6 +481,10 @@ model RequestType {
   // P5-01: Catalog governance fields
   ownerId           String?  @map("owner_id") @db.Uuid
   lifecycleStatus   CatalogLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  // P03 Task 13: Server-owned per-type classification. Replaces desk-code-based
+  // confidentiality derivation. INTERNAL = visible to department members;
+  // CONFIDENTIAL = restricted to authorised roles; RESTRICTED = need-to-know.
+  classification    RequestClassification @default(INTERNAL) @map("classification")
   reviewDate        DateTime? @map("review_date") @db.Timestamp(6)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
@@ -6212,4 +6216,14 @@ enum CatalogLifecycleStatus {
   PUBLISHED
   DEPRECATED
   RETIRED
+}
+
+// P03 Task 13: Per-type classification for request types.
+// INTERNAL    = visible to desk members, no special access controls
+// CONFIDENTIAL = restricted to authorised roles (HR, Finance default)
+// RESTRICTED   = need-to-know, strict access audit
+enum RequestClassification {
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
 }

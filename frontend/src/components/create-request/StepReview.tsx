@@ -253,8 +253,8 @@ const StepReview: React.FC<StepReviewProps> = ({
         </div>
       )}
 
-      {/* Confidentiality */}
-      {(deskType === 'hr' || deskType === 'finance') && (formData.isConfidential || isAutoConfidential) && (
+      {/* Confidentiality — P03 Task 13: classification-driven */}
+      {(formData.isConfidential || isAutoConfidential) && (
         <div>
           <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3">Confidentiality</h3>
           <div className="flex items-center gap-2 text-amber-700">

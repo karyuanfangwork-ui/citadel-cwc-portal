@@ -130,7 +130,6 @@ export async function registerUpload(input: RegisterUploadInput) {
             tenantId: request.tenantId,
             scanJobId,
             contentHash,
-            nonce,
         });
     } catch {
         const failedAt = new Date();
@@ -218,6 +217,33 @@ export async function markScanResult(input: MarkScanResultInput) {
     if (updated.count !== 1) throw new AppError('Scan callback already consumed', 409);
 
     return { attachmentId: input.attachmentId, scanStatus: input.result, scanCompletedAt: completedAt };
+}
+
+/** Internal worker transition. Queue jobs are bound to immutable database
+ * registration data and do not expire with the external callback credential. */
+export async function markWorkerScanResult(input: {
+    attachmentId: string;
+    scanJobId: string;
+    contentHash: string;
+    result: 'CLEAN' | 'INFECTED' | 'SCAN_FAILED';
+}): Promise<void> {
+    const completedAt = new Date();
+    const updated = await prisma.requestAttachment.updateMany({
+        where: {
+            id: input.attachmentId,
+            scanJobId: input.scanJobId,
+            contentHash: input.contentHash,
+            scanStatus: 'PENDING_SCAN',
+        },
+        data: {
+            scanStatus: input.result,
+            scanResult: input.result,
+            isScanned: true,
+            scanCompletedAt: completedAt,
+            scanCallbackConsumedAt: completedAt,
+        },
+    });
+    if (updated.count !== 1) throw new AppError('Attachment scan lifecycle changed', 409);
 }
 
 export async function getAuthorizedAttachment(principal: PolicyPrincipal, attachmentId: string) {

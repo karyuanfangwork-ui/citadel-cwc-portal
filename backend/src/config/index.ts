@@ -130,6 +130,7 @@ export const config = {
         port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
         timeoutMs: parseInt(process.env.CLAMAV_TIMEOUT_MS || '30000', 10),
         concurrency: parseInt(process.env.ATTACHMENT_SCANNER_CONCURRENCY || '2', 10),
+        reconciliationIntervalMs: parseInt(process.env.ATTACHMENT_RECONCILIATION_INTERVAL_MS || '60000', 10),
     },
 
     // P1-15: Static file serving — disabled in production by default.

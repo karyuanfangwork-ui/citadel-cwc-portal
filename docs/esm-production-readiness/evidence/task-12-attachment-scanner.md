@@ -7,8 +7,10 @@ Scope: local integration environment only; this is not production deployment evi
 
 - Upload registration derives tenant, department and parent ownership from the request and persists `PENDING_SCAN` with immutable object identity, SHA-256 content hash, unique scan job ID and one-time callback binding.
 - BullMQ dispatch and worker execute under explicit tenant-aware system scope.
+- A periodic idempotent reconciler redelivers persisted `PENDING_SCAN` registrations after database/Redis crash windows and retries `PENDING_DELETION` object cleanup.
 - ClamAV integration uses the daemon `INSTREAM` protocol; only the exact `stream: OK` response is clean, while malformed responses, oversized responses and scanner errors fail closed.
 - Bound callbacks validate attachment ID, scan job ID, content hash, nonce, expiry and timestamp, with compare-and-set replay defense.
+- Internal BullMQ results use a separate immutable job/content binding, so queue delay does not inherit the external callback credential's 15-minute expiry.
 - Downloads require `CLEAN`, unexpired active retention and parent-request policy authorization.
 - `INFECTED` objects use a retry-safe two-phase quarantine transition: deterministic copy, persisted quarantine evidence, source deletion and persisted deletion evidence. Exhausted quarantine retries are durably marked `QUARANTINE_FAILED` and retained as failed BullMQ jobs.
 - Migrations `20260722102000_attachment_scanner_contract` and `20260722113000_attachment_request_scope_quarantine_recovery` enforce non-null ownership, composite request/tenant/department integrity and valid pending/completed quarantine evidence.
@@ -26,8 +28,8 @@ Scope: local integration environment only; this is not production deployment evi
   - original object deleted
   - infected download denied with not-found concealment
   - smoke records and objects cleaned afterward
-- Focused attachment, callback, worker, ClamAV and operation-control suites: 6 suites, 47 tests passed.
-- Full backend regression: 166 suites, 1,962 tests passed.
+- Focused attachment, callback, worker, reconciliation, queue, ClamAV and operation-control suites: 8 suites, 52 tests passed.
+- Full backend regression: 168 suites, 1,967 tests passed.
 - Backend TypeScript build: passed.
 - Prisma schema validation: passed.
 - Local database: all 83 migrations applied; schema up to date.
