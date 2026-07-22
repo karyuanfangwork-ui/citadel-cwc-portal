@@ -23,6 +23,8 @@ interface AuthUser {
     permissions?: string[];
     agentTeam?: string | null;
     tenantId?: string | null;
+    /** Task 14: Department memberships from server-authoritative policy */
+    departmentIds?: string[];
 }
 
 /** P0-2: Error thrown when the backend requires a password reset */
@@ -78,6 +80,12 @@ export const authService = {
     async getCurrentUser(): Promise<AuthUser> {
         const response = await apiClient.get('/users/me');
         return response.data.data.user;
+    },
+
+    /** Task 14: Fetch server-authoritative policy decisions for frontend route/action consumption */
+    async getMyPolicy(): Promise<import('../types/policy').PolicyDecision> {
+        const response = await apiClient.get('/users/me/policy');
+        return response.data.data;
     },
 
     async changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<{ message: string }> {

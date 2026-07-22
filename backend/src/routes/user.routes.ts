@@ -70,6 +70,14 @@ router.get(
 router.get('/me', userController.getMe);
 
 /**
+ * @route   GET /api/v1/users/me/policy
+ * @desc    Get current user's policy decisions (permissions, departments, allowed actions)
+ * @access  Private
+ * Task 14: Server-authoritative policy for frontend route/action consumption.
+ */
+router.get('/me/policy', userController.getMyPolicy);
+
+/**
  * @route   PUT /api/v1/users/me
  * @desc    Update current user profile
  * @access  Private

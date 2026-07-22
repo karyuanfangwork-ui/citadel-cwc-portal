@@ -8,6 +8,58 @@ import { sanitizeString } from '../utils/sanitize';
 import { permissionService } from '../services/permission.service';
 import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
+
+/**
+ * Task 14: Compute the allowed actions for a user based on their permissions and roles.
+ * Returns a flat list of { resource, action, scope } tuples that the frontend can
+ * use to render/hide action buttons and route guards.
+ */
+function computeAllowedActions(user: NonNullable<AuthRequest['user']>): Array<{ resource: string; action: string; scope: string }> {
+    const perms = user.permissions || [];
+    const roles = user.roles || [];
+    const isAdmin = roles.includes('ADMIN');
+    const isAgent = roles.includes('AGENT');
+    const actions: Array<{ resource: string; action: string; scope: string }> = [];
+
+    // Request management
+    if (perms.includes('request:create') || isAdmin) actions.push({ resource: 'request', action: 'create', scope: 'own' });
+    if (perms.includes('request:read') || isAdmin) actions.push({ resource: 'request', action: 'read', scope: 'own' });
+    if (perms.includes('request:assign') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'assign', scope: 'department' });
+    if (perms.includes('request:approve') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'approve', scope: 'department' });
+    if (perms.includes('request:close') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'close', scope: 'department' });
+    if (isAdmin) actions.push({ resource: 'request', action: 'delete', scope: 'tenant' });
+    if (perms.includes('request:export') || isAdmin) actions.push({ resource: 'request', action: 'export', scope: 'department' });
+
+    // Asset management
+    if (perms.includes('asset:read') || isAdmin) actions.push({ resource: 'asset', action: 'read', scope: 'tenant' });
+    if (perms.includes('asset:create') || isAdmin) actions.push({ resource: 'asset', action: 'create', scope: 'tenant' });
+    if (perms.includes('asset:assign') || isAgent || isAdmin) actions.push({ resource: 'asset', action: 'assign', scope: 'department' });
+    if (perms.includes('asset:manage') || isAdmin) actions.push({ resource: 'asset', action: 'manage', scope: 'tenant' });
+
+    // Knowledge base
+    if (perms.includes('kb:read') || isAdmin) actions.push({ resource: 'kb', action: 'read', scope: 'tenant' });
+    if (perms.includes('kb:manage') || isAdmin) actions.push({ resource: 'kb', action: 'manage', scope: 'tenant' });
+
+    // Reports
+    if (perms.includes('report:read') || isAdmin) actions.push({ resource: 'report', action: 'read', scope: 'tenant' });
+
+    // Admin
+    if (perms.includes('admin:access') || isAdmin) actions.push({ resource: 'admin', action: 'access', scope: 'tenant' });
+    if (perms.includes('admin:settings') || isAdmin) actions.push({ resource: 'admin', action: 'settings', scope: 'tenant' });
+    if (perms.includes('announcement:write') || isAdmin) actions.push({ resource: 'announcement', action: 'write', scope: 'tenant' });
+
+    // CRM
+    if (perms.includes('crm:read') || isAdmin) actions.push({ resource: 'crm', action: 'read', scope: 'tenant' });
+    if (perms.includes('crm:delete') || isAdmin) actions.push({ resource: 'crm', action: 'delete', scope: 'own' });
+
+    // Credit
+    if (perms.includes('credit:read') || isAdmin) actions.push({ resource: 'credit', action: 'read', scope: 'tenant' });
+    if (perms.includes('credit:create') || isAdmin) actions.push({ resource: 'credit', action: 'create', scope: 'own' });
+    if (perms.includes('credit:approve') || isAdmin) actions.push({ resource: 'credit', action: 'approve', scope: 'department' });
+    if (perms.includes('credit:admin') || isAdmin) actions.push({ resource: 'credit', action: 'admin', scope: 'tenant' });
+
+    return actions;
+}
 import { tokenService } from '../services/token.service';
 import { EXECUTIVE_HIERARCHY, validateExecutiveRoleAssignment } from '../utils/executive-role';
 import { validatePassword } from '../utils/password';
@@ -110,8 +162,45 @@ class UserController {
                     permissions: req.user?.permissions || [],
                     agentTeam: user.agentTeam,
                     tenantId: user.tenantId,
+                    departmentIds: req.user?.departmentIds || [],
                     createdAt: user.createdAt,
                 },
+            },
+        });
+    });
+
+    /**
+     * GET /api/v1/users/me/policy
+     * Task 14: Return server-authoritative policy decisions for frontend route/action consumption.
+     * Includes permissions, department memberships, and allowed actions with scope.
+     */
+    getMyPolicy = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        if (!req.user) {
+            throw new AppError('Not authenticated', 401);
+        }
+
+        const [departments, allowedActions] = await Promise.all([
+            prisma.departmentMembership.findMany({
+                where: {
+                    userId: req.user.id,
+                    validFrom: { lte: new Date() },
+                    OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+                },
+                include: { department: { select: { id: true, code: true, name: true } } },
+            }),
+            computeAllowedActions(req.user),
+        ]);
+
+        res.json({
+            status: 'success',
+            data: {
+                permissions: req.user.permissions || [],
+                departments: departments.map((m: any) => ({
+                    id: m.department.id,
+                    code: m.department.code,
+                    name: m.department.name,
+                })),
+                allowedActions,
             },
         });
     });

@@ -1,4 +1,4 @@
-import { hasPermission, hasAnyPermission, hasAnyRole } from '@/src/utils/permissions';
+import { hasPermission, hasAnyPermission, hasAnyRole, hasDepartment } from '@/src/utils/permissions';
 import { isFeatureEnabled } from '@/src/lib/featureFlags';
 
 export type NavLinkConfig = {
@@ -7,6 +7,8 @@ export type NavLinkConfig = {
   icon: string;
   group: 'primary' | 'service-desks' | 'tools' | 'admin';
   show: boolean;
+  /** Task 14: Department IDs required to see this link. Empty = no department restriction. */
+  requireDepartmentIds?: string[];
 };
 
 export const buildNavLinks = (user: any): NavLinkConfig[] => [
@@ -19,6 +21,8 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   { to: '/agent',         label: 'Support Queue', icon: 'support_agent',   group: 'primary', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
 
   // ── Service Desks ─────────────────────────────────────────────────
+  // Task 14: Service desks are visible to all users; department gating
+  // is enforced at the route/action level, not at the nav level.
   { to: '/it',      label: 'IT Support',    icon: 'computer',       group: 'service-desks', show: true },
   { to: '/hr',      label: 'Group HR',      icon: 'groups',         group: 'service-desks', show: true },
   { to: '/finance', label: 'Group Finance', icon: 'payments',       group: 'service-desks', show: true },

@@ -15,6 +15,10 @@ const renderWithRouter = (ui: React.ReactElement) =>
   render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('ProtectedRoute', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('shows loading spinner when auth is loading', () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: false, user: null, loading: true });
     renderWithRouter(
@@ -67,10 +71,10 @@ describe('ProtectedRoute', () => {
     warnSpy.mockRestore();
   });
 
-  it('renders children when requireAdmin=true and user has ADMIN role', () => {
+  it('renders children when requireAdmin=true and user has admin:access permission', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['ADMIN'], permissions: [] },
+      user: { roles: ['ADMIN'], permissions: ['admin:access'] },
       loading: false,
     });
     renderWithRouter(
@@ -123,5 +127,132 @@ describe('ProtectedRoute', () => {
       </ProtectedRoute>
     );
     expect(screen.getByText('Protected Content')).toBeTruthy();
+  });
+
+  // ── Task 14: requireAllPermissions (AND logic) ──────────────────────
+
+  it('renders children when ALL requireAllPermissions are met', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['AGENT'], permissions: ['request:approve', 'request:assign'] },
+      loading: false,
+    });
+    renderWithRouter(
+      <ProtectedRoute requireAllPermissions={['request:approve', 'request:assign']}>
+        <div>Approve & Assign</div>
+      </ProtectedRoute>
+    );
+    expect(screen.getByText('Approve & Assign')).toBeTruthy();
+  });
+
+  it('redirects when some requireAllPermissions are missing', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['AGENT'], permissions: ['request:approve'] },
+      loading: false,
+    });
+    const { container } = renderWithRouter(
+      <ProtectedRoute requireAllPermissions={['request:approve', 'request:assign']}>
+        <div>Approve & Assign</div>
+      </ProtectedRoute>
+    );
+    expect(container.textContent).not.toContain('Approve & Assign');
+    warnSpy.mockRestore();
+  });
+
+  // ── Task 14: requireDepartment ──────────────────────────────────────
+
+  it('renders children when user is a member of the required department', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['AGENT'], permissions: [], departmentIds: ['dept-hr', 'dept-it'] },
+      loading: false,
+    });
+    renderWithRouter(
+      <ProtectedRoute requireDepartment="dept-hr">
+        <div>HR Content</div>
+      </ProtectedRoute>
+    );
+    expect(screen.getByText('HR Content')).toBeTruthy();
+  });
+
+  it('redirects when user is not a member of the required department', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['AGENT'], permissions: [], departmentIds: ['dept-it'] },
+      loading: false,
+    });
+    const { container } = renderWithRouter(
+      <ProtectedRoute requireDepartment="dept-hr">
+        <div>HR Content</div>
+      </ProtectedRoute>
+    );
+    expect(container.textContent).not.toContain('HR Content');
+    warnSpy.mockRestore();
+  });
+
+  it('renders children when user matches any department in requireDepartment array', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['AGENT'], permissions: [], departmentIds: ['dept-finance'] },
+      loading: false,
+    });
+    renderWithRouter(
+      <ProtectedRoute requireDepartment={['dept-hr', 'dept-finance']}>
+        <div>Finance Content</div>
+      </ProtectedRoute>
+    );
+    expect(screen.getByText('Finance Content')).toBeTruthy();
+  });
+
+  it('redirects when user has no department memberships', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['NORMAL_STAFF'], permissions: [], departmentIds: [] },
+      loading: false,
+    });
+    const { container } = renderWithRouter(
+      <ProtectedRoute requireDepartment="dept-hr">
+        <div>HR Content</div>
+      </ProtectedRoute>
+    );
+    expect(container.textContent).not.toContain('HR Content');
+    warnSpy.mockRestore();
+  });
+
+  // ── Task 14: No ADMIN bypass — ADMIN must have explicit permissions ──
+
+  it('denies access when ADMIN role lacks the required permission (no bypass)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['ADMIN'], permissions: [] },
+      loading: false,
+    });
+    const { container } = renderWithRouter(
+      <ProtectedRoute requirePermission="report:read">
+        <div>Reports</div>
+      </ProtectedRoute>
+    );
+    // ADMIN bypass removed: must have explicit permission
+    expect(container.textContent).not.toContain('Reports');
+    warnSpy.mockRestore();
+  });
+
+  it('grants access when ADMIN role has the required permission', () => {
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { roles: ['ADMIN'], permissions: ['report:read'] },
+      loading: false,
+    });
+    renderWithRouter(
+      <ProtectedRoute requirePermission="report:read">
+        <div>Reports</div>
+      </ProtectedRoute>
+    );
+    expect(screen.getByText('Reports')).toBeTruthy();
   });
 });

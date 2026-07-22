@@ -226,7 +226,16 @@ class AuthController {
 
         const user = await prisma.user.findUnique({
             where: { email: normalizedEmail },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                departmentMemberships: {
+                    where: {
+                        validFrom: { lte: new Date() },
+                        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+                    },
+                    select: { departmentId: true },
+                },
+            },
         });
 
         if (!user || !user.isActive) {
@@ -283,6 +292,7 @@ class AuthController {
                     agentTeam: user.agentTeam,
                     tenantId: user.tenantId,
                     permissions: await permissionService.getUserPermissions(user.id),
+                    departmentIds: user.departmentMemberships?.map((m: any) => m.departmentId) || [],
                 },
                 accessToken, // exposed for SSE EventSource auth
             },
