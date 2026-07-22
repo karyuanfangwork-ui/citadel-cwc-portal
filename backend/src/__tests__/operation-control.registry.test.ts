@@ -122,7 +122,7 @@ describe('Operation Control Registry', () => {
 
   it('covers tenant management endpoints (findings #1–#2)', () => {
     const ops = operationControls.filter((c) =>
-      c.path.startsWith('/tenants'),
+      c.path.startsWith('/admin/tenants'),
     );
     expect(ops.length).toBeGreaterThanOrEqual(6);
   });

@@ -10,6 +10,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as ts from 'typescript';
+import { operationControls } from '../src/security/operation-control.registry';
 
 // ── ESM route file → mount prefix map ────────────────────────────────
 // Derived from backend/src/routes/index.ts router.use() declarations.
@@ -148,7 +150,7 @@ const CREDIT_SUB_MOUNTS: Record<string, string> = {
 const ROUTES_DIR = path.resolve(__dirname, '..', 'src', 'routes');
 const CREDIT_ROUTES_DIR = path.resolve(__dirname, '..', 'src', 'credit', 'routes');
 
-interface RouteOp {
+export interface RouteOp {
   method: string;
   path: string;
   file: string;
@@ -162,33 +164,44 @@ function extractRoutesFromContent(content: string, mountPrefix: string, fileName
   const routes: RouteOp[] = [];
   const seen = new Set<string>();
 
-  // Pass 1: Single-line routes — router.get('/path', ...) or router.get('/path', middleware, ...)
-  const singleLineRegex = /router\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`\s]+)['"`]/g;
-  let match: RegExpExecArray | null;
-  while ((match = singleLineRegex.exec(content)) !== null) {
-    const method = match[1].toUpperCase();
-    const routePath = match[2];
-    const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : '/' + routePath);
-    const key = `${method} ${fullPath}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      routes.push({ method, path: fullPath, file: fileName });
-    }
-  }
+  // Use the TypeScript AST rather than regular expressions so commented-out
+  // declarations (for example the disabled auth registration route) cannot be
+  // counted as live operations. This also handles single- and multi-line calls
+  // through the same code path.
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const supportedMethods = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
-  // Pass 2: Multi-line routes — router.METHOD(\n  '/path', ...)
-  // Reset lastIndex since we're using a new regex on the same content
-  const multiLineRegex = /router\.(get|post|put|patch|delete)\s*\(\s*\n\s*['"`]([^'"`\s]+)['"`]/g;
-  while ((match = multiLineRegex.exec(content)) !== null) {
-    const method = match[1].toUpperCase();
-    const routePath = match[2];
-    const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : '/' + routePath);
-    const key = `${method} ${fullPath}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      routes.push({ method, path: fullPath, file: fileName });
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && ts.isIdentifier(node.expression.expression)
+      && node.expression.expression.text === 'router'
+      && supportedMethods.has(node.expression.name.text)
+    ) {
+      const firstArgument = node.arguments[0];
+      if (firstArgument && (ts.isStringLiteral(firstArgument) || ts.isNoSubstitutionTemplateLiteral(firstArgument))) {
+        const method = node.expression.name.text.toUpperCase();
+        const routePath = firstArgument.text;
+        const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : `/${routePath}`);
+        const key = `${method} ${fullPath}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          routes.push({ method, path: fullPath, file: fileName });
+        }
+      }
     }
-  }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
 
   return routes;
 }
@@ -229,41 +242,14 @@ function extractRoutesFromDir(
   return routes;
 }
 
-function extractAllRoutes(): RouteOp[] {
+export function extractAllRoutes(): RouteOp[] {
   const esmRoutes = extractRoutesFromDir(ROUTES_DIR, ESM_MOUNT_PREFIXES, '', ESM_SKIP_FILES);
   const creditRoutes = extractRoutesFromDir(CREDIT_ROUTES_DIR, CREDIT_SUB_MOUNTS, '/credit');
   return [...esmRoutes, ...creditRoutes];
 }
 
-/**
- * Parse the operation control registry TypeScript source file.
- * Uses the `s` (dotAll) flag so . matches newlines, enabling extraction
- * of multi-line object entries like:
- *   {
- *     method: 'GET',
- *     path: '/users',
- *     ...
- *   },
- */
-function parseRegistry(registryContent: string): Map<string, { method: string; path: string; snippet: string }> {
-  const registeredPaths = new Map<string, { method: string; path: string; snippet: string }>();
-
-  // Match { method: 'GET', path: '/users', ... } entries spanning multiple lines
-  const entryRegex = /\{\s*method:\s*['"`](GET|POST|PUT|PATCH|DELETE)['"`],\s*path:\s*['"`]([^'"`]+)['"`]/gs;
-
-  let match: RegExpExecArray | null;
-  while ((match = entryRegex.exec(registryContent)) !== null) {
-    const method = match[1];
-    const pathValue = match[2];
-    const key = `${method} ${pathValue}`;
-    registeredPaths.set(key, { method, path: pathValue, snippet: match[0].substring(0, 80) });
-  }
-
-  return registeredPaths;
-}
-
 /** Normalize a route path for comparison — remove /api/v1 prefix, trailing slashes. */
-function normalizePath(p: string): string {
+export function normalizePath(p: string): string {
   let normalized = p.replace(/^\/api\/v1/, '');
   if (normalized.length > 1 && normalized.endsWith('/')) {
     normalized = normalized.slice(0, -1);
@@ -289,18 +275,19 @@ function main() {
 
   console.log(`Unique method+path combinations: ${routeMap.size}`);
 
-  // Parse the registry
-  const registryPath = path.resolve(__dirname, '..', 'src', 'security', 'operation-control.registry.ts');
-  const registryContent = fs.readFileSync(registryPath, 'utf-8');
-  const registeredPaths = parseRegistry(registryContent);
-  console.log(`\nRegistered operation controls: ${registeredPaths.size}`);
-
-  // Build normalized registry map
+  // Build the registry map from the executable typed source of truth. Parsing
+  // source text silently misses imported/spread batches and masks duplicate
+  // keys when a Map is populated too early.
   const normalizedRegistry = new Map<string, string>();
-  for (const [key, val] of registeredPaths) {
-    const normalizedKey = `${val.method} ${normalizePath(val.path)}`;
-    normalizedRegistry.set(normalizedKey, val.snippet);
+  const duplicateRegistryKeys: string[] = [];
+  for (const control of operationControls) {
+    const normalizedKey = `${control.method} ${normalizePath(control.path)}`;
+    if (normalizedRegistry.has(normalizedKey)) {
+      duplicateRegistryKeys.push(normalizedKey);
+    }
+    normalizedRegistry.set(normalizedKey, control.owner);
   }
+  console.log(`\nRegistered operation controls: ${operationControls.length}`);
 
   // Find uncovered routes (in code but not in registry)
   const uncovered: string[] = [];
@@ -328,6 +315,11 @@ function main() {
     extra.sort().forEach(r => console.log(`  ${r}`));
   }
 
+  if (duplicateRegistryKeys.length > 0) {
+    console.log(`\n--- Duplicate registry entries (${duplicateRegistryKeys.length}) ---`);
+    duplicateRegistryKeys.sort().forEach(r => console.log(`  ${r}`));
+  }
+
   const coveredRouteCount = routeMap.size - uncovered.length;
   const coveragePercent = routeMap.size > 0
     ? (coveredRouteCount / routeMap.size * 100).toFixed(1)
@@ -340,11 +332,13 @@ function main() {
 
   console.log(`\n--- Route → Registry Coverage: ${coveredRouteCount}/${routeMap.size} (${coveragePercent}%) ---`);
   console.log(`--- Registry → Route Coverage: ${coveredRegistryCount}/${normalizedRegistry.size} (${registryPercent}%) ---`);
-  console.log(`--- Total registered controls: ${registeredPaths.size} ---\n`);
+  console.log(`--- Total registered controls: ${operationControls.length} ---\n`);
 
-  if (uncovered.length > 0) {
+  if (uncovered.length > 0 || extra.length > 0 || duplicateRegistryKeys.length > 0) {
     process.exit(1);
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
