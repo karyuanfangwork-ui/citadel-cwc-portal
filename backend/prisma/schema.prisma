@@ -498,12 +498,12 @@ model RequestType {
   entitlements     CatalogEntitlement[] // P5-02
   approvalPolicies ApprovalPolicy[] // P5-06
 
+  @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
   @@index([tenantId])
   @@index([ownerId])
   @@index([lifecycleStatus])
-  @@unique([tenantId, code]) // P2-09: tenant-local unique
   @@map("request_types")
 }
 
@@ -543,6 +543,30 @@ enum PolicyConditionOperator {
   OR
 }
 
+// P04 Task 16: Approval definition lifecycle statuses
+enum ApprovalDefinitionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+// P04 Task 16: Approval instance step runtime statuses
+enum ApprovalStepStatus {
+  WAITING // Not yet activated (sequential steps after current)
+  ACTIVE // Currently awaiting a decision
+  APPROVED // Step approved
+  REJECTED // Step rejected
+  CANCELLED // Step cancelled (e.g. parent step rejected)
+  TIMED_OUT // Step timed out per policy
+}
+
+// P04 Task 16: Timeout action — what happens when a step times out
+enum ApprovalTimeoutAction {
+  REMINDER // Send reminder, keep step ACTIVE (default)
+  ESCALATE // Escalate to next authority level
+  REJECT // Auto-reject the step (requires explicit policy)
+}
+
 model ApprovalPolicy {
   id             String   @id @default(uuid()) @db.Uuid
   tenantId       String?  @map("tenant_id") @db.Uuid
@@ -558,6 +582,7 @@ model ApprovalPolicy {
   requestType     RequestType           @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
   steps           ApprovalPolicyStep[]
   approvalRecords RequestApproval[]
+  versions        ApprovalPolicyVersion[]
 
   @@index([requestTypeId])
   @@index([tenantId])
@@ -578,6 +603,10 @@ model ApprovalPolicyStep {
   label         String?  @db.VarChar(200)            // Human-readable label for this step
   autoApproveIf String?  @map("auto_approve_if") @db.Text // Optional JSON condition for auto-approve
   timeoutHours  Int?     @map("timeout_hours")        // Hours before auto-escalation/skip
+  // P04 Task 16: Parallel groups and timeout actions
+  parallelGroup String?               @map("parallel_group") @db.VarChar(50) // Steps with same parallelGroup activate together
+  timeoutAction ApprovalTimeoutAction @default(REMINDER) @map("timeout_action") // What happens on timeout
+  condition     Json?                 @db.JsonB // P04 Task 16: Typed condition AST for auto-approve/routing
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -587,6 +616,92 @@ model ApprovalPolicyStep {
   @@index([policyId])
   @@index([policyId, stepOrder])
   @@map("approval_policy_steps")
+}
+
+// P04 Task 16: Immutable published definition version
+// A policy can have many versions; only PUBLISHED versions can start instances.
+// Once published, a version's definition JSON is frozen.
+model ApprovalPolicyVersion {
+  id            String                   @id @default(uuid()) @db.Uuid
+  policyId      String                   @map("policy_id") @db.Uuid
+  versionNumber Int                      @map("version_number")
+  status        ApprovalDefinitionStatus @default(DRAFT) @map("status")
+  definition    Json                     @db.JsonB // Frozen snapshot of steps + conditions
+  publishedAt   DateTime?                @map("published_at") @db.Timestamp(6)
+  publishedBy   String?                  @map("published_by") @db.Uuid
+  retiredAt     DateTime?                @map("retired_at") @db.Timestamp(6)
+  retiredBy     String?                  @map("retired_by") @db.Uuid
+  effectiveFrom DateTime?                @map("effective_from") @db.Timestamp(6)
+  effectiveTo   DateTime?                @map("effective_to") @db.Timestamp(6)
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime                 @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  policy    ApprovalPolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  instances ApprovalInstance[]
+
+  @@unique([policyId, versionNumber])
+  @@index([policyId])
+  @@index([status])
+  @@index([policyId, status])
+  @@map("approval_policy_versions")
+}
+
+// P04 Task 16: Approval runtime instance — one per request approval flow
+model ApprovalInstance {
+  id              String             @id @default(uuid()) @db.Uuid
+  requestId       String             @map("request_id") @db.Uuid
+  tenantId        String?            @map("tenant_id") @db.Uuid
+  departmentId    String?            @map("department_id") @db.Uuid
+  policyVersionId String             @map("policy_version_id") @db.Uuid
+  status          ApprovalStepStatus @default(ACTIVE) @map("status")
+  completedAt     DateTime?          @map("completed_at") @db.Timestamp(6)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  request       Request                @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  policyVersion ApprovalPolicyVersion  @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+  steps         ApprovalInstanceStep[]
+
+  @@index([requestId])
+  @@index([tenantId])
+  @@index([policyVersionId])
+  @@index([status])
+  @@map("approval_instances")
+}
+
+// P04 Task 16: Approval runtime step — one per approval step in a live instance
+model ApprovalInstanceStep {
+  id                 String                @id @default(uuid()) @db.Uuid
+  instanceId         String                @map("instance_id") @db.Uuid
+  stepOrder          Int                   @map("step_order")
+  parallelGroup      String?               @map("parallel_group") @db.VarChar(50)
+  approverType       PolicyApproverType    @map("approver_type")
+  assignedApproverId String?               @map("assigned_approver_id") @db.Uuid
+  status             ApprovalStepStatus    @default(WAITING) @map("status")
+  decision           String?               @db.VarChar(20) // APPROVED, REJECTED, etc.
+  decisionComment    String?               @map("decision_comment") @db.Text
+  decidedAt          DateTime?             @map("decided_at") @db.Timestamp(6)
+  decidedBy          String?               @map("decided_by") @db.Uuid
+  // Delegation
+  delegatedBy        String?               @map("delegated_by") @db.Uuid
+  delegatedTo        String?               @map("delegated_to") @db.Uuid
+  delegatedAt        DateTime?             @map("delegated_at") @db.Timestamp(6)
+  // Timeout
+  dueAt              DateTime?             @map("due_at") @db.Timestamp(6)
+  timeoutAction      ApprovalTimeoutAction @default(REMINDER) @map("timeout_action")
+  // Condition (stored JSON AST for auto-approve/conditional routing)
+  condition          Json?                 @db.JsonB
+  // Audit
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  instance ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@index([instanceId, stepOrder])
+  @@index([assignedApproverId])
+  @@index([status, dueAt])
+  @@map("approval_instance_steps")
 }
 
 model WorkflowType {
@@ -630,6 +745,8 @@ model WorkflowStep {
 // P04 Task 15: Immutable workflow history for transactional command boundary
 model WorkflowHistory {
   id              String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  departmentId   String?  @map("department_id") @db.Uuid
   requestId       String   @map("request_id") @db.Uuid
   fromStatus      String   @map("from_status") @db.VarChar(100)
   toStatus        String   @map("to_status") @db.VarChar(100)
@@ -644,7 +761,9 @@ model WorkflowHistory {
 
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
-  @@unique([idempotencyKey])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt])
+  @@index([departmentId, createdAt])
   @@index([requestId])
   @@index([requestId, createdAt])
   @@map("workflow_history")
@@ -654,14 +773,19 @@ model WorkflowHistory {
 // so replaying the same idempotency key returns the original result
 model WorkflowCommandResult {
   id             String   @id @default(uuid()) @db.Uuid
-  idempotencyKey String   @unique @map("idempotency_key") @db.VarChar(200)
+  tenantId       String   @map("tenant_id") @db.Uuid
+  departmentId   String?  @map("department_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key") @db.VarChar(200)
+  commandHash    String   @map("command_hash") @db.Char(64)
   requestId      String   @map("request_id") @db.Uuid
   fromStatus     String   @map("from_status") @db.VarChar(100)
   toStatus       String   @map("to_status") @db.VarChar(100)
   result         Json     @db.JsonB
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  @@index([idempotencyKey])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, requestId])
+  @@index([departmentId, createdAt])
   @@index([requestId])
   @@map("workflow_command_results")
 }
@@ -669,15 +793,21 @@ model WorkflowCommandResult {
 // P04 Task 15: Transactional outbox for reliable event publishing
 model OutboxEvent {
   id          String   @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  departmentId     String?   @map("department_id") @db.Uuid
   eventType   String   @map("event_type") @db.VarChar(100)
   aggregateId String   @map("aggregate_id") @db.Uuid
+  aggregateVersion Int       @map("aggregate_version")
   payload     Json     @db.JsonB
   published   Boolean  @default(false) @map("published")
   publishedAt DateTime? @map("published_at") @db.Timestamp(6)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
+  @@unique([tenantId, eventType, aggregateId, aggregateVersion])
   @@index([published, createdAt])
-  @@index([aggregateId])
+  @@index([tenantId, published, createdAt])
+  @@index([departmentId, createdAt])
+  @@index([aggregateId, aggregateVersion])
   @@map("outbox_events")
 }
 
@@ -859,6 +989,7 @@ model Request {
   expenseReimbursement FinanceExpenseReimbursement?
   notifications        Notification[]
   approvals            RequestApproval[]
+  approvalInstances    ApprovalInstance[]
   candidateResumes     CandidateResume[]
   candidates           Candidate[]
   interviewSchedules   InterviewSchedule[]
@@ -879,6 +1010,7 @@ model Request {
   // P04 Task 15: Immutable workflow history
   workflowHistory      WorkflowHistory[]
 
+  @@unique([id, tenantId, departmentId])
   @@index([referenceNumber])
   @@index([requesterId])
   @@index([status])
@@ -891,7 +1023,6 @@ model Request {
   @@index([tenantId, createdAt(sort: Desc)]) // P2-08: composite for pagination
   @@index([tenantId, assignedToId]) // P2-08: composite for "my tickets" view
   @@index([tenantId, serviceDeskId]) // P2-08: composite for service desk filtering
-  @@unique([id, tenantId, departmentId])
   @@map("requests")
 }
 
@@ -2032,13 +2163,13 @@ model CrmAccount {
   borrowerProfile BorrowerProfile?
   parent         CrmAccount?         @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
   children       CrmAccount[]       @relation("AccountHierarchy")
+  customFields        Json?                   @map("custom_fields")
+  contactAccountRoles CrmContactAccountRole[]
 
   @@index([ownerId])
   @@index([name])
   @@index([industry])
   @@index([parentAccountId])
-  customFields     Json?              @map("custom_fields")
-  contactAccountRoles CrmContactAccountRole[]
   @@index([tenantId])
   @@map("crm_accounts")
 }
@@ -2159,13 +2290,13 @@ model CrmLead {
   activities CrmActivity[] @relation("ActivityLead")
   notes      CrmNote[]     @relation("NoteLead")
   territory  CrmTerritory? @relation("LeadTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
+  customFields Json?         @map("custom_fields")
 
   @@index([ownerId])
   @@index([status])
   @@index([accountId])
   @@index([contactId])
   @@index([territoryId])
-  customFields     Json?              @map("custom_fields")
   @@index([tenantId])
   @@index([tenantId, status]) // P2-08: composite for lead pipeline queries
   @@map("crm_leads")
@@ -2332,13 +2463,13 @@ model CrmOpportunity {
   notes        CrmNote[]                    @relation("NoteOpportunity")
   trustProduct CrmTrustProduct?
   stageHistory CrmOpportunityStageHistory[]
+  customFields Json?                        @map("custom_fields")
 
   @@index([accountId])
   @@index([pipelineId])
   @@index([stageId])
   @@index([ownerId])
   @@index([expectedCloseDate])
-  customFields     Json?              @map("custom_fields")
   @@index([tenantId])
   @@index([tenantId, stageId]) // P2-08: composite for opportunity pipeline queries
   @@map("crm_opportunities")
@@ -2389,6 +2520,7 @@ model CrmActivity {
   contact     CrmContact?     @relation("ActivityContact", fields: [contactId], references: [id], onDelete: Cascade)
   lead        CrmLead?        @relation("ActivityLead", fields: [leadId], references: [id], onDelete: Cascade)
   opportunity CrmOpportunity? @relation("ActivityOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
+  customFields Json?           @map("custom_fields")
 
   @@index([userId])
   @@index([accountId])
@@ -2398,7 +2530,6 @@ model CrmActivity {
   @@index([activityType])
   @@index([scheduledAt])
   @@index([createdAt(sort: Desc)])
-  customFields     Json?              @map("custom_fields")
   @@map("crm_activities")
 }
 
@@ -2816,8 +2947,8 @@ model AnnouncementRead {
   announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
   user         User         @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
   @@unique([announcementId, userId])
+  @@index([tenantId])
   @@index([announcementId])
   @@index([userId])
   @@map("announcement_reads")
@@ -3274,7 +3405,7 @@ model CreditPolicyLimit {
   type          PolicyLimitType @map("type")
   label         String          @db.VarChar(255)
   maxValue      Decimal         @map("max_value") @db.Decimal(15, 2)
-  thresholdPct  Decimal         @map("threshold_pct") @db.Decimal(5, 2) @default(80) // % of maxValue that triggers soft warning
+  thresholdPct Decimal         @default(80) @map("threshold_pct") @db.Decimal(5, 2) // % of maxValue that triggers soft warning
   isActive      Boolean         @default(true) @map("is_active")
   currency      String          @default("MYR") @db.VarChar(3)
   sector        String?         @db.VarChar(100)   // For SECTOR type — matches BorrowerProfile.industry
@@ -4223,6 +4354,7 @@ model ExternalRating {
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
   application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
   @@index([applicationId])
   @@map("external_ratings")
 }
@@ -4248,6 +4380,7 @@ model EclSnapshot {
   createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
   application           CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
   @@index([applicationId])
   @@map("ecl_snapshots")
 }
@@ -4267,6 +4400,7 @@ model EclForecast {
   createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
   application    CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
   @@unique([applicationId, forecastYear])
   @@index([applicationId])
   @@map("ecl_forecasts")
@@ -4283,6 +4417,7 @@ model CashflowProjection {
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
   application   CreditApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   lineItems     ProjectionLineItem[]
+
   @@map("cashflow_projections")
 }
 
@@ -4297,6 +4432,7 @@ model ProjectionLineItem {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
   projection     CashflowProjection @relation(fields: [projectionId], references: [id], onDelete: Cascade)
+
   @@unique([projectionId, lineKey, projectionYear])
   @@index([projectionId])
   @@map("projection_line_items")
@@ -4320,6 +4456,7 @@ model SensitivityScenario {
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamp(6)
   application    CreditApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
   @@unique([applicationId, scenario])
   @@index([applicationId])
   @@map("sensitivity_scenarios")
@@ -4578,10 +4715,10 @@ model CreditSlaBreach {
   application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   policy          CreditSlaPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
+  @@unique([applicationId, policyId])
   @@index([applicationId])
   @@index([policyId])
   @@index([breachedAt])
-  @@unique([applicationId, policyId])
   @@map("credit_sla_breaches")
 }
 
@@ -4638,7 +4775,7 @@ model CollateralHaircutConfig {
   id                    String   @id @default(uuid()) @db.Uuid
   securityCategory      String   @map("security_category") @db.VarChar(50)
   haircutPercent        Decimal  @map("haircut_percent") @db.Decimal(5, 4)   // e.g. 0.3000 = 30%
-  minValuationAgeMonths Int      @map("min_valuation_age_months") @default(12)
+  minValuationAgeMonths Int      @default(12) @map("min_valuation_age_months")
   isActive              Boolean  @default(true) @map("is_active")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -5031,7 +5168,7 @@ model CreditApprovalMatrix {
   maxRating           RiskRating @map("max_rating")
   
   authorityLevel      String     @map("authority_level") @db.VarChar(50)
-  requiredApproverCount Int      @map("required_approver_count") @default(1)
+  requiredApproverCount Int    @default(1) @map("required_approver_count")
 
   // §3.1 — null = applies to all branches; set = branch-specific authority override
   branchId            String?    @map("branch_id") @db.Uuid
@@ -5070,8 +5207,8 @@ model CreditApprovalMatrixVersion {
   matrix        CreditApprovalMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
   approvedBy    User                 @relation("MatrixVersionApprovedBy", fields: [approvedById], references: [id])
   
-  @@index([matrixId])
   @@unique([matrixId, version])
+  @@index([matrixId])
   @@map("credit_approval_matrix_versions")
 }
 
@@ -5134,9 +5271,9 @@ model FinancialLineItem {
   // Relations
   statement      FinancialStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
   
+  @@unique([statementId, lineKey])
   @@index([statementId])
   @@index([lineKey])
-  @@unique([statementId, lineKey])
   @@map("financial_line_items")
 }
 
@@ -5156,10 +5293,10 @@ model FinancialRatio {
   // Relations
   statement   FinancialStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
   
+  @@unique([statementId, ratioKey])
   @@index([statementId])
   @@index([ratioKey])
   @@index([category])
-  @@unique([statementId, ratioKey])
   @@map("financial_ratios")
 }
 
