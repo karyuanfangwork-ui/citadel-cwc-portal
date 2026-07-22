@@ -1,18 +1,19 @@
 /**
  * Operation Control Coverage Verification — P02/P03 Task 10
  *
- * This script scans all route files, extracts the HTTP method + path for each
- * route declaration, and compares the result against the operation control
- * registry. It reports uncovered routes and duplicate entries.
+ * Scans all route files, extracts HTTP method + path for each route declaration,
+ * and compares against the operation control registry. Reports uncovered routes
+ * and extra registry entries.
  *
- * Run: npx ts-node backend/scripts/verify-operation-controls.ts
+ * Run: npx tsx backend/scripts/verify-operation-controls.ts
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Mount prefixes from routes/index.ts
-const MOUNT_PREFIXES: Record<string, string> = {
+// ── ESM route file → mount prefix map ────────────────────────────────
+// Derived from backend/src/routes/index.ts router.use() declarations.
+const ESM_MOUNT_PREFIXES: Record<string, string> = {
   'auth.routes': '/auth',
   'user.routes': '/users',
   'request.routes': '/requests',
@@ -36,30 +37,112 @@ const MOUNT_PREFIXES: Record<string, string> = {
   'esm-workflow.routes': '/esm-workflow',
   'workflow.routes': '/admin/workflows',
   'reports.routes': '/reports',
-  'bannerConfig.routes': '/banner-config',
-  'requestStatusDefinition.routes': '/request-status-definitions',
-  'workflowTransition.routes': '/workflow-transitions',
-  'notificationTemplate.routes': '/notification-templates',
+  'bannerConfig.routes': '/admin/banner-configs',
+  'requestStatusDefinition.routes': '/admin/status-definitions',
+  'workflowTransition.routes': '/admin/workflow-transitions',
+  'notificationTemplate.routes': '/admin/notification-templates',
+  'systemSetting.routes': '/admin/system-settings',
   'file.routes': '/files',
-  'entity.routes': '/entities',
-  'escalationRule.routes': '/escalation-rules',
-  'auditLog.routes': '/audit-logs',
+  'entity.routes': '/admin/entities',
+  'escalationRule.routes': '/sla',
+  'auditLog.routes': '/admin/audit-logs',
   'asset.routes': '/assets',
-  'systemSetting.routes': '/system-settings',
   'crm.routes': '/crm',
+  'crm-ai.routes': '/crm/ai',
   'announcement.routes': '/announcements',
-  'tenant.routes': '/tenants',
-  'scheduler.routes': '/schedulers',
-  'queue.routes': '/queues',
+  'tenant.routes': '/admin/tenants',
+  'scheduler.routes': '/admin/scheduler',
+  'queue.routes': '/admin/queues',
   'insights.routes': '/insights',
   'pdfJob.routes': '/pdf-jobs',
-  'catalogEntitlement.routes': '/catalog-entitlements',
-  'approvalPolicy.routes': '/approval-policies',
+  'catalogEntitlement.routes': '/admin/catalog-entitlements',
+  'approvalPolicy.routes': '/admin/approval-policies',
   'approvalDelegation.routes': '/approval-delegations',
   'department.routes': '/departments',
-  'credit.routes': '/credit',
-  'participant.routes': '', // Mounted under /requests/:id/participants
-  'resume.controller': '',  // Not a route file
+  // Nested under /requests/:id/participants — routes use mergeParams
+  'participant.routes': '/requests/:id/participants',
+};
+
+// Files that are not standalone route files
+const ESM_SKIP_FILES = new Set(['index', 'resume.controller']);
+
+// ── Credit sub-router mount prefixes ─────────────────────────────────
+// Derived from backend/src/credit/routes/credit.routes.ts router.use() declarations.
+// Parent prefix is '/credit'; sub-mounts are appended.
+const CREDIT_SUB_MOUNTS: Record<string, string> = {
+  'borrowerProfile.routes': '/borrowers',
+  'director.routes': '/borrowers',
+  'fatcaCrs.routes': '/borrowers',
+  'shareholder.routes': '/borrowers',
+  'ubo.routes': '/borrowers',
+  'relatedPartyGroup.routes': '/related-party-groups',
+  'branch.routes': '/branches',
+  'creditDocument.routes': '',          // router.use(creditDocumentRoutes) — no path prefix
+  'application.routes': '/applications',
+  'applicationFacility.routes': '/applications',
+  'applicationParty.routes': '/applications',
+  'requestItem.routes': '/applications',
+  'exposureSummary.routes': '/applications',
+  'externalRating.routes': '/applications',
+  'ecl.routes': '/applications',
+  'projection.routes': '/applications',
+  'sensitivityScenario.routes': '/applications',
+  'approval.routes': '',               // router.use(approvalRoutes) — no path prefix
+  'webhook.routes': '/webhooks',
+  'financial.routes': '/borrowers',
+  'financials.routes': '/financials',
+  'scorecard.routes': '/scorecards',
+  'scorecardVersion.routes': '/scorecard-versions',
+  'scoring.routes': '/applications',
+  'scoreRun.routes': '/score-runs',
+  'committee.routes': '/committee',
+  'collateral.routes': '/applications',
+  'collateralItem.routes': '/collateral',
+  'guarantee.routes': '/applications',
+  'condition.routes': '/applications',
+  'conditionItem.routes': '/conditions',
+  'dashboard.routes': '/dashboard',
+  'reports.routes': '/reports',
+  'monitoring.routes': '/applications',
+  'monitoringItem.routes': '',          // router.use(monitoringItemRoutes) — no path prefix
+  'security.routes': '/security',
+  'creditRecommendation.routes': '',    // router.use(creditRecommendationRoutes) — no path prefix
+  'borrowerRisk.routes': '',           // router.use(borrowerRiskRoutes) — no path prefix
+  'bureauCheck.routes': '/applications',
+  'qualitativeAssessment.routes': '/applications',
+  'retailIncome.routes': '/applications',
+  'bureauChecklist.routes': '/applications',
+  'industryAssessment.routes': '/applications',
+  'riskAssessment.routes': '/applications',
+  'ratingBandConfig.routes': '/rating-bands',
+  'rmdIssue.routes': '/applications',
+  'esg.routes': '/applications',
+  'sicr.routes': '/applications',
+  'signoff.routes': '/applications',
+  'profitability.routes': '/applications',
+  'walletShare.routes': '/applications',
+  'keyCounterparty.routes': '',       // router.use(keyCounterpartyRoutes) — no path prefix
+  'accountUtilisation.routes': '/applications',
+  'scoreOverride.routes': '/score-overrides',
+  'delegation.routes': '/delegation',
+  'creditSla.routes': '/sla',
+  'dlp.routes': '',                    // router.use('/', dlpRoutes)
+  'disbursement.routes': '/applications',
+  'pricing.routes': '/applications',
+  'loo.routes': '/applications',
+  'rejection.routes': '/applications',
+  'amlRescreen.routes': '',            // router.use('/', amlRescreenRoutes)
+  'policyLimit.routes': '/policy-limits',
+  'creditRuleConfig.routes': '',       // router.use('/', creditRuleConfigRoutes)
+  'fxRate.routes': '/fx-rates',
+  'creditAi.routes': '/applications',  // router.use('/applications', creditAiRoutes)
+  'deviation.routes': '/deviations',
+  'consent.routes': '/consent',
+  'str.routes': '/str',
+  'mfa.routes': '/mfa',
+  'smeFinancial.routes': '/sme',
+  'comment.routes': '',                // router.use('/', commentRoutes)
+  'credit.routes': '',                // Top-level router itself (has its own routes)
 };
 
 const ROUTES_DIR = path.resolve(__dirname, '..', 'src', 'routes');
@@ -71,91 +154,165 @@ interface RouteOp {
   file: string;
 }
 
-function extractRoutesFromDir(dir: string, prefix: string): RouteOp[] {
+/**
+ * Extract route declarations from file content.
+ * Handles both single-line and multi-line route definitions.
+ */
+function extractRoutesFromContent(content: string, mountPrefix: string, fileName: string): RouteOp[] {
   const routes: RouteOp[] = [];
+  const seen = new Set<string>();
+
+  // Pass 1: Single-line routes — router.get('/path', ...) or router.get('/path', middleware, ...)
+  const singleLineRegex = /router\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`\s]+)['"`]/g;
+  let match: RegExpExecArray | null;
+  while ((match = singleLineRegex.exec(content)) !== null) {
+    const method = match[1].toUpperCase();
+    const routePath = match[2];
+    const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : '/' + routePath);
+    const key = `${method} ${fullPath}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      routes.push({ method, path: fullPath, file: fileName });
+    }
+  }
+
+  // Pass 2: Multi-line routes — router.METHOD(\n  '/path', ...)
+  // Reset lastIndex since we're using a new regex on the same content
+  const multiLineRegex = /router\.(get|post|put|patch|delete)\s*\(\s*\n\s*['"`]([^'"`\s]+)['"`]/g;
+  while ((match = multiLineRegex.exec(content)) !== null) {
+    const method = match[1].toUpperCase();
+    const routePath = match[2];
+    const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : '/' + routePath);
+    const key = `${method} ${fullPath}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      routes.push({ method, path: fullPath, file: fileName });
+    }
+  }
+
+  return routes;
+}
+
+/**
+ * Scan a directory for route files and extract route declarations.
+ * For ESM routes, prefixMap contains full mount paths (e.g., '/admin/banner-configs').
+ * For credit sub-routes, prefixMap contains sub-mounts to compose with parentPrefix.
+ */
+function extractRoutesFromDir(
+  dir: string,
+  prefixMap: Record<string, string>,
+  parentPrefix: string,
+  skipFiles?: Set<string>,
+): RouteOp[] {
+  const routes: RouteOp[] = [];
+  if (!fs.existsSync(dir)) return routes;
+
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.routes.ts') || f.endsWith('.routes.js'));
 
   for (const file of files) {
+    const baseName = file.replace(/\.(ts|js)$/, '');
+    if (skipFiles?.has(baseName)) continue;
+
     const filePath = path.join(dir, file);
     const content = fs.readFileSync(filePath, 'utf-8');
-    const baseName = file.replace(/\.(ts|js)$/, '');
-    const mountPrefix = MOUNT_PREFIXES[baseName] || prefix;
+    const subMount = prefixMap[baseName];
+    // Compose mount prefix: parentPrefix + subMount (for credit routes),
+    // or use the full path from the map (for ESM routes where parentPrefix is '').
+    const mountPrefix = subMount !== undefined
+      ? (parentPrefix + subMount)
+      : parentPrefix;
 
-    // Match router.get('/path', ...), router.post('/path', ...), etc.
-    const routeRegex = /router\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`\s]+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = routeRegex.exec(content)) !== null) {
-      const method = match[1].toUpperCase();
-      const routePath = match[2];
-      const fullPath = mountPrefix + (routePath.startsWith('/') ? routePath : '/' + routePath);
-      routes.push({ method, path: fullPath, file: baseName });
-    }
-
-    // Match router.use('/mount', subRouter) — for nested mounts
-    const useRegex = /router\.use\s*\(\s*['"`]([^'"`\s]+)/g;
-    // We skip sub-router extraction for now — sub-routes are covered by scanning each file
+    const fileRoutes = extractRoutesFromContent(content, mountPrefix, baseName);
+    routes.push(...fileRoutes);
   }
 
   return routes;
 }
 
 function extractAllRoutes(): RouteOp[] {
-  const esmRoutes = extractRoutesFromDir(ROUTES_DIR, '/api/v1');
-  let creditRoutes: RouteOp[] = [];
-  if (fs.existsSync(CREDIT_ROUTES_DIR)) {
-    creditRoutes = extractRoutesFromDir(CREDIT_ROUTES_DIR, '/api/v1/credit');
-  }
+  const esmRoutes = extractRoutesFromDir(ROUTES_DIR, ESM_MOUNT_PREFIXES, '', ESM_SKIP_FILES);
+  const creditRoutes = extractRoutesFromDir(CREDIT_ROUTES_DIR, CREDIT_SUB_MOUNTS, '/credit');
   return [...esmRoutes, ...creditRoutes];
+}
+
+/**
+ * Parse the operation control registry TypeScript source file.
+ * Uses the `s` (dotAll) flag so . matches newlines, enabling extraction
+ * of multi-line object entries like:
+ *   {
+ *     method: 'GET',
+ *     path: '/users',
+ *     ...
+ *   },
+ */
+function parseRegistry(registryContent: string): Map<string, { method: string; path: string; snippet: string }> {
+  const registeredPaths = new Map<string, { method: string; path: string; snippet: string }>();
+
+  // Match { method: 'GET', path: '/users', ... } entries spanning multiple lines
+  const entryRegex = /\{\s*method:\s*['"`](GET|POST|PUT|PATCH|DELETE)['"`],\s*path:\s*['"`]([^'"`]+)['"`]/gs;
+
+  let match: RegExpExecArray | null;
+  while ((match = entryRegex.exec(registryContent)) !== null) {
+    const method = match[1];
+    const pathValue = match[2];
+    const key = `${method} ${pathValue}`;
+    registeredPaths.set(key, { method, path: pathValue, snippet: match[0].substring(0, 80) });
+  }
+
+  return registeredPaths;
+}
+
+/** Normalize a route path for comparison — remove /api/v1 prefix, trailing slashes. */
+function normalizePath(p: string): string {
+  let normalized = p.replace(/^\/api\/v1/, '');
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  if (!normalized.startsWith('/')) {
+    normalized = '/' + normalized;
+  }
+  return normalized;
 }
 
 function main() {
   const allRoutes = extractAllRoutes();
   console.log(`\n=== Operation Control Coverage Report ===\n`);
-  console.log(`Total route operations found: ${allRoutes.length}`);
+  console.log(`Total route declarations found: ${allRoutes.length}`);
 
-  // Deduplicate by method+path
+  // Deduplicate by method+normalized path
   const routeMap = new Map<string, RouteOp[]>();
   for (const r of allRoutes) {
-    const key = `${r.method} ${r.path}`;
+    const key = `${r.method} ${normalizePath(r.path)}`;
     if (!routeMap.has(key)) routeMap.set(key, []);
     routeMap.get(key)!.push(r);
   }
 
   console.log(`Unique method+path combinations: ${routeMap.size}`);
 
-  // Load the registry
+  // Parse the registry
   const registryPath = path.resolve(__dirname, '..', 'src', 'security', 'operation-control.registry.ts');
   const registryContent = fs.readFileSync(registryPath, 'utf-8');
-
-  // Extract registered paths from the registry
-  const registeredPaths = new Map<string, string>();
-  const pathRegex = /path:\s*['"`]([^'"`]+)['"`]/g;
-  const methodRegex = /method:\s*['"`](GET|POST|PUT|PATCH|DELETE)['"`]/g;
-
-  // Parse the registry entries
-  const entries = registryContent.split(/\{[^{}]*method/g).slice(1);
-  for (const entry of entries) {
-    const methodMatch = /method:\s*['"`](GET|POST|PUT|PATCH|DELETE)['"`]/.exec(entry);
-    const pathMatch = /path:\s*['"`]([^'"`]+)['"`]/.exec(entry);
-    if (methodMatch && pathMatch) {
-      const key = `${methodMatch[1]} /api/v1${pathMatch[1]}`;
-      registeredPaths.set(key, entry.substring(0, 40));
-    }
-  }
-
+  const registeredPaths = parseRegistry(registryContent);
   console.log(`\nRegistered operation controls: ${registeredPaths.size}`);
 
-  // Find uncovered routes
+  // Build normalized registry map
+  const normalizedRegistry = new Map<string, string>();
+  for (const [key, val] of registeredPaths) {
+    const normalizedKey = `${val.method} ${normalizePath(val.path)}`;
+    normalizedRegistry.set(normalizedKey, val.snippet);
+  }
+
+  // Find uncovered routes (in code but not in registry)
   const uncovered: string[] = [];
   for (const [key] of routeMap) {
-    if (!registeredPaths.has(key)) {
+    if (!normalizedRegistry.has(key)) {
       uncovered.push(key);
     }
   }
 
-  // Find extra registered routes not in actual code
+  // Find extra registered routes (in registry but not in code)
   const extra: string[] = [];
-  for (const [key] of registeredPaths) {
+  for (const [key] of normalizedRegistry) {
     if (!routeMap.has(key)) {
       extra.push(key);
     }
@@ -171,11 +328,19 @@ function main() {
     extra.sort().forEach(r => console.log(`  ${r}`));
   }
 
+  const coveredRouteCount = routeMap.size - uncovered.length;
   const coveragePercent = routeMap.size > 0
-    ? ((routeMap.size - uncovered.length) / routeMap.size * 100).toFixed(1)
+    ? (coveredRouteCount / routeMap.size * 100).toFixed(1)
     : '0';
 
-  console.log(`\n--- Coverage: ${routeMap.size - uncovered.length}/${routeMap.size} (${coveragePercent}%) ---\n`);
+  const coveredRegistryCount = normalizedRegistry.size - extra.length;
+  const registryPercent = normalizedRegistry.size > 0
+    ? (coveredRegistryCount / normalizedRegistry.size * 100).toFixed(1)
+    : '0';
+
+  console.log(`\n--- Route → Registry Coverage: ${coveredRouteCount}/${routeMap.size} (${coveragePercent}%) ---`);
+  console.log(`--- Registry → Route Coverage: ${coveredRegistryCount}/${normalizedRegistry.size} (${registryPercent}%) ---`);
+  console.log(`--- Total registered controls: ${registeredPaths.size} ---\n`);
 
   if (uncovered.length > 0) {
     process.exit(1);
