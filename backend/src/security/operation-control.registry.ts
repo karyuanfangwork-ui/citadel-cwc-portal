@@ -108,6 +108,20 @@ export const operationControls: OperationControl[] = [
     auditEvent: 'user.updateMe',
     auditFindingIds: [6, 35],
   },
+  // Task 14: Server-authoritative policy decisions for frontend route/action gating
+  {
+    method: 'GET',
+    path: '/users/me/policy',
+    owner: 'IAM',
+    authentication: 'user',
+    coarsePermission: null,
+    resourcePolicy: 'user:read-own',
+    validation: 'none',
+    responseSchema: 'PolicyDecisionDto',
+    rateTier: 'read',
+    auditEvent: 'user.mePolicy',
+    auditFindingIds: [6, 35],
+  },
   {
     method: 'PUT',
     path: '/users/me/password',

@@ -20,8 +20,10 @@
 
 import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
-import { isValidTransition, getTransitionMeta, isTerminalStatus } from '../utils/workflowTransitions';
+import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitions';
 import { pauseSla, resumeSla } from './sla-pause.service';
+import { executeWorkflowCommand } from './workflowCommand.service';
+import { RequestStatus } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,30 +121,6 @@ async function runGuards(
 // ---------------------------------------------------------------------------
 // Terminal status sets
 // ---------------------------------------------------------------------------
-
-const TERMINAL_STATUSES = new Set([
-  'RESOLVED',
-  'REJECTED',
-  'COMPLETED',
-  'OFFBOARDING_COMPLETED',
-  'ONBOARDING_COMPLETED',
-  'REIMBURSEMENT_CLOSED',
-  'TICKET_CLOSED_FIN',
-  'CHARGEBACK_COMPLETED',
-  'LOA_REJECTED',
-  'CEO_REJECTED',
-  'CEO_REJECTED_IT',
-  'CTO_REJECTED_IT',
-  'CFO_REJECTED_IT',
-  'CEO_REJECTED_FIN',
-  'CFO_REJECTED_FIN',
-  'GROUP_DCEO_REJECTED',
-  'MANAGER_REJECTED_FIN',
-  'FINANCE_HEAD_REJECTED',
-  'FROM_ENTITY_REJECTED',
-  'TO_ENTITY_REJECTED',
-  'CANDIDATE_REJECTED_INTERVIEW',
-]);
 
 const RESOLVE_STATUSES = new Set([
   'RESOLVED',
@@ -268,7 +246,6 @@ export async function transitionRequest(
   }
 
   // ── 5. Determine terminal timestamps ─────────────────────────────────────
-  const isTerminal = TERMINAL_STATUSES.has(toStatus) || isTerminalStatus(toStatus);
   const shouldResolve = RESOLVE_STATUSES.has(toStatus);
   const shouldClose = CLOSE_STATUSES.has(toStatus);
   const shouldComplete = COMPLETE_STATUSES.has(toStatus);
@@ -320,10 +297,34 @@ export async function transitionRequest(
     }
   }
 
-  // ── 8. Update request status ─────────────────────────────────────────────
-  const updatedRequest = await prisma.request.update({
+  // ── 8. Execute versioned workflow command ──────────────────────────────────
+  // Task 15: Use the transactional command boundary for atomic state transition,
+  // version increment, workflow history, activity log, and outbox event.
+  const commandResult = await executeWorkflowCommand({
+    requestId,
+    tenantId: currentRequest.tenantId ?? '',
+    fromStatus: fromStatus as RequestStatus,
+    toStatus: toStatus as RequestStatus,
+    expectedVersion: (currentRequest as any).version ?? 1,
+    actorId: userId,
+    actorName: userName || 'System',
+    source,
+    comment,
+    metadata,
+  });
+
+  // ── 8b. Post-transition updates (timestamps, auto-assignment) ──────────
+  // These are non-conflicting supplemental updates that don't change status.
+  if (Object.keys(updateData).length > 1) { // more than just 'status'
+    await prisma.request.update({
+      where: { id: requestId },
+      data: updateData, // contains resolvedAt/closedAt/completedAt/assignedToId
+    });
+  }
+
+  // Re-fetch the updated request with includes for notifications
+  const updatedRequest = await prisma.request.findUniqueOrThrow({
     where: { id: requestId },
-    data: updateData,
     include: {
       requester: {
         select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
@@ -336,26 +337,7 @@ export async function transitionRequest(
     },
   });
 
-  // ── 9. Create activity log ───────────────────────────────────────────────
-  const activity = await prisma.requestActivity.create({
-    data: {
-      requestId,
-      authorId: userId,
-      authorName: userName || 'System',
-      authorRole: userRole || null,
-      activityType: isTerminal ? 'STATUS_CHANGE' : 'STATUS_CHANGE',
-      message: `Status changed from ${fromStatus} to ${toStatus}`,
-      isSystemGenerated: !userId,
-      metadata: {
-        ...metadata,
-        fromStatus,
-        toStatus,
-        source,
-      },
-    },
-  });
-
-  // ── 10. Audit log ────────────────────────────────────────────────────────
+  // ── 9. Audit log ────────────────────────────────────────────────────────
   try {
     const { auditLog } = await import('../utils/audit');
     await auditLog(
@@ -415,7 +397,7 @@ export async function transitionRequest(
     request: updatedRequest,
     previousStatus: fromStatus,
     newStatus: toStatus,
-    activityId: activity.id,
+    activityId: commandResult.historyId,
     validationSkipped,
   };
 }

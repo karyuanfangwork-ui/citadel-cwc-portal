@@ -627,6 +627,60 @@ model WorkflowStep {
   @@map("workflow_steps")
 }
 
+// P04 Task 15: Immutable workflow history for transactional command boundary
+model WorkflowHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  requestId       String   @map("request_id") @db.Uuid
+  fromStatus      String   @map("from_status") @db.VarChar(100)
+  toStatus        String   @map("to_status") @db.VarChar(100)
+  actorId         String?  @map("actor_id") @db.Uuid
+  actorName       String?  @map("actor_name") @db.VarChar(200)
+  source          String   @default("unknown") @map("source") @db.VarChar(100)
+  comment         String?  @db.Text
+  metadata        Json?    @db.JsonB
+  requestVersion  Int      @map("request_version")
+  idempotencyKey  String?  @map("idempotency_key") @db.VarChar(200)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([idempotencyKey])
+  @@index([requestId])
+  @@index([requestId, createdAt])
+  @@map("workflow_history")
+}
+
+// P04 Task 15: Command idempotency — stores the result of a workflow command
+// so replaying the same idempotency key returns the original result
+model WorkflowCommandResult {
+  id             String   @id @default(uuid()) @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key") @db.VarChar(200)
+  requestId      String   @map("request_id") @db.Uuid
+  fromStatus     String   @map("from_status") @db.VarChar(100)
+  toStatus       String   @map("to_status") @db.VarChar(100)
+  result         Json     @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([idempotencyKey])
+  @@index([requestId])
+  @@map("workflow_command_results")
+}
+
+// P04 Task 15: Transactional outbox for reliable event publishing
+model OutboxEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(100)
+  aggregateId String   @map("aggregate_id") @db.Uuid
+  payload     Json     @db.JsonB
+  published   Boolean  @default(false) @map("published")
+  publishedAt DateTime? @map("published_at") @db.Timestamp(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([published, createdAt])
+  @@index([aggregateId])
+  @@map("outbox_events")
+}
+
 enum RequestStatus {
   SUBMITTED
   IN_REVIEW
@@ -789,6 +843,9 @@ model Request {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
+  // P04 Task 15: Optimistic concurrency version for transactional workflow commands
+  version Int @default(1) @map("version")
+
   // Relations
   department           Department?                  @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
   requestType          RequestType?                 @relation(fields: [requestTypeId], references: [id])
@@ -818,6 +875,9 @@ model Request {
   // CRM Relations
   crmAccountLinks      CrmAccountRequest[]
   participants         RequestParticipant[]
+
+  // P04 Task 15: Immutable workflow history
+  workflowHistory      WorkflowHistory[]
 
   @@index([referenceNumber])
   @@index([requesterId])

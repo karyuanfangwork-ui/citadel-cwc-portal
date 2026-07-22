@@ -25,6 +25,8 @@ const mockPrisma = {
   request: {
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   },
   requestActivity: {
     create: jest.fn(),
@@ -41,6 +43,17 @@ const mockPrisma = {
   offboardingRequest: {
     findUnique: jest.fn(),
   },
+  workflowHistory: {
+    create: jest.fn(),
+  },
+  workflowCommandResult: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+  outboxEvent: {
+    create: jest.fn(),
+  },
+  $transaction: jest.fn((fn) => fn(mockPrisma)),
 };
 
 // Jest hoists jest.mock calls. The factory returns the mockPrisma object.
@@ -87,6 +100,8 @@ function makeRequest(overrides: Record<string, any> = {}): any {
   return {
     id: 'req-001',
     status: 'SUBMITTED',
+    version: 1,
+    tenantId: 'tenant-001',
     assignedToId: null,
     serviceDesk: { code: 'IT' },
     requesterId: 'user-001',
@@ -113,8 +128,17 @@ describe('P6-04: Transition Guards', () => {
     mockPrisma.request.update.mockImplementation(({ data }: any) =>
       Promise.resolve({ ...makeRequest(), ...data }),
     );
+    mockPrisma.request.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.request.findUniqueOrThrow.mockImplementation(({ where }: any) =>
+      mockPrisma.request.findUnique({ where }),
+    );
     mockPrisma.requestActivity.create.mockResolvedValue({ id: 'act-001' });
     mockPrisma.requestParticipant.findMany.mockResolvedValue([]);
+    mockPrisma.workflowHistory.create.mockResolvedValue({ id: 'hist-001' });
+    mockPrisma.workflowCommandResult.findUnique.mockResolvedValue(null);
+    mockPrisma.workflowCommandResult.create.mockResolvedValue({ id: 'cmd-001' });
+    mockPrisma.outboxEvent.create.mockResolvedValue({ id: 'out-001' });
+    mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 
   // ── 1. Comment-required guard ──────────────────────────────────────────
