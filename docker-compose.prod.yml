@@ -32,6 +32,21 @@ services:
     networks:
       - internal
 
+  clamav:
+    image: clamav/clamav:1.4.3@sha256:75fb5fd95fcbe1d7e6d240c369c1572b686ee2c95949d1042b5148de8eddebb4
+    platform: linux/amd64
+    restart: unless-stopped
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - internal
+
   backend:
     build:
       context: ./backend
@@ -41,6 +56,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
     environment:
       NODE_ENV: production
@@ -72,6 +89,12 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      # ── Governed attachment malware scanning ──
+      ATTACHMENT_SCANNER_ENABLED: ${ATTACHMENT_SCANNER_ENABLED:-true}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-30000}
+      ATTACHMENT_SCANNER_CONCURRENCY: ${ATTACHMENT_SCANNER_CONCURRENCY:-2}
       # ── Rate Limiting ──
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-2000}
@@ -144,6 +167,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  clamav_data:
   uploads:
   backend_logs:
   certbot_certs:

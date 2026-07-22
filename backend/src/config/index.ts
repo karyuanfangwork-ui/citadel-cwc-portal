@@ -123,6 +123,15 @@ export const config = {
         forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     },
 
+    // ClamAV daemon used by the governed attachment scanner worker.
+    attachmentScanner: {
+        enabled: process.env.ATTACHMENT_SCANNER_ENABLED !== 'false',
+        host: process.env.CLAMAV_HOST || 'clamav',
+        port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
+        timeoutMs: parseInt(process.env.CLAMAV_TIMEOUT_MS || '30000', 10),
+        concurrency: parseInt(process.env.ATTACHMENT_SCANNER_CONCURRENCY || '2', 10),
+    },
+
     // P1-15: Static file serving — disabled in production by default.
     // Set SERVE_LOCAL_UPLOADS=true to re-enable (legacy migration / dev only).
     // In production, files should be served through S3 presigned URLs via /api/v1/files/download/:key.

@@ -72,7 +72,7 @@ means repository code cannot by itself prove closure.
 | Task | Status | Current evidence and remaining gate |
 |---|---|---|
 | 1 | **Partial / operational gate** | Typed register and tests landed in `bb599e9`, but declared registry metadata is not implementation proof while the Task 10 route verifier is broken. Release freeze, closure reviewers and independent sign-off still require retained program evidence. |
-| 2 | **Partial — Gate 0 red** | Baseline repairs landed in `7bdee07`, but the required Gate 0 evidence file and proven zero-failure full lint/test/build/Prisma CI baseline are absent. A late acceptance audit reported broad backend/frontend full-suite failures; direct reruns were not approved in this session. Backend lint was independently reproduced as failing with 1 error and 1,504 warnings. |
+| 2 | **Gate 0 green** | Baseline repairs landed through `a83d85a`, with the Gate 0 evidence file recorded at `docs/esm-production-readiness/evidence/gate-0-test-baseline.md`. Independently reproduced in this session: backend lint 0 errors/1,505 warnings, backend `tsc` build exit 0, `npx prisma validate` exit 0, backend Jest 163/163 suites and 1,946/1,946 tests passing, frontend Vitest 27/27 files and 160/160 tests passing, frontend Vite production build exit 0. CI has no `continue-on-error` on any gate. Remaining: no live PR has yet exercised these gates end-to-end in CI itself. |
 | 3 | **Partial** | DTOs, response sanitizer and `sensitive-field-stripping.test.ts` landed in `518c1f6`, but the planned list/detail/search/auth HTTP DTO integration contract is absent; recursive denylist stripping and `any`-typed DTO mapping do not prove explicit allowlists on every endpoint. |
 | 4 | **Partial** | BOLA containment landed in `8a1d7cc` and focused BOLA tests pass, but the complete real-principal activity/participant/file/job matrix and stable Task 12 attachment closure remain evidence gates. |
 | 5 | **Partial** | Privileged MFA landed in `6126c59`; announcement HTML rendering remains an unsanitized browser-containment gap, while the planned frontend containment suite and complete browser/SSE/draft-storage acceptance evidence are absent. Middleware tests also do not prove that every privileged account must enroll. |
@@ -82,7 +82,7 @@ means repository code cannot by itself prove closure.
 | 9 | **Partial** | Request isolation landed in `162d35a`; focused request-access/department matrices pass, but they encode same-tenant ADMIN cross-department access and do not exercise the planned two-tenant real-PostgreSQL matrix across every read/mutation/export/download cell. |
 | 10 | **Partial — exact registry parity implemented** | The verifier now uses the TypeScript AST for live route declarations and the executable typed registry for controls, excluding commented-out routes and detecting uncovered, extra and duplicate keys. All **883/883** live method+path operations have complete typed control records with zero extras/duplicates, and the focused registry/coverage tests pass. Route metadata parity is proven; complete middleware-behavior and per-operation denial-test evidence remains. |
 | 11 | **Partial** | Authorized search/report/KB/export query scoping landed in `42f027b`; durable export scope snapshots, result reauthorization, allowed fields/classification, expiry, watermark and complete real-DB export tests remain. |
-| 12 | **Partial — governed backend lifecycle implemented** | Migration `20260722093000_governed_attachment_lifecycle`, `attachmentAccess.service.ts`, controlled upload/download/delete routes, clean-only access, immutable object identity, callback binding/replay defense, retention/legal-hold fields and focused lifecycle tests are present. A real malware scanner worker/provider, quarantine movement/deletion evidence, route-level scanner callback integration tests and strict non-null ownership contract remain. |
+| 12 | **Implemented locally / production rollout gate** | The governed lifecycle now includes BullMQ dispatch/worker execution, exact-response ClamAV fail-closed parsing, a digest-pinned Compose service, composite request/tenant/department ownership, bound callback replay defense, expired-retention denial and retry-safe two-phase quarantine with terminal failure evidence. Local live queued EICAR smoke proves `INFECTED`, quarantine, source deletion and download denial; focused 47-test and full 1,962-test backend suites pass. Production ClamAV/object-store permissions, monitoring and rollback verification remain release gates; see `docs/esm-production-readiness/evidence/task-12-attachment-scanner.md`. |
 | 13 | **Partial — backend authority boundary implemented** | `requestCreationPolicy.service.ts` now binds type→category→desk→tenant, requires active/published catalog metadata, enforces role/entitlement, mandatory form version, required/conditional/type/option validation, and server-owned tenant/department/workflow/SLA/confidentiality. Unit and HTTP integration tests pass; migrations `20260722100000_publish_seeded_catalog_items` and `20260722101000_backfill_request_type_form_versions` are applied locally. Shared backend/frontend schema reuse, frontend validation tests and governed per-type classification metadata remain. |
 | 14 | **Missing under the plan contract** | Legacy `ProtectedRoute`, permission guards and navigation filtering exist, but no planned `types/policy.ts`, server `allowedActions` consumption, authenticated department-grant model, `requireAllPermissions`, `requireDepartment`, department-aware navigation or two-department/direct-API E2E matrix exists. Legacy global ADMIN/role checks remain. |
 | 15 | **Partial** | `requestTransition.service.ts` is a useful foundation but state, history, audit and notifications do not commit in one versioned/idempotent transaction; no command record or transactional outbox exists. |
@@ -101,7 +101,7 @@ means repository code cannot by itself prove closure.
 
 ### Verification recorded for the current Task 7/12/13 working tree
 
-- Local PostgreSQL: all 81 migrations applied; schema reported up to date.
+- Local PostgreSQL: all 83 migrations applied; schema reported up to date.
 - Prisma schema validation, client generation and tenant-model generation: pass.
 - Backend focused regression: 10 suites, 132 tests: pass.
 - Additional Task 13 unit/HTTP/request regression after mandatory version and field-contract hardening: 3 suites, 20 tests: pass.
@@ -119,12 +119,11 @@ means repository code cannot by itself prove closure.
 
 ### Recommended implementation order from this point
 
-1. Finish Task 12 operational scanner/quarantine integration and strict ownership contract.
-2. Finish Task 13 shared schemas, metadata-driven classification and frontend validation; then implement Task 14 server-policy consumption.
-3. Implement Task 15 before Tasks 16–18; it owns the transaction, version, idempotency, audit and outbox boundary.
-4. Build Task 16 on Task 15, then execute Tasks 17 and 18 in parallel against the durable command/outbox contracts.
-5. Complete Task 20 platform audit/retention, then isolate Task 19 RLS backfill/parity/enforcement from the workflow schema window.
-6. Proceed through Tasks 21–26 in dependency order; Task 27 remains the final independent certification gate.
+1. Finish Task 13 shared schemas, metadata-driven classification and frontend validation; then implement Task 14 server-policy consumption.
+2. Implement Task 15 before Tasks 16–18; it owns the transaction, version, idempotency, audit and outbox boundary.
+3. Build Task 16 on Task 15, then execute Tasks 17 and 18 in parallel against the durable command/outbox contracts.
+4. Complete Task 20 platform audit/retention, then isolate Task 19 RLS backfill/parity/enforcement from the workflow schema window.
+5. Proceed through Tasks 21–26 in dependency order; Task 27 remains the final independent certification gate.
 
 ---
 

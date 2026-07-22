@@ -1,8 +1,10 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import * as path from 'path';
 import { AppError } from '../middleware/error.middleware';
+import { dispatchAttachmentScan } from '../queues/attachmentScan.queue';
 import { policyService } from '../security/policy.service';
 import { PolicyPrincipal, ResourceDescriptor } from '../security/policy.types';
+import { logger } from '../utils/logger';
 import prisma from '../utils/prisma';
 import { s3Service } from './s3.service';
 
@@ -122,6 +124,40 @@ export async function registerUpload(input: RegisterUploadInput) {
         },
     });
 
+    try {
+        await dispatchAttachmentScan({
+            attachmentId: attachment.id,
+            tenantId: request.tenantId,
+            scanJobId,
+            contentHash,
+            nonce,
+        });
+    } catch {
+        const failedAt = new Date();
+        try {
+            await s3Service.deleteObject(attachment.storagePath);
+            await prisma.requestAttachment.deleteMany({ where: { id: attachment.id } });
+        } catch (cleanupError) {
+            logger.error('[AttachmentScanner] Dispatch cleanup failed; object queued for deletion', {
+                attachmentId: attachment.id,
+                cleanupError,
+            });
+            await prisma.requestAttachment.updateMany({
+                where: { id: attachment.id, scanStatus: 'PENDING_SCAN' },
+                data: {
+                    scanStatus: 'SCAN_FAILED',
+                    scanResult: 'SCANNER_DISPATCH_FAILED',
+                    isScanned: true,
+                    scanCompletedAt: failedAt,
+                    scanCallbackConsumedAt: failedAt,
+                    retentionStatus: 'PENDING_DELETION',
+                    retentionUntil: failedAt,
+                },
+            });
+        }
+        throw new AppError('Attachment scanner is unavailable', 503);
+    }
+
     return {
         attachment,
         scanRegistration: {
@@ -208,7 +244,8 @@ export async function getAuthorizedAttachment(principal: PolicyPrincipal, attach
 
     if (!attachment
         || attachment.scanStatus !== 'CLEAN'
-        || attachment.retentionStatus !== 'ACTIVE') {
+        || attachment.retentionStatus !== 'ACTIVE'
+        || (attachment.retentionUntil && attachment.retentionUntil.getTime() <= Date.now())) {
         throw new AppError('Attachment not found', 404);
     }
 
@@ -220,4 +257,78 @@ export async function getAuthorizedAttachment(principal: PolicyPrincipal, attach
 export async function getAuthorizedDownloadUrl(principal: PolicyPrincipal, attachmentId: string): Promise<string> {
     const attachment = await getAuthorizedAttachment(principal, attachmentId);
     return s3Service.getPresignedUrl(attachment.storagePath, 0.25);
+}
+
+export async function getAttachmentScanTarget(attachmentId: string, scanJobId: string) {
+    return prisma.requestAttachment.findFirst({
+        where: { id: attachmentId, scanJobId, deletedAt: null },
+        select: {
+            id: true,
+            tenantId: true,
+            storagePath: true,
+            contentHash: true,
+            scanStatus: true,
+            quarantinePath: true,
+            quarantinedAt: true,
+            sourceDeletedAt: true,
+        },
+    });
+}
+
+export async function quarantineInfectedAttachment(attachmentId: string): Promise<void> {
+    const attachment = await prisma.requestAttachment.findFirst({
+        where: { id: attachmentId, scanStatus: 'INFECTED', deletedAt: null },
+        select: {
+            id: true,
+            tenantId: true,
+            storagePath: true,
+            contentHash: true,
+            quarantinePath: true,
+            quarantinedAt: true,
+            sourceDeletedAt: true,
+        },
+    });
+    if (!attachment) throw new AppError('Infected attachment not found', 404);
+    if (attachment.sourceDeletedAt) return;
+
+    const quarantinePath = attachment.quarantinePath
+        ?? `quarantine/${attachment.tenantId}/${attachment.id}/${attachment.contentHash}`;
+    if (!attachment.quarantinePath) {
+        await s3Service.copyToQuarantine(attachment.storagePath, quarantinePath);
+
+        const copied = await prisma.requestAttachment.updateMany({
+            where: { id: attachment.id, scanStatus: 'INFECTED', quarantinePath: null },
+            data: {
+                quarantinePath,
+                quarantinedAt: new Date(),
+            },
+        });
+        if (copied.count !== 1) throw new AppError('Attachment quarantine state changed', 409);
+    }
+
+    await s3Service.deleteObject(attachment.storagePath);
+    const sourceDeletedAt = new Date();
+    const completed = await prisma.requestAttachment.updateMany({
+        where: {
+            id: attachment.id,
+            scanStatus: 'INFECTED',
+            quarantinePath,
+            sourceDeletedAt: null,
+        },
+        data: { sourceDeletedAt, scanResult: 'INFECTED' },
+    });
+    if (completed.count !== 1) throw new AppError('Attachment quarantine completion changed', 409);
+}
+
+export async function markQuarantineFailure(attachmentId: string, scanJobId: string): Promise<boolean> {
+    const updated = await prisma.requestAttachment.updateMany({
+        where: {
+            id: attachmentId,
+            scanJobId,
+            scanStatus: 'INFECTED',
+            sourceDeletedAt: null,
+        },
+        data: { scanResult: 'QUARANTINE_FAILED' },
+    });
+    return updated.count === 1;
 }

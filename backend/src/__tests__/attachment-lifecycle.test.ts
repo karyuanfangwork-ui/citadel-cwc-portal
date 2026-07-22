@@ -6,7 +6,11 @@ const mockRequestFindFirst = jest.fn();
 const mockAttachmentCreate = jest.fn();
 const mockAttachmentFindFirst = jest.fn();
 const mockAttachmentUpdateMany = jest.fn();
+const mockAttachmentDeleteMany = jest.fn();
 const mockGetPresignedUrl = jest.fn();
+const mockCopyToQuarantine = jest.fn();
+const mockDeleteObject = jest.fn();
+const mockDispatchAttachmentScan = jest.fn();
 
 jest.mock('../utils/prisma', () => ({
     __esModule: true,
@@ -16,12 +20,21 @@ jest.mock('../utils/prisma', () => ({
             create: mockAttachmentCreate,
             findFirst: mockAttachmentFindFirst,
             updateMany: mockAttachmentUpdateMany,
+            deleteMany: mockAttachmentDeleteMany,
         },
     },
 }));
 
 jest.mock('../services/s3.service', () => ({
-    s3Service: { getPresignedUrl: mockGetPresignedUrl },
+    s3Service: {
+        getPresignedUrl: mockGetPresignedUrl,
+        copyToQuarantine: mockCopyToQuarantine,
+        deleteObject: mockDeleteObject,
+    },
+}));
+
+jest.mock('../queues/attachmentScan.queue', () => ({
+    dispatchAttachmentScan: mockDispatchAttachmentScan,
 }));
 
 jest.mock('../utils/logger', () => ({
@@ -31,6 +44,7 @@ jest.mock('../utils/logger', () => ({
 import {
     getAuthorizedDownloadUrl,
     markScanResult,
+    quarantineInfectedAttachment,
     registerUpload,
 } from '../services/attachmentAccess.service';
 
@@ -60,6 +74,9 @@ describe('Task 12 attachment lifecycle', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockRequestFindFirst.mockResolvedValue(requestScope);
+        mockDispatchAttachmentScan.mockResolvedValue(undefined);
+        mockDeleteObject.mockResolvedValue(undefined);
+        mockAttachmentDeleteMany.mockResolvedValue({ count: 1 });
     });
 
     it('registers uploads as tenant/department-bound PENDING_SCAN records', async () => {
@@ -91,6 +108,68 @@ describe('Task 12 attachment lifecycle', () => {
         expect(result.scanRegistration.nonce).toBeTruthy();
         expect(result.attachment.scanCallbackNonceHash).not.toBe(result.scanRegistration.nonce);
         expect(result.attachment.contentHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(mockDispatchAttachmentScan).toHaveBeenCalledWith(expect.objectContaining({
+            attachmentId: 'attachment-1',
+            tenantId: 'tenant-1',
+            scanJobId: result.scanRegistration.scanJobId,
+            contentHash: result.scanRegistration.contentHash,
+            nonce: result.scanRegistration.nonce,
+        }));
+    });
+
+    it('marks registration failed when scanner dispatch is unavailable', async () => {
+        mockAttachmentCreate.mockImplementation(async ({ data }: any) => ({ id: 'attachment-1', ...data }));
+        mockAttachmentUpdateMany.mockResolvedValue({ count: 1 });
+        mockDispatchAttachmentScan.mockRejectedValue(new Error('redis unavailable'));
+
+        await expect(registerUpload({
+            principal,
+            requestId: 'request-1',
+            uploadedById: 'owner-1',
+            file: {
+                originalname: 'evidence.pdf',
+                mimetype: 'application/pdf',
+                size: 4,
+                buffer: Buffer.from('test'),
+                key: 'cwc/opaque.pdf',
+            },
+        })).rejects.toThrow('Attachment scanner is unavailable');
+
+        expect(mockDeleteObject).toHaveBeenCalledWith('cwc/opaque.pdf');
+        expect(mockAttachmentDeleteMany).toHaveBeenCalledWith({ where: { id: 'attachment-1' } });
+        expect(mockAttachmentUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('marks dispatch-failed objects for deletion when object cleanup fails', async () => {
+        mockAttachmentCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+            id: 'attachment-1',
+            ...data,
+        }));
+        mockAttachmentUpdateMany.mockResolvedValue({ count: 1 });
+        mockDispatchAttachmentScan.mockRejectedValue(new Error('redis unavailable'));
+        mockDeleteObject.mockRejectedValue(new Error('object store unavailable'));
+
+        await expect(registerUpload({
+            principal,
+            requestId: 'request-1',
+            uploadedById: 'owner-1',
+            file: {
+                originalname: 'evidence.pdf',
+                mimetype: 'application/pdf',
+                size: 4,
+                buffer: Buffer.from('test'),
+                key: 'cwc/opaque.pdf',
+            },
+        })).rejects.toThrow('Attachment scanner is unavailable');
+
+        expect(mockAttachmentUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                scanStatus: 'SCAN_FAILED',
+                retentionStatus: 'PENDING_DELETION',
+                retentionUntil: expect.any(Date),
+            }),
+        }));
+        expect(mockAttachmentDeleteMany).not.toHaveBeenCalled();
     });
 
     it('rejects a forged scan callback without mutating state', async () => {
@@ -201,6 +280,22 @@ describe('Task 12 attachment lifecycle', () => {
         expect(mockGetPresignedUrl).toHaveBeenCalledWith('cwc/opaque.pdf', 0.25);
     });
 
+    it('never signs a CLEAN attachment after its retention deadline', async () => {
+        mockAttachmentFindFirst.mockResolvedValue({
+            id: 'attachment-1',
+            storagePath: 'cwc/opaque.pdf',
+            scanStatus: 'CLEAN',
+            deletedAt: null,
+            retentionStatus: 'ACTIVE',
+            retentionUntil: new Date(Date.now() - 1_000),
+            request: requestScope,
+        });
+
+        await expect(getAuthorizedDownloadUrl(principal, 'attachment-1'))
+            .rejects.toThrow('Attachment not found');
+        expect(mockGetPresignedUrl).not.toHaveBeenCalled();
+    });
+
     it('conceals a CLEAN attachment from a principal outside the parent request scope', async () => {
         mockAttachmentFindFirst.mockResolvedValue({
             id: 'attachment-1',
@@ -217,5 +312,59 @@ describe('Task 12 attachment lifecycle', () => {
             departmentIds: ['department-hr'],
         }, 'attachment-1')).rejects.toThrow('Attachment not found');
         expect(mockGetPresignedUrl).not.toHaveBeenCalled();
+    });
+
+    it('moves an INFECTED object to quarantine and records deletion evidence', async () => {
+        mockAttachmentFindFirst.mockResolvedValue({
+            id: 'attachment-1',
+            tenantId: 'tenant-1',
+            storagePath: 'cwc/opaque.pdf',
+            contentHash: 'a'.repeat(64),
+            scanStatus: 'INFECTED',
+            quarantinePath: null,
+            quarantinedAt: null,
+            sourceDeletedAt: null,
+        });
+        mockAttachmentUpdateMany.mockResolvedValue({ count: 1 });
+        mockCopyToQuarantine.mockResolvedValue(undefined);
+
+        await quarantineInfectedAttachment('attachment-1');
+
+        const quarantinePath = `quarantine/tenant-1/attachment-1/${'a'.repeat(64)}`;
+        expect(mockCopyToQuarantine).toHaveBeenCalledWith('cwc/opaque.pdf', quarantinePath);
+        expect(mockAttachmentUpdateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            data: {
+                quarantinePath,
+                quarantinedAt: expect.any(Date),
+            },
+        }));
+        expect(mockDeleteObject).toHaveBeenCalledWith('cwc/opaque.pdf');
+        expect(mockAttachmentUpdateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            data: expect.objectContaining({
+                sourceDeletedAt: expect.any(Date),
+                scanResult: 'INFECTED',
+            }),
+        }));
+    });
+
+    it('resumes source deletion after quarantine evidence was persisted', async () => {
+        const quarantinePath = `quarantine/tenant-1/attachment-1/${'a'.repeat(64)}`;
+        mockAttachmentFindFirst.mockResolvedValue({
+            id: 'attachment-1',
+            tenantId: 'tenant-1',
+            storagePath: 'cwc/opaque.pdf',
+            contentHash: 'a'.repeat(64),
+            scanStatus: 'INFECTED',
+            quarantinePath,
+            quarantinedAt: new Date(),
+            sourceDeletedAt: null,
+        });
+        mockAttachmentUpdateMany.mockResolvedValue({ count: 1 });
+
+        await quarantineInfectedAttachment('attachment-1');
+
+        expect(mockCopyToQuarantine).not.toHaveBeenCalled();
+        expect(mockDeleteObject).toHaveBeenCalledWith('cwc/opaque.pdf');
+        expect(mockAttachmentUpdateMany).toHaveBeenCalledTimes(1);
     });
 });

@@ -5,6 +5,8 @@ import { initScheduler, shutdownScheduler } from './services/scheduler.service';
 import { initSseRedis, disconnectSseRedis } from './utils/sseClients';
 import { startWorkflowEngine } from './services/crm-workflow.service';
 import { startPdfWorker } from './workers/pdf.worker';
+import { startAttachmentScanWorker } from './workers/attachmentScan.worker';
+import { attachmentScanQueue } from './queues/attachmentScan.queue';
 import app from './app';
 
 // Load environment variables
@@ -16,6 +18,8 @@ dotenv.config();
 
 const PORT = config.port;
 let isShuttingDown = false;
+let pdfWorker: ReturnType<typeof startPdfWorker> | null = null;
+let attachmentScanWorker: ReturnType<typeof startAttachmentScanWorker> = null;
 
 const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
@@ -30,7 +34,10 @@ const server = app.listen(PORT, () => {
     startWorkflowEngine();
 
     // Start PDF generation worker (BullMQ)
-    startPdfWorker();
+    pdfWorker = startPdfWorker();
+
+    // Start governed malware scanning and quarantine worker (BullMQ)
+    attachmentScanWorker = startAttachmentScanWorker();
 });
 
 // Graceful shutdown
@@ -52,7 +59,14 @@ const gracefulShutdown = (signal: string, error?: unknown, exitCode = 0) => {
     // Stop scheduled jobs
     shutdownScheduler();
 
-    server.close(() => {
+    const workerShutdown = Promise.allSettled([
+        pdfWorker?.close(),
+        attachmentScanWorker?.close(),
+        attachmentScanQueue.close(),
+    ]);
+
+    server.close(async () => {
+        await workerShutdown;
         logger.info('Server closed');
         process.exit(exitCode);
     });

@@ -35,7 +35,8 @@
     "clear-tickets": "tsx src/scripts/clear-tickets.ts",
     "clear-tickets:dry-run": "DRY_RUN=true tsx src/scripts/clear-tickets.ts",
     "import:staff": "tsx scripts/bulk_import_staff.ts",
-    "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing"
+    "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing",
+    "smoke:attachment-scanner": "ATTACHMENT_SCAN_QUEUE_NAME=attachment.malware-scan.smoke tsx scripts/smoke-attachment-scanner.ts"
   },
   "keywords": [
     "help-desk",

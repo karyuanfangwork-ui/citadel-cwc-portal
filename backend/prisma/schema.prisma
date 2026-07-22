@@ -827,6 +827,7 @@ model Request {
   @@index([tenantId, createdAt(sort: Desc)]) // P2-08: composite for pagination
   @@index([tenantId, assignedToId]) // P2-08: composite for "my tickets" view
   @@index([tenantId, serviceDeskId]) // P2-08: composite for service desk filtering
+  @@unique([id, tenantId, departmentId])
   @@map("requests")
 }
 
@@ -896,8 +897,8 @@ model RequestActivity {
 
 model RequestAttachment {
   id           String  @id @default(uuid()) @db.Uuid
-  tenantId     String? @map("tenant_id") @db.Uuid
-  departmentId String? @map("department_id") @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  departmentId String  @map("department_id") @db.Uuid
   requestId    String  @map("request_id") @db.Uuid
   activityId   String? @map("activity_id") @db.Uuid
 
@@ -921,6 +922,9 @@ model RequestAttachment {
   scanCallbackExpiresAt  DateTime?            @map("scan_callback_expires_at") @db.Timestamp(6)
   scanCallbackConsumedAt DateTime?            @map("scan_callback_consumed_at") @db.Timestamp(6)
   scanCompletedAt        DateTime?            @map("scan_completed_at") @db.Timestamp(6)
+  quarantinePath         String?              @map("quarantine_path") @db.Text
+  quarantinedAt          DateTime?            @map("quarantined_at") @db.Timestamp(6)
+  sourceDeletedAt        DateTime?            @map("source_deleted_at") @db.Timestamp(6)
 
   retentionStatus AttachmentRetentionStatus @default(ACTIVE) @map("retention_status")
   retentionUntil  DateTime?                 @map("retention_until") @db.Timestamp(6)
@@ -930,8 +934,8 @@ model RequestAttachment {
   deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
-  department       Department?       @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
-  request          Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  department       Department        @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
+  request          Request           @relation(fields: [requestId, tenantId, departmentId], references: [id, tenantId, departmentId], onDelete: Cascade)
   activity         RequestActivity?  @relation(fields: [activityId], references: [id], onDelete: SetNull)
   uploadedBy       User?             @relation(fields: [uploadedById], references: [id])
   expenseLineItems ExpenseLineItem[]
