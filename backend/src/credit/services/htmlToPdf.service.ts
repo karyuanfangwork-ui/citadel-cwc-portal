@@ -1,7 +1,9 @@
-import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+import puppeteer from 'puppeteer';
 
 const CHROME_PATHS = [
   process.env.CHROME_PATH,            // explicit override (e.g. in Docker)
+  process.env.PUPPETEER_EXECUTABLE_PATH,
   '/usr/bin/chromium',                 // Debian/Ubuntu package
   '/usr/bin/chromium-browser',         // older Ubuntu
   '/usr/bin/google-chrome',            // Google Chrome on Linux
@@ -9,29 +11,29 @@ const CHROME_PATHS = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',    // Windows
 ].filter(Boolean) as string[];
 
-async function findChrome(): Promise<string> {
-  const fs = await import('fs');
+export async function findChrome(): Promise<string> {
   for (const p of CHROME_PATHS) {
     try {
       if (fs.existsSync(p)) return p;
     } catch { /* skip inaccessible paths */ }
   }
+  const bundledPath = await puppeteer.executablePath();
+  if (bundledPath && fs.existsSync(bundledPath)) {
+    return bundledPath;
+  }
+
   throw new Error(
-    `Chrome/Chromium not found. Searched: ${CHROME_PATHS.join(', ')}. ` +
-    'Install Chromium or set the CHROME_PATH env var.',
+    `Chrome/Chromium not found. Searched: ${CHROME_PATHS.join(', ')}, ${bundledPath}. ` +
+    'Install the Puppeteer browser cache or set CHROME_PATH/PUPPETEER_EXECUTABLE_PATH.',
   );
 }
 
 /**
  * Chrome/Chromium launch args for headless PDF generation inside Docker containers.
  *
- * Chromium 150+ crashes (SIGTRAP / exit code 133) in minimal containers because:
- *  - No D-Bus daemon → harmless warnings logged to stderr
- *  - The new headless mode (--headless=new, which is the default since Chrome 112)
- *    can fail to launch in containers without a display compositor.
- *
- * The fix is to use the *old* headless mode (`--headless=old`) combined with
- * `--disable-gpu`, `--disable-software-rasterizer`, and `--disable-dev-shm-usage`.
+ * Production uses Puppeteer's pinned Chrome for Testing binary instead of the
+ * distro `chromium` package. The distro package has crashed in Docker with
+ * SIGTRAP while probing Linux CPU frequency sysfs paths.
  */
 const DOCKER_CHROME_ARGS = [
   '--no-sandbox',
@@ -44,7 +46,7 @@ const DOCKER_CHROME_ARGS = [
   '--disable-default-apps',
   '--disable-sync',
   '--no-first-run',
-  '--headless=old',
+  '--single-process',
 ] as const;
 
 export async function htmlToPdf(html: string): Promise<Buffer> {

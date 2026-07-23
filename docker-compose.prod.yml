@@ -48,9 +48,12 @@ services:
       - internal
 
   backend:
+    platform: linux/amd64
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        PDF_SMOKE_TEST: "true"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -115,8 +118,9 @@ services:
       CREDIT_HMAC_KEY: ${CREDIT_HMAC_KEY:-}
       # ── Seed safety: preserve admin-configured data on re-seed ──
       RETAIN_ADMIN_CONFIG: ${RETAIN_ADMIN_CONFIG:-true}
-      # ── Chromium (PDF generation via puppeteer-core) ──
-      CHROME_PATH: /usr/bin/chromium
+      # ── Chrome for PDF generation (Puppeteer's pinned browser cache) ──
+      PUPPETEER_CACHE_DIR: /app/.cache/puppeteer
+      CHROME_PATH: ${CHROME_PATH:-}
       # ── AI (OpenAI) ──
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # ── SLA Checker ──

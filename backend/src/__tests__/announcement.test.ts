@@ -19,8 +19,8 @@
  * - Dashboard & unread count
  */
 
-// Mock puppeteer-core to avoid ESM parse error in Jest
-jest.mock('puppeteer-core', () => ({}));
+// Mock puppeteer to avoid ESM parse error in Jest
+jest.mock('puppeteer', () => ({}));
 jest.mock('../credit/services/htmlToPdf.service', () => ({
   htmlToPdfService: { generate: jest.fn() },
 }));
