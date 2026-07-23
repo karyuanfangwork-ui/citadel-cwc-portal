@@ -115,8 +115,6 @@ services:
       CREDIT_HMAC_KEY: ${CREDIT_HMAC_KEY:-}
       # ── Seed safety: preserve admin-configured data on re-seed ──
       RETAIN_ADMIN_CONFIG: ${RETAIN_ADMIN_CONFIG:-true}
-      # ── Production guard: prevents destructive seed scripts from running ──
-      NODE_ENV: production
       # ── Chromium (PDF generation via puppeteer-core) ──
       CHROME_PATH: /usr/bin/chromium
       # ── AI (OpenAI) ──
