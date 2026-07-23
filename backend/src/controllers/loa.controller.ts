@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { createOnboardingFromHiring } from '../services/onboarding.service';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Upload LOA document
  * POST /requests/:id/loa/upload
@@ -145,13 +145,13 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
         }
 
         // Update request status
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: 'LOA_PENDING_APPROVAL' }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'LOA_PENDING_APPROVAL',
+            source: 'loa.route-for-approval',
+            comment: comments,
         });
-
-        // Pause SLA — request entered LOA_PENDING_APPROVAL
-        await pauseSla(id);
 
         // Create activity log
         await prisma.requestActivity.create({
@@ -248,13 +248,13 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
 
         // Update request status
         const newStatus = decision === 'APPROVE' ? 'LOA_APPROVED' : 'HR_SCREENING';
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: newStatus }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'loa.manager-decision',
+            comment: comments || `LOA ${decision.toLowerCase()}`,
         });
-
-        // Resume SLA — leaving LOA_PENDING_APPROVAL
-        await resumeSla(id);
 
         // Create activity log
         const activityMessage = decision === 'APPROVE'
@@ -339,9 +339,12 @@ export const markLOAIssued = async (req: Request, res: Response) => {
         });
 
         // Update request status
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: 'LOA_ISSUED' }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'LOA_ISSUED',
+            source: 'loa.issue',
+            comment: notes,
         });
 
         // Create activity log
@@ -433,9 +436,12 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
 
         // Advance request status to LOA_ACCEPTED (candidate has signed)
         // FIX G-001 Part A: the LOA_ACCEPTED state was being skipped entirely
-        await prisma.request.update({
-            where: { id },
-            data: { status: 'LOA_ACCEPTED' }
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'LOA_ACCEPTED',
+            source: 'loa.upload-signed',
+            comment: `Signed LOA uploaded: ${file.originalname}`,
         });
 
         // Create activity log for the signed LOA upload
@@ -527,14 +533,18 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
         });
 
         // Update request status to final state
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: {
-                status: 'COMPLETED',
-                resolvedAt: new Date(),
-                closedAt: new Date(),
-                completedAt: new Date()
-            }
+        const completedAt = new Date();
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'COMPLETED',
+            source: 'loa.accept',
+            comment: notes || 'Signed LOA accepted',
+            requestPatch: {
+                resolvedAt: completedAt,
+                closedAt: completedAt,
+                completedAt,
+            },
         });
 
         // Create activity log

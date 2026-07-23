@@ -1,27 +1,17 @@
 /**
- * workflowCommand.service.ts
+ * P04 Task 15: versioned, tenant-scoped workflow command boundary.
  *
- * P04 Task 15: Versioned transactional workflow command boundary.
- *
- * Every request status change must go through this service. It provides:
- * 1. Optimistic concurrency via version check (two concurrent commands with
- *    the same expectedVersion yield one success and one WORKFLOW_VERSION_CONFLICT)
- * 2. Idempotency — replaying the same idempotency key returns the original result
- * 3. Atomic state transition + history + audit + outbox in a single transaction
- * 4. Tenant-scoped BOLA protection
- *
- * Callers should use `transitionRequest()` for the simpler API, or
- * `executeWorkflowCommand()` for full control.
+ * Every request status change must pass through this service. Request state,
+ * terminal/assignment/SLA fields, immutable history, activity, audit, outbox,
+ * and idempotency result are committed or rolled back as one unit.
  */
 
+import { createHash } from 'crypto';
+import { Prisma, RequestStatus } from '@prisma/client';
+
+import { AppError } from '../middleware/error.middleware';
 import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
-import { AppError } from '../middleware/error.middleware';
-import { RequestStatus } from '@prisma/client';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface WorkflowCommand {
     requestId: string;
@@ -34,10 +24,18 @@ export interface WorkflowCommand {
     source?: string;
     comment?: string;
     metadata?: Record<string, unknown>;
-    /** Unique key for idempotency. Replay returns the original result. */
+    /** Tenant-scoped key. A replay must have the same complete command hash. */
     idempotencyKey?: string;
-    /** Skip transition validation (for admin overrides / system actions) */
-    skipValidation?: boolean;
+    /** Additional scalar request changes committed with status/version. */
+    requestPatch?: Record<string, unknown>;
+    /** SLA clock mutation computed from the locked request snapshot. */
+    slaTransition?: 'PAUSE' | 'RESUME';
+    /** HTTP/request attribution for the mandatory transactional audit row. */
+    audit?: {
+        userEmail?: string;
+        ipAddress?: string;
+        userAgent?: string;
+    };
 }
 
 export interface WorkflowCommandResult {
@@ -50,17 +48,81 @@ export interface WorkflowCommandResult {
     historyId: string;
 }
 
-// ---------------------------------------------------------------------------
-// Main command execution
-// ---------------------------------------------------------------------------
+const FORBIDDEN_PATCH_FIELDS = new Set([
+    'id',
+    'tenantId',
+    'departmentId',
+    'requesterId',
+    'status',
+    'version',
+    'createdAt',
+    'updatedAt',
+    'deletedAt',
+]);
+
+function normalizeForHash(value: unknown): unknown {
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === 'bigint') return value.toString();
+    if (Array.isArray(value)) return value.map(normalizeForHash);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, nested]) => [key, normalizeForHash(nested)]),
+        );
+    }
+    return value;
+}
+
+function commandFingerprint(command: WorkflowCommand): string {
+    const {
+        idempotencyKey: _ignored,
+        audit: _auditAttribution,
+        requestPatch = {},
+        ...fingerprinted
+    } = command;
+    // Server-derived timestamps and network attribution can legitimately differ
+    // when an HTTP request is retried. They must not turn the same logical
+    // command into an idempotency conflict.
+    const runtimeFields = new Set([
+        'resolvedAt',
+        'closedAt',
+        'completedAt',
+        'slaPausedAt',
+        'slaPauseDurationMs',
+        'slaDueAt',
+    ]);
+    const logicalPatch = Object.fromEntries(
+        Object.entries(requestPatch).filter(([field]) => !runtimeFields.has(field)),
+    );
+    return createHash('sha256')
+        .update(JSON.stringify(normalizeForHash({ ...fingerprinted, requestPatch: logicalPatch })))
+        .digest('hex');
+}
+
+function replayResult(existing: {
+    requestId: string;
+    fromStatus: string;
+    toStatus: string;
+    result: Prisma.JsonValue;
+}): WorkflowCommandResult {
+    const payload = existing.result as unknown as Record<string, unknown>;
+    return {
+        success: true,
+        requestId: existing.requestId,
+        previousStatus: existing.fromStatus,
+        newStatus: existing.toStatus,
+        version: Number(payload.version),
+        idempotent: true,
+        historyId: String(payload.historyId ?? ''),
+    };
+}
 
 /**
- * Execute a workflow command atomically with optimistic concurrency,
- * idempotency, and transactional history/audit/outbox.
+ * Execute a workflow command atomically.
  *
- * @throws AppError(409) if the expected version doesn't match (concurrent write)
- * @throws AppError(404) if the request is not found or tenant mismatch (BOLA)
- * @throws AppError(409) if idempotency key conflicts with a different command
+ * @throws AppError(404) for request/tenant mismatch (BOLA-safe)
+ * @throws AppError(409) for stale version/status or idempotency mismatch
  */
 export async function executeWorkflowCommand(
     command: WorkflowCommand,
@@ -77,30 +139,87 @@ export async function executeWorkflowCommand(
         comment,
         metadata,
         idempotencyKey,
+        requestPatch = {},
+        slaTransition,
+        audit,
     } = command;
 
-    // ── 0. Idempotency check ────────────────────────────────────────────
-    if (idempotencyKey) {
-        const existing = await prisma.workflowCommandResult.findUnique({
-            where: { idempotencyKey },
-        });
-        if (existing) {
-            // Replay: return original result
-            return {
-                success: true,
-                requestId: existing.requestId,
-                previousStatus: existing.fromStatus,
-                newStatus: existing.toStatus,
-                version: (existing.result as any)?.version ?? expectedVersion,
-                idempotent: true,
-                historyId: (existing.result as any)?.historyId ?? '',
-            };
+    if (!tenantId) throw new AppError('Request not found', 404);
+    for (const field of Object.keys(requestPatch)) {
+        if (FORBIDDEN_PATCH_FIELDS.has(field)) {
+            throw new AppError(`Workflow command cannot patch protected request field: ${field}`, 400);
         }
     }
 
-    // ── 1. Atomic transaction ───────────────────────────────────────────
+    const commandHash = commandFingerprint(command);
     const result = await prisma.$transaction(async (tx) => {
-        // 1a. Optimistic concurrency: update only if version matches and status matches
+        if (idempotencyKey) {
+            const existing = await tx.workflowCommandResult.findUnique({
+                where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
+            });
+            if (existing) {
+                if (existing.commandHash !== commandHash) {
+                    throw new AppError('Idempotency key conflict: key is bound to a different workflow command', 409);
+                }
+                return replayResult(existing);
+            }
+        }
+
+        const current = await tx.request.findFirst({
+            where: { id: requestId, tenantId },
+            select: {
+                id: true,
+                departmentId: true,
+                status: true,
+                version: true,
+                slaPausedAt: true,
+                slaPauseDurationMs: true,
+                slaDueAt: true,
+            },
+        });
+        if (!current) throw new AppError('Request not found', 404);
+
+        const now = new Date();
+        const atomicPatch: Record<string, unknown> = { ...requestPatch };
+        let slaActivity: Prisma.RequestActivityUncheckedCreateInput | undefined;
+
+        if (slaTransition === 'PAUSE' && !current.slaPausedAt) {
+            atomicPatch.slaPausedAt = now;
+            slaActivity = {
+                requestId,
+                authorId: actorId ?? null,
+                authorName: 'System',
+                activityType: 'SYSTEM',
+                message: 'SLA timer paused — request entered approval status',
+                isSystemGenerated: true,
+                metadata: { action: 'sla_pause', pausedAt: now.toISOString() },
+            };
+        } else if (slaTransition === 'RESUME' && current.slaPausedAt) {
+            const pauseDurationMs = now.getTime() - current.slaPausedAt.getTime();
+            const totalPauseMs = current.slaPauseDurationMs + BigInt(pauseDurationMs);
+            atomicPatch.slaPausedAt = null;
+            atomicPatch.slaPauseDurationMs = totalPauseMs;
+            if (current.slaDueAt) {
+                atomicPatch.slaDueAt = new Date(current.slaDueAt.getTime() + pauseDurationMs);
+            }
+            const pauseMinutes = Math.floor(pauseDurationMs / 60_000);
+            slaActivity = {
+                requestId,
+                authorId: actorId ?? null,
+                authorName: 'System',
+                activityType: 'SYSTEM',
+                message: `SLA timer resumed — approval decision made (paused ${Math.floor(pauseMinutes / 60)}h ${pauseMinutes % 60}m)`,
+                isSystemGenerated: true,
+                metadata: {
+                    action: 'sla_resume',
+                    pausedAt: current.slaPausedAt.toISOString(),
+                    resumedAt: now.toISOString(),
+                    pauseDurationMs,
+                    totalPauseMs: totalPauseMs.toString(),
+                },
+            };
+        }
+
         const changed = await tx.request.updateMany({
             where: {
                 id: requestId,
@@ -109,31 +228,38 @@ export async function executeWorkflowCommand(
                 version: expectedVersion,
             },
             data: {
+                ...(atomicPatch as Prisma.RequestUpdateManyMutationInput),
                 status: toStatus,
                 version: { increment: 1 },
             },
         });
 
         if (changed.count !== 1) {
-            // Verify: does the request exist at all? (BOLA check)
-            const exists = await tx.request.findUnique({
-                where: { id: requestId },
-                select: { id: true, tenantId: true, status: true, version: true },
-            });
+            // A concurrent same-key command may have committed while this
+            // transaction waited for the request row lock.
+            if (idempotencyKey) {
+                const replay = await tx.workflowCommandResult.findUnique({
+                    where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
+                });
+                if (replay) {
+                    if (replay.commandHash !== commandHash) {
+                        throw new AppError('Idempotency key conflict: key is bound to a different workflow command', 409);
+                    }
+                    return replayResult(replay);
+                }
+            }
 
-            if (!exists) {
-                throw new AppError('Request not found', 404);
-            }
-            if (exists.tenantId !== tenantId) {
-                throw new AppError('Request not found', 404);
-            }
+            const exists = await tx.request.findFirst({
+                where: { id: requestId, tenantId },
+                select: { status: true, version: true },
+            });
+            if (!exists) throw new AppError('Request not found', 404);
             if (exists.status !== fromStatus) {
                 throw new AppError(
                     `Request status conflict: expected ${fromStatus} but was ${exists.status}`,
                     409,
                 );
             }
-            // Version mismatch = concurrent write
             throw new AppError(
                 `WORKFLOW_VERSION_CONFLICT: expected version ${expectedVersion} but was ${exists.version}`,
                 409,
@@ -141,10 +267,10 @@ export async function executeWorkflowCommand(
         }
 
         const newVersion = expectedVersion + 1;
-
-        // 1b. Create immutable workflow history
         const history = await tx.workflowHistory.create({
             data: {
+                tenantId,
+                departmentId: current.departmentId,
                 requestId,
                 fromStatus,
                 toStatus,
@@ -152,13 +278,12 @@ export async function executeWorkflowCommand(
                 actorName: actorName ?? null,
                 source,
                 comment: comment ?? null,
-                metadata: metadata ?? {},
+                metadata: (metadata ?? {}) as Prisma.InputJsonValue,
                 requestVersion: newVersion,
                 idempotencyKey: idempotencyKey ?? null,
             },
         });
 
-        // 1c. Create activity log
         await tx.requestActivity.create({
             data: {
                 requestId,
@@ -168,44 +293,67 @@ export async function executeWorkflowCommand(
                 activityType: 'STATUS_CHANGE',
                 message: `Status changed from ${fromStatus} to ${toStatus}`,
                 isSystemGenerated: !actorId,
-                metadata: {
-                    fromStatus,
-                    toStatus,
-                    source,
+                metadata: { fromStatus, toStatus, source, version: newVersion },
+            },
+        });
+        if (slaActivity) await tx.requestActivity.create({ data: slaActivity });
+
+        await tx.auditLog.create({
+            data: {
+                tenantId,
+                userId: actorId ?? null,
+                userEmail: audit?.userEmail ?? null,
+                action: 'STATUS_TRANSITION',
+                resourceType: 'request',
+                resourceId: requestId,
+                ipAddress: audit?.ipAddress ?? null,
+                userAgent: audit?.userAgent ?? null,
+                oldValues: { status: fromStatus, version: expectedVersion },
+                newValues: {
+                    status: toStatus,
                     version: newVersion,
-                },
+                    source,
+                    comment: comment ?? null,
+                    requestPatch: normalizeForHash(requestPatch),
+                    slaTransition: slaTransition ?? null,
+                } as Prisma.InputJsonValue,
             },
         });
 
-        // 1d. Create outbox event for downstream consumers
         await tx.outboxEvent.create({
             data: {
+                tenantId,
+                departmentId: current.departmentId,
                 eventType: 'REQUEST_STATUS_CHANGED',
                 aggregateId: requestId,
+                aggregateVersion: newVersion,
                 payload: {
                     requestId,
+                    tenantId,
+                    departmentId: current.departmentId,
                     fromStatus,
                     toStatus,
                     version: newVersion,
-                    actorId,
+                    actorId: actorId ?? null,
                     source,
-                    timestamp: new Date().toISOString(),
+                    timestamp: now.toISOString(),
                 },
             },
         });
 
-        // 1e. Store idempotency result
         const resultPayload = {
             version: newVersion,
             historyId: history.id,
             fromStatus,
             toStatus,
         };
-
         if (idempotencyKey) {
             await tx.workflowCommandResult.create({
                 data: {
+                    tenantId,
+                    departmentId: current.departmentId,
                     idempotencyKey,
+                    commandHash,
                     requestId,
                     fromStatus,
                     toStatus,
@@ -223,9 +371,10 @@ export async function executeWorkflowCommand(
             idempotent: false,
             historyId: history.id,
         };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
-    logger.info(`executeWorkflowCommand: ${requestId} ${fromStatus} → ${toStatus} v${result.version} (source: ${source})`);
-
+    logger.info(
+        `executeWorkflowCommand: ${requestId} ${fromStatus} → ${toStatus} v${result.version} (source: ${source})`,
+    );
     return result;
 }

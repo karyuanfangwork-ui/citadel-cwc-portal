@@ -4,10 +4,10 @@ import { auditLog } from '../utils/audit';
 import { notify } from '../services/notification.service';
 import { allEntityApprovalsResolved } from '../services/entityRouting.service';
 import { reassignToTeam } from '../services/reassign.service';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 
 /**
  * Verify that `userId` is allowed to act as the approver on a pending executive
@@ -81,14 +81,18 @@ export const routeToCEO = async (req: Request, res: Response) => {
         }
 
         // Update request status and assign to CEO
-        const updateData: any = { status: 'PENDING_CEO_APPROVAL' };
+        const updateData: any = {};
         if (ceoId) {
             updateData.assignedToId = ceoId;
         }
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: updateData
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'PENDING_CEO_APPROVAL',
+            source: 'approval.route-to-ceo',
+            comment: comments,
+            requestPatch: updateData,
         });
 
         // Create approval record
@@ -128,8 +132,6 @@ export const routeToCEO = async (req: Request, res: Response) => {
             approverType: 'CEO',
         ceoId: ceoId || null,
     }, { status: request.status });
-
-    await pauseSla(id);
 
     if (ceoId) {
         await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
@@ -231,7 +233,8 @@ export const ceoDecision = async (req: Request, res: Response) => {
 
         // Update request status and reassign back to the original HR agent
         const newStatus = decision === 'APPROVED' ? 'CEO_APPROVED' : 'CEO_REJECTED';
-        const updateData: any = { status: newStatus };
+        const updateData: any = {};
+        let transitionStatus = newStatus;
 
         // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
         if (decision !== 'APPROVED') {
@@ -245,7 +248,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
                 where: { executiveRole: 'GROUP_DCEO', isActive: true }
             });
             if (groupDceo) {
-                updateData.status = 'PENDING_GROUP_DCEO_APPROVAL';
+                transitionStatus = 'PENDING_GROUP_DCEO_APPROVAL';
                 updateData.assignedToId = groupDceo.id;
 
                 // Create Group Deputy CEO approval record
@@ -282,9 +285,13 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }
         }
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: updateData
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: transitionStatus,
+            source: 'approval.ceo-decision',
+            comment: comments,
+            requestPatch: updateData,
         });
 
         // Create activity log
@@ -308,11 +315,6 @@ export const ceoDecision = async (req: Request, res: Response) => {
             newStatus,
         comments: comments || null,
     }, { status: 'PENDING_CEO_APPROVAL' });
-
-    // Only resume SLA if not auto-advancing to another pause status (Group Deputy CEO approval)
-    if (decision !== 'APPROVED' || updateData.status === 'CEO_APPROVED') {
-        await resumeSla(id);
-    }
 
     // Notify requester of CEO decision
     if (decision === 'APPROVED') {
@@ -389,12 +391,13 @@ export const markJobPosted = async (req: Request, res: Response) => {
         customFields.jobPostingNotes = notes;
         customFields.jobPostedAt = new Date().toISOString();
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: {
-                status: 'JOB_POSTED',
-                customFields
-            }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'JOB_POSTED',
+            source: 'approval.mark-job-posted',
+            comment: notes,
+            requestPatch: { customFields },
         });
 
         // Create activity log
@@ -494,12 +497,13 @@ export const routeToManager = async (req: Request, res: Response) => {
         }
 
         // Update request status and assign to requester (hiring manager)
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: {
-                status: 'PENDING_MANAGER_REVIEW',
-                assignedToId: request.requesterId // Assign to original requester
-            }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'PENDING_MANAGER_REVIEW',
+            source: 'approval.route-to-manager',
+            comment: comments,
+            requestPatch: { assignedToId: request.requesterId },
         });
 
         // Create approval record for hiring manager
@@ -532,8 +536,6 @@ export const routeToManager = async (req: Request, res: Response) => {
             approverType: 'HIRING_MANAGER',
             hiringManagerId: request.requesterId,
         }, { status: request.status });
-
-    await pauseSla(id);
 
     // Notify the hiring manager (requester) that the request is now assigned to them for review
     await notify({
@@ -708,13 +710,16 @@ export const managerDecision = async (req: Request, res: Response) => {
         }
 
         const updateData: any = {
-            status: newStatus,
             customFields
         };
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: updateData
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'approval.manager-decision',
+            comment: comments,
+            requestPatch: updateData,
         });
 
         // Create activity log
@@ -745,8 +750,6 @@ export const managerDecision = async (req: Request, res: Response) => {
             newStatus,
             selectedCandidateIds: candidateIds,
     }, { status: request.status });
-
-    await resumeSla(id);
 
         res.json({
             status: 'success',
@@ -802,6 +805,12 @@ export const entityDecision = async (req: Request, res: Response) => {
             return;
         }
 
+        const approvalRequest = await prisma.request.findUnique({ where: { id: approval.requestId } });
+        if (!approvalRequest) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
         if (approval.approverType !== 'ENTITY') {
             res.status(400).json({
                 status: 'error',
@@ -848,14 +857,20 @@ export const entityDecision = async (req: Request, res: Response) => {
         if (approval.approverType === 'ENTITY') {
             const { allApproved, anyRejected } = await allEntityApprovalsResolved(approval.requestId);
             if (anyRejected) {
-                await prisma.request.update({
-                    where: { id: approval.requestId },
-                    data: { status: 'REJECTED' },
+                await transitionHttpRequest({
+                    req,
+                    request: approvalRequest,
+                    toStatus: 'REJECTED',
+                    source: 'approval.entity-decision',
+                    comment: comments || 'Entity approval rejected',
                 });
             } else if (allApproved) {
-                await prisma.request.update({
-                    where: { id: approval.requestId },
-                    data: { status: 'APPROVED' },
+                await transitionHttpRequest({
+                    req,
+                    request: approvalRequest,
+                    toStatus: 'APPROVED',
+                    source: 'approval.entity-decision',
+                    comment: comments,
                 });
             }
         }
@@ -949,12 +964,13 @@ export const routeToGroupDceoHr = async (req: Request, res: Response) => {
         }
 
         // Update request status and assign to Group Deputy CEO
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: {
-                status: 'PENDING_GROUP_DCEO_APPROVAL',
-                assignedToId: groupDceo.id
-            }
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'PENDING_GROUP_DCEO_APPROVAL',
+            source: 'approval.route-to-group-dceo',
+            comment: comments,
+            requestPatch: { assignedToId: groupDceo.id },
         });
 
         // Create approval record
@@ -987,8 +1003,6 @@ export const routeToGroupDceoHr = async (req: Request, res: Response) => {
             approverType: 'GROUP_DCEO',
             groupDceoId: groupDceo.id,
         }, { status: request.status });
-
-        await pauseSla(id);
 
         // Notify Group Deputy CEO
         await notify({ userId: groupDceo.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
@@ -1059,11 +1073,12 @@ export const groupDceoDecisionHr = async (req: Request, res: Response) => {
         // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
         await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
 
-        const updateData: any = { status: newStatus };
-
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: updateData
+        const updatedRequest = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'approval.group-dceo-decision',
+            comment: comments,
         });
         // Update approval record
         const updatedApproval = await prisma.requestApproval.update({
@@ -1097,8 +1112,6 @@ export const groupDceoDecisionHr = async (req: Request, res: Response) => {
             previousStatus: 'PENDING_GROUP_DCEO_APPROVAL',
             comments: comments || null,
         }, { status: 'PENDING_GROUP_DCEO_APPROVAL' });
-
-        await resumeSla(id);
 
         // Notify requester
         if (decision === 'APPROVED') {

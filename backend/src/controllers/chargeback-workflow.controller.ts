@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import { RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 async function logActivity(requestId: string, message: string, authorId?: string) {
     await prisma.requestActivity.create({
         data: {
@@ -52,12 +52,12 @@ export const submitChargeback = async (req: Request, res: Response) => {
             }
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: RequestStatus.PENDING_FROM_ENTITY_APPROVAL,
-                ...(fromEntityApproverId ? { assignedToId: fromEntityApproverId } : {}),
-            },
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.PENDING_FROM_ENTITY_APPROVAL,
+            source: 'chargeback.submit',
+            requestPatch: fromEntityApproverId ? { assignedToId: fromEntityApproverId } : undefined,
         });
 
         // Create a pending approval record so the approver can see it in their queue
@@ -73,8 +73,6 @@ export const submitChargeback = async (req: Request, res: Response) => {
             });
         }
 
-        // Pause SLA — request entered PENDING_FROM_ENTITY_APPROVAL
-        await pauseSla(id);
 
         await logActivity(id, 'Chargeback submitted — routed to From Entity approver' + (fromEntityCode ? ` (${fromEntityCode})` : ''), userId);
         await auditLog(req as any, 'CHARGEBACK_SUBMIT', 'request', id, {
@@ -156,10 +154,13 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             }
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: newStatus,
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'chargeback.from-entity-decision',
+            comment: comments,
+            requestPatch: {
                 ...(toEntityApproverId ? { assignedToId: toEntityApproverId } : {}),
                 ...(decision === 'REJECTED' ? { assignedToId: null } : {}),
             },
@@ -190,13 +191,6 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             data: { status: decision, comments: comments || null },
         });
 
-        // Resume SLA — leaving PENDING_FROM_ENTITY_APPROVAL
-        await resumeSla(id);
-
-        // If approved, pause SLA again — entering PENDING_TO_ENTITY_APPROVAL
-        if (decision === 'APPROVED') {
-            await pauseSla(id);
-        }
 
         const verb = decision === 'APPROVED' ? 'approved — routed to To Entity approver' : 'rejected';
         await logActivity(id, `From Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);
@@ -264,7 +258,7 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             : RequestStatus.TO_ENTITY_REJECTED;
 
         // When approved, reassign back to a Finance agent; when rejected, clear assignment
-        const updateData: Record<string, any> = { status: newStatus };
+        const updateData: Record<string, any> = {};
         if (decision === 'APPROVED') {
             // Reassign to a Finance agent so they can see it in their queue
             const financeAgent = await prisma.user.findFirst({
@@ -285,9 +279,13 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             updateData.assignedTeam = null;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: updateData,
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'chargeback.to-entity-decision',
+            comment: comments,
+            requestPatch: updateData,
         });
 
         // Update the existing PENDING approval record to reflect the decision
@@ -296,8 +294,6 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             data: { status: decision, comments: comments || null },
         });
 
-        // Resume SLA — leaving PENDING_TO_ENTITY_APPROVAL
-        await resumeSla(id);
 
         const verb = decision === 'APPROVED' ? 'approved — routed to Finance team for review' : 'rejected';
         await logActivity(id, `To Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);
@@ -365,9 +361,12 @@ export const markConfirmed = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION },
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION,
+            source: 'chargeback.mark-confirmed',
+            comment: notes,
         });
 
         await logActivity(id, `Finance agent confirmed chargeback${notes ? ': ' + notes : ''}`, userId);
@@ -406,9 +405,13 @@ export const completeChargeback = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.CHARGEBACK_COMPLETED, resolvedAt: new Date(), completedAt: new Date() },
+        const completedAt = new Date();
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.CHARGEBACK_COMPLETED,
+            source: 'chargeback.complete',
+            requestPatch: { resolvedAt: completedAt, completedAt },
         });
 
         await logActivity(id, 'Inter-company chargeback completed', userId);

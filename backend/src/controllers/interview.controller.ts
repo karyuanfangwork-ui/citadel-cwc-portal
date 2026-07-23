@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Schedule interview with candidate
  * POST /requests/:id/schedule-interview
@@ -110,9 +111,12 @@ export const scheduleInterview = async (req: Request, res: Response) => {
         // Update request status — only transition to INTERVIEW_SCHEDULED if not already there
         let updatedRequest: any = request;
         if (request.status !== 'INTERVIEW_SCHEDULED') {
-            updatedRequest = await prisma.request.update({
-                where: { id },
-                data: { status: 'INTERVIEW_SCHEDULED' }
+            updatedRequest = await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'INTERVIEW_SCHEDULED',
+                source: 'interview.schedule',
+                comment: notes,
             });
         }
 
@@ -271,9 +275,12 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
         // If not all feedback received yet, stay in INTERVIEW_SCHEDULED
 
         const updatedRequest = newStatus
-            ? await prisma.request.update({
-                where: { id },
-                data: { status: newStatus as any }
+            ? await transitionHttpRequest({
+                req,
+                request,
+                toStatus: newStatus,
+                source: 'interview.feedback',
+                comment: feedback,
             })
             : request;
 

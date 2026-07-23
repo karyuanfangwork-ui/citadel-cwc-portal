@@ -10,7 +10,7 @@ import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
 import { autoAssignRequest } from '../services/autoAssignment.service';
-import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
+import { pauseSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
 import { getAuthorizedAttachment, registerUpload } from '../services/attachmentAccess.service';
@@ -21,6 +21,7 @@ import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId, UUID_RE } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {
@@ -400,7 +401,7 @@ class RequestController {
         // Fetch the requests that have matching approvals to determine workflow transitions
         const requests = await prisma.request.findMany({
             where: { id: { in: approvedRequestIds } },
-            select: { id: true, status: true, referenceNumber: true },
+            select: { id: true, status: true, referenceNumber: true, tenantId: true },
         });
 
         // Map: status → (approverType, decision) → next status
@@ -462,6 +463,24 @@ class RequestController {
             const newStatus = action === 'approve' ? transition.approve : transition.reject;
 
             try {
+                const requestPatch: Record<string, unknown> = {};
+                if (action === 'reject' && transition.reject.includes('REJECTED')) {
+                    requestPatch.resolvedAt = new Date();
+                }
+
+                let financeAgent: { id: string; firstName: string; lastName: string } | null = null;
+                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
+                    financeAgent = await prisma.user.findFirst({
+                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (financeAgent) {
+                        requestPatch.assignedToId = financeAgent.id;
+                        requestPatch.assignedTeam = 'FINANCE';
+                    }
+                }
+
                 // Update approval record
                 await prisma.requestApproval.update({
                     where: { id: approval.id },
@@ -471,10 +490,14 @@ class RequestController {
                     },
                 });
 
-                // Update request status
-                await prisma.request.update({
-                    where: { id: request.id },
-                    data: { status: newStatus as any },
+                // Versioned status, SLA, audit, assignment, history, and outbox command
+                await transitionHttpRequest({
+                    req,
+                    request,
+                    toStatus: newStatus,
+                    source: 'request.bulk-approval',
+                    comment: comment,
+                    requestPatch,
                 });
 
                 // Create follow-up approval if this is a cascading approval
@@ -487,26 +510,6 @@ class RequestController {
                             status: 'PENDING',
                         },
                     });
-                }
-
-                // Resume SLA on approval, pause on next cascading step
-                if (action === 'approve') {
-                    await resumeSla(request.id);
-                    // If there's a cascading next step, pause SLA for next approver
-                    if (CASCADING_APPROVALS[currentStatus]) {
-                        await pauseSla(request.id);
-                    }
-                } else {
-                    // On rejection, resume SLA (was paused for approval) and set resolved
-                    await resumeSla(request.id);
-                    // For rejected statuses that end the workflow, mark resolved
-                    const rejectStatus = transition.reject;
-                    if (rejectStatus.includes('REJECTED')) {
-                        await prisma.request.update({
-                            where: { id: request.id },
-                            data: { resolvedAt: new Date() },
-                        });
-                    }
                 }
 
                 // Create activity log
@@ -522,37 +525,20 @@ class RequestController {
                     },
                 });
 
-                await auditLog(req as any, 'APPROVAL_DECISION', 'request', request.id, {
-                    decision: approvalStatus,
-                    approverType,
-                    newStatus,
-                    previousStatus: currentStatus,
-                }, { status: currentStatus });
 
-                // Reassign to Finance team when CFO approves an IT purchase (payment processing)
-                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
-                    const financeAgent = await prisma.user.findFirst({
-                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
-                        select: { id: true, firstName: true, lastName: true },
-                        orderBy: { createdAt: 'asc' },
+                // Assignment was committed in the command; emit its domain-specific activity.
+                if (financeAgent) {
+                    const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
+                    await prisma.requestActivity.create({
+                        data: {
+                            requestId: request.id,
+                            authorName: 'System',
+                            activityType: 'ASSIGNMENT',
+                            message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
+                            isSystemGenerated: true,
+                            metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                        },
                     });
-                    if (financeAgent) {
-                        const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
-                        await prisma.request.update({
-                            where: { id: request.id },
-                            data: { assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
-                        });
-                        await prisma.requestActivity.create({
-                            data: {
-                                requestId: request.id,
-                                authorName: 'System',
-                                activityType: 'ASSIGNMENT',
-                                message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
-                                isSystemGenerated: true,
-                                metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
-                            },
-                        });
-                    }
                 }
 
                 processedIds.push(request.id);
@@ -2088,13 +2074,19 @@ class RequestController {
         const sanitizedComment = comment ? sanitizeComment(String(comment)) : undefined;
 
         const isTerminalStatus = CLOSED_STATUSES.includes(status as RequestStatus);
-        const request = await prisma.request.update({
-            where: { id },
-            data: {
-                status: status as RequestStatus,
+        await transitionHttpRequest({
+            req,
+            request: currentRequest,
+            toStatus: status,
+            source: 'request.update-status',
+            comment: sanitizedComment,
+            requestPatch: {
                 ...(isTerminalStatus && { closedAt: new Date() }),
                 ...(status === 'COMPLETED' && { completedAt: new Date() }),
             },
+        });
+        const request = await prisma.request.findFirstOrThrow({
+            where: { id, tenantId: currentRequest.tenantId },
             include: {
                 requester: {
                     select: {
@@ -2118,22 +2110,6 @@ class RequestController {
             },
         });
 
-        // Create activity
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: req.user!.id,
-                authorName: 'System',
-                activityType: 'STATUS_CHANGE',
-                message: sanitizedComment
-                    ? `Status changed to ${status}: ${sanitizedComment}`
-                    : `Status changed to ${status}`,
-                isSystemGenerated: true,
-                metadata: sanitizedComment
-                    ? { newStatus: status, comment: sanitizedComment }
-                    : { newStatus: status },
-            },
-        });
 
         // Notify requester of status change
         await notify({
@@ -2165,21 +2141,6 @@ class RequestController {
             )
         );
 
-        await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
-            newStatus: status,
-            referenceNumber: request.referenceNumber,
-            ...(sanitizedComment && { comment: sanitizedComment }),
-        }, {
-            oldStatus: currentRequest.status,
-        });
-
-        // SLA pause/resume for generic status transitions
-        const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, status);
-        if (shouldPause) {
-            await pauseSla(id);
-        } else if (shouldResume) {
-            await resumeSla(id);
-        }
 
         // Auto-create RequestApproval records for PENDING_APPROVAL statuses
         // This ensures the bulkAction (Approve/Reject) endpoint can find these records

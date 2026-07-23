@@ -8,6 +8,7 @@ import fs from 'fs';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 export const resignationUpload = { single: (field: string) => uploadSingleFile(field) };
 
 export const createOffboardingRequest = async (req: Request, res: Response) => {
@@ -38,9 +39,11 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
                 manager: { select: { id: true, firstName: true, lastName: true, email: true } },
             },
         });
-        await prisma.request.update({
-            where: { id: requestId },
-            data: { status: 'OFFBOARDING_SUBMITTED' },
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'OFFBOARDING_SUBMITTED',
+            source: 'offboarding.create',
         });
         res.status(201).json(offboarding);
     } catch (error) {
@@ -186,12 +189,13 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (finalStatus !== currentRequest.status) {
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { 
-                    status: finalStatus as any,
-                    ...(finalStatus === 'OFFBOARDING_COMPLETED' && { closedAt: new Date(), completedAt: new Date() })
-                },
+            const completedAt = finalStatus === 'OFFBOARDING_COMPLETED' ? new Date() : undefined;
+            await transitionHttpRequest({
+                req,
+                request: currentRequest,
+                toStatus: finalStatus,
+                source: 'offboarding.update-status',
+                requestPatch: completedAt ? { closedAt: completedAt, completedAt } : undefined,
             });
 
             await prisma.requestActivity.create({

@@ -21,9 +21,10 @@
 // We declare the mock object inside the factory to avoid TDZ issues.
 // ---------------------------------------------------------------------------
 
-const mockPrisma = {
+const mockPrisma: any = {
   request: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
     findUniqueOrThrow: jest.fn(),
@@ -51,6 +52,9 @@ const mockPrisma = {
     create: jest.fn(),
   },
   outboxEvent: {
+    create: jest.fn(),
+  },
+  auditLog: {
     create: jest.fn(),
   },
   $transaction: jest.fn((fn) => fn(mockPrisma)),
@@ -125,6 +129,9 @@ describe('P6-04: Transition Guards', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.request.findUnique.mockResolvedValue(null);
+    mockPrisma.request.findFirst.mockImplementation(({ where }: any) =>
+      mockPrisma.request.findUnique({ where }),
+    );
     mockPrisma.request.update.mockImplementation(({ data }: any) =>
       Promise.resolve({ ...makeRequest(), ...data }),
     );
@@ -138,6 +145,7 @@ describe('P6-04: Transition Guards', () => {
     mockPrisma.workflowCommandResult.findUnique.mockResolvedValue(null);
     mockPrisma.workflowCommandResult.create.mockResolvedValue({ id: 'cmd-001' });
     mockPrisma.outboxEvent.create.mockResolvedValue({ id: 'out-001' });
+    mockPrisma.auditLog.create.mockResolvedValue({ id: 'audit-001' });
     mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });
 

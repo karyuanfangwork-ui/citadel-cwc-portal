@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
 const mockFindUnique = jest.fn();
 const mockFindFirst = jest.fn();
-const mockUpdate = jest.fn();
 const mockApprovalUpdate = jest.fn();
 const mockApprovalCreate = jest.fn();
 const mockApprovalFindUnique = jest.fn();
 const mockActivityCreate = jest.fn();
 const mockUserFindUnique = jest.fn();
 const mockUserFindFirst = jest.fn();
+const mockTransitionHttpRequest = jest.fn();
 
 jest.mock('../utils/prisma', () => ({
     __esModule: true,
@@ -16,7 +16,6 @@ jest.mock('../utils/prisma', () => ({
         request: {
             findUnique: mockFindUnique,
             findFirst: mockFindFirst,
-            update: mockUpdate,
         },
         requestApproval: {
             update: mockApprovalUpdate,
@@ -37,6 +36,7 @@ jest.mock('../services/notification.service', () => ({ notify: jest.fn() }));
 jest.mock('../services/entityRouting.service', () => ({ allEntityApprovalsResolved: jest.fn() }));
 jest.mock('../services/reassign.service', () => ({ reassignToTeam: jest.fn() }));
 jest.mock('../services/sla-pause.service', () => ({ pauseSla: jest.fn(), resumeSla: jest.fn() }));
+jest.mock('../utils/httpRequestTransition', () => ({ transitionHttpRequest: mockTransitionHttpRequest }));
 
 import { ceoDecision, groupDceoDecisionHr, assertDesignatedApprover } from '../controllers/approval.controller';
 
@@ -131,7 +131,7 @@ describe('ceoDecision authorization', () => {
 
         expect(res.status).toHaveBeenCalledWith(403);
         expect(mockApprovalUpdate).not.toHaveBeenCalled();
-        expect(mockUpdate).not.toHaveBeenCalled();
+        expect(mockTransitionHttpRequest).not.toHaveBeenCalled();
     });
 
     it('allows the designated CEO approver to reject', async () => {
@@ -144,7 +144,7 @@ describe('ceoDecision authorization', () => {
             approvals: [{ id: 'appr-1', approverId: CEO_USER_ID, approverType: 'CEO', status: 'PENDING' }],
         });
         mockApprovalUpdate.mockResolvedValue({ id: 'appr-1', status: 'REJECTED' });
-        mockUpdate.mockResolvedValue({ id: REQ_ID, status: 'CEO_REJECTED' });
+        mockTransitionHttpRequest.mockResolvedValue({ id: REQ_ID, status: 'CEO_REJECTED' });
 
         const req: any = {
             params: { id: REQ_ID },
@@ -157,7 +157,7 @@ describe('ceoDecision authorization', () => {
 
         expect(res.status).not.toHaveBeenCalledWith(403);
         expect(mockApprovalUpdate).toHaveBeenCalled();
-        expect(mockUpdate).toHaveBeenCalled();
+        expect(mockTransitionHttpRequest).toHaveBeenCalled();
     });
 });
 
@@ -189,7 +189,7 @@ describe('groupDceoDecisionHr authorization', () => {
 
         expect(res.status).toHaveBeenCalledWith(403);
         expect(mockApprovalUpdate).not.toHaveBeenCalled();
-        expect(mockUpdate).not.toHaveBeenCalled();
+        expect(mockTransitionHttpRequest).not.toHaveBeenCalled();
     });
 
     it('allows the designated Group Deputy CEO approver to reject', async () => {
@@ -200,7 +200,7 @@ describe('groupDceoDecisionHr authorization', () => {
             requesterId: 'requester-1',
             approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
         });
-        mockUpdate.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
+        mockTransitionHttpRequest.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
         mockApprovalUpdate.mockResolvedValue({ id: 'appr-2', status: 'REJECTED' });
 
         const req: any = {
@@ -213,6 +213,6 @@ describe('groupDceoDecisionHr authorization', () => {
         await groupDceoDecisionHr(req, res);
 
         expect(res.status).not.toHaveBeenCalledWith(403);
-        expect(mockUpdate).toHaveBeenCalled();
+        expect(mockTransitionHttpRequest).toHaveBeenCalled();
     });
 });

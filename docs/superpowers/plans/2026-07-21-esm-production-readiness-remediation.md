@@ -896,6 +896,7 @@ git commit -m "feat(frontend): consume scoped policy decisions"
 
 **Owner:** Workflow Backend
 **Findings:** #43–#46, #53
+**Status:** Implemented and verified on 2026-07-23; commit pending explicit authorization.
 
 **Files:**
 - Modify: `backend/prisma/schema.prisma`
@@ -907,15 +908,15 @@ git commit -m "feat(frontend): consume scoped policy decisions"
 **Interfaces:**
 - Produces `executeWorkflowCommand(command): Promise<WorkflowCommandResult>`.
 
-- [ ] **Step 1: Write concurrency, idempotency and rollback tests**
+- [x] **Step 1: Write concurrency, idempotency and rollback tests**
 
 Two commands with the same expected version must yield one success and one conflict. Repeating an idempotency key returns the original result. Injected outbox/audit failure rolls back state.
 
-- [ ] **Step 2: Add version and idempotency schema**
+- [x] **Step 2: Add version and idempotency schema**
 
 Add request/workflow instance version, immutable workflow history, command idempotency and outbox models with scoped unique constraints.
 
-- [ ] **Step 3: Implement the transaction**
+- [x] **Step 3: Implement the transaction**
 
 ```ts
 return prisma.$transaction(async tx => {
@@ -931,14 +932,23 @@ return prisma.$transaction(async tx => {
 });
 ```
 
-- [ ] **Step 4: Migrate callers and prohibit direct writes**
+- [x] **Step 4: Migrate callers and prohibit direct writes**
 
 Migrate `request.controller.ts`, `approval.controller.ts`, `loa.controller.ts`, HR/Finance/IT/ESM workflow controllers and services. The architecture test scans AST/source and permits request status writes only in `workflowCommand.service.ts` and migrations/tests.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify**
 
 Run: `npm test -- workflowCommand.integration.test.ts no-direct-request-status-write.test.ts --runInBand`
 Expected: concurrency/replay/rollback pass and no production direct write remains.
+
+Verification evidence (2026-07-23):
+- Task 15 focused gate: 4 suites, 62/62 tests passed, including true simultaneous concurrency, tenant-scoped fingerprinted idempotency, injected rollback, transactional SLA pause/resume, stale-CAS protection, immutable history, transition guards and zero direct production status writes.
+- Approval runtime compatibility: 23/23 integration tests passed.
+- Full backend regression: 171/171 suites and 2009/2009 tests passed.
+- Prisma client generation, schema validation and migration status passed; all 87 migrations are applied.
+- Backend TypeScript build, frontend production build, ESLint (0 errors; 1552 warnings), and `git diff --check` passed.
+
+Commit when explicitly authorized:
 
 ```bash
 git add backend/prisma backend/src/services backend/src/controllers backend/src/__tests__

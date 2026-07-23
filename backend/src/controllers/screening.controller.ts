@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Start HR reference check
  * POST /requests/:id/start-screening
@@ -70,9 +70,12 @@ export const startHRScreening = async (req: Request, res: Response) => {
         });
 
         // Update request status
-        /* unused */ await await prisma.request.update({
-            where: { id },
-            data: { status: 'HR_SCREENING' }
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'HR_SCREENING',
+            source: 'screening.start',
+            comment: notes,
         });
 
         // Create activity log
@@ -183,19 +186,21 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
 
         // If screening is COMPLETED or REJECTED, update the request status
         if (calculatedStatus === 'COMPLETED') {
-            await prisma.request.update({
-                where: { id },
-                data: { status: 'LOA_PENDING_APPROVAL' }
+            await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'LOA_PENDING_APPROVAL',
+                source: 'screening.complete',
+                comment: referencesCheckNotes,
             });
-            // Pause SLA — request entered LOA_PENDING_APPROVAL
-            await pauseSla(id);
         } else if (calculatedStatus === 'REJECTED') {
-            await prisma.request.update({
-                where: { id },
-                data: { status: 'REJECTED' }
+            await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'REJECTED',
+                source: 'screening.reject',
+                comment: referencesCheckNotes || 'HR screening rejected',
             });
-            // Resume SLA — leaving approval pause status (if any)
-            await resumeSla(id);
         }
 
         // Create activity log

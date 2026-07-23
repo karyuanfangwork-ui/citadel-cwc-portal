@@ -21,7 +21,6 @@
 import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
 import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitions';
-import { pauseSla, resumeSla } from './sla-pause.service';
 import { executeWorkflowCommand } from './workflowCommand.service';
 import { RequestStatus } from '@prisma/client';
 
@@ -31,7 +30,7 @@ import { RequestStatus } from '@prisma/client';
 
 export interface TransitionOptions {
   /** The user performing the transition (for activity log + audit) */
-  userId: string;
+  userId?: string;
   /** Display name for the activity log */
   userName: string;
   /** Role of the user performing the transition */
@@ -50,6 +49,16 @@ export interface TransitionOptions {
   metadata?: Record<string, unknown>;
   /** Source of the transition (e.g. 'it-workflow', 'approval', 'manual') */
   source?: string;
+  /** Optional tenant assertion supplied by authenticated callers. */
+  tenantId?: string;
+  /** Additional request scalar fields committed atomically with the transition. */
+  requestPatch?: Record<string, unknown>;
+  /** Tenant-scoped idempotency key supplied by retryable callers. */
+  idempotencyKey?: string;
+  /** Audit attribution captured by the HTTP boundary. */
+  userEmail?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface TransitionResult {
@@ -172,7 +181,6 @@ export async function transitionRequest(
   const {
     userId,
     userName,
-    userRole,
     comment,
     skipValidation = false,
     skipNotifications = false,
@@ -180,6 +188,12 @@ export async function transitionRequest(
     skipAutoAssignment = false,
     metadata,
     source = 'unknown',
+    tenantId,
+    requestPatch,
+    idempotencyKey,
+    userEmail,
+    ipAddress,
+    userAgent,
   } = options;
 
   // ── 1. Fetch current request ────────────────────────────────────────────
@@ -203,7 +217,7 @@ export async function transitionRequest(
     },
   });
 
-  if (!currentRequest) {
+  if (!currentRequest || (tenantId && currentRequest.tenantId !== tenantId)) {
     throw new Error(`Request not found: ${requestId}`);
   }
 
@@ -251,7 +265,7 @@ export async function transitionRequest(
   const shouldComplete = COMPLETE_STATUSES.has(toStatus);
 
   const updateData: Record<string, unknown> = {
-    status: toStatus,
+    ...(requestPatch ?? {}),
     ...(shouldResolve && { resolvedAt: new Date() }),
     ...(shouldClose && { closedAt: new Date() }),
     ...(shouldComplete && { completedAt: new Date() }),
@@ -276,24 +290,19 @@ export async function transitionRequest(
     }
   }
 
-  // ── 7. SLA pause/resume ──────────────────────────────────────────────────
+  // ── 7. Determine SLA clock mutation; execution remains inside the command.
+  let slaTransition: 'PAUSE' | 'RESUME' | undefined;
   if (!skipSlaPause && currentRequest.requestType?.workflow) {
     const steps = currentRequest.requestType.workflow.steps;
     const targetStep = steps.find((s: any) => s.status === toStatus);
     const currentStep = steps.find((s: any) => s.status === fromStatus);
 
-    // If entering a pause step, pause SLA
     if (targetStep?.slaPause && !currentRequest.slaPausedAt) {
-      await pauseSla(requestId).catch((err: Error) =>
-        logger.warn(`transitionRequest: Failed to pause SLA for ${requestId}`, { err: err.message }),
-      );
+      slaTransition = 'PAUSE';
     }
 
-    // If leaving a pause step, resume SLA
     if (currentStep?.slaPause && currentRequest.slaPausedAt) {
-      await resumeSla(requestId).catch((err: Error) =>
-        logger.warn(`transitionRequest: Failed to resume SLA for ${requestId}`, { err: err.message }),
-      );
+      slaTransition = 'RESUME';
     }
   }
 
@@ -311,16 +320,11 @@ export async function transitionRequest(
     source,
     comment,
     metadata,
+    idempotencyKey,
+    requestPatch: updateData,
+    slaTransition,
+    audit: { userEmail, ipAddress, userAgent },
   });
-
-  // ── 8b. Post-transition updates (timestamps, auto-assignment) ──────────
-  // These are non-conflicting supplemental updates that don't change status.
-  if (Object.keys(updateData).length > 1) { // more than just 'status'
-    await prisma.request.update({
-      where: { id: requestId },
-      data: updateData, // contains resolvedAt/closedAt/completedAt/assignedToId
-    });
-  }
 
   // Re-fetch the updated request with includes for notifications
   const updatedRequest = await prisma.request.findUniqueOrThrow({
@@ -337,23 +341,7 @@ export async function transitionRequest(
     },
   });
 
-  // ── 9. Audit log ────────────────────────────────────────────────────────
-  try {
-    const { auditLog } = await import('../utils/audit');
-    await auditLog(
-      { user: { id: userId, email: undefined, roles: userRole ? [userRole] : undefined } } as any,
-      'STATUS_TRANSITION',
-      'request',
-      requestId,
-      { fromStatus, toStatus, source, comment },
-      { status: fromStatus },
-    );
-  } catch (err) {
-    // Audit failures must never break the main operation
-    logger.error('transitionRequest: Audit log write failed', { requestId, fromStatus, toStatus, err });
-  }
-
-  // ── 11. Notifications ────────────────────────────────────────────────────
+  // ── 9. Notifications (post-commit delivery; durable outbox is already committed)
   if (!skipNotifications) {
     try {
       const { notify } = await import('./notification.service');

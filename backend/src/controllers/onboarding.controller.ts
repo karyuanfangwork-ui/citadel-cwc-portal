@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
-import { shouldResumeOnTransition, pauseSla, resumeSla } from '../services/sla-pause.service';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Create a new onboarding request
  * POST /api/v1/requests/:id/onboarding/create
@@ -65,9 +65,11 @@ export const createOnboardingRequest = async (req: Request, res: Response) => {
             },
         });
 
-        await prisma.request.update({
-            where: { id: requestId },
-            data: { status: 'ONBOARDING_SUBMITTED' },
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'ONBOARDING_SUBMITTED',
+            source: 'onboarding.create',
         });
 
         res.status(201).json(onboarding);
@@ -211,20 +213,13 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (finalStatus !== currentRequest.status) {
-            // SLA pause/resume for onboarding status transitions
-            const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, finalStatus);
-            if (shouldPause) {
-                await pauseSla(requestId);
-            } else if (shouldResume) {
-                await resumeSla(requestId);
-            }
-
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { 
-                    status: finalStatus as any,
-                    ...(finalStatus === 'ONBOARDING_COMPLETED' && { closedAt: new Date(), completedAt: new Date() })
-                },
+            const completedAt = finalStatus === 'ONBOARDING_COMPLETED' ? new Date() : undefined;
+            await transitionHttpRequest({
+                req,
+                request: currentRequest,
+                toStatus: finalStatus,
+                source: 'onboarding.update-status',
+                requestPatch: completedAt ? { closedAt: completedAt, completedAt } : undefined,
             });
 
             await prisma.requestActivity.create({

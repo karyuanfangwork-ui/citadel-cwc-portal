@@ -1,121 +1,131 @@
 /**
- * Task 15: Architecture test — no direct request status writes outside the command boundary.
- *
- * SCANS all production source files and flags `prisma.request.update` / `updateMany`
- * calls that modify the `status` field outside of the allowed locations.
- *
- * Allowed:
- * - workflowCommand.service.ts (the versioned transaction boundary)
- * - requestTransition.service.ts (delegates to workflowCommand)
- *
- * Known legacy call sites that have NOT been migrated yet are listed in
- * KNOWN_LEGACY_SITES. New violations will fail the test; legacy sites
- * are logged as warnings.
+ * Task 15 architecture gate: production Request.status writes are legal only
+ * inside workflowCommand.service.ts. Uses the TypeScript AST so formatting,
+ * spread objects, data aliases, and tx.request delegates cannot bypass it.
  */
 
 import fs from 'fs';
 import path from 'path';
+import ts from 'typescript';
 
 const SRC_DIR = path.resolve(__dirname, '../../src');
+const COMMAND_BOUNDARY = path.join('services', 'workflowCommand.service.ts');
 
-const EXEMPT_PATTERNS = [
-  '__tests__',
-  '.test.ts',
-  '.spec.ts',
-  'migrations',
-  'workflowCommand.service.ts',
-  'requestTransition.service.ts',
-];
-
-// Legacy call sites not yet migrated to the command boundary.
-// These are logged as warnings but do NOT fail the test.
-// Each migration removes an entry here.
-const KNOWN_LEGACY_SITES = [
-  'controllers/screening.controller.ts',
-  'controllers/finance-workflow.controller.ts',
-  'controllers/offboarding.controller.ts',
-  'controllers/chargeback-workflow.controller.ts',
-  'controllers/onboarding.controller.ts',
-  'controllers/interview.controller.ts',
-  'controllers/esm-workflow.controller.ts',
-  'controllers/loa.controller.ts',
-  'controllers/request.controller.ts',
-  'controllers/approval.controller.ts',
-];
-
-function isExempt(filePath: string): boolean {
-  return EXEMPT_PATTERNS.some((pattern) => filePath.includes(pattern));
+interface Violation {
+  file: string;
+  line: number;
 }
 
-function isLegacy(filePath: string): boolean {
-  return KNOWN_LEGACY_SITES.some((site) => filePath.endsWith(site));
+function propertyName(node: ts.PropertyName): string | undefined {
+  if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)) return node.text;
+  return undefined;
 }
 
-function scanForDirectStatusWrites(dir: string): Array<{ file: string; line: number; content: string }> {
-  const violations: Array<{ file: string; line: number; content: string }> = [];
+function unwrap(node: ts.Expression): ts.Expression {
+  if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isParenthesizedExpression(node)) {
+    return unwrap(node.expression);
+  }
+  return node;
+}
 
-  function walk(currentDir: string) {
-    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(currentDir, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith('.ts')) {
-        if (isExempt(fullPath)) continue;
+function scanFile(filePath: string): Violation[] {
+  const source = fs.readFileSync(filePath, 'utf8');
+  const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const declarations = new Map<string, ts.Expression[]>();
+  const statusAssignments = new Set<string>();
 
-        const content = fs.readFileSync(fullPath, 'utf-8');
-        const lines = content.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          if (
-            (line.includes('request.update(') || line.includes('request.updateMany(')) &&
-            !line.trim().startsWith('//') &&
-            !line.trim().startsWith('*')
-          ) {
-            const nearbyLines = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 10)).join('\n');
-            if (nearbyLines.includes('status:') || nearbyLines.includes("status: '")) {
-              violations.push({
-                file: fullPath.replace(SRC_DIR + path.sep, ''),
-                line: i + 1,
-                content: line.trim(),
-              });
-            }
-          }
+  const collect = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const existing = declarations.get(node.name.text) ?? [];
+      existing.push(node.initializer);
+      declarations.set(node.name.text, existing);
+    }
+    if (
+      ts.isBinaryExpression(node)
+      && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      && ts.isPropertyAccessExpression(node.left)
+      && ts.isIdentifier(node.left.expression)
+      && node.left.name.text === 'status'
+    ) {
+      statusAssignments.add(node.left.expression.text);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sourceFile);
+
+  const expressionWritesStatus = (raw: ts.Expression, seen = new Set<string>()): boolean => {
+    const expression = unwrap(raw);
+    if (ts.isObjectLiteralExpression(expression)) {
+      return expression.properties.some((property) => {
+        if (ts.isPropertyAssignment(property)) {
+          return propertyName(property.name) === 'status'
+            || expressionWritesStatus(property.initializer, new Set(seen));
+        }
+        if (ts.isShorthandPropertyAssignment(property)) return property.name.text === 'status';
+        if (ts.isSpreadAssignment(property)) return expressionWritesStatus(property.expression, new Set(seen));
+        return false;
+      });
+    }
+    if (ts.isIdentifier(expression)) {
+      if (seen.has(expression.text)) return false;
+      seen.add(expression.text);
+      if (statusAssignments.has(expression.text)) return true;
+      return (declarations.get(expression.text) ?? [])
+        .some((initializer) => expressionWritesStatus(initializer, new Set(seen)));
+    }
+    if (ts.isConditionalExpression(expression)) {
+      return expressionWritesStatus(expression.whenTrue, new Set(seen))
+        || expressionWritesStatus(expression.whenFalse, new Set(seen));
+    }
+    return false;
+  };
+
+  const violations: Violation[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && (node.expression.name.text === 'update' || node.expression.name.text === 'updateMany')
+      && ts.isPropertyAccessExpression(node.expression.expression)
+      && node.expression.expression.name.text === 'request'
+    ) {
+      const argument = node.arguments[0] ? unwrap(node.arguments[0]) : undefined;
+      if (argument && ts.isObjectLiteralExpression(argument)) {
+        const dataProperty = argument.properties.find(
+          (property): property is ts.PropertyAssignment =>
+            ts.isPropertyAssignment(property) && propertyName(property.name) === 'data',
+        );
+        if (dataProperty && expressionWritesStatus(dataProperty.initializer)) {
+          const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+          violations.push({ file: path.relative(SRC_DIR, filePath), line });
         }
       }
     }
-  }
-
-  walk(dir);
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
   return violations;
 }
 
-describe('Architecture: no direct request status writes outside command boundary', () => {
-  it('flags new direct request status writes not in the known legacy list', () => {
-    const violations = scanForDirectStatusWrites(SRC_DIR);
-
-    const newViolations = violations.filter((v) => !isLegacy(v.file));
-    const legacyViolations = violations.filter((v) => isLegacy(v.file));
-
-    if (legacyViolations.length > 0) {
-      console.warn(
-        `[Task 15] ${legacyViolations.length} legacy direct status writes remain in known controllers. ` +
-        'These should be migrated to transitionRequest() / executeWorkflowCommand().',
-      );
+function productionTsFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '__tests__') return [];
+      return productionTsFiles(fullPath);
     }
+    if (!entry.isFile() || !entry.name.endsWith('.ts') || /\.(test|spec)\.ts$/.test(entry.name)) return [];
+    return [fullPath];
+  });
+}
 
-    if (newViolations.length > 0) {
-      const details = newViolations
-        .map((v) => `  ${v.file}:${v.line} — ${v.content}`)
-        .join('\n');
-      fail(
-        `Found NEW direct request status writes outside the command boundary:\n${details}\n\n` +
-        'All request status changes must go through executeWorkflowCommand() or transitionRequest(). ' +
-        'If this is a known legacy site, add it to KNOWN_LEGACY_SITES.',
-      );
-    }
+describe('Architecture: Request.status writes use the versioned command boundary', () => {
+  it('has zero production writes outside workflowCommand.service.ts', () => {
+    const violations = productionTsFiles(SRC_DIR)
+      .filter((file) => !file.endsWith(COMMAND_BOUNDARY))
+      .flatMap(scanFile)
+      .sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line);
 
-    // No NEW violations
-    expect(newViolations.length).toBe(0);
+    expect(violations).toEqual([]);
   });
 });
