@@ -682,6 +682,12 @@ async function main() {
 
   try {
     if (flags.clear) {
+      // Production guard for --clear flag
+      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_DATA_CLEAR !== 'true') {
+        console.error('⛔ ABORTING: The --clear flag deletes all credit data and must NOT run on production.');
+        console.error('   If you are absolutely sure, set ALLOW_PRODUCTION_DATA_CLEAR=true to override.');
+        process.exit(1);
+      }
       await clearCreditData();
       if (!flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo) {
         await prisma.$disconnect();

@@ -6,12 +6,22 @@
  *
  * Safe to run multiple times — only deletes records matching the [DEMO] tag.
  *
+ * ⛔ PRODUCTION GUARD: This script will REFUSE to run if NODE_ENV=production.
+ *    To override (NOT recommended): ALLOW_PRODUCTION_DATA_CLEAR=true npx tsx prisma/seed-crm-demo-remove.ts
+ *
  * ⚡ RUN:  npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed-crm-demo-remove.ts
  */
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const DEMO_TAG = '[DEMO]';
+
+// Production guard
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_DATA_CLEAR !== 'true') {
+    console.error('⛔ ABORTING: This script deletes CRM demo data and must NOT run on production.');
+    console.error('   If you are absolutely sure, set ALLOW_PRODUCTION_DATA_CLEAR=true to override.');
+    process.exit(1);
+}
 
 async function main() {
   console.log(`🗑️  Removing all CRM records tagged "${DEMO_TAG}"...\n`);

@@ -3,11 +3,21 @@
  *
  * Deletes all credit-related records in FK-safe order.
  * Run: npx tsx prisma/seed-clear-credit.ts
+ *
+ * ⛔ PRODUCTION GUARD: This script will REFUSE to run if NODE_ENV=production.
+ *    To override (NOT recommended): ALLOW_PRODUCTION_DATA_CLEAR=true npx tsx prisma/seed-clear-credit.ts
  */
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Production guard
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_DATA_CLEAR !== 'true') {
+    console.error('⛔ ABORTING: This script deletes credit data and must NOT run on production.');
+    console.error('   If you are absolutely sure, set ALLOW_PRODUCTION_DATA_CLEAR=true to override.');
+    process.exit(1);
+}
 
 async function main() {
   console.log('🧹 Clearing all Credit Module data...');

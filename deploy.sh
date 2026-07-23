@@ -242,7 +242,7 @@ if [ "$NO_SEED" = false ]; then
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log "Step 4: Database seed"
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    SEED_OUTPUT=$(docker_exec "npx tsx prisma/seed.ts" 2>&1) || {
+    SEED_OUTPUT=$(docker_exec "RETAIN_ADMIN_CONFIG=true npx tsx prisma/seed.ts" 2>&1) || {
         log "❌ Database seed failed:"
         echo "$SEED_OUTPUT" | tail -15
         log "   The app may still work with existing data, but new templates/configs won't be applied."

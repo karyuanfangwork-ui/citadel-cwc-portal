@@ -420,195 +420,210 @@ async function main() {
 
     console.log('✅ Role permissions assigned');
 
-    // Phase 1 remediation: SALES_MANAGER no longer holds crm:admin (replaced by crm:read:team)
-    const smRoleId = roleMap.get('SALES_MANAGER');
-    const adminPermId = permMap.get('crm:admin');
-    if (smRoleId && adminPermId) {
-        await prisma.rolePermission.deleteMany({
-            where: { roleId: smRoleId, permissionId: adminPermId },
-        });
-        console.log('  ✅ SALES_MANAGER: removed legacy crm:admin (now uses crm:read:team)');
-    }
-
-    // Cleanup: Remove stale asset permissions from AGENT role
-    // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
-    const staleAgentAssetPerms = ['asset:read', 'asset:write'];
-    let cleanedUp = 0;
-    for (const permName of staleAgentAssetPerms) {
-        const permId = permMap.get(permName);
-        const agentRoleId = roleMap.get('AGENT');
-        if (permId && agentRoleId) {
-            const deleted = await prisma.rolePermission.deleteMany({
-                where: { roleId: agentRoleId, permissionId: permId },
+    // ── One-time migration cleanups ────────────────────────────────
+    // These delete stale permission assignments, migrate deprecated roles,
+    // and prune obsolete rows. They are idempotent (safe to re-run) but
+    // should NOT run on production when RETAIN_ADMIN_CONFIG is enabled,
+    // because admins may have intentionally overridden role/permission
+    // assignments via the admin console.
+    if (!RETAIN_ADMIN_CONFIG) {
+        // Phase 1 remediation: SALES_MANAGER no longer holds crm:admin (replaced by crm:read:team)
+        const smRoleId = roleMap.get('SALES_MANAGER');
+        const adminPermId = permMap.get('crm:admin');
+        if (smRoleId && adminPermId) {
+            await prisma.rolePermission.deleteMany({
+                where: { roleId: smRoleId, permissionId: adminPermId },
             });
-            if (deleted.count > 0) {
-                console.log(`  🧹 Removed stale ${permName} from AGENT role`);
-                cleanedUp += deleted.count;
+            console.log('  ✅ SALES_MANAGER: removed legacy crm:admin (now uses crm:read:team)');
+        }
+
+        // Cleanup: Remove stale asset permissions from AGENT role
+        // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
+        const staleAgentAssetPerms = ['asset:read', 'asset:write'];
+        let cleanedUp = 0;
+        for (const permName of staleAgentAssetPerms) {
+            const permId = permMap.get(permName);
+            const agentRoleId = roleMap.get('AGENT');
+            if (permId && agentRoleId) {
+                const deleted = await prisma.rolePermission.deleteMany({
+                    where: { roleId: agentRoleId, permissionId: permId },
+                });
+                if (deleted.count > 0) {
+                    console.log(`  🧹 Removed stale ${permName} from AGENT role`);
+                    cleanedUp += deleted.count;
+                }
             }
         }
-    }
 
-    // Cleanup: Remove stale permissions from ADMIN role
-    // (ADMIN no longer has request:approve or kb:manage per updated permission matrix)
-    const staleAdminPerms: Record<string, string[]> = {
-        ADMIN: ['request:approve', 'kb:manage'],
-    };
-    for (const [roleName, permNames] of Object.entries(staleAdminPerms)) {
-        const roleId = roleMap.get(roleName);
-        if (!roleId) continue;
-        for (const permName of permNames) {
+        // Cleanup: Remove stale permissions from ADMIN role
+        // (ADMIN no longer has request:approve or kb:manage per updated permission matrix)
+        const staleAdminPerms: Record<string, string[]> = {
+            ADMIN: ['request:approve', 'kb:manage'],
+        };
+        for (const [roleName, permNames] of Object.entries(staleAdminPerms)) {
+            const roleId = roleMap.get(roleName);
+            if (!roleId) continue;
+            for (const permName of permNames) {
+                const permId = permMap.get(permName);
+                if (permId) {
+                    const deleted = await prisma.rolePermission.deleteMany({
+                        where: { roleId, permissionId: permId },
+                    });
+                    if (deleted.count > 0) {
+                        console.log(`  🧹 Removed stale ${permName} from ${roleName} role`);
+                        cleanedUp += deleted.count;
+                    }
+                }
+            }
+        }
+
+        // §2.6 — Cleanup: Remove credit:create from roles that should NOT originate applications.
+        // Only ADMIN, CREDIT_ADMIN, and CREDIT_RM should have credit:create.
+        // Other credit roles (ANALYST, MANAGER, SENIOR, COMMITTEE, OPS) are checkers/processors
+        // and must not create applications per SOD (maker-checker) policy.
+        const creditCreateAllowedRoles = new Set(['ADMIN', 'CREDIT_ADMIN', 'CREDIT_RM']);
+        const creditCreatePermId = permMap.get('credit:create');
+        if (creditCreatePermId) {
+            const allRoleEntries = await prisma.rolePermission.findMany({
+                where: { permissionId: creditCreatePermId },
+                include: { role: { select: { name: true } } },
+            });
+            for (const rp of allRoleEntries) {
+                if (!creditCreateAllowedRoles.has(rp.role.name)) {
+                    const deleted = await prisma.rolePermission.deleteMany({
+                        where: { roleId: rp.roleId, permissionId: creditCreatePermId },
+                    });
+                    if (deleted.count > 0) {
+                        console.log(`  🧹 Removed credit:create from ${rp.role.name} role (SOD: not an originator)`);
+                        cleanedUp += deleted.count;
+                    }
+                }
+            }
+        }
+        if (cleanedUp > 0) {
+            console.log(`✅ Cleaned up ${cleanedUp} stale permission(s)`);
+        }
+
+        // §3.1 — Cleanup: Remove deprecated permissions from all roles
+        // These 9 permissions were never enforced on backend routes and are now consolidated
+        // into the 8 core permissions (read, write, create, approve, admin, disburse, compliance, export)
+        const deprecatedPerms = [
+            'credit:delete', 'credit:committee', 'credit:score', 'credit:spread',
+            'credit:analyze', 'credit:risk', 'credit:override', 'credit:monitor', 'credit:document',
+        ];
+        let deprecatedRemoved = 0;
+        for (const permName of deprecatedPerms) {
             const permId = permMap.get(permName);
             if (permId) {
-                const deleted = await prisma.rolePermission.deleteMany({
-                    where: { roleId, permissionId: permId },
+                const deleted = await prisma.permission.deleteMany({
+                    where: { name: permName },
                 });
                 if (deleted.count > 0) {
-                    console.log(`  🧹 Removed stale ${permName} from ${roleName} role`);
-                    cleanedUp += deleted.count;
+                    console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
+                    deprecatedRemoved += deleted.count;
                 }
             }
         }
-    }
-
-    // §2.6 — Cleanup: Remove credit:create from roles that should NOT originate applications.
-    // Only ADMIN, CREDIT_ADMIN, and CREDIT_RM should have credit:create.
-    // Other credit roles (ANALYST, MANAGER, SENIOR, COMMITTEE, OPS) are checkers/processors
-    // and must not create applications per SOD (maker-checker) policy.
-    const creditCreateAllowedRoles = new Set(['ADMIN', 'CREDIT_ADMIN', 'CREDIT_RM']);
-    const creditCreatePermId = permMap.get('credit:create');
-    if (creditCreatePermId) {
-        const allRoleEntries = await prisma.rolePermission.findMany({
-            where: { permissionId: creditCreatePermId },
-            include: { role: { select: { name: true } } },
-        });
-        for (const rp of allRoleEntries) {
-            if (!creditCreateAllowedRoles.has(rp.role.name)) {
-                const deleted = await prisma.rolePermission.deleteMany({
-                    where: { roleId: rp.roleId, permissionId: creditCreatePermId },
-                });
-                if (deleted.count > 0) {
-                    console.log(`  🧹 Removed credit:create from ${rp.role.name} role (SOD: not an originator)`);
-                    cleanedUp += deleted.count;
-                }
+        if (deprecatedRemoved > 0) {
+            console.log(`✅ Deleted ${deprecatedRemoved} deprecated permission row(s) from Permission table`);
+            // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
+            const updatedPerms = await prisma.permission.findMany();
+            for (const p of updatedPerms) {
+                permMap.set(p.name, p.id);
             }
         }
-    }
-    if (cleanedUp > 0) {
-        console.log(`✅ Cleaned up ${cleanedUp} stale permission(s)`);
-    }
 
-    // §3.1 — Cleanup: Remove deprecated permissions from all roles
-    // These 9 permissions were never enforced on backend routes and are now consolidated
-    // into the 8 core permissions (read, write, create, approve, admin, disburse, compliance, export)
-    const deprecatedPerms = [
-        'credit:delete', 'credit:committee', 'credit:score', 'credit:spread',
-        'credit:analyze', 'credit:risk', 'credit:override', 'credit:monitor', 'credit:document',
-    ];
-    let deprecatedRemoved = 0;
-    for (const permName of deprecatedPerms) {
-        const permId = permMap.get(permName);
-        if (permId) {
-            const deleted = await prisma.rolePermission.deleteMany({
-                where: { permissionId: permId },
+        // §3.2 — Cleanup: Migrate CREDIT_SENIOR and CREDIT_COMMITTEE users to CREDIT_MANAGER
+        const mergedRoles = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+        const managerRole = await prisma.role.findUnique({ where: { name: 'CREDIT_MANAGER' } });
+        if (managerRole) {
+            for (const oldRoleName of mergedRoles) {
+                const oldRole = await prisma.role.findUnique({ where: { name: oldRoleName } });
+                if (!oldRole) continue;
+                const userRoles = await prisma.userRole.findMany({ where: { roleId: oldRole.id } });
+                for (const ur of userRoles) {
+                    const existing = await prisma.userRole.findUnique({
+                        where: { userId_roleId: { userId: ur.userId, roleId: managerRole.id } },
+                    });
+                    if (!existing) {
+                        await prisma.userRole.create({
+                            data: { userId: ur.userId, roleId: managerRole.id },
+                        });
+                    }
+                }
+                // Remove old role's permission assignments, then remove old UserRole rows
+                await prisma.rolePermission.deleteMany({ where: { roleId: oldRole.id } });
+                const deletedUserRoles = await prisma.userRole.deleteMany({ where: { roleId: oldRole.id } });
+                console.log(`  🔄 Migrated ${userRoles.length} users from ${oldRoleName} to CREDIT_MANAGER (removed ${deletedUserRoles.count} stale UserRole rows)`);
+            }
+        }
+
+        // §3.3 — Cleanup: Migrate CREDIT_OPS users to CREDIT_RM (disburse moves to RM)
+        const opsRole = await prisma.role.findUnique({ where: { name: 'CREDIT_OPS' } });
+        if (opsRole) {
+            const rmRole = await prisma.role.findUnique({ where: { name: 'CREDIT_RM' } });
+            if (rmRole) {
+                const opsUserRoles = await prisma.userRole.findMany({ where: { roleId: opsRole.id } });
+                for (const ur of opsUserRoles) {
+                    const existing = await prisma.userRole.findUnique({
+                        where: { userId_roleId: { userId: ur.userId, roleId: rmRole.id } },
+                    });
+                    if (!existing) {
+                        await prisma.userRole.create({
+                            data: { userId: ur.userId, roleId: rmRole.id },
+                        });
+                    }
+                }
+                await prisma.rolePermission.deleteMany({ where: { roleId: opsRole.id } });
+                const deletedOpsUserRoles = await prisma.userRole.deleteMany({ where: { roleId: opsRole.id } });
+                console.log(`  🔄 Migrated ${opsUserRoles.length} CREDIT_OPS users to CREDIT_RM (removed ${deletedOpsUserRoles.count} stale UserRole rows)`);
+            }
+        }
+
+        // §3.4 — Cleanup: Delete deprecated permission rows from Permission table
+        // These 9 permissions were never enforced on backend routes and are now fully removed
+        let permsDeleted = 0;
+        for (const permName of deprecatedPerms) {
+            const deleted = await prisma.permission.deleteMany({
+                where: { name: permName },
             });
             if (deleted.count > 0) {
-                console.log(`  🧹 Removed deprecated permission ${permName} from ${deleted.count} role assignment(s)`);
-                deprecatedRemoved += deleted.count;
+                console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
+                permsDeleted += deleted.count;
             }
         }
-    }
-    if (deprecatedRemoved > 0) {
-        console.log(`✅ Cleaned up ${deprecatedRemoved} deprecated permission assignment(s)`);
-    }
-
-    // §3.2 — Cleanup: Migrate CREDIT_SENIOR and CREDIT_COMMITTEE users to CREDIT_MANAGER
-    const mergedRoles = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
-    const managerRole = await prisma.role.findUnique({ where: { name: 'CREDIT_MANAGER' } });
-    if (managerRole) {
-        for (const oldRoleName of mergedRoles) {
-            const oldRole = await prisma.role.findUnique({ where: { name: oldRoleName } });
-            if (!oldRole) continue;
-            const userRoles = await prisma.userRole.findMany({ where: { roleId: oldRole.id } });
-            for (const ur of userRoles) {
-                const existing = await prisma.userRole.findUnique({
-                    where: { userId_roleId: { userId: ur.userId, roleId: managerRole.id } },
-                });
-                if (!existing) {
-                    await prisma.userRole.create({
-                        data: { userId: ur.userId, roleId: managerRole.id },
-                    });
-                }
+        if (permsDeleted > 0) {
+            console.log(`✅ Deleted ${permsDeleted} deprecated permission row(s) from Permission table`);
+            // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
+            const updatedPerms = await prisma.permission.findMany();
+            for (const p of updatedPerms) {
+                permMap.set(p.name, p.id);
             }
-            // Remove old role's permission assignments, then remove old UserRole rows
-            await prisma.rolePermission.deleteMany({ where: { roleId: oldRole.id } });
-            const deletedUserRoles = await prisma.userRole.deleteMany({ where: { roleId: oldRole.id } });
-            console.log(`  🔄 Migrated ${userRoles.length} users from ${oldRoleName} to CREDIT_MANAGER (removed ${deletedUserRoles.count} stale UserRole rows)`);
         }
-    }
 
-    // §3.3 — Cleanup: Migrate CREDIT_OPS users to CREDIT_RM (disburse moves to RM)
-    const opsRole = await prisma.role.findUnique({ where: { name: 'CREDIT_OPS' } });
-    if (opsRole) {
-        const rmRole = await prisma.role.findUnique({ where: { name: 'CREDIT_RM' } });
-        if (rmRole) {
-            const opsUserRoles = await prisma.userRole.findMany({ where: { roleId: opsRole.id } });
-            for (const ur of opsUserRoles) {
-                const existing = await prisma.userRole.findUnique({
-                    where: { userId_roleId: { userId: ur.userId, roleId: rmRole.id } },
-                });
-                if (!existing) {
-                    await prisma.userRole.create({
-                        data: { userId: ur.userId, roleId: rmRole.id },
-                    });
-                }
+        // §3.5 — Cleanup: Delete deprecated role rows from Role table
+        // Users have been migrated; permissions have been removed; safe to delete the role rows entirely
+        const deprecatedRoleNames = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE', 'CREDIT_OPS'];
+        let rolesDeleted = 0;
+        for (const roleName of deprecatedRoleNames) {
+            const deleted = await prisma.role.deleteMany({
+                where: { name: roleName },
+            });
+            if (deleted.count > 0) {
+                console.log(`  🗑️  Deleted deprecated role: ${roleName}`);
+                rolesDeleted += deleted.count;
             }
-            await prisma.rolePermission.deleteMany({ where: { roleId: opsRole.id } });
-            const deletedOpsUserRoles = await prisma.userRole.deleteMany({ where: { roleId: opsRole.id } });
-            console.log(`  🔄 Migrated ${opsUserRoles.length} CREDIT_OPS users to CREDIT_RM (removed ${deletedOpsUserRoles.count} stale UserRole rows)`);
         }
-    }
-
-    // §3.4 — Cleanup: Delete deprecated permission rows from Permission table
-    // These 9 permissions were never enforced on backend routes and are now fully removed
-    let permsDeleted = 0;
-    for (const permName of deprecatedPerms) {
-        const deleted = await prisma.permission.deleteMany({
-            where: { name: permName },
-        });
-        if (deleted.count > 0) {
-            console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
-            permsDeleted += deleted.count;
+        if (rolesDeleted > 0) {
+            console.log(`✅ Deleted ${rolesDeleted} deprecated role(s) from Role table`);
+            // Rebuild roleMap after deletions
+            const updatedRoles = await prisma.role.findMany();
+            for (const r of updatedRoles) {
+                roleMap.set(r.name, r.id);
+            }
         }
-    }
-    if (permsDeleted > 0) {
-        console.log(`✅ Deleted ${permsDeleted} deprecated permission row(s) from Permission table`);
-        // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
-        const updatedPerms = await prisma.permission.findMany();
-        for (const p of updatedPerms) {
-            permMap.set(p.name, p.id);
-        }
-    }
-
-    // §3.5 — Cleanup: Delete deprecated role rows from Role table
-    // Users have been migrated; permissions have been removed; safe to delete the role rows entirely
-    const deprecatedRoleNames = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE', 'CREDIT_OPS'];
-    let rolesDeleted = 0;
-    for (const roleName of deprecatedRoleNames) {
-        const deleted = await prisma.role.deleteMany({
-            where: { name: roleName },
-        });
-        if (deleted.count > 0) {
-            console.log(`  🗑️  Deleted deprecated role: ${roleName}`);
-            rolesDeleted += deleted.count;
-        }
-    }
-    if (rolesDeleted > 0) {
-        console.log(`✅ Deleted ${rolesDeleted} deprecated role(s) from Role table`);
-        // Rebuild roleMap after deletions
-        const updatedRoles = await prisma.role.findMany();
-        for (const r of updatedRoles) {
-            roleMap.set(r.name, r.id);
-        }
+    } else {
+        console.log('⏭️  Skipping one-time migration cleanups (RETAIN_ADMIN_CONFIG enabled)');
     }
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
@@ -1591,23 +1606,30 @@ async function main() {
     }
 
     // ── Apply notification template bug-fix patches ──────────────
-    // These run regardless of RETAIN_ADMIN_CONFIG so that bug fixes (e.g.
-    // adding a missing "View Request" link) reach existing prod templates
-    // without overwriting admin customizations to other fields.
-    let fixedCount = 0;
-    for (const fix of SEED_NOTIFICATION_TEMPLATE_FIXES) {
-        const existing = await prisma.notificationTemplate.findUnique({
-            where: { name: fix.name },
-        });
-        if (!existing) continue;
-        await prisma.notificationTemplate.update({
-            where: { id: existing.id },
-            data: fix.patch,
-        });
-        fixedCount++;
-    }
-    if (fixedCount > 0) {
-        console.log(`✅ Notification template fixes applied (${fixedCount} template(s) patched)`);
+    // These apply targeted patches (e.g. adding a missing "View Request" link)
+    // to specific fields only, without overwriting admin customizations to other
+    // fields. However, even targeted patches can conflict with admin edits in
+    // production, so we gate them behind RETAIN_ADMIN_CONFIG=false (i.e. only
+    // auto-apply on dev/staging). On production (RETAIN_ADMIN_CONFIG=true),
+    // template fixes should be applied via a separate migration or manually.
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping notification template fixes (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        let fixedCount = 0;
+        for (const fix of SEED_NOTIFICATION_TEMPLATE_FIXES) {
+            const existing = await prisma.notificationTemplate.findUnique({
+                where: { name: fix.name },
+            });
+            if (!existing) continue;
+            await prisma.notificationTemplate.update({
+                where: { id: existing.id },
+                data: fix.patch,
+            });
+            fixedCount++;
+        }
+        if (fixedCount > 0) {
+            console.log(`✅ Notification template fixes applied (${fixedCount} template(s) patched)`);
+        }
     }
 
     // Seed onboarding task templates (from seed-admin-config, per-record upsert for idempotency)
