@@ -18,7 +18,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import crypto from 'crypto';
 
 export type ExecutionScope =
-  | { kind: 'tenant'; tenantId: string; actorId?: string }
+  | { kind: 'tenant'; tenantId: string; actorId?: string; departmentIds?: string[] }
   | { kind: 'platform'; actorId: string; reason: string }
   | { kind: 'system'; tenantId?: string; jobName: string; runId: string };
 
@@ -49,7 +49,7 @@ export function getExecutionScope(): ExecutionScope | undefined {
  * Require a tenant execution scope. Throws if the current scope is not
  * tenant-scoped, which is useful for endpoints that must be tenant-isolated.
  */
-export function requireTenantScope(): { tenantId: string; actorId?: string } {
+export function requireTenantScope(): { tenantId: string; actorId?: string; departmentIds?: string[] } {
   const scope = getExecutionScope();
   if (!scope) {
     throw new Error('TENANT_SCOPE_REQUIRED: No execution scope set. Use runWithExecutionScope() or runWithTenant().');
@@ -57,7 +57,7 @@ export function requireTenantScope(): { tenantId: string; actorId?: string } {
   if (scope.kind !== 'tenant') {
     throw new Error(`TENANT_SCOPE_REQUIRED: Expected tenant scope, got ${scope.kind}.`);
   }
-  return { tenantId: scope.tenantId, actorId: scope.actorId };
+  return { tenantId: scope.tenantId, actorId: scope.actorId, departmentIds: scope.departmentIds };
 }
 
 /**

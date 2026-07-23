@@ -130,3 +130,17 @@ export async function releaseLock(lock: SchedulerLock): Promise<void> {
         // Lock will expire via TTL — safe to ignore
     }
 }
+
+export async function withSchedulerLock<T>(jobKey: string, fn: () => Promise<T>, ttlMs?: number): Promise<T | undefined> {
+    const lock = await acquireLock(jobKey, ttlMs);
+    if (!lock.acquired) {
+        logger.info(`[SchedulerLock] Skipping ${jobKey} — lock held by another instance`);
+        return undefined;
+    }
+
+    try {
+        return await fn();
+    } finally {
+        await releaseLock(lock);
+    }
+}

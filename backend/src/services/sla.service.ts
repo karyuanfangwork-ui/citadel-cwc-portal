@@ -2,6 +2,8 @@ import prisma from '../utils/prisma';
 import { notify } from './notification.service';
 import { logger } from '../utils/logger';
 
+const db = prisma as any;
+
 export async function checkSlaBreaches(): Promise<number> {
   const now = new Date();
 
@@ -142,8 +144,44 @@ export async function checkEscalations(): Promise<number> {
           },
         });
 
-        // Notify ALL matching escalation handlers and add each as a participant
-        // so they can access the request when clicking the email link.
+        const tenantId = req.tenantId;
+        if (!tenantId) continue;
+        const escalationLevel = rule.triggerHoursAfterBreach;
+        const idempotencyKey = `${req.id}:rule:${rule.id}:level:${escalationLevel}`;
+        await db.slaEscalationEvent.upsert({
+          where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
+          update: {},
+          create: {
+            tenantId,
+            departmentId: req.departmentId ?? null,
+            requestId: req.id,
+            escalationLevel,
+            ruleId: rule.id,
+            idempotencyKey,
+            notifyRoles: rule.notifyRoles,
+            notificationIntent: {
+              eventType: 'SLA_ESCALATED',
+              referenceNumber: req.referenceNumber,
+              escalationHours: rule.triggerHoursAfterBreach,
+              escalationLabel: rule.label || '',
+              notifyRoles: rule.notifyRoles,
+            },
+          },
+        });
+
+        await db.outboxEvent.create({
+          data: {
+            tenantId,
+            departmentId: req.departmentId ?? null,
+            eventType: 'SLA_ESCALATION_INTENT_CREATED',
+            aggregateId: req.id,
+            aggregateVersion: rule.triggerHoursAfterBreach,
+            payload: { requestId: req.id, ruleId: rule.id, idempotencyKey, notifyRoles: rule.notifyRoles },
+          },
+        }).catch(() => undefined);
+
+        // Notify matching escalation handlers only. Do not grant access by adding
+        // participants; authorization remains policy-driven when recipients open the request.
         const escalationHandlers = await prisma.user.findMany({
           where: {
             isActive: true,
@@ -153,17 +191,6 @@ export async function checkEscalations(): Promise<number> {
         });
 
         for (const handler of escalationHandlers) {
-          // Grant access by adding as participant (skips if already present)
-          await prisma.requestParticipant.upsert({
-            where: { requestId_userId: { requestId: req.id, userId: handler.id } },
-            create: {
-              requestId: req.id,
-              userId: handler.id,
-              addedById: req.requesterId, // system-generated — use requester as proxy
-            },
-            update: {},
-          });
-
           await notify({
             userId: handler.id,
             eventType: 'SLA_ESCALATED',

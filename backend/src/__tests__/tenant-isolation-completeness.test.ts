@@ -16,7 +16,7 @@ import { runWithTenant, getTenantId } from '../lib/tenant-context';
 const TENANT_SCOPED_MODELS = [
   'user', 'request', 'asset',
   'crmLead', 'crmAccount', 'crmOpportunity', 'crmContact', 'crmPipeline',
-  'creditApplication', 'knowledgeBaseArticle', 'notification', 'auditLog',
+  'creditApplication', 'knowledgeBaseArticle', 'notification', 'auditLog', 'platformAuditEvent',
   'announcement', 'announcementRead', 'onboardingRequest', 'offboardingRequest',
   'candidate', 'branch', 'entity', 'serviceDesk', 'serviceCategory', 'requestType',
   'escalationRule', 'systemSetting', 'featureFlag', 'notificationTemplate',
@@ -30,7 +30,7 @@ describe('P2-10: Cross-tenant isolation', () => {
       // If a new model with tenantId is added to the schema, this test will fail
       // until the model is also added to TENANT_SCOPED_MODELS in prisma.ts.
       // This prevents accidental exclusion.
-      expect(TENANT_SCOPED_MODELS).toHaveLength(28);
+      expect(TENANT_SCOPED_MODELS).toHaveLength(29);
       expect(TENANT_SCOPED_MODELS).toContain('webhookSubscription');
     });
 
@@ -185,7 +185,7 @@ describe('P2-10: Cross-tenant isolation', () => {
       const alwaysRequired = TENANT_SCOPED_MODELS.filter(
         m => !['systemSetting', 'featureFlag', 'auditLog', 'announcement', 'notificationTemplate'].includes(m)
       );
-      expect(alwaysRequired).toHaveLength(23);
+      expect(alwaysRequired).toHaveLength(24);
     });
   });
 });

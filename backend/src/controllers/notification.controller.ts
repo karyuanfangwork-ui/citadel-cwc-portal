@@ -54,6 +54,42 @@ class NotificationController {
         });
     });
 
+    getNotificationsAfter = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { cursor, limit = '50' } = req.query;
+        const limitNum = Math.min(parseInt(limit as string, 10) || 50, 100);
+
+        let cursorCreatedAt: Date | null = null;
+        if (cursor) {
+            const cursorNotification = await prisma.notification.findFirst({
+                where: {
+                    id: String(cursor),
+                    userId: req.user!.id,
+                    channel: 'IN_APP',
+                },
+                select: { createdAt: true },
+            });
+            cursorCreatedAt = cursorNotification?.createdAt ?? null;
+        }
+
+        const notifications = await prisma.notification.findMany({
+            where: {
+                userId: req.user!.id,
+                channel: 'IN_APP',
+                ...(cursorCreatedAt ? { createdAt: { gt: cursorCreatedAt } } : {}),
+            },
+            orderBy: { createdAt: 'asc' },
+            take: limitNum,
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                notifications,
+                cursor: notifications.at(-1)?.id ?? (cursor ? String(cursor) : null),
+            },
+        });
+    });
+
     // P01-17: Verify ownership before marking as read
     markAsRead = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);

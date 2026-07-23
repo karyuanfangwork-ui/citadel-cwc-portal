@@ -36,6 +36,18 @@ export interface WorkflowCommand {
         ipAddress?: string;
         userAgent?: string;
     };
+    /** Additional domain writes that must commit/rollback with the command. */
+    transactionMutations?: (
+        tx: any,
+        context: {
+            requestId: string;
+            tenantId: string;
+            departmentId: string | null;
+            newVersion: number;
+            historyId: string;
+            now: Date;
+        },
+    ) => Promise<void>;
 }
 
 export interface WorkflowCommandResult {
@@ -78,6 +90,7 @@ function commandFingerprint(command: WorkflowCommand): string {
     const {
         idempotencyKey: _ignored,
         audit: _auditAttribution,
+        transactionMutations: _transactionMutations,
         requestPatch = {},
         ...fingerprinted
     } = command;
@@ -142,6 +155,7 @@ export async function executeWorkflowCommand(
         requestPatch = {},
         slaTransition,
         audit,
+        transactionMutations,
     } = command;
 
     if (!tenantId) throw new AppError('Request not found', 404);
@@ -340,6 +354,17 @@ export async function executeWorkflowCommand(
                 },
             },
         });
+
+        if (transactionMutations) {
+            await transactionMutations(tx, {
+                requestId,
+                tenantId,
+                departmentId: current.departmentId,
+                newVersion,
+                historyId: history.id,
+                now,
+            });
+        }
 
         const resultPayload = {
             version: newVersion,

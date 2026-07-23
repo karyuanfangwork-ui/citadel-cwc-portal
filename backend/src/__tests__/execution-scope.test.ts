@@ -153,7 +153,7 @@ describe('P02-06: Execution scope', () => {
         it('should include all critical tenant-scoped models', () => {
             const critical = [
                 'user', 'request', 'asset', 'creditApplication',
-                'notification', 'auditLog', 'branch', 'entity',
+                'notification', 'auditLog', 'platformAuditEvent', 'branch', 'entity',
                 'serviceDesk', 'serviceCategory', 'requestType',
                 'featureFlag', 'webhookSubscription', 'requestCounter',
             ];

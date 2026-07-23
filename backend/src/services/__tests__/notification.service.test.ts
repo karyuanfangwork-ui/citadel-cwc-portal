@@ -1,17 +1,29 @@
-// ── Mocks (hoisted by Jest before module evaluation) ────────────────────
-
 const mockPrisma = {
+  $transaction: jest.fn((fn: any) => fn(mockPrisma)),
+  user: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+  },
+  departmentMembership: {
+    findMany: jest.fn(),
+  },
+  notificationDomainEvent: {
+    upsert: jest.fn(),
+  },
+  notificationDelivery: {
+    createMany: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  notification: {
+    upsert: jest.fn(),
+  },
   notificationTemplate: {
     findFirst: jest.fn(),
   },
-  user: {
-    findUnique: jest.fn(),
-  },
   request: {
     findUnique: jest.fn(),
-  },
-  notification: {
-    create: jest.fn(),
   },
   systemSetting: {
     findUnique: jest.fn(),
@@ -25,7 +37,9 @@ jest.mock('../../utils/prisma', () => ({
 
 jest.mock('../email.service', () => ({
   sendEmail: jest.fn(),
-  renderTemplate: jest.fn(),
+  renderTemplate: jest.fn((template: string, vars: Record<string, string>) =>
+    template.replace(/\{\{(\w+)\}\}/g, (_match, key) => vars[key] ?? ''),
+  ),
 }));
 
 jest.mock('../../utils/sseClients', () => ({
@@ -33,7 +47,7 @@ jest.mock('../../utils/sseClients', () => ({
 }));
 
 jest.mock('../../config', () => ({
-  config: { app: { url: 'http://localhost:3000' } },
+  config: { app: { url: 'http://localhost:3000' }, redis: { url: 'redis://localhost:6379' } },
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -44,508 +58,134 @@ jest.mock('../../controllers/systemSetting.controller', () => ({
   registerEmailEnabledCacheInvalidator: jest.fn(),
 }));
 
-// ── Import AFTER mocks ──────────────────────────────────────────────────
-
-const { notify, notifyMultiple } = require('../notification.service');
-const { sendEmail, renderTemplate } = require('../email.service');
+const {
+  notify,
+  notifyMultiple,
+  publishDomainEvent,
+  deliverNotification,
+} = require('../notification.service');
+const { sendEmail } = require('../email.service');
 const { pushToUser } = require('../../utils/sseClients');
 const { logger } = require('../../utils/logger');
 
-// ── Tests ───────────────────────────────────────────────────────────────
-
-describe('notification.service', () => {
+describe('notification.service durable pipeline', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Sensible defaults so every test doesn't have to set up the full chain
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(null);
-    mockPrisma.user.findUnique.mockResolvedValue({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
+    mockPrisma.user.findUnique.mockResolvedValue({ tenantId: 'tenant-1', email: 'recipient@test.local' });
+    mockPrisma.user.findMany.mockResolvedValue([{ id: 'user-1' }]);
+    mockPrisma.departmentMembership.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+    mockPrisma.notificationDomainEvent.upsert.mockResolvedValue({ id: 'event-1' });
+    mockPrisma.notificationDelivery.createMany.mockResolvedValue({ count: 2 });
+    mockPrisma.notificationDelivery.findMany.mockResolvedValue([{ id: 'delivery-in-app' }, { id: 'delivery-email' }]);
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1',
+      tenantId: 'tenant-1',
+      recipientId: 'user-1',
+      channel: where.id === 'delivery-email' ? 'EMAIL' : 'IN_APP',
+      status: 'PENDING',
+      attemptCount: 0,
+      event: {
+        id: 'event-1',
+        eventKey: 'event-key',
+        tenantId: 'tenant-1',
+        departmentId: null,
+        eventType: 'REQUEST_CREATED',
+        classification: 'INTERNAL',
+        resourceType: 'request',
+        resourceId: null,
+        payload: { variables: { custom: 'value' }, relatedRequestId: null, wrapInLayout: true },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' },
+      notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
+      pushTitle: 'Hello {{userName}}',
+      pushBody: 'Body {{custom}}',
+      emailSubject: 'Email {{userName}}',
+      emailBody: 'Email body {{custom}}',
     });
     mockPrisma.request.findUnique.mockResolvedValue(null);
-    mockPrisma.notification.create.mockResolvedValue({
-      id: 'notif-1',
+    mockPrisma.systemSetting.findUnique.mockResolvedValue({ value: 'true' });
+    mockPrisma.notification.upsert.mockResolvedValue({
+      id: 'notification-1',
+      subject: 'Hello Jane Doe',
+      body: 'Body value',
+      relatedRequestId: null,
       createdAt: new Date('2026-01-01T00:00:00Z'),
     });
-    mockPrisma.systemSetting.findUnique.mockResolvedValue({ value: 'true' });
+    mockPrisma.notificationDelivery.update.mockResolvedValue({});
     (sendEmail as jest.Mock).mockResolvedValue(true);
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        // Simple stub: replace {{key}} with value
-        return _tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
-      },
-    );
   });
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 1. Template found → renders subject and body via renderTemplate
-  // ─────────────────────────────────────────────────────────────────────
-  it('creates in-app notification with rendered subject/body when template found', async () => {
-    const template = {
-      pushTitle: 'Hello {{userName}}',
-      pushBody: 'Body for {{userName}}',
-      emailSubject: 'Hello {{userName}}',
-      emailBody: 'Body for {{userName}}',
-    };
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(template);
-
-    await notify({
-      userId: 'user-1',
+  it('publishDomainEvent creates an idempotent event and unique delivery rows', async () => {
+    const result = await publishDomainEvent(mockPrisma, {
+      eventKey: 'event-key',
+      tenantId: 'tenant-1',
       eventType: 'REQUEST_CREATED',
-      variables: {},
+      classification: 'INTERNAL',
+      resourceType: 'request',
+      payload: { variables: {} },
+      recipientIds: ['user-1', 'user-1'],
+      channels: ['IN_APP'],
     });
 
-    // renderTemplate should have been called for pushSubject, pushBody, emailSubject, emailBody
-    expect(renderTemplate).toHaveBeenCalledTimes(4);
-    expect(renderTemplate).toHaveBeenCalledWith('Hello {{userName}}', expect.any(Object));
-    expect(renderTemplate).toHaveBeenCalledWith('Body for {{userName}}', expect.any(Object));
-
-    // In-app notification created with rendered values
-    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(2); // IN_APP + EMAIL
-    const inAppCall = mockPrisma.notification.create.mock.calls[0][0];
-    expect(inAppCall.data.channel).toBe('IN_APP');
-    expect(inAppCall.data.status).toBe('SENT');
-    expect(inAppCall.data.subject).toBe('Hello Jane Doe');
-    expect(inAppCall.data.body).toBe('Body for Jane Doe');
+    expect(mockPrisma.notificationDomainEvent.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tenantId_eventKey: { tenantId: 'tenant-1', eventKey: 'event-key' } },
+      update: {},
+    }));
+    expect(mockPrisma.notificationDelivery.createMany).toHaveBeenCalledWith(expect.objectContaining({ skipDuplicates: true }));
+    expect(result).toEqual({ eventId: 'event-1', deliveryIds: ['delivery-in-app', 'delivery-email'] });
   });
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 2. No template → falls back to default subject/body
-  // ─────────────────────────────────────────────────────────────────────
-  it('creates in-app notification with default subject/body when no template', async () => {
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(null);
+  it('deliverNotification persists inbox state before SSE wake-up', async () => {
+    await deliverNotification('delivery-in-app');
 
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_UPDATED',
-      variables: {},
-    });
-
-    // renderTemplate should NOT be called
-    expect(renderTemplate).not.toHaveBeenCalled();
-
-    const inAppCall = mockPrisma.notification.create.mock.calls[0][0];
-    expect(inAppCall.data.subject).toBe('Notification: REQUEST_UPDATED');
-    expect(inAppCall.data.body).toBe('Event: REQUEST_UPDATED');
+    expect(mockPrisma.notification.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { deliveryId: 'delivery-in-app' },
+      create: expect.objectContaining({ channel: 'IN_APP', status: 'SENT' }),
+    }));
+    expect(mockPrisma.notificationDelivery.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'delivery-in-app' },
+      data: expect.objectContaining({ status: 'SENT' }),
+    }));
+    expect(pushToUser).toHaveBeenCalledWith('user-1', 'notification', expect.objectContaining({ cursor: 'notification-1' }));
   });
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 3. relatedRequestId → enriches variables from request data
-  // ─────────────────────────────────────────────────────────────────────
-  it('enriches variables from related request data', async () => {
-    const tpl = {
-      emailSubject: '{{requestId}} {{status}}',
-      emailBody: '{{requesterName}} → {{assigneeName}}',
-    };
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(tpl);
-
-    mockPrisma.request.findUnique.mockResolvedValue({
-      referenceNumber: 'REF-100',
-      summary: 'Fix the login bug',
-      status: 'IN_PROGRESS',
-      priority: 'HIGH',
-      requester: { firstName: 'Alice', lastName: 'Smith' },
-      assignedTo: { firstName: 'Bob', lastName: 'Jones' },
-      serviceDesk: { name: 'IT Support' },
-      requestType: { name: 'Incident' },
-    });
-
-    // Capture the enriched vars passed to renderTemplate
-    let capturedVars: Record<string, string> = {};
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        capturedVars = { ...vars };
-        return 'rendered';
-      },
-    );
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_UPDATED',
-      variables: { newStatus: 'IN_PROGRESS' },
-      relatedRequestId: 'req-1',
-    });
-
-    // prisma.request.findUnique was called with the right id
-    expect(mockPrisma.request.findUnique).toHaveBeenCalledWith({
-      where: { id: 'req-1' },
-      select: expect.any(Object),
-    });
-
-    // The enriched vars passed to renderTemplate should include request fields
-    expect(capturedVars.requestId).toBe('REF-100');
-    expect(capturedVars.requestTitle).toBe('Fix the login bug');
-    expect(capturedVars.referenceNumber).toBe('REF-100');
-    expect(capturedVars.summary).toBe('Fix the login bug');
-    expect(capturedVars.status).toBe('IN_PROGRESS');
-    expect(capturedVars.priority).toBe('HIGH');
-    expect(capturedVars.requesterName).toBe('Alice Smith');
-    expect(capturedVars.assigneeName).toBe('Bob Jones');
-    expect(capturedVars.categoryName).toBe('IT Support');
-    expect(capturedVars.requestTypeName).toBe('Incident');
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // 4. User has email → sends email
-  // ─────────────────────────────────────────────────────────────────────
-  it('sends email when user has an email address', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-    });
-
-    expect(sendEmail).toHaveBeenCalledTimes(1);
-    expect(sendEmail).toHaveBeenCalledWith(
-      'jane@example.com',
-      expect.any(String),
-      expect.any(String),
-      { wrapInLayout: true },
-    );
-
-    // EMAIL notification record created
-    const emailCall = mockPrisma.notification.create.mock.calls[1][0];
-    expect(emailCall.data.channel).toBe('EMAIL');
-    expect(emailCall.data.status).toBe('SENT');
-    expect(emailCall.data.sentAt).toBeInstanceOf(Date);
-    expect(emailCall.data.errorMessage).toBeUndefined();
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // 5. sendEmail returns false → EMAIL record with FAILED status
-  // ─────────────────────────────────────────────────────────────────────
-  it('creates EMAIL record with FAILED status when sendEmail returns false', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
-    });
+  it('deliverNotification leaves failed provider delivery retryable', async () => {
     (sendEmail as jest.Mock).mockResolvedValue(false);
 
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-    });
+    await deliverNotification('delivery-email');
 
-    const emailCall = mockPrisma.notification.create.mock.calls[1][0];
-    expect(emailCall.data.channel).toBe('EMAIL');
-    expect(emailCall.data.status).toBe('FAILED');
-    expect(emailCall.data.sentAt).toBeUndefined();
-    expect(emailCall.data.errorMessage).toBe('SMTP delivery failed');
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // 6. User has no email → does NOT send email
-  // ─────────────────────────────────────────────────────────────────────
-  it('does NOT send email when user has no email address', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: null,
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-    });
-
-    expect(sendEmail).not.toHaveBeenCalled();
-
-    // Only IN_APP notification created (no EMAIL record)
-    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.notification.create.mock.calls[0][0].data.channel).toBe('IN_APP');
-  });
-
-  it('does NOT send email when user record is not found', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue(null);
-
-    await notify({
-      userId: 'user-missing',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-    });
-
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(mockPrisma.notification.create).toHaveBeenCalledTimes(1);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // 7. Pushes SSE event to user
-  // ─────────────────────────────────────────────────────────────────────
-  it('pushes SSE event to user after creating in-app notification', async () => {
-    const createdAt = new Date('2026-01-01T00:00:00Z');
-    mockPrisma.notification.create.mockResolvedValue({
-      id: 'notif-42',
-      createdAt,
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-      relatedRequestId: 'req-99',
-    });
-
-    expect(pushToUser).toHaveBeenCalledTimes(1);
-    expect(pushToUser).toHaveBeenCalledWith('user-1', 'notification', {
-      id: 'notif-42',
-      subject: expect.any(String),
-      body: expect.any(String),
-      relatedRequestId: 'req-99',
-      createdAt,
-    });
-  });
-
-  it('pushes SSE event with null relatedRequestId when none provided', async () => {
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-    });
-
-    expect(pushToUser).toHaveBeenCalledWith('user-1', 'notification', expect.objectContaining({
-      relatedRequestId: null,
+    expect(mockPrisma.notification.upsert).not.toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ channel: 'EMAIL' }),
+    }));
+    expect(mockPrisma.notificationDelivery.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'delivery-email' },
+      data: expect.objectContaining({ status: 'RETRYING', nextAttemptAt: expect.any(Date) }),
     }));
   });
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 8. Catches and logs errors without throwing
-  // ─────────────────────────────────────────────────────────────────────
-  it('catches and logs errors without throwing', async () => {
-    mockPrisma.notificationTemplate.findFirst.mockRejectedValue(
-      new Error('DB connection lost'),
-    );
+  it('notify compatibility wrapper publishes and drains created deliveries without fallback tenant UUID', async () => {
+    await notify({ userId: 'user-1', eventType: 'REQUEST_CREATED', variables: { foo: 'bar' } });
 
-    // Should NOT throw
-    await expect(
-      notify({
-        userId: 'user-1',
-        eventType: 'REQUEST_CREATED',
-        variables: {},
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(logger.error).toHaveBeenCalledWith(
-      'Failed to create notification for user user-1',
-      expect.objectContaining({
-        error: expect.any(Error),
-        eventType: 'REQUEST_CREATED',
-      }),
-    );
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'user-1' } }));
+    expect(mockPrisma.notificationDomainEvent.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ tenantId: 'tenant-1' }),
+    }));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('tenantless'), expect.anything());
   });
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 9. notifyMultiple calls notify for each userId
-  // ─────────────────────────────────────────────────────────────────────
-  it('notifyMultiple calls notify for each userId', async () => {
-    await notifyMultiple(
-      ['user-a', 'user-b', 'user-c'],
-      'REQUEST_CREATED',
-      { key: 'val' },
-      'req-1',
-    );
+  it('notifyMultiple logs rejected compatibility wrapper deliveries instead of swallowing success', async () => {
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ tenantId: 'tenant-1', email: null })
+      .mockRejectedValueOnce(new Error('boom'));
 
-    // prisma.notificationTemplate.findFirst called once per user (3 times)
-    expect(mockPrisma.notificationTemplate.findFirst).toHaveBeenCalledTimes(3);
-    // prisma.user.findUnique called once per user
-    expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(3);
-    // request.findUnique called once per user (relatedRequestId is provided)
-    expect(mockPrisma.request.findUnique).toHaveBeenCalledTimes(3);
-  });
+    await notifyMultiple(['user-1', 'user-2'], 'REQUEST_CREATED', {});
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 10. Variable merge order: requestVars < caller variables < userName < appUrl
-  // ─────────────────────────────────────────────────────────────────────
-  it('merges variables in correct order: requestVars < caller vars < userName < appUrl', async () => {
-    // requestVars provides status = 'OPEN' from the request record
-    mockPrisma.request.findUnique.mockResolvedValue({
-      referenceNumber: 'REF-200',
-      summary: 'Original summary',
-      status: 'OPEN',
-      priority: 'MEDIUM',
-      requester: { firstName: 'Req', lastName: 'Er' },
-      assignedTo: null,
-      serviceDesk: { name: 'Helpdesk' },
-      requestType: { name: 'Bug' },
-    });
-
-    // Caller overrides status and adds custom var
-    // Also sets appUrl (which should take precedence over config.app.url)
-    const callerVars = {
-      status: 'IN_PROGRESS',  // should override requestVars.status
-      customComment: 'approved',  // should be present
-      appUrl: 'https://custom.app',  // should override config.app.url
-    };
-
-    // Capture the enriched variables passed to renderTemplate
-    let capturedVars: Record<string, string> = {};
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        capturedVars = { ...vars };
-        return 'rendered';
-      },
-    );
-
-    const template = {
-      emailSubject: 'subject',
-      emailBody: 'body',
-    };
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(template);
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'STATUS_CHANGED',
-      variables: callerVars,
-      relatedRequestId: 'req-2',
-    });
-
-    // Auto-resolved request fields override caller's same-named keys
-    // (by design: referenceNumber replaces UUID requestId; same for status, etc.)
-    expect(capturedVars.status).toBe('OPEN');
-
-    // Request-level fields still present when not overridden
-    expect(capturedVars.requestId).toBe('REF-200');
-    expect(capturedVars.summary).toBe('Original summary');
-
-    // Caller's custom variable present
-    expect(capturedVars.customComment).toBe('approved');
-
-    // userName always comes from DB (not caller)
-    expect(capturedVars.userName).toBe('Jane Doe');
-
-    // Caller's appUrl overrides config default
-    expect(capturedVars.appUrl).toBe('https://custom.app');
-  });
-
-  it('uses config.app.url as appUrl when caller does not provide one', async () => {
-    let capturedVars: Record<string, string> = {};
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        capturedVars = { ...vars };
-        return 'rendered';
-      },
-    );
-
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
-      emailSubject: 's',
-      emailBody: 'b',
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'TEST',
-      variables: {},  // no appUrl provided
-    });
-
-    expect(capturedVars.appUrl).toBe('http://localhost:3000');
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Additional edge-case: wrapInLayout is forwarded to sendEmail
-  // ─────────────────────────────────────────────────────────────────────
-  it('forwards wrapInLayout option to sendEmail', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
-    });
-
-    await notify({
-      userId: 'user-1',
+    expect(logger.error).toHaveBeenCalledWith('Failed to create notification in notifyMultiple', expect.objectContaining({
+      error: expect.any(Error),
       eventType: 'REQUEST_CREATED',
-      variables: {},
-      wrapInLayout: false,
-    });
-
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      expect.any(String),
-      { wrapInLayout: false },
-    );
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Additional edge-case: request found but optional relations are null
-  // ─────────────────────────────────────────────────────────────────────
-  it('handles null optional relations in related request gracefully', async () => {
-    let capturedVars: Record<string, string> = {};
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        capturedVars = { ...vars };
-        return 'rendered';
-      },
-    );
-
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
-      emailSubject: 'subject',
-      emailBody: 'body',
-    });
-
-    mockPrisma.request.findUnique.mockResolvedValue({
-      referenceNumber: 'REF-300',
-      summary: 'No relations',
-      status: 'NEW',
-      priority: null,
-      requester: null,
-      assignedTo: null,
-      serviceDesk: null,
-      requestType: null,
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: {},
-      relatedRequestId: 'req-3',
-    });
-
-    expect(capturedVars.priority).toBe('');
-    expect(capturedVars.requesterName).toBe('');
-    expect(capturedVars.assigneeName).toBe('');
-    expect(capturedVars.categoryName).toBe('');
-    expect(capturedVars.requestTypeName).toBe('');
-  });
-
-  // ─────────────────────────────────────────────────────────────────────
-  // Additional edge-case: relatedRequestId provided but request not found
-  // ─────────────────────────────────────────────────────────────────────
-  it('handles missing related request gracefully (requestVars stays empty)', async () => {
-    mockPrisma.request.findUnique.mockResolvedValue(null);
-    let capturedVars: Record<string, string> = {};
-    (renderTemplate as jest.Mock).mockImplementation(
-      (_tpl: string, vars: Record<string, string>) => {
-        capturedVars = { ...vars };
-        return 'rendered';
-      },
-    );
-
-    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
-      emailSubject: 's',
-      emailBody: 'b',
-    });
-
-    await notify({
-      userId: 'user-1',
-      eventType: 'REQUEST_CREATED',
-      variables: { foo: 'bar' },
-      relatedRequestId: 'req-nonexistent',
-    });
-
-    // No request-level keys should be present
-    expect(capturedVars).not.toHaveProperty('requestId');
-    expect(capturedVars).not.toHaveProperty('status');
-    // Caller variables still present
-    expect(capturedVars.foo).toBe('bar');
+    }));
   });
 });

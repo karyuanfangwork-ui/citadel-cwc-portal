@@ -224,65 +224,72 @@ export async function startApprovalInstance(input: StartApprovalInstanceInput) {
     const definition = publishedVersion.definition as unknown as Array<PolicyStepDefinition>;
 
     // Resolve approvers and create instance + steps
-    const instance = await prisma.approvalInstance.create({
-        data: {
-            requestId,
-            tenantId,
-            departmentId: request.departmentId,
-            policyVersionId: publishedVersion.id,
-            status: ApprovalStepStatus.ACTIVE,
-        },
-    });
-
     // Determine which steps should start as ACTIVE vs WAITING
     const sequentialGroups = groupStepsForActivation(definition);
 
-    const stepsData = await Promise.all(definition.map(async (stepDef) => {
-        // Resolve approver
-        const assignedApproverId = await resolveApprover(stepDef, tenantId);
-
-        // Evaluate auto-approve condition if present
-        let stepStatus: ApprovalStepStatus;
-        if (stepDef.approverType === 'AUTO') {
-            stepStatus = ApprovalStepStatus.APPROVED;
-        } else if (sequentialGroups.firstParallelGroup !== null && stepDef.parallelGroup === sequentialGroups.firstParallelGroup) {
-            stepStatus = ApprovalStepStatus.ACTIVE;
-        } else if (sequentialGroups.firstParallelGroup === null && stepDef.stepOrder === sequentialGroups.firstSequentialOrder) {
-            stepStatus = ApprovalStepStatus.ACTIVE;
-        } else if (stepDef.parallelGroup && sequentialGroups.firstParallelGroup !== null && stepDef.parallelGroup === sequentialGroups.firstParallelGroup) {
-            stepStatus = ApprovalStepStatus.ACTIVE;
-        } else {
-            stepStatus = ApprovalStepStatus.WAITING;
-        }
-
-        // Compute due date from timeout
-        const dueAt = stepDef.timeoutHours
-            ? new Date(Date.now() + stepDef.timeoutHours * 60 * 60 * 1000)
-            : null;
-
-        return db.approvalInstanceStep.create({
+    const stepsData = await prisma.$transaction(async (tx) => {
+        const runtimeTx = tx as any;
+        const instance = await runtimeTx.approvalInstance.create({
             data: {
-                instanceId: instance.id,
-                stepOrder: stepDef.stepOrder,
-                parallelGroup: stepDef.parallelGroup ?? null,
-                approverType: stepDef.approverType as any,
-                assignedApproverId,
-                status: stepStatus,
-                decision: stepDef.approverType === 'AUTO' ? 'APPROVED' : null,
-                decidedAt: stepDef.approverType === 'AUTO' ? new Date() : null,
-                decidedBy: stepDef.approverType === 'AUTO' ? actorId : null,
-                dueAt,
-                timeoutAction: (stepDef.timeoutAction as ApprovalTimeoutAction) ?? ApprovalTimeoutAction.REMINDER,
-                condition: (stepDef.condition ?? (stepDef.autoApproveIf ? parseAutoApproveCondition(stepDef.autoApproveIf) : null)) as any,
+                requestId,
+                tenantId,
+                departmentId: request.departmentId,
+                policyVersionId: publishedVersion.id,
+                status: ApprovalStepStatus.ACTIVE,
             },
         });
-    }));
 
-    logger.info(`Started approval instance ${instance.id} for request ${requestId} with ${stepsData.length} steps`);
+        const createdSteps = [];
+        for (const stepDef of definition) {
+            // Resolve approver before writing the step. Approver lookup is scoped by tenant.
+            const assignedApproverId = await resolveApprover(stepDef, tenantId);
+
+            // Evaluate auto-approve condition if present
+            let stepStatus: ApprovalStepStatus;
+            if (stepDef.approverType === 'AUTO') {
+                stepStatus = ApprovalStepStatus.APPROVED;
+            } else if (sequentialGroups.firstParallelGroup !== null && stepDef.parallelGroup === sequentialGroups.firstParallelGroup) {
+                stepStatus = ApprovalStepStatus.ACTIVE;
+            } else if (sequentialGroups.firstParallelGroup === null && stepDef.stepOrder === sequentialGroups.firstSequentialOrder) {
+                stepStatus = ApprovalStepStatus.ACTIVE;
+            } else if (stepDef.parallelGroup && sequentialGroups.firstParallelGroup !== null && stepDef.parallelGroup === sequentialGroups.firstParallelGroup) {
+                stepStatus = ApprovalStepStatus.ACTIVE;
+            } else {
+                stepStatus = ApprovalStepStatus.WAITING;
+            }
+
+            // Compute due date from timeout
+            const dueAt = stepDef.timeoutHours
+                ? new Date(Date.now() + stepDef.timeoutHours * 60 * 60 * 1000)
+                : null;
+
+            const createdStep = await runtimeTx.approvalInstanceStep.create({
+                data: {
+                    instanceId: instance.id,
+                    stepOrder: stepDef.stepOrder,
+                    parallelGroup: stepDef.parallelGroup ?? null,
+                    approverType: stepDef.approverType as any,
+                    assignedApproverId,
+                    status: stepStatus,
+                    decision: stepDef.approverType === 'AUTO' ? 'APPROVED' : null,
+                    decidedAt: stepDef.approverType === 'AUTO' ? new Date() : null,
+                    decidedBy: stepDef.approverType === 'AUTO' ? actorId : null,
+                    dueAt,
+                    timeoutAction: (stepDef.timeoutAction as ApprovalTimeoutAction) ?? ApprovalTimeoutAction.REMINDER,
+                    condition: (stepDef.condition ?? (stepDef.autoApproveIf ? parseAutoApproveCondition(stepDef.autoApproveIf) : null)) as any,
+                },
+            });
+            createdSteps.push(createdStep);
+        }
+
+        return { instance, createdSteps };
+    });
+
+    logger.info(`Started approval instance ${stepsData.instance.id} for request ${requestId} with ${stepsData.createdSteps.length} steps`);
 
     // Re-fetch with steps included
-    return prisma.approvalInstance.findUnique({
-        where: { id: instance.id },
+    return db.approvalInstance.findUnique({
+        where: { id: stepsData.instance.id },
         include: { steps: { orderBy: { stepOrder: 'asc' } } },
     })!;
 }
@@ -341,42 +348,25 @@ export async function decideApproval(input: DecideApprovalInput) {
         throw new AppError('Cannot approve own request — separation of duties violation.', 403);
     }
 
-    // Update the step
-    const updatedStep = await db.approvalInstanceStep.update({
-        where: { id: stepId },
-        data: {
-            status: decision === 'APPROVED' ? ApprovalStepStatus.APPROVED : ApprovalStepStatus.REJECTED,
-            decision,
-            decisionComment: comment ?? null,
-            decidedAt: new Date(),
-            decidedBy: actorId,
-        },
-    });
+    const stepDecisionData = {
+        status: decision === 'APPROVED' ? ApprovalStepStatus.APPROVED : ApprovalStepStatus.REJECTED,
+        decision,
+        decisionComment: comment ?? null,
+        decidedAt: new Date(),
+        decidedBy: actorId,
+    };
 
-    // Determine if all steps are complete and compute next state
-    const allSteps = instance.steps.map(s =>
+    // Determine if all steps are complete and compute next state before writing.
+    // If this decision completes the approval flow, the approval-runtime writes
+    // are performed inside the Task 15 workflow-command transaction below.
+    const allSteps = instance.steps.map((s: any) =>
         s.id === stepId
-            ? { ...s, status: updatedStep.status, decision: updatedStep.decision }
+            ? { ...s, status: stepDecisionData.status, decision: stepDecisionData.decision }
             : s
     );
 
-    const anyRejected = allSteps.some(s => s.status === ApprovalStepStatus.REJECTED);
-
-    if (anyRejected) {
-        // REJECTED: cancel all remaining WAITING/ACTIVE steps
-        await cancelRemainingSteps(instanceId, stepId);
-    } else {
-        // Activate next sequential/parallel steps
-        await activateNextSteps(instance, allSteps, definitionFromInstance(instance));
-    }
-
-    // Check if the entire instance is complete
-    const refreshedInstance = await prisma.approvalInstance.findUnique({
-        where: { id: instanceId },
-        include: { steps: { orderBy: { stepOrder: 'asc' } } },
-    })!;
-
-    const allDecided = refreshedInstance!.steps.every(s =>
+    const anyRejected = allSteps.some((s: any) => s.status === ApprovalStepStatus.REJECTED);
+    const allDecided = anyRejected || allSteps.every((s: any) =>
         s.status === ApprovalStepStatus.APPROVED ||
         s.status === ApprovalStepStatus.REJECTED ||
         s.status === ApprovalStepStatus.CANCELLED ||
@@ -384,45 +374,71 @@ export async function decideApproval(input: DecideApprovalInput) {
     );
 
     if (allDecided) {
-        // Mark instance complete
-        await prisma.approvalInstance.update({
-            where: { id: instanceId },
-            data: {
-                status: anyRejected ? ApprovalStepStatus.REJECTED : ApprovalStepStatus.APPROVED,
-                completedAt: new Date(),
-            },
-        });
+        if (!request) {
+            throw new AppError('Request not found', 404);
+        }
 
-        // Route through Task 15 workflowCommand boundary
-        if (request) {
-            const targetStatus = anyRejected ? 'REJECTED' : 'APPROVED';
-            try {
-                await executeWorkflowCommand({
-                    requestId: instance.requestId,
-                    tenantId: request.tenantId ?? tenantId,
-                    fromStatus: request.status as RequestStatus,
-                    toStatus: targetStatus as RequestStatus,
-                    expectedVersion: request.version ?? 1,
-                    actorId,
-                    actorName: 'ApprovalRuntime',
-                    source: 'approval',
-                    comment: comment ?? `Approval ${decision.toLowerCase()}`,
-                    metadata: {
-                        approvalInstanceId: instanceId,
-                        stepId,
-                        decision,
+        const targetStatus = anyRejected ? 'REJECTED' : 'APPROVED';
+        await executeWorkflowCommand({
+            requestId: instance.requestId,
+            tenantId: request.tenantId ?? tenantId,
+            fromStatus: request.status as RequestStatus,
+            toStatus: targetStatus as RequestStatus,
+            expectedVersion: request.version ?? 1,
+            actorId,
+            actorName: 'ApprovalRuntime',
+            source: 'approval',
+            comment: comment ?? `Approval ${decision.toLowerCase()}`,
+            metadata: {
+                approvalInstanceId: instanceId,
+                stepId,
+                decision,
+            },
+            transactionMutations: async (tx) => {
+                const runtimeTx = tx as any;
+                await runtimeTx.approvalInstanceStep.update({
+                    where: { id: stepId },
+                    data: stepDecisionData,
+                });
+
+                if (anyRejected) {
+                    await runtimeTx.approvalInstanceStep.updateMany({
+                        where: {
+                            instanceId,
+                            id: { not: stepId },
+                            status: { in: [ApprovalStepStatus.WAITING, ApprovalStepStatus.ACTIVE] },
+                        },
+                        data: {
+                            status: ApprovalStepStatus.CANCELLED,
+                            decision: 'CANCELLED',
+                        },
+                    });
+                }
+
+                await runtimeTx.approvalInstance.update({
+                    where: { id: instanceId },
+                    data: {
+                        status: anyRejected ? ApprovalStepStatus.REJECTED : ApprovalStepStatus.APPROVED,
+                        completedAt: new Date(),
                     },
                 });
-            } catch (err: any) {
-                // If workflow command fails (e.g. concurrent state change), log but don't fail the approval
-                logger.error(`Approval decision workflow command failed for request ${instance.requestId}`, {
-                    error: err.message,
-                    instanceId,
-                    stepId,
-                });
-            }
-        }
+            },
+        });
+    } else {
+        await db.approvalInstanceStep.update({
+            where: { id: stepId },
+            data: stepDecisionData,
+        });
+
+        // Activate next sequential/parallel steps
+        await activateNextSteps(instance, allSteps, definitionFromInstance(instance));
     }
+
+    const refreshedInstance = await db.approvalInstance.findUnique({
+        where: { id: instanceId },
+        include: { steps: { orderBy: { stepOrder: 'asc' } } },
+    })!;
+    const updatedStep = refreshedInstance!.steps.find((s: any) => s.id === stepId);
 
     return { step: updatedStep, instance: refreshedInstance };
 }
@@ -627,23 +643,6 @@ async function resolveApprover(stepDef: PolicyStepDefinition, tenantId: string):
     }
 
     return null;
-}
-
-/**
- * Cancel all remaining WAITING and ACTIVE steps after a REJECTION.
- */
-async function cancelRemainingSteps(instanceId: string, excludeStepId: string) {
-    await db.approvalInstanceStep.updateMany({
-        where: {
-            instanceId,
-            id: { not: excludeStepId },
-            status: { in: [ApprovalStepStatus.WAITING, ApprovalStepStatus.ACTIVE] },
-        },
-        data: {
-            status: ApprovalStepStatus.CANCELLED,
-            decision: 'CANCELLED',
-        },
-    });
 }
 
 /**

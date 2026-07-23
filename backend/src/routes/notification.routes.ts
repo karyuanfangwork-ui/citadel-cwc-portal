@@ -22,6 +22,13 @@ router.get('/', notificationController.getNotifications);
 router.get('/unread-count', notificationController.getUnreadCount);
 
 /**
+ * @route   GET /api/v1/notifications/replay?cursor=<notificationId>
+ * @desc    Get persisted in-app notifications after a cursor for SSE reconnect replay
+ * @access  Private
+ */
+router.get('/replay', notificationController.getNotificationsAfter);
+
+/**
  * @route   PUT /api/v1/notifications/:id/read
  * @desc    Mark notification as read
  * @access  Private

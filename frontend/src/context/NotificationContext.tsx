@@ -39,6 +39,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   const [lastCrmEvent, setLastCrmEvent] = useState<CrmUpdateEvent | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cursorRef = useRef<string | null>(null);
 
   // Load initial unread count
   useEffect(() => {
@@ -58,6 +59,19 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   }, []);
 
+  const applyNotification = useCallback((data: Notification) => {
+    cursorRef.current = data.id;
+    setUnreadCount((prev) => prev + 1);
+    setRecentNotification(data);
+    showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
+  }, [showToast]);
+
+  const replayInbox = useCallback(async () => {
+    const replay = await notificationService.replayAfter(cursorRef.current);
+    replay.notifications.forEach(applyNotification);
+    cursorRef.current = replay.cursor ?? cursorRef.current;
+  }, [applyNotification]);
+
   // Open/close SSE stream based on auth state
   // P1-02: Use cookie-based auth (withCredentials) instead of ?token= query param
   // to avoid logging JWTs in server access logs and browser history.
@@ -71,11 +85,13 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
     const es = new EventSource(SSE_URL, { withCredentials: true });
     esRef.current = es;
 
+    replayInbox().catch(() => {});
+
     es.addEventListener('notification', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as Notification;
-      setUnreadCount((prev) => prev + 1);
-      setRecentNotification(data);
-      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
+      const wakeup = JSON.parse(e.data) as { cursor?: string; id?: string };
+      if (wakeup.cursor || wakeup.id) {
+        replayInbox().catch(() => {});
+      }
     });
 
     es.addEventListener('crm_update', (e: MessageEvent) => {
@@ -91,7 +107,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       es.close();
       esRef.current = null;
     };
-  }, [userId, accessToken, showToast]);
+  }, [userId, accessToken, replayInbox]);
 
   const dismissToast = useCallback(() => {
     setToast(null);

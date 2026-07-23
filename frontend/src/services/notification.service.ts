@@ -33,6 +33,15 @@ const notificationService = {
     return response.data.data.count;
   },
 
+  async replayAfter(cursor: string | null): Promise<{ notifications: Notification[]; cursor: string | null }> {
+    const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    const response = await api.get(`/notifications/replay${params}`);
+    return {
+      notifications: response.data.data.notifications,
+      cursor: response.data.data.cursor,
+    };
+  },
+
   async markAsRead(id: string): Promise<void> {
     await api.put(`/notifications/${id}/read`);
   },

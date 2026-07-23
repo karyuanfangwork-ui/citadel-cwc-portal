@@ -8,7 +8,7 @@ import { config } from '../config';
 // P02-06: This list is generated/verified by scripts/generate-tenant-models.ts
 // and cross-checked by src/generated/tenant-models.ts.
 const TENANT_SCOPED_MODELS = new Set([
-  'user', 'request', 'asset',
+  'user', 'request', 'asset', 'platformAuditEvent',
   'crmLead', 'crmAccount', 'crmOpportunity', 'crmContact', 'crmPipeline',
   'creditApplication', 'knowledgeBaseArticle', 'notification', 'auditLog',
   'announcement', 'announcementRead', 'onboardingRequest', 'offboardingRequest',

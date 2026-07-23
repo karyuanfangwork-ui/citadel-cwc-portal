@@ -9,6 +9,7 @@ import { startCreditSlaChecker, stopCreditSlaChecker, runCreditSlaChecks } from 
 import { startAmlRescreenChecker, stopAmlRescreenChecker, runAmlRescreen } from '../credit/jobs/amlRescreenChecker';
 import { startAuditRetentionJob, stopAuditRetentionJob, runAuditRetentionCheck } from '../credit/jobs/auditRetention.job';
 import { acquireLock, releaseLock } from './schedulerLock.service';
+import { startSlaTimerWorker, stopSlaTimerWorker } from '../workers/timer.worker';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -109,6 +110,7 @@ export async function initScheduler(): Promise<void> {
   for (const row of rows) {
     startJobByKey(row as SchedulerConfigRow);
   }
+  startSlaTimerWorker();
   logger.info(`[Scheduler] Initialized ${rows.length} jobs`);
 }
 
@@ -120,6 +122,7 @@ export async function shutdownScheduler(): Promise<void> {
   stopCreditSlaChecker();
   stopAmlRescreenChecker();
   stopAuditRetentionJob();
+  await stopSlaTimerWorker();
   logger.info('[Scheduler] All jobs stopped');
 }
 
