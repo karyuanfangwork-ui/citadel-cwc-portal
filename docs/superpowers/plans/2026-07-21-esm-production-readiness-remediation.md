@@ -1281,6 +1281,23 @@ git commit -m "feat(iam): add enterprise identity lifecycle"
 
 ### Task 22: Add API contract and DevSecOps release gates
 
+**Status:** ⏸️ Deferred on 2026-07-23 by product decision.
+
+**Deferral rationale:** Full OpenAPI/API-governance and software supply-chain release evidence is valuable for enterprise/compliance production, public API consumers, and formal release governance, but it is not required to continue current runtime/security remediation work. Existing backend tests/build/lint and controlled deployment practices remain the near-term release guardrail.
+
+**Impact while deferred:**
+- No authoritative OpenAPI contract or generated contract drift gate.
+- CI does not yet enforce route inventory vs operation registry vs OpenAPI parity.
+- SBOM, immutable release evidence, SAST/dependency/container scan gates and changed-code coverage gates remain incomplete.
+- Future external integrations will have weaker API discoverability and compatibility guarantees.
+
+**Minimum compensating gates before any production release:**
+- Backend: `npx prisma validate`, `npx prisma migrate status`, `npm test -- --runInBand --forceExit`, `npm run build`, `npm run lint`.
+- Frontend: `npm run build` from `frontend/`.
+- Secret scan against changed files and deployment configuration.
+- Manual deployment smoke test after migration/application rollout.
+- Document any unresolved Critical/High dependency or security findings as explicit release exceptions.
+
 **Owner:** DevSecOps + API Governance
 **Findings:** #20–#22, #71–#73, #80–#82, #86
 
@@ -1458,6 +1475,24 @@ git commit -m "feat(platform): prove high availability and disaster recovery"
 ## Program P07 — Enterprise maturity, months 4–6
 
 ### Task 26: Deliver governed analytics, localization and metadata-driven departments
+
+**Status:** ⏸️ Deferred on 2026-07-23 by product decision.
+
+**Deferral rationale:** Governed reporting, scheduled analytics, localization, metadata-driven department configuration, and legal/support page polish are enterprise-maturity capabilities. They improve scale, compliance UX, and customer-facing completeness, but they are not required to continue the current runtime/security/production-safety remediation path.
+
+**Impact while deferred:**
+- No governed saved/scheduled report framework with immutable report definitions and execution/download authorization re-checks.
+- Expensive report analytics may continue to rely on existing implementation paths instead of production-shaped SQL aggregates/materialized facts.
+- Department navigation, labels, locale/timezone/currency/date formatting, templates, and request catalogs remain less metadata-driven.
+- Frontend lazy-loading and bundle-budget enforcement for this scope remain incomplete.
+- Privacy, terms, retention, and support pages may remain incomplete/placeholders until separately prioritized.
+- Findings #59–#60, #64–#66, #74, #78–#80, #96–#99 remain open/deferred.
+
+**Minimum compensating controls before production:**
+- Keep report/export endpoints behind existing tenant, department, permission, DLP, and audit controls.
+- Avoid enabling scheduled report delivery to broad recipient lists until governed report definitions and recipient policy checks exist.
+- Manually review any customer-facing privacy/terms/support copy before launch if the formal pages are still deferred.
+- Monitor slow report/analytics endpoints and prioritize DB aggregate remediation if production-shaped data exposes performance issues.
 
 **Owner:** Product + Reporting + Frontend
 **Findings:** #59–#60, #64–#66, #74, #78–#80, #96–#99
