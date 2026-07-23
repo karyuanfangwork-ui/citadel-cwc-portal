@@ -22,19 +22,43 @@ async function findChrome(): Promise<string> {
   );
 }
 
+/**
+ * Chrome/Chromium launch args for headless PDF generation inside Docker containers.
+ *
+ * Chromium 150+ crashes (SIGTRAP / exit code 133) in minimal containers because:
+ *  - No D-Bus daemon → harmless warnings logged to stderr
+ *  - The new headless mode (--headless=new, which is the default since Chrome 112)
+ *    can fail to launch in containers without a display compositor.
+ *
+ * The fix is to use the *old* headless mode (`--headless=old`) combined with
+ * `--disable-gpu`, `--disable-software-rasterizer`, and `--disable-dev-shm-usage`.
+ */
+const DOCKER_CHROME_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--disable-software-rasterizer',
+  '--disable-extensions',
+  '--disable-background-networking',
+  '--disable-default-apps',
+  '--disable-sync',
+  '--no-first-run',
+  '--headless=old',
+] as const;
+
 export async function htmlToPdf(html: string): Promise<Buffer> {
   const executablePath = await findChrome();
 
   const browser = await puppeteer.launch({
     executablePath,
     headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--font-render-hinting=none',  // sharper CJK fonts
-    ],
+    args: [...DOCKER_CHROME_ARGS],
+    env: {
+      ...process.env,
+      // Prevent Chromium from trying to autolaunch D-Bus in the container
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/dev/null',
+    },
   });
 
   try {
