@@ -29,6 +29,7 @@ const SENSITIVE_KEYS = new Set([
  */
 export function stripSensitive<T>(obj: T): T {
     if (obj === null || obj === undefined) return obj;
+    if (obj instanceof Date) return obj as T;
     if (Array.isArray(obj)) return obj.map(stripSensitive) as T;
     if (typeof obj !== 'object') return obj;
 
