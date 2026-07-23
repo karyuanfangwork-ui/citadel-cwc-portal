@@ -24,7 +24,7 @@ export interface PdfJobResult {
  */
 export async function enqueuePdf(html: string, s3Prefix = 'pdf/', userId?: string): Promise<string> {
   const s3Key = `${s3Prefix}${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
-  const job = await pdfQueue.add('generate', { html, s3Key });
+  const job = await pdfQueue.add('generate', { html, s3Key, userId });
   const jobId = job.id!;
   // Seed pending state — key is scoped to user if userId provided
   const redisKey = userId ? `pdf:result:${userId}:${jobId}` : `pdf:result:${jobId}`;
