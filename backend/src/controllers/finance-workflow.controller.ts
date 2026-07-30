@@ -281,9 +281,15 @@ export const cfoDecision = async (req: Request, res: Response) => {
             // Reassign back to Finance agent
             await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
 
-            await prisma.requestApproval.create({
-                data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'REJECTED', comments: comments || null },
+            const rejectedApproval = await prisma.requestApproval.updateMany({
+                where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+                data: { status: 'REJECTED', comments: comments || null, approverId: userId },
             });
+            if (rejectedApproval.count === 0) {
+                await prisma.requestApproval.create({
+                    data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'REJECTED', comments: comments || null },
+                });
+            }
 
             await logActivity(id, `CFO rejected the request${comments ? ': ' + comments : ''}`, userId);
             await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
@@ -317,9 +323,15 @@ export const cfoDecision = async (req: Request, res: Response) => {
             source: 'finance-workflow/cfo-approve',
         }));
 
-        await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'APPROVED', comments: comments || null },
+        const approvedApproval = await prisma.requestApproval.updateMany({
+            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+            data: { status: 'APPROVED', comments: comments || null, approverId: userId },
         });
+        if (approvedApproval.count === 0) {
+            await prisma.requestApproval.create({
+                data: { requestId: id, approverType: 'CFO', approverId: userId, status: 'APPROVED', comments: comments || null },
+            });
+        }
 
         if (isBudgetProposal) {
             // Step 2a: CFO_APPROVED_FIN → FINANCE_IN_PROGRESS (budget adopted)
@@ -389,6 +401,146 @@ export const cfoDecision = async (req: Request, res: Response) => {
             return res.status(403).json({ error: error.message });
         }
         res.status(500).json({ status: 'error', message: 'Failed to process CFO decision' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/reassign-group-dceo-approver */
+export const reassignGroupDceoApprover = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { approverId, notes } = req.body;
+        const user = (req as any).user;
+        const userRoles: string[] = user?.roles || [];
+
+        if (!approverId || typeof approverId !== 'string') {
+            res.status(400).json({ status: 'error', message: 'approverId is required' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                serviceDesk: true,
+                requestType: true,
+                assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+                approvals: { where: { approverType: 'GROUP_DCEO', status: 'PENDING' } },
+            },
+        });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.serviceDesk?.code !== 'FINANCE' || request.requestType?.code !== 'PURCHASE_REQUISITION') {
+            res.status(400).json({ status: 'error', message: 'Only Finance Purchase Requisition Group DCEO approvers can be reassigned here' });
+            return;
+        }
+
+        if (request.status !== 'PENDING_GROUP_DCEO_APPROVAL') {
+            res.status(400).json({ status: 'error', message: 'Group DCEO approver can only be changed while request is pending Group DCEO approval' });
+            return;
+        }
+
+        const isAdmin = userRoles.includes('ADMIN');
+        const isFinanceAgent = userRoles.includes('AGENT') && (user?.agentTeam || '').toUpperCase() === 'FINANCE';
+        if (!isAdmin && !isFinanceAgent) {
+            res.status(403).json({ status: 'error', message: 'Only Finance agents or admins can change the Group DCEO approver' });
+            return;
+        }
+
+        const newApprover = await prisma.user.findUnique({
+            where: { id: approverId },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                executiveRole: true,
+                isActive: true,
+                roles: { select: { role: { select: { name: true } } } },
+            },
+        });
+        const roleNames = newApprover?.roles.map((r) => r.role.name) ?? [];
+        const isGroupDceo = newApprover?.executiveRole === 'GROUP_DCEO' || roleNames.includes('GROUP_DCEO');
+        if (!newApprover || !newApprover.isActive || !isGroupDceo) {
+            res.status(400).json({ status: 'error', message: 'Selected approver is not an active Group DCEO' });
+            return;
+        }
+
+        const pendingApproval = request.approvals[0];
+        const oldApproverId = pendingApproval?.approverId || request.assignedToId || null;
+        if (oldApproverId === newApprover.id) {
+            res.status(400).json({ status: 'error', message: 'Selected Group DCEO is already assigned to this request' });
+            return;
+        }
+
+        const oldApprover = oldApproverId
+            ? await prisma.user.findUnique({
+                where: { id: oldApproverId },
+                select: { firstName: true, lastName: true, email: true },
+            })
+            : null;
+
+        const updatedRequest = await prisma.$transaction(async (tx) => {
+            if (pendingApproval) {
+                await tx.requestApproval.update({
+                    where: { id: pendingApproval.id },
+                    data: { approverId: newApprover.id, comments: notes || pendingApproval.comments || null },
+                });
+            } else {
+                await tx.requestApproval.create({
+                    data: { requestId: id, approverType: 'GROUP_DCEO', approverId: newApprover.id, status: 'PENDING', comments: notes || null },
+                });
+            }
+
+            await tx.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: user?.id || null,
+                    authorName: user ? `${user.firstName} ${user.lastName}`.trim() : 'System',
+                    activityType: 'ASSIGNMENT',
+                    message: `Group DCEO approver changed from ${oldApprover ? `${oldApprover.firstName} ${oldApprover.lastName}`.trim() : 'Unassigned'} to ${newApprover.firstName} ${newApprover.lastName}${notes ? `: ${notes}` : ''}`,
+                    isSystemGenerated: false,
+                    metadata: {
+                        previousApproverId: oldApproverId,
+                        newApproverId: newApprover.id,
+                        changedByRole: isAdmin ? 'ADMIN' : 'FINANCE_AGENT',
+                    },
+                },
+            });
+
+            return tx.request.update({
+                where: { id },
+                data: { assignedToId: newApprover.id },
+                include: {
+                    assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+                    approvals: { include: { approver: { select: { id: true, firstName: true, lastName: true, email: true } } } },
+                },
+            });
+        });
+
+        await notify({
+            userId: newApprover.id,
+            eventType: 'APPROVAL_REQUIRED',
+            variables: { requestId: id, role: 'Group Deputy CEO' },
+            relatedRequestId: id,
+        });
+
+        await auditLog(req as any, 'FINANCE_GROUP_DCEO_APPROVER_REASSIGNED', 'request', id, {
+            previousApproverId: oldApproverId,
+            newApproverId: newApprover.id,
+            referenceNumber: request.referenceNumber,
+            notes: notes || null,
+        }, { assignedToId: request.assignedToId });
+
+        res.json({
+            status: 'success',
+            message: 'Group DCEO approver reassigned successfully',
+            data: { request: updatedRequest },
+        });
+    } catch (error: any) {
+        console.error('reassignGroupDceoApprover error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to reassign Group DCEO approver' });
     }
 };
 

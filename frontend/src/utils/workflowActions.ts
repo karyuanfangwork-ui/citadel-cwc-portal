@@ -43,6 +43,7 @@ export type WorkflowActionType =
   | 'ROUTE_TO_CFO_FIN'
   | 'ROUTE_TO_CFO_BP'
   | 'CFO_DECISION_FIN'
+  | 'REASSIGN_GROUP_DCEO_APPROVER_FIN'
 
   | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
@@ -218,6 +219,15 @@ export function getWorkflowActions(
         label: 'Group Deputy CEO Approval Decision',
         description: 'Review and approve or reject this high-value Purchase Requisition as Group Deputy CEO.',
         variant: 'primary',
+      });
+    }
+
+    if (isPurchaseRequisition && canActOnDesk && status === 'PENDING_GROUP_DCEO_APPROVAL') {
+      actions.push({
+        type: 'REASSIGN_GROUP_DCEO_APPROVER_FIN',
+        label: 'Change Group DCEO Approver',
+        description: 'Select a different Group DCEO approver for this Purchase Requisition.',
+        variant: 'warning',
       });
     }
 

@@ -121,6 +121,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   ROUTE_TO_CFO_FIN:          { icon: 'route',            bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
   ROUTE_TO_CFO_BP:           { icon: 'send',             bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   CFO_DECISION_FIN:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  REASSIGN_GROUP_DCEO_APPROVER_FIN: { icon: 'manage_accounts', bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
 
   GROUP_DCEO_DECISION_FIN:    { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   MARK_PAYMENT_COMPLETE_FIN: { icon: 'payments',         bgClass: 'bg-emerald-100', textClass: 'text-emerald-600' },
@@ -594,6 +595,7 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     ROUTE_TO_CFO_FIN: 'ROUTE_TO_CFO_FIN',
     ROUTE_TO_CFO_BP: 'ROUTE_TO_CFO_BP',
     CFO_DECISION_FIN: 'CFO_DECISION_FIN',
+    REASSIGN_GROUP_DCEO_APPROVER_FIN: 'REASSIGN_GROUP_DCEO_APPROVER_FIN',
 
     GROUP_DCEO_DECISION_FIN: 'GROUP_DCEO_DECISION_FIN',
     MARK_PAYMENT_COMPLETE_FIN: 'MARK_PAYMENT_COMPLETE_FIN',

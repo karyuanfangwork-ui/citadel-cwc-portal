@@ -45,6 +45,11 @@ const financeWorkflowService = {
         return response.data;
     },
 
+    async reassignGroupDceoApprover(requestId: string, approverId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/reassign-group-dceo-approver`, { approverId, notes });
+        return response.data;
+    },
+
 
 
     async markPaymentComplete(requestId: string, paymentReference?: string, notes?: string) {

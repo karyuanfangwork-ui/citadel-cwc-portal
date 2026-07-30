@@ -1714,6 +1714,14 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
+    "fromStatus": "GROUP_DCEO_APPROVED",
+    "toStatus": "PAYMENT_PROCESSING_FIN",
+    "transitionLabel": "ADVANCE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
     "fromStatus": "GROUP_DCEO_REJECTED",
     "toStatus": "REJECTED",
     "transitionLabel": "CLOSE",
@@ -1725,6 +1733,14 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "fromStatus": "FINANCE_ACKNOWLEDGED",
     "toStatus": "PENDING_CFO_APPROVAL_FIN",
     "transitionLabel": "ROUTE_TO_CFO",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "FINANCE_IN_PROGRESS",
+    "toStatus": "TICKET_CLOSED_FIN",
+    "transitionLabel": "CLOSE",
     "requiresComment": false,
     "autoAssignRole": null,
     "isActive": true
@@ -1742,6 +1758,30 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "toStatus": "CFO_REJECTED_FIN",
     "transitionLabel": "REJECT",
     "requiresComment": true,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CFO_APPROVED_FIN",
+    "toStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "transitionLabel": "ADVANCE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CFO_APPROVED_FIN",
+    "toStatus": "PAYMENT_PROCESSING_FIN",
+    "transitionLabel": "ADVANCE",
+    "requiresComment": false,
+    "autoAssignRole": null,
+    "isActive": true
+  },
+  {
+    "fromStatus": "CFO_APPROVED_FIN",
+    "toStatus": "FINANCE_IN_PROGRESS",
+    "transitionLabel": "RETURN",
+    "requiresComment": false,
     "autoAssignRole": null,
     "isActive": true
   },

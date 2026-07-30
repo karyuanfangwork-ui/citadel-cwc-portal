@@ -7,6 +7,7 @@ import {
     setFinalizedAmountAndRouteCfo,
     cfoDecision,
     groupDceoDecision,
+    reassignGroupDceoApprover,
     markPaymentComplete,
     closeTicket,
     updateAndCloseBudget,
@@ -31,6 +32,7 @@ router.post(
 );
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
 router.post('/requests/:id/group-dceo-decision', authorize('GROUP_DCEO'), groupDceoDecision);
+router.post('/requests/:id/reassign-group-dceo-approver', authorize('ADMIN', 'AGENT'), reassignGroupDceoApprover);
 router.post('/requests/:id/mark-payment-complete', authorize('ADMIN', 'AGENT'), markPaymentComplete);
 router.post('/requests/:id/close', authorize('ADMIN', 'AGENT'), closeTicket);
 router.post('/requests/:id/update-and-close-budget', authorize('ADMIN', 'AGENT'), updateAndCloseBudget);

@@ -700,6 +700,47 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
+  REASSIGN_GROUP_DCEO_APPROVER_FIN: {
+    title: 'Change Group DCEO Approver',
+    subtitle: 'Finance Workflow · Reassign this Purchase Requisition to a different Group DCEO',
+    icon: 'manage_accounts',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'approverId',
+        label: 'New Group DCEO Approver',
+        type: 'select',
+        required: true,
+        asyncOptions: async () => {
+          const res = await api.get('/users/executives', { params: { role: 'GROUP_DCEO' } });
+          const executives = res.data?.data?.executives ?? [];
+          return executives.map((user: any) => ({
+            value: user.id,
+            label: `${user.firstName} ${user.lastName}${user.email ? ` — ${user.email}` : ''}${user.entity?.name ? ` · ${user.entity.name}` : ''}`,
+          }));
+        },
+      },
+      {
+        name: 'notes',
+        label: 'Reason',
+        type: 'textarea',
+        placeholder: 'Optional reason for changing the Group DCEO approver…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Change Approver',
+    submitColor: 'warning',
+    loadingLabel: 'Changing…',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.reassignGroupDceoApprover(
+        requestId,
+        values.approverId as string,
+        (values.notes as string) || undefined,
+      ),
+  },
+
   MARK_PAYMENT_COMPLETE_FIN: {
     title: 'Mark Payment Complete',
     subtitle: 'Finance Workflow · Record payment reference',
