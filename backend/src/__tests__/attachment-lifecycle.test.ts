@@ -42,6 +42,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import {
+    getAuthorizedCustomFieldUploadUrl,
     getAuthorizedDownloadUrl,
     markScanResult,
     markWorkerScanResult,
@@ -298,6 +299,41 @@ describe('Task 12 attachment lifecycle', () => {
         await expect(getAuthorizedDownloadUrl(principal, 'attachment-1'))
             .resolves.toBe('https://signed.example/opaque');
         expect(mockGetPresignedUrl).toHaveBeenCalledWith('cwc/opaque.pdf', 0.25);
+    });
+
+    it('signs a custom-field upload only when its storage key belongs to an authorized request', async () => {
+        mockRequestFindFirst.mockResolvedValue({
+            ...requestScope,
+            customFields: {
+                receipt: {
+                    s3Key: 'cwc/custom-field.pdf',
+                    fileName: 'receipt.pdf',
+                    mimeType: 'application/pdf',
+                },
+            },
+        });
+        mockGetPresignedUrl.mockResolvedValue('https://signed.example/custom-field');
+
+        await expect(getAuthorizedCustomFieldUploadUrl(principal, 'request-1', 'cwc/custom-field.pdf', true))
+            .resolves.toBe('https://signed.example/custom-field');
+        expect(mockGetPresignedUrl).toHaveBeenCalledWith(
+            'cwc/custom-field.pdf',
+            0.25,
+            { 'response-content-disposition': 'inline' },
+        );
+    });
+
+    it('does not sign a custom-field upload key that is absent from the request payload', async () => {
+        mockRequestFindFirst.mockResolvedValue({
+            ...requestScope,
+            customFields: {
+                receipt: { s3Key: 'cwc/other.pdf', fileName: 'other.pdf' },
+            },
+        });
+
+        await expect(getAuthorizedCustomFieldUploadUrl(principal, 'request-1', 'cwc/custom-field.pdf'))
+            .rejects.toThrow('Attachment not found');
+        expect(mockGetPresignedUrl).not.toHaveBeenCalled();
     });
 
     it('never signs a CLEAN attachment after its retention deadline', async () => {

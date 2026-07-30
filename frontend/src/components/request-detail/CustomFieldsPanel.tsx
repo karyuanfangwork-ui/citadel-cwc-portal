@@ -126,9 +126,11 @@ const DATE_KEYS = new Set([
   'receiptDate', 'approvalDate', 'acceptedDate', 'lastDay',
 ]);
 
-function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, showPreview = false): React.ReactNode {
-  const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
-  const inlineHref = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}?inline=true`;
+function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, showPreview = false, requestId?: string): React.ReactNode {
+  const requestParam = requestId ? `?requestId=${encodeURIComponent(requestId)}` : '';
+  const inlineParam = requestId ? `${requestParam}&inline=true` : '?inline=true';
+  const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}${requestParam}`;
+  const inlineHref = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}${inlineParam}`;
   const sizeStr = value.fileSize
     ? value.fileSize > 1024 * 1024
       ? ` (${(value.fileSize / (1024 * 1024)).toFixed(1)} MB)`
@@ -176,21 +178,21 @@ function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: str
   );
 }
 
-function formatFileList(values: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[]): React.ReactNode {
+function formatFileList(values: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[], requestId?: string): React.ReactNode {
   if (values.length === 0) return '\u2014';
-  if (values.length === 1) return formatFileLink(values[0], true);
+  if (values.length === 1) return formatFileLink(values[0], true, requestId);
   return (
     <div className="space-y-2">
       {values.map((f, i) => (
         <div key={f.s3Key || i}>
-          {formatFileLink(f, true)}
+          {formatFileLink(f, true, requestId)}
         </div>
       ))}
     </div>
   );
 }
 
-function formatCandidateDocuments(value: Record<string, Record<string, any>>): React.ReactNode {
+function formatCandidateDocuments(value: Record<string, Record<string, any>>, requestId?: string): React.ReactNode {
   const entries = Object.entries(value);
   if (entries.length === 0) return '\u2014';
   return (
@@ -208,7 +210,7 @@ function formatCandidateDocuments(value: Record<string, Record<string, any>>): R
                   return (
                     <div key={docType} className="flex items-center gap-1.5 text-sm">
                       <span className="text-[#44546f]">{docType}:</span>
-                      {formatFileLink(docValue as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number })}
+                      {formatFileLink(docValue as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, false, requestId)}
                     </div>
                   );
                 }
@@ -226,14 +228,14 @@ function formatCandidateDocuments(value: Record<string, Record<string, any>>): R
   );
 }
 
-function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
+function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>, requestId?: string): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   // File array: multiple files in a single field
   if (Array.isArray(value)) {
     // Check if it's an array of file objects
     if (value.length > 0 && value[0]?.s3Key && value[0]?.fileName) {
-      return formatFileList(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[]);
+      return formatFileList(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }[], requestId);
     }
     return value.join(', ');
   }
@@ -244,11 +246,11 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
       // Heuristic: if all values are objects (candidate documents pattern), render as structured docs
       const vals = Object.values(value);
       if (vals.length > 0 && vals.every(v => typeof v === 'object' && v !== null)) {
-        return formatCandidateDocuments(value as Record<string, Record<string, any>>);
+        return formatCandidateDocuments(value as Record<string, Record<string, any>>, requestId);
       }
     }
     if (value.s3Key && value.fileName) {
-      return formatFileLink(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, true);
+      return formatFileLink(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }, true, requestId);
     }
     return JSON.stringify(value);
   }
@@ -436,7 +438,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
                     </div>
                   ) : (
                     <>
-                      <span>{formatValue(key, value, getFieldType(key), entityNameMap)}</span>
+                      <span>{formatValue(key, value, getFieldType(key), entityNameMap, requestId)}</span>
                       {editable && (
                         <button
                           onClick={() => startEdit(key)}

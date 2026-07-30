@@ -285,6 +285,54 @@ export async function getAuthorizedDownloadUrl(principal: PolicyPrincipal, attac
     return s3Service.getPresignedUrl(attachment.storagePath, 0.25);
 }
 
+function customFieldsContainStorageKey(value: unknown, storageKey: string): boolean {
+    if (!value || typeof value !== 'object') return false;
+    if (Array.isArray(value)) return value.some((item) => customFieldsContainStorageKey(item, storageKey));
+    const record = value as Record<string, unknown>;
+    if (record.s3Key === storageKey) return true;
+    return Object.values(record).some((item) => customFieldsContainStorageKey(item, storageKey));
+}
+
+export async function getAuthorizedCustomFieldUploadUrl(
+    principal: PolicyPrincipal,
+    requestId: string,
+    storageKey: string,
+    inline = false,
+): Promise<string> {
+    if (!storageKey.startsWith('cwc/') || storageKey.includes('..')) {
+        throw new AppError('Attachment not found', 404);
+    }
+
+    const request = await prisma.request.findFirst({
+        where: { id: requestId, deletedAt: null },
+        select: {
+            id: true,
+            tenantId: true,
+            departmentId: true,
+            requesterId: true,
+            assignedToId: true,
+            isConfidential: true,
+            assignedTeam: true,
+            status: true,
+            customFields: true,
+            serviceDesk: { select: { code: true } },
+            approvals: { select: { approverId: true } },
+            participants: { select: { userId: true } },
+        },
+    });
+
+    if (!request || !customFieldsContainStorageKey(request.customFields, storageKey)) {
+        throw new AppError('Attachment not found', 404);
+    }
+
+    const decision = policyService.authorize(principal, 'download', requestDescriptor(request));
+    if (!decision.allowed) throw new AppError('Attachment not found', 404);
+
+    return s3Service.getPresignedUrl(storageKey, 0.25, inline
+        ? { 'response-content-disposition': 'inline' }
+        : undefined);
+}
+
 export async function getAttachmentScanTarget(attachmentId: string, scanJobId: string) {
     return prisma.requestAttachment.findFirst({
         where: { id: attachmentId, scanJobId, deletedAt: null },

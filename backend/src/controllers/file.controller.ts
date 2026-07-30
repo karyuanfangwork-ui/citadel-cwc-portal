@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { AppError } from '../middleware/error.middleware';
-import { getAuthorizedDownloadUrl, markScanResult } from '../services/attachmentAccess.service';
+import { getAuthorizedCustomFieldUploadUrl, getAuthorizedDownloadUrl, markScanResult } from '../services/attachmentAccess.service';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { s3Service } from '../services/s3.service';
 import { assertAllowedUploadSignature } from '../utils/file-signature';
@@ -78,6 +78,33 @@ export const fileController = {
             const attachmentId = String(req.params.attachmentId || '');
             if (!attachmentId) throw new AppError('Attachment not found', 404);
             const url = await getAuthorizedDownloadUrl(principalFromAuth(req.user), attachmentId);
+            return res.redirect(url);
+        } catch (error) {
+            if (error instanceof AppError) throw error;
+            throw new AppError('Could not generate download link', 500);
+        }
+    },
+
+    /**
+     * Download a pre-request custom-field upload by S3 key.
+     * These uploads are stored directly in request.customFields, so access is
+     * authorized against the parent request and the key must be present in that
+     * request's custom field payload.
+     */
+    async downloadUploadedFile(req: AuthRequest, res: Response) {
+        try {
+            if (!req.user) throw new AppError('Authentication required', 401);
+
+            const storageKey = decodeURIComponent(String(req.params[0] || ''));
+            const requestId = String(req.query.requestId || '');
+            if (!storageKey || !requestId) throw new AppError('Attachment not found', 404);
+
+            const url = await getAuthorizedCustomFieldUploadUrl(
+                principalFromAuth(req.user),
+                requestId,
+                storageKey,
+                req.query.inline === 'true',
+            );
             return res.redirect(url);
         } catch (error) {
             if (error instanceof AppError) throw error;

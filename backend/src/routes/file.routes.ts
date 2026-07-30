@@ -12,6 +12,7 @@ const router = Router();
  * @access  Private — authenticated users
  */
 router.post('/upload', authenticate, uploadSingleFile('file'), asyncHandler(fileController.uploadFile));
+router.get('/download/*', authenticate, asyncHandler(fileController.downloadUploadedFile));
 
 router.get('/attachments/:attachmentId/download', authenticate, asyncHandler(fileController.downloadFile));
 router.patch('/attachments/:attachmentId/scan-result', requireServiceApiKey, asyncHandler(fileController.markScanResult));
