@@ -567,7 +567,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
 
   ROUTE_TO_CFO_FIN: {
     title: 'Route to CFO',
-    subtitle: 'Finance Workflow · Set finalized amount, attach invoice & forward',
+    subtitle: 'Finance Workflow · Set finalized amount and forward',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
@@ -584,7 +584,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         label: 'Invoice',
         type: 'file',
         placeholder: '.pdf,.doc,.docx,.png,.jpg,.jpeg',
-        required: true,
+        required: false,
       },
       {
         name: 'notes',
