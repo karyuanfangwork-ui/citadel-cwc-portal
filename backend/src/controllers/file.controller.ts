@@ -1,9 +1,14 @@
 import { Response } from 'express';
 import { z } from 'zod';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { AppError } from '../middleware/error.middleware';
 import { getAuthorizedDownloadUrl, markScanResult } from '../services/attachmentAccess.service';
 import { principalFromAuth } from '../security/resource-scope.service';
+import { s3Service } from '../services/s3.service';
+import { assertAllowedUploadSignature } from '../utils/file-signature';
+import { logger } from '../utils/logger';
 
 const scanResultSchema = z.object({
     scanJobId: z.string().uuid(),
@@ -14,6 +19,55 @@ const scanResultSchema = z.object({
 }).strict();
 
 export const fileController = {
+    /**
+     * Upload a file to S3 and return the key + metadata.
+     * Used by the create-request wizard for pre-request file uploads
+     * (file-type custom fields). Files are stored in S3 immediately;
+     * the s3Key is later embedded in customFields when the request is created.
+     */
+    async uploadFile(req: AuthRequest, res: Response) {
+        try {
+            if (!req.user) throw new AppError('Authentication required', 401);
+
+            const file = req.file;
+            if (!file) {
+                throw new AppError('No file uploaded', 400);
+            }
+
+            // Validate file signature matches declared MIME type
+            if (!assertAllowedUploadSignature(file.buffer, file.originalname, file.mimetype)) {
+                throw new AppError(
+                    `Uploaded file content does not match the declared type for ${file.originalname}`,
+                    400,
+                );
+            }
+
+            // Generate S3 key
+            const ext = path.extname(file.originalname).toLowerCase();
+            const key = `cwc/${crypto.randomUUID()}${ext}`;
+
+            // Upload to S3
+            await s3Service.uploadBuffer(key, file.buffer, file.mimetype);
+
+            logger.info(
+                `[UPLOAD] File uploaded via /files/upload: ${key} | ${file.originalname} | ${file.mimetype} | ${(file.size / 1024).toFixed(1)}KB | by ${req.user.email}`,
+            );
+
+            res.status(201).json({
+                status: 'success',
+                data: {
+                    s3Key: key,
+                    fileName: file.originalname,
+                    mimeType: file.mimetype,
+                    fileSize: file.size,
+                },
+            });
+        } catch (error) {
+            if (error instanceof AppError) throw error;
+            throw new AppError('File upload failed', 500);
+        }
+    },
+
     /**
      * Download by opaque attachment ID. Raw storage keys are never accepted.
      */

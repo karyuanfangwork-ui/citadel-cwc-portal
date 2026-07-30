@@ -257,6 +257,19 @@ export const operationControls: OperationControl[] = [
 
   // ── File download (finding #7, #83, #84) ──────────────────────────
   {
+    method: 'POST',
+    path: '/files/upload',
+    owner: 'File Security',
+    authentication: 'user',
+    coarsePermission: 'file:upload',
+    resourcePolicy: 'file:upload',
+    validation: 'multipartFile',
+    responseSchema: 'FileUploadResultDto',
+    rateTier: 'sensitive',
+    auditEvent: 'file.upload',
+    auditFindingIds: [7, 83, 84],
+  },
+  {
     method: 'GET',
     path: '/files/attachments/:attachmentId/download',
     owner: 'File Security',
