@@ -36,15 +36,7 @@ const ALLOWLIST = new Set<string>([
   'esm-workflow.controller.ts:778',
   'esm-workflow.controller.ts:865',
   'esm-workflow.controller.ts:907',
-  'finance-workflow.controller.ts:110',
-  'finance-workflow.controller.ts:183',
-  'finance-workflow.controller.ts:366',
-  'finance-workflow.controller.ts:512',
-  'finance-workflow.controller.ts:655',
-  'finance-workflow.controller.ts:696',
-  'finance-workflow.controller.ts:744',
-  'finance-workflow.controller.ts:1027',
-  'finance-workflow.controller.ts:1039',
+  'finance-workflow.controller.ts:498',
   'offboarding.controller.ts:153',
 ]);
 

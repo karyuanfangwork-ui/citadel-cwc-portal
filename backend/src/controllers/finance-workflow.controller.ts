@@ -25,7 +25,7 @@ async function logActivity(requestId: string, message: string, authorId?: string
 }
 
 /** Helper: extract common transition options from Express request. */
-function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown> }) {
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown>; requestPatch?: Record<string, unknown> }) {
     const user = (req as any).user;
     const userRoles: string[] = user?.roles || [];
     return {
@@ -38,6 +38,7 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
         skipSlaPause: true,       // Controllers manage SLA pause/resume explicitly
         comment: overrides?.comment,
         source: overrides?.source || 'finance-workflow',
+        requestPatch: overrides?.requestPatch,
     };
 }
 
@@ -103,12 +104,8 @@ export const routeToCfo = async (req: Request, res: Response) => {
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
             comment: notes || undefined,
             source: 'finance-workflow/route-cfo',
+            ...(cfoUserId ? { requestPatch: { assignedToId: cfoUserId } } : {}),
         }));
-
-        // Reassign to CFO
-        if (cfoUserId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: cfoUserId } });
-        }
 
         // Create CFO approval record
         if (!cfoPendingApproval) {
@@ -177,16 +174,8 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
             comment: `Finalized amount: MYR ${finalizedAmount}${notes ? '. ' + notes : ''}`,
             source: 'finance-workflow/set-finalized-route-cfo',
+            requestPatch: { customFields: { ...existingFields, finalizedAmount }, ...(cfoUserId ? { assignedToId: cfoUserId } : {}) },
         }));
-
-        // Update customFields + assignment
-        await prisma.request.update({
-            where: { id },
-            data: {
-                customFields: { ...existingFields, finalizedAmount },
-                ...(cfoUserId ? { assignedToId: cfoUserId } : {}),
-            },
-        });
 
         // Create CFO approval record if not existing
         if (!cfoPendingApproval && cfoUserId) {
@@ -359,16 +348,13 @@ export const cfoDecision = async (req: Request, res: Response) => {
 
             await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
                 source: 'finance-workflow/cfo-approve-purchase',
+                ...(groupDceoId ? { requestPatch: { assignedToId: groupDceoId } } : {}),
             }));
 
-            // Reassign to Group DCEO
-            if (groupDceoId) {
-                await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId } });
-                if (!existingGroupDceoApproval) {
-                    await prisma.requestApproval.create({
-                        data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
-                    });
-                }
+            if (!existingGroupDceoApproval && groupDceoId) {
+                await prisma.requestApproval.create({
+                    data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
+                });
             }
 
             // Notify Group DCEO
@@ -645,17 +631,12 @@ export const markPaymentComplete = async (req: Request, res: Response) => {
         }
 
         // Transition: * → AWAITING_PAYMENT_CONFIRMATION (guard checks Finance desk + assignment)
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
         await transitionRequest(id, 'AWAITING_PAYMENT_CONFIRMATION', transitionOpts(req, {
             comment: `Payment marked complete${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`,
             source: 'finance-workflow/payment-complete',
+            requestPatch: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
         }));
-
-        // Update customFields with payment reference
-        const existingFields = (request.customFields as Record<string, unknown>) || {};
-        await prisma.request.update({
-            where: { id },
-            data: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
-        });
 
         await auditLog(req as any, 'FINANCE_PAYMENT_COMPLETE', 'request', id, {
             status: 'AWAITING_PAYMENT_CONFIRMATION',
@@ -686,17 +667,12 @@ export const closeTicket = async (req: Request, res: Response) => {
             return;
         }
 
-        // Transition: * → TICKET_CLOSED_FIN (guard checks Finance desk + assignment)
+        // Transition: * → TICKET_CLOSED_FIN (guard check Finance desk + assignment)
         await transitionRequest(id, 'TICKET_CLOSED_FIN', transitionOpts(req, {
             comment: 'Ticket closed by Finance Agent',
             source: 'finance-workflow/close',
+            requestPatch: { completedAt: new Date() },
         }));
-
-        // Set resolvedAt + completedAt
-        await prisma.request.update({
-            where: { id },
-            data: { resolvedAt: new Date(), completedAt: new Date() },
-        });
 
         await auditLog(req as any, 'FINANCE_TICKET_CLOSED', 'request', id, {
             status: 'TICKET_CLOSED_FIN',
@@ -738,13 +714,8 @@ export const updateAndCloseBudget = async (req: Request, res: Response) => {
         await transitionRequest(id, 'TICKET_CLOSED_FIN', transitionOpts(req, {
             comment: notes || 'Budget proposal closed by Finance Agent',
             source: 'finance-workflow/close-budget',
+            requestPatch: { completedAt: new Date() },
         }));
-
-        // Set resolvedAt + completedAt
-        await prisma.request.update({
-            where: { id },
-            data: { resolvedAt: new Date(), completedAt: new Date() },
-        });
 
         await logActivity(id, `Budget proposal closed by Finance Agent${notes ? ': ' + notes : ''}`, userId);
         await auditLog(req as any, 'BUDGET_PROPOSAL_CLOSED', 'request', id, {
@@ -1017,29 +988,19 @@ export const markExpensePaymentComplete = async (req: Request, res: Response) =>
         }
 
         // Step 1: PAYMENT_PROCESSING → PAYMENT_COMPLETED
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
         await transitionRequest(id, 'PAYMENT_COMPLETED', transitionOpts(req, {
             comment: `Expense payment completed${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`,
             source: 'finance-workflow/expense-payment-complete',
+            requestPatch: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
         }));
-
-        // Update customFields with payment reference
-        const existingFields = (request.customFields as Record<string, unknown>) || {};
-        await prisma.request.update({
-            where: { id },
-            data: { customFields: { ...existingFields, paymentReference: paymentReference || null } },
-        });
 
         // Step 2: PAYMENT_COMPLETED → REIMBURSEMENT_CLOSED (auto-close)
         await transitionRequest(id, 'REIMBURSEMENT_CLOSED', transitionOpts(req, {
             comment: 'Expense reimbursement closed automatically after payment completion',
             source: 'finance-workflow/expense-payment-complete',
+            requestPatch: { completedAt: new Date() },
         }));
-
-        // Set resolvedAt + completedAt
-        await prisma.request.update({
-            where: { id },
-            data: { resolvedAt: new Date(), completedAt: new Date() },
-        });
 
         await auditLog(req as any, 'EXPENSE_PAYMENT_COMPLETE', 'request', id, {
             status: 'REIMBURSEMENT_CLOSED',
