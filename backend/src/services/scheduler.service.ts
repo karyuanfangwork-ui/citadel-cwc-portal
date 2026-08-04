@@ -10,6 +10,7 @@ import { startAmlRescreenChecker, stopAmlRescreenChecker, runAmlRescreen } from 
 import { startAuditRetentionJob, stopAuditRetentionJob, runAuditRetentionCheck } from '../credit/jobs/auditRetention.job';
 import { acquireLock, releaseLock } from './schedulerLock.service';
 import { startSlaTimerWorker, stopSlaTimerWorker } from '../workers/timer.worker';
+import { dispatchOutboxBatch } from './outboxDispatcher.service';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -40,6 +41,7 @@ const DEFAULT_CONFIGS: Omit<SchedulerConfigRow, 'id' | 'updatedAt'>[] = [
   { jobKey: 'credit.sla_checker',     label: 'Credit SLA Breach Check',  enabled: true, mode: 'cron', cronExpr: '*/15 * * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.aml_rescreen',    label: 'AML Quarterly Re-Screen',   enabled: true, mode: 'cron', cronExpr: '0 2 1 1,4,7,10 *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.audit_retention', label: 'Audit Retention & Hash Check', enabled: true, mode: 'cron', cronExpr: '0 3 * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'workflow.outbox', label: 'Workflow Outbox Dispatcher', enabled: true, mode: 'interval', cronExpr: null, intervalMs: 30000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
 ];
 
 async function seedDefaults(): Promise<void> {
@@ -81,6 +83,8 @@ function startJobByKey(row: SchedulerConfigRow): void {
     startAmlRescreenChecker();
   } else if (row.jobKey === 'credit.audit_retention') {
     startAuditRetentionJob(cfg);
+  } else if (row.jobKey === 'workflow.outbox') {
+    // Interval-based: scheduler calls triggerJob on each tick; start is a no-op.
   }
 }
 
@@ -100,6 +104,7 @@ function stopJobByKey(jobKey: string): void {
   } else if (jobKey === 'credit.audit_retention') {
     stopAuditRetentionJob();
   }
+  // workflow.outbox has no persistent worker to stop.
 }
 
 export async function initScheduler(): Promise<void> {
@@ -198,6 +203,8 @@ export async function triggerJob(jobKey: string): Promise<void> {
       await runAmlRescreen();
     } else if (jobKey === 'credit.audit_retention') {
       await runAuditRetentionCheck();
+    } else if (jobKey === 'workflow.outbox') {
+      await dispatchOutboxBatch({ workerId: `scheduler-${process.pid}` });
     }
   });
 

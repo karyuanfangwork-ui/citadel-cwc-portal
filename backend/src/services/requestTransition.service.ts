@@ -23,6 +23,36 @@ import { logger } from '../utils/logger';
 import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitions';
 import { executeWorkflowCommand } from './workflowCommand.service';
 import { RequestStatus } from '@prisma/client';
+import { registerOutboxHandler } from './outboxDispatcher.service';
+
+// ---------------------------------------------------------------------------
+// Outbox handler: durable notification delivery for status changes
+// ---------------------------------------------------------------------------
+
+registerOutboxHandler('REQUEST_STATUS_CHANGED', async (event) => {
+  const { requestId, toStatus } = event.payload as { requestId: string; toStatus: string };
+  const request = await prisma.request.findUnique({
+    where: { id: requestId },
+    select: { requesterId: true, referenceNumber: true },
+  });
+  if (!request) return; // request deleted; nothing to deliver
+
+  const { notify } = await import('./notification.service');
+  const participants = await prisma.requestParticipant.findMany({
+    where: { requestId },
+    select: { userId: true },
+  });
+  const recipients = [request.requesterId, ...participants.map((p) => p.userId)];
+  // Throwing propagates to the dispatcher, which retries with backoff.
+  for (const userId of new Set(recipients)) {
+    await notify({
+      userId,
+      eventType: 'STATUS_CHANGED',
+      variables: { referenceNumber: request.referenceNumber, newStatus: toStatus },
+      relatedRequestId: requestId,
+    });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Types
@@ -341,41 +371,16 @@ export async function transitionRequest(
     },
   });
 
-  // ── 9. Notifications (post-commit delivery; durable outbox is already committed)
-  if (!skipNotifications) {
-    try {
-      const { notify } = await import('./notification.service');
-      await notify({
-        userId: updatedRequest.requesterId,
-        eventType: 'STATUS_CHANGED',
-        variables: {
-          referenceNumber: updatedRequest.referenceNumber,
-          newStatus: toStatus,
-        },
-        relatedRequestId: requestId,
-      });
-
-      // Also notify participants
-      const participants = await prisma.requestParticipant.findMany({
-        where: { requestId },
-        select: { userId: true },
-      });
-      await Promise.all(
-        participants.map((p) =>
-          notify({
-            userId: p.userId,
-            eventType: 'STATUS_CHANGED',
-            variables: {
-              referenceNumber: updatedRequest.referenceNumber,
-              newStatus: toStatus,
-            },
-            relatedRequestId: requestId,
-          }).catch(() => {}),
-        ),
-      );
-    } catch (err) {
-      logger.warn(`transitionRequest: Notification dispatch failed for ${requestId}`, { err });
-    }
+  // ── 9. Notifications
+  // Notifications are delivered by the outbox handler registered above, so a
+  // crash or provider outage after commit retries instead of silently dropping.
+  // `skipNotifications` is retained for bulk/migration callers — it marks the
+  // outbox event as already published so the dispatcher never retries it.
+  if (skipNotifications) {
+    await (prisma as any).outboxEvent.updateMany({
+      where: { aggregateId: requestId, aggregateVersion: commandResult.version, eventType: 'REQUEST_STATUS_CHANGED' },
+      data: { status: 'PUBLISHED', published: true, publishedAt: new Date() },
+    });
   }
 
   logger.info(`transitionRequest: ${requestId} ${fromStatus} → ${toStatus} (source: ${source})`);
