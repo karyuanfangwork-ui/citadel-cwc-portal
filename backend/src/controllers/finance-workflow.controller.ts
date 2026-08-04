@@ -64,6 +64,52 @@ async function findFinanceCfo(tenantId: string | null | undefined): Promise<stri
     return cfo?.id;
 }
 
+async function findConfiguredGroupDceo(
+    tenantId: string | null | undefined,
+    requestTypeId: string | null | undefined,
+): Promise<string | undefined> {
+    if (tenantId && requestTypeId) {
+        const policy = await (prisma as any).approvalPolicy.findFirst({
+            where: {
+                tenantId,
+                requestTypeId,
+                name: 'Purchase Requisition Approval Runtime',
+                isActive: true,
+            },
+            include: {
+                versions: {
+                    where: { status: 'PUBLISHED' },
+                    orderBy: { versionNumber: 'desc' },
+                    take: 1,
+                },
+            },
+        });
+        const definition = policy?.versions?.[0]?.definition as Array<{ stepOrder?: number; approverType?: string; approverId?: string | null }> | undefined;
+        const configuredStep = definition?.find((step) => step.stepOrder === 2);
+        if (configuredStep?.approverType === 'USER' && configuredStep.approverId) {
+            const configuredUser = await prisma.user.findFirst({
+                where: { id: configuredStep.approverId, tenantId, isActive: true },
+                select: { id: true },
+            });
+            if (configuredUser) return configuredUser.id;
+        }
+    }
+
+    const groupDceo = await prisma.user.findFirst({
+        where: {
+            isActive: true,
+            ...(tenantId ? { tenantId } : {}),
+            OR: [
+                { executiveRole: 'GROUP_DCEO' },
+                { roles: { some: { role: { name: 'GROUP_DCEO' } } } },
+            ],
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+    });
+    return groupDceo?.id;
+}
+
 // ─── Purchase Requisition / Budget Proposal Workflow ───────────────────────
 
 /** POST /finance-workflow/requests/:id/acknowledge */
@@ -381,11 +427,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             if (existingGroupDceoApproval?.approverId) {
                 groupDceoId = existingGroupDceoApproval.approverId;
             } else {
-                const groupDceoUser = await prisma.user.findFirst({
-                    where: { isActive: true, executiveRole: 'GROUP_DCEO' },
-                    select: { id: true },
-                });
-                groupDceoId = groupDceoUser?.id;
+                groupDceoId = await findConfiguredGroupDceo(request.tenantId, request.requestTypeId);
             }
 
             await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {

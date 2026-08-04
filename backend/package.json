@@ -13,6 +13,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:purchase-requisition-approval": "tsx prisma/seed-purchase-requisition-approval.ts",
+    "prisma:rectify:purchase-requisition-group-dceo": "tsx prisma/rectify-purchase-requisition-group-dceo.ts",
     "prisma:seed:crm": "tsx prisma/seed-crm.ts",
     "prisma:seed:credit": "tsx prisma/seed-credit.ts",
     "prisma:seed:credit:flags": "tsx prisma/seed-credit.ts --flags",
