@@ -30,8 +30,8 @@ export class WorkflowTransitionController {
       return;
     }
 
-    const existing = await prisma.workflowTransition.findUnique({
-      where: { fromStatus_toStatus: { fromStatus, toStatus } },
+    const existing = await prisma.workflowTransition.findFirst({
+      where: { fromStatus, toStatus, tenantId: null, workflowTypeId: null },
     });
     if (existing) {
       res.status(409).json({ status: 'error', message: `Transition ${fromStatus} → ${toStatus} already exists` });

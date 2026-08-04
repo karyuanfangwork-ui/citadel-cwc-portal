@@ -25,6 +25,7 @@ import { executeWorkflowCommand } from './workflowCommand.service';
 import { RequestStatus } from '@prisma/client';
 import { registerOutboxHandler } from './outboxDispatcher.service';
 import { AppError } from '../middleware/error.middleware';
+import { canActorTransition, TransitionActor } from './transitionPolicy.service';
 
 // ---------------------------------------------------------------------------
 // Outbox handler: durable notification delivery for status changes
@@ -86,6 +87,8 @@ export interface TransitionOptions {
   requestPatch?: Record<string, unknown>;
   /** Tenant-scoped idempotency key supplied by retryable callers. */
   idempotencyKey?: string;
+  /** Actor to authorize against transition policy (opt-in). When provided, canActorTransition is checked before guards. */
+  actor?: TransitionActor;
   /** Audit attribution captured by the HTTP boundary. */
   userEmail?: string;
   ipAddress?: string;
@@ -276,6 +279,20 @@ export async function transitionRequest(
     }
   } else {
     validationSkipped = true;
+  }
+
+  // ── 2b. Authorize the actor against transition policy (opt-in) ──────────
+  if (options.actor) {
+    const decision = await canActorTransition({
+      actor: options.actor,
+      tenantId: currentRequest.tenantId ?? null,
+      workflowTypeId: (currentRequest.requestType as any)?.workflowTypeId ?? null,
+      fromStatus,
+      toStatus,
+    });
+    if (!decision.allowed) {
+      throw new AppError(decision.reason ?? 'Transition not permitted', 403);
+    }
   }
 
   // ── 3. Run guard conditions ──────────────────────────────────────────────

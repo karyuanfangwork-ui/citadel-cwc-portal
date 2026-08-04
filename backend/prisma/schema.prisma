@@ -2183,12 +2183,20 @@ model WorkflowTransition {
   // Hint: optional role or userId to auto-assign after this transition
   autoAssignRole   String?  @map("auto_assign_role") @db.VarChar(50)
   autoAssignUserId String?  @map("auto_assign_user_id") @db.Uuid
+  // Scoping: NULL means "applies to all". Most-specific-first resolution:
+  // (tenantId, workflowTypeId) beats (tenantId, NULL) beats (NULL, NULL).
+  tenantId              String?  @map("tenant_id") @db.Uuid
+  workflowTypeId        String?  @map("workflow_type_id") @db.Uuid
+  // Authorization: empty arrays mean "no restriction" (any authenticated user).
+  allowedRoles          String[] @default([]) @map("allowed_roles")
+  allowedExecutiveRoles String[] @default([]) @map("allowed_executive_roles")
   isActive         Boolean  @default(true) @map("is_active")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  // Each (fromStatus, toStatus) pair is unique
-  @@unique([fromStatus, toStatus])
+  // Each (tenantId, workflowTypeId, fromStatus, toStatus) pair is unique
+  @@unique([tenantId, workflowTypeId, fromStatus, toStatus])
+  @@index([tenantId, workflowTypeId, fromStatus])
   @@index([fromStatus])
   @@index([toStatus])
   @@index([isActive])

@@ -166,8 +166,10 @@ export async function getTransitionMeta(
   from: string,
   to: string
 ): Promise<{ transitionLabel: string | null; requiresComment: boolean; autoAssignRole: string | null; autoAssignUserId: string | null } | null> {
-  const row = await prisma.workflowTransition.findUnique({
-    where: { fromStatus_toStatus: { fromStatus: from, toStatus: to } },
+  // Use findFirst since the unique key now includes nullable tenantId/workflowTypeId.
+  // NULL columns require `equals: null` in Prisma, which findFirst supports but findUnique doesn't.
+  const row = await prisma.workflowTransition.findFirst({
+    where: { fromStatus: from, toStatus: to, tenantId: null, workflowTypeId: null, isActive: true },
     select: { transitionLabel: true, requiresComment: true, autoAssignRole: true, autoAssignUserId: true },
   });
   return row;

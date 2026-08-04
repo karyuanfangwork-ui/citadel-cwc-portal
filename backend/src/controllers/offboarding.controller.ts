@@ -148,13 +148,11 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
         });
 
         // Sync lastWorkingDay change to request custom_fields.lastDay
-        if (lastWorkingDay !== undefined) {
-            const currentFields = (currentRequest.customFields || {}) as Record<string, any>;
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { customFields: { ...currentFields, lastDay: lastWorkingDay } },
-            });
-        }
+        // (folded into transition requestPatch below when a transition occurs;
+        //  falls back to a direct update when no status transition happens)
+        const lastDayPatch = lastWorkingDay !== undefined
+            ? { customFields: { ...((currentRequest.customFields || {}) as Record<string, any>), lastDay: lastWorkingDay } }
+            : undefined;
 
         // Close open AssetAssignments when hardwareReturned is toggled on
         if (rest.hardwareReturned === true && offboarding.employeeId) {
@@ -190,12 +188,20 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
 
         if (finalStatus !== currentRequest.status) {
             const completedAt = finalStatus === 'OFFBOARDING_COMPLETED' ? new Date() : undefined;
+            const transitionPatch: Record<string, unknown> = {};
+            if (completedAt) {
+                transitionPatch.closedAt = completedAt;
+                transitionPatch.completedAt = completedAt;
+            }
+            if (lastDayPatch) {
+                Object.assign(transitionPatch, lastDayPatch);
+            }
             await transitionHttpRequest({
                 req,
                 request: currentRequest,
                 toStatus: finalStatus,
                 source: 'offboarding.update-status',
-                requestPatch: completedAt ? { closedAt: completedAt, completedAt } : undefined,
+                requestPatch: Object.keys(transitionPatch).length > 0 ? transitionPatch : undefined,
             });
 
             await prisma.requestActivity.create({
@@ -226,6 +232,12 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                 referenceNumber: currentRequest.referenceNumber,
             }, {
                 oldStatus: currentRequest.status,
+            });
+        } else if (lastDayPatch) {
+            // No status transition, but custom fields still need persisting
+            await prisma.request.update({
+                where: { id: requestId },
+                data: lastDayPatch,
             });
         }
 
