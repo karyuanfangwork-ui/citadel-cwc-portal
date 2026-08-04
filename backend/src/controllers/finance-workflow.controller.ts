@@ -48,6 +48,22 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
     };
 }
 
+async function findFinanceCfo(tenantId: string | null | undefined): Promise<string | undefined> {
+    const cfo = await prisma.user.findFirst({
+        where: {
+            isActive: true,
+            ...(tenantId ? { tenantId } : {}),
+            OR: [
+                { executiveRole: 'CFO' },
+                { roles: { some: { role: { name: 'CFO' } } } },
+            ],
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+    });
+    return cfo?.id;
+}
+
 // ─── Purchase Requisition / Budget Proposal Workflow ───────────────────────
 
 /** POST /finance-workflow/requests/:id/acknowledge */
@@ -101,10 +117,11 @@ export const routeToCfo = async (req: Request, res: Response) => {
             where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
             select: { approverId: true },
         });
-        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
-            where: { executiveRole: 'CFO', isActive: true },
-            select: { id: true },
-        }))?.id;
+        const cfoUserId = cfoPendingApproval?.approverId ?? await findFinanceCfo(request.tenantId);
+        if (!cfoUserId) {
+            res.status(409).json({ status: 'error', message: 'No active CFO approver is configured for this tenant' });
+            return;
+        }
 
         // Transition: * → PENDING_CFO_APPROVAL_FIN (guard checks FINANCE desk + CFO role context)
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
@@ -180,10 +197,11 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
             select: { approverId: true },
         });
-        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
-            where: { executiveRole: 'CFO', isActive: true },
-            select: { id: true },
-        }))?.id;
+        const cfoUserId = cfoPendingApproval?.approverId ?? await findFinanceCfo(request.tenantId);
+        if (!cfoUserId) {
+            res.status(409).json({ status: 'error', message: 'No active CFO approver is configured for this tenant' });
+            return;
+        }
 
         // Transition: * → PENDING_CFO_APPROVAL_FIN
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
