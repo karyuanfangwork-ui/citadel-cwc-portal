@@ -27,7 +27,7 @@ import { principalFromAuth } from '../security/resource-scope.service';
  * Helper: extract common transition options from an Express request.
  * Reduces boilerplate in each handler.
  */
-function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; skipAutoAssignment?: boolean; metadata?: Record<string, unknown>; source?: string }) {
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; skipAutoAssignment?: boolean; metadata?: Record<string, unknown>; source?: string; requestPatch?: Record<string, unknown> }) {
   const user = (req as any).user;
   const userRoles: string[] = user?.roles || [];
   return {
@@ -40,6 +40,7 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
     skipSlaPause: true, // Controllers manage SLA pause/resume explicitly where needed
     comment: overrides?.comment,
     source: overrides?.source || 'it-workflow',
+    requestPatch: overrides?.requestPatch,
   };
 }
 
@@ -58,16 +59,11 @@ export async function markProcurement(req: Request, res: Response) {
     }
 
     // Transition: SUBMITTED → PROCUREMENT_IN_PROGRESS (guards check assignment + IT desk)
+    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
     await transitionRequest(id, 'PROCUREMENT_IN_PROGRESS', transitionOpts(req, {
       comment: `Procurement initiated. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}`,
       source: 'it-workflow/procurement',
-    }));
-
-    // Update customFields with procurement info
-    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
-    await prisma.request.update({
-      where: { id },
-      data: {
+      requestPatch: {
         customFields: {
           ...existingCustomFields,
           procurement: {
@@ -78,7 +74,7 @@ export async function markProcurement(req: Request, res: Response) {
           },
         },
       },
-    });
+    }));
 
     if (request.requesterId) {
       await notify({ userId: request.requesterId, eventType: 'PROCUREMENT_INITIATED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
@@ -368,12 +364,10 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       ...transitionOpts(req, {
         comment: notes || undefined,
         source: 'it-workflow/acknowledge',
+        requestPatch: { assignedToId: ceoUser.id },
       }),
       skipAutoAssignment: true,
     });
-
-    // Explicitly assign to CEO (transitionRequest doesn't know about executive role routing)
-    await prisma.request.update({ where: { id }, data: { assignedToId: ceoUser.id } });
 
     // Pause SLA during approval
     const { pauseSla } = await import('../services/sla-pause.service');
@@ -465,13 +459,11 @@ export const ceoDecision = async (req: Request, res: Response) => {
         skipAutoAssignment: true,
       });
 
-      // Assign to CTO for next step
-      await prisma.request.update({ where: { id }, data: { assignedToId: ctoUser.id } });
-
-      // Step 2: CEO_APPROVED_IT → PENDING_CTO_APPROVAL_IT (with SLA pause)
+      // Step 2: CEO_APPROVED_IT → PENDING_CTO_APPROVAL_IT (with SLA pause, assign to CTO)
       await transitionRequest(id, 'PENDING_CTO_APPROVAL_IT', {
         ...transitionOpts(req, {
           source: 'it-workflow/ceo-approve',
+          requestPatch: { assignedToId: ctoUser.id },
         }),
         skipAutoAssignment: true,
       });
@@ -857,22 +849,17 @@ export const markPaymentDone = async (req: Request, res: Response) => {
 
     // Step 2: PAYMENT_DONE_IT → PROCUREMENT_IN_PROGRESS (hardware) or PENDING_DELIVERY_IT (software)
     const nextStatus = isHardwareProcurement ? 'PROCUREMENT_IN_PROGRESS' : 'PENDING_DELIVERY_IT';
+    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
     await transitionRequest(id, nextStatus, {
       ...transitionOpts(req, {
         source: 'it-workflow/payment-done',
-      }),
-    });
-
-    // Update customFields with payment info
-    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
-    await prisma.request.update({
-      where: { id },
-      data: {
-        customFields: {
-          ...existingCustomFields,
-          payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
+        requestPatch: {
+          customFields: {
+            ...existingCustomFields,
+            payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
+          },
         },
-      },
+      }),
     });
 
     if (request.assignedToId) {

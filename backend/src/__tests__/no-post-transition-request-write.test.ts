@@ -45,10 +45,6 @@ const ALLOWLIST = new Set<string>([
   'finance-workflow.controller.ts:744',
   'finance-workflow.controller.ts:1027',
   'finance-workflow.controller.ts:1039',
-  'it-workflow.controller.ts:68',
-  'it-workflow.controller.ts:376',
-  'it-workflow.controller.ts:469',
-  'it-workflow.controller.ts:868',
   'offboarding.controller.ts:153',
 ]);
 
