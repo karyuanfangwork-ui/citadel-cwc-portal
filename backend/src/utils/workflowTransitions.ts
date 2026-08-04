@@ -120,34 +120,41 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 /**
  * Check if a status transition is valid.
- * Uses DB as source of truth; falls back to the seed map if DB is empty.
+ *
+ * The workflow_transitions table is authoritative. The seed map is consulted
+ * ONLY when the table is entirely empty (an unseeded environment) — never for a
+ * single missing pair, because that would silently re-permit transitions an
+ * administrator has deactivated.
  */
 export async function isValidTransition(from: string, to: string): Promise<boolean> {
-  const dbRows = await prisma.workflowTransition.count({
+  const active = await prisma.workflowTransition.count({
     where: { fromStatus: from, toStatus: to, isActive: true },
   });
-  if (dbRows > 0) return true;
+  if (active > 0) return true;
 
-  // Fallback to seed map (for environments where the table hasn't been seeded yet)
+  const seeded = await prisma.workflowTransition.count();
+  if (seeded > 0) return false;
+
   const valid = VALID_TRANSITIONS[from];
   return valid ? valid.includes(to) : false;
 }
 
 /**
  * Get all valid next statuses from a given status.
- * Uses DB as source of truth; falls back to the seed map.
+ *
+ * DB-first: returns active rows from the table. Only falls back to the seed
+ * map when the table is completely empty (unseeded environment).
  */
 export async function getValidNextStatuses(from: string): Promise<string[]> {
   const rows = await prisma.workflowTransition.findMany({
     where: { fromStatus: from, isActive: true },
     select: { toStatus: true },
   });
+  if (rows.length > 0) return rows.map((r) => r.toStatus);
 
-  if (rows.length > 0) {
-    return rows.map(r => r.toStatus);
-  }
+  const seeded = await prisma.workflowTransition.count();
+  if (seeded > 0) return [];
 
-  // Fallback to seed map
   return VALID_TRANSITIONS[from] || [];
 }
 
