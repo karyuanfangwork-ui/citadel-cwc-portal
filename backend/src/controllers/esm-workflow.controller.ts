@@ -26,7 +26,7 @@ async function logActivity(requestId: string, message: string, authorId?: string
 }
 
 /** Extract common transition options from an Express request. */
-function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown> }) {
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown>; requestPatch?: Record<string, unknown> }) {
     const user = (req as any).user;
     const userRoles: string[] = user?.roles || [];
     return {
@@ -39,6 +39,7 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
         skipSlaPause: true,       // Controllers manage SLA pause/resume explicitly
         comment: overrides?.comment,
         source: overrides?.source || 'esm-workflow',
+        requestPatch: overrides?.requestPatch,
     };
 }
 
@@ -241,10 +242,10 @@ export const submitForCeoApproval = async (req: Request, res: Response) => {
         await transitionRequest(id, 'PENDING_CEO_APPROVAL', transitionOpts(req, {
             comment: notes || 'Submitted for CEO approval',
             source: 'esm-workflow/submit-for-ceo',
+            ...(ceoId ? { requestPatch: { assignedToId: ceoId, assignedTeam: 'ESM' } } : {}),
         }));
 
         if (ceoId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: ceoId, assignedTeam: 'ESM' } });
 
             // Create CEO approval record
             await prisma.requestApproval.create({
@@ -477,6 +478,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
             await transitionRequest(id, 'REJECTED', transitionOpts(req, {
                 comment: comments || 'Travel request rejected',
                 source: 'esm-workflow/ceo-reject-terminal',
+                requestPatch: { assignedToId: request.requesterId, assignedTeam: null },
             }));
 
             // Update approval record
@@ -488,7 +490,6 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }
 
             // Reassign back to requester for visibility
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
             await logActivity(id, `CEO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
             await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
 
@@ -537,6 +538,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
             });
 
             // CEO_APPROVED → GROUP_DCEO_APPROVED → FINANCE_ACKNOWLEDGED
+            const financeAgentId = await findFinanceAgent();
             await transitionRequest(id, 'CEO_APPROVED', transitionOpts(req, {
                 comment: comments || 'CEO/Group Deputy CEO approved — routing directly to Finance',
                 source: 'esm-workflow/ceo-approve',
@@ -547,12 +549,10 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }));
             await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
                 source: 'esm-workflow/ceo-approve',
+                ...(financeAgentId ? { requestPatch: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } } : {}),
             }));
 
-            // Assign to Finance agent for acknowledgement
-            const financeAgentId = await findFinanceAgent();
             if (financeAgentId) {
-                await prisma.request.update({ where: { id }, data: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } });
                 await notify({ userId: financeAgentId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
             } else {
                 console.warn(`[ESM-Workflow] No Finance agent found for request ${id}`);
@@ -581,15 +581,15 @@ export const ceoDecision = async (req: Request, res: Response) => {
                 comment: comments || 'CEO approved — routing to Group Deputy CEO for approval',
                 source: 'esm-workflow/ceo-approve',
             }));
+            // Find GROUP_DCEO before transitioning
+            const groupDceoId = await findGroupDceo();
             await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
                 source: 'esm-workflow/ceo-approve',
+                ...(groupDceoId ? { requestPatch: { assignedToId: groupDceoId, assignedTeam: 'ESM' } } : {}),
             }));
 
-            // Find and assign GROUP_DCEO
-            const groupDceoId = await findGroupDceo();
+            // Find and create GROUP_DCEO approval record
             if (groupDceoId) {
-                await prisma.request.update({ where: { id }, data: { assignedToId: groupDceoId, assignedTeam: 'ESM' } });
-
                 await prisma.requestApproval.create({
                     data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
                 });
@@ -663,6 +663,7 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             }));
             await transitionRequest(id, 'REJECTED', transitionOpts(req, {
                 source: 'esm-workflow/group-dceo-reject-terminal',
+                requestPatch: { assignedToId: request.requesterId, assignedTeam: null },
             }));
 
             if (pendingApproval) {
@@ -672,9 +673,7 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
                 });
             }
 
-            // Reassign back to requester
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
-
+            // Reassign back to requester (handled via requestPatch above)
             await logActivity(id, `Group Deputy CEO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
             await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
 
@@ -695,12 +694,14 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
 
         // ── GROUP_DCEO APPROVED ──
         // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED → FINANCE_ACKNOWLEDGED
+        const financeAgentId = await findFinanceAgent();
         await transitionRequest(id, 'GROUP_DCEO_APPROVED', transitionOpts(req, {
             comment: comments || undefined,
             source: 'esm-workflow/group-dceo-approve',
         }));
         await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
             source: 'esm-workflow/group-dceo-approve',
+            ...(financeAgentId ? { requestPatch: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } } : {}),
         }));
 
         if (pendingApproval) {
@@ -710,10 +711,7 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             });
         }
 
-        // Assign to Finance agent for acknowledgement
-        const financeAgentId = await findFinanceAgent();
         if (financeAgentId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: financeAgentId, assignedTeam: 'FINANCE' } });
             await notify({ userId: financeAgentId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'FINANCE_ACKNOWLEDGED' }, relatedRequestId: id });
         } else {
             console.warn(`[ESM-Workflow] No Finance agent found for request ${id}`);
@@ -767,16 +765,15 @@ export const financeAcknowledge = async (req: Request, res: Response) => {
         }
 
         // Transition: FINANCE_ACKNOWLEDGED → PENDING_CFO_APPROVAL_FIN
+        const cfoId = await findCfo();
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
             comment: notes || 'Finance acknowledged — routing to CFO for approval',
             source: 'esm-workflow/finance-acknowledge',
+            ...(cfoId ? { requestPatch: { assignedToId: cfoId, assignedTeam: 'FINANCE' } } : {}),
         }));
 
-        // Find and assign CFO
-        const cfoId = await findCfo();
+        // Find and create CFO approval record
         if (cfoId) {
-            await prisma.request.update({ where: { id }, data: { assignedToId: cfoId, assignedTeam: 'FINANCE' } });
-
             await prisma.requestApproval.create({
                 data: { requestId: id, approverType: 'CFO', approverId: cfoId, status: 'PENDING', comments: notes || null },
             });
@@ -852,6 +849,7 @@ export const cfoDecisionTravel = async (req: Request, res: Response) => {
             await transitionRequest(id, 'REJECTED', transitionOpts(req, {
                 comment: comments || 'Travel request rejected by CFO',
                 source: 'esm-workflow/cfo-reject-terminal',
+                requestPatch: { assignedToId: request.requesterId, assignedTeam: null },
             }));
 
             if (pendingCfoApproval) {
@@ -861,8 +859,7 @@ export const cfoDecisionTravel = async (req: Request, res: Response) => {
                 });
             }
 
-            // Reassign back to requester
-            await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
+            // Reassign back to requester (handled via requestPatch above)
             await logActivity(id, `CFO rejected the travel request${comments ? ': ' + comments : ''}`, userId);
             await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'REJECTED' }, relatedRequestId: id });
 
@@ -901,10 +898,8 @@ export const cfoDecisionTravel = async (req: Request, res: Response) => {
         await transitionRequest(id, 'COMPLETED', transitionOpts(req, {
             comment: 'Travel request approved — all approvals completed',
             source: 'esm-workflow/cfo-approve-complete',
+            requestPatch: { assignedToId: request.requesterId, assignedTeam: null },
         }));
-
-        // Reassign back to requester
-        await prisma.request.update({ where: { id }, data: { assignedToId: request.requesterId, assignedTeam: null } });
 
         await logActivity(id, `CFO approved the travel request — all approvals completed${comments ? ': ' + comments : ''}`, userId);
         await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { referenceNumber: request.referenceNumber, newStatus: 'COMPLETED' }, relatedRequestId: id });
