@@ -53,6 +53,7 @@ const mockPrisma: any = {
   },
   outboxEvent: {
     create: jest.fn(),
+    updateMany: jest.fn(),
   },
   auditLog: {
     create: jest.fn(),
@@ -145,6 +146,7 @@ describe('P6-04: Transition Guards', () => {
     mockPrisma.workflowCommandResult.findUnique.mockResolvedValue(null);
     mockPrisma.workflowCommandResult.create.mockResolvedValue({ id: 'cmd-001' });
     mockPrisma.outboxEvent.create.mockResolvedValue({ id: 'out-001' });
+    mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.auditLog.create.mockResolvedValue({ id: 'audit-001' });
     mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
   });

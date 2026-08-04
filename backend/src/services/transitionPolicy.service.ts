@@ -32,20 +32,22 @@ export async function canActorTransition(
 ): Promise<{ allowed: boolean; reason?: string }> {
   const { actor, tenantId, workflowTypeId, fromStatus, toStatus } = input;
 
-  const rule = await (prisma as any).workflowTransition.findFirst({
-    where: {
-      fromStatus,
-      toStatus,
-      isActive: true,
-      AND: [
-        { OR: [{ tenantId }, { tenantId: null }] },
-        { OR: [{ workflowTypeId }, { workflowTypeId: null }] },
-      ],
-    },
-    // NULLs sort last under `desc` in Postgres, so a concrete scope wins.
-    orderBy: [{ tenantId: 'desc' }, { workflowTypeId: 'desc' }],
-    select: { allowedRoles: true, allowedExecutiveRoles: true },
-  });
+  // Resolve scopes explicitly instead of relying on database NULL ordering.
+  // PostgreSQL sorts NULLs first for DESC unless NULLS LAST is specified.
+  const scopes = [
+    { tenantId, workflowTypeId },
+    { tenantId, workflowTypeId: null },
+    { tenantId: null, workflowTypeId: null },
+  ];
+
+  let rule: { allowedRoles: string[]; allowedExecutiveRoles: string[] } | null = null;
+  for (const scope of scopes) {
+    rule = await (prisma as any).workflowTransition.findFirst({
+      where: { fromStatus, toStatus, isActive: true, ...scope },
+      select: { allowedRoles: true, allowedExecutiveRoles: true },
+    });
+    if (rule) break;
+  }
 
   if (!rule) {
     return { allowed: false, reason: `No active transition ${fromStatus} → ${toStatus} in this scope` };

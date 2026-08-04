@@ -52,12 +52,17 @@ describe('canActorTransition', () => {
   });
 
   it('prefers the most specific scope over the global default', async () => {
-    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
-      allowedRoles: ['AGENT'], allowedExecutiveRoles: [],
-    });
+    mockPrisma.workflowTransition.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        allowedRoles: ['AGENT'], allowedExecutiveRoles: [],
+      });
     await canActorTransition({ actor: agent, ...base });
-    const where = mockPrisma.workflowTransition.findFirst.mock.calls[0][0];
-    // Most-specific-first ordering: NULLs sort last under `desc`.
-    expect(where.orderBy).toEqual([{ tenantId: 'desc' }, { workflowTypeId: 'desc' }]);
+    expect(mockPrisma.workflowTransition.findFirst.mock.calls.map(([args]: any[]) => args.where)).toEqual([
+      { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: 't1', workflowTypeId: 'wf1' },
+      { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: 't1', workflowTypeId: null },
+      { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: null, workflowTypeId: null },
+    ]);
   });
 });

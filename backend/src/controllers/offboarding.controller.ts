@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { uploadSingleFile } from '../middleware/upload.middleware';
-import { notify, notifyMultiple } from '../services/notification.service';
+import { notifyMultiple } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import path from 'path';
@@ -215,16 +215,6 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                     isSystemGenerated: true,
                     metadata: { newStatus: finalStatus },
                 },
-            });
-
-            await notify({
-                userId: currentRequest.requesterId,
-                eventType: 'STATUS_CHANGED',
-                variables: {
-                    referenceNumber: currentRequest.referenceNumber,
-                    newStatus: finalStatus,
-                },
-                relatedRequestId: requestId,
             });
 
             await auditLog(req, 'STATUS_CHANGED', 'request', requestId, {

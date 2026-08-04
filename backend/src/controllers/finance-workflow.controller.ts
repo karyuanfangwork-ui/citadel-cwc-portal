@@ -39,6 +39,11 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
         comment: overrides?.comment,
         source: overrides?.source || 'finance-workflow',
         requestPatch: overrides?.requestPatch,
+        actor: {
+            userId: user?.id || 'system',
+            roles: userRoles,
+            executiveRole: user?.executiveRole ?? null,
+        },
     };
 }
 

@@ -28,11 +28,11 @@ const WORKFLOW_CONTROLLERS = [
 const ALLOWLIST = new Set<string>([
   // Legitimate: tx.request.update inside $transaction for admin CEO-approver reassignment
   // (read-modify-return pattern returning updated request for API response)
-  'esm-workflow.controller.ts:388',
+  'esm-workflow.controller.ts:393',
   // Legitimate: tx.request.update inside $transaction for DCEO approver change
-  'finance-workflow.controller.ts:498',
+  'finance-workflow.controller.ts:503',
   // Data-sync: customFields.lastDay propagation from offboarding model
-  'offboarding.controller.ts:238',
+  'offboarding.controller.ts:228',
 ]);
 
 function findRequestUpdates(file: string): string[] {

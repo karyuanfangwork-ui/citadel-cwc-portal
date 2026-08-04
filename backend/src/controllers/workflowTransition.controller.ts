@@ -19,7 +19,11 @@ export class WorkflowTransitionController {
   });
 
   create = asyncHandler(async (req: Request, res: Response) => {
-    const { fromStatus, toStatus, transitionLabel, requiresComment, autoAssignRole, autoAssignUserId, isActive } = req.body;
+    const {
+      fromStatus, toStatus, transitionLabel, requiresComment, autoAssignRole,
+      autoAssignUserId, isActive, tenantId, workflowTypeId,
+      allowedRoles, allowedExecutiveRoles,
+    } = req.body;
 
     if (!fromStatus || !toStatus) {
       res.status(400).json({ status: 'error', message: 'fromStatus and toStatus are required' });
@@ -46,6 +50,10 @@ export class WorkflowTransitionController {
         requiresComment: requiresComment ?? false,
         autoAssignRole: autoAssignRole ?? null,
         autoAssignUserId: autoAssignUserId ?? null,
+        tenantId: tenantId ?? null,
+        workflowTypeId: workflowTypeId ?? null,
+        allowedRoles: Array.isArray(allowedRoles) ? allowedRoles : [],
+        allowedExecutiveRoles: Array.isArray(allowedExecutiveRoles) ? allowedExecutiveRoles : [],
         isActive: isActive ?? true,
       },
     });
@@ -54,7 +62,11 @@ export class WorkflowTransitionController {
 
   update = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { fromStatus, toStatus, transitionLabel, requiresComment, autoAssignRole, autoAssignUserId, isActive } = req.body;
+    const {
+      fromStatus, toStatus, transitionLabel, requiresComment, autoAssignRole,
+      autoAssignUserId, isActive, tenantId, workflowTypeId,
+      allowedRoles, allowedExecutiveRoles,
+    } = req.body;
 
     if (fromStatus !== undefined && toStatus !== undefined && fromStatus === toStatus) {
       res.status(400).json({ status: 'error', message: 'fromStatus and toStatus must be different' });
@@ -71,7 +83,13 @@ export class WorkflowTransitionController {
       const newTo = toStatus ?? current.toStatus;
       if (newFrom !== current.fromStatus || newTo !== current.toStatus) {
         const conflict = await prisma.workflowTransition.findFirst({
-          where: { fromStatus: newFrom, toStatus: newTo, NOT: { id: String(id) } },
+          where: {
+            fromStatus: newFrom,
+            toStatus: newTo,
+            ...(tenantId !== undefined && { tenantId }),
+            ...(workflowTypeId !== undefined && { workflowTypeId }),
+            NOT: { id: String(id) },
+          },
         });
         if (conflict) {
           res.status(409).json({ status: 'error', message: `Transition ${newFrom} → ${newTo} already exists` });
@@ -89,6 +107,10 @@ export class WorkflowTransitionController {
         ...(requiresComment !== undefined && { requiresComment }),
         ...(autoAssignRole !== undefined && { autoAssignRole }),
         ...(autoAssignUserId !== undefined && { autoAssignUserId }),
+        ...(tenantId !== undefined && { tenantId }),
+        ...(workflowTypeId !== undefined && { workflowTypeId }),
+        ...(allowedRoles !== undefined && { allowedRoles: Array.isArray(allowedRoles) ? allowedRoles : [] }),
+        ...(allowedExecutiveRoles !== undefined && { allowedExecutiveRoles: Array.isArray(allowedExecutiveRoles) ? allowedExecutiveRoles : [] }),
         ...(isActive !== undefined && { isActive }),
       },
     });

@@ -57,6 +57,11 @@ export async function transitionHttpRequest({
     idempotencyKey: req.get('Idempotency-Key') || undefined,
     ipAddress: req.ip,
     userAgent: req.get('user-agent') || undefined,
+    actor: {
+      userId: user?.id || 'system',
+      roles,
+      executiveRole: user?.executiveRole ?? null,
+    },
   };
 
   await transitionRequest(request.id, String(toStatus), options);
