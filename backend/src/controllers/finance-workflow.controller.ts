@@ -7,6 +7,7 @@ import { reassignToTeam } from '../services/reassign.service';
 import { transitionRequest } from '../services/requestTransition.service';
 import prisma from '../utils/prisma';
 import { principalFromAuth } from '../security/resource-scope.service';
+import { runPurchaseRequisitionApprovalShadow } from '../services/purchaseRequisitionApprovalShadow.service';
 
 // Group Deputy CEO approval threshold — no longer used for routing (all amounts go to GROUP_DCEO)
 // Config import removed; threshold not needed after DCEO→GROUP_DCEO merge.
@@ -119,6 +120,15 @@ export const routeToCfo = async (req: Request, res: Response) => {
             });
         }
 
+        if (request.tenantId && request.requestTypeId) {
+            void runPurchaseRequisitionApprovalShadow({
+                requestId: id,
+                tenantId: request.tenantId,
+                requestTypeId: request.requestTypeId,
+                actorId: (req as any).user?.id || 'system',
+            });
+        }
+
         await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
             status: 'PENDING_CFO_APPROVAL_FIN',
             previousStatus: request.status,
@@ -186,6 +196,15 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         if (!cfoPendingApproval && cfoUserId) {
             await prisma.requestApproval.create({
                 data: { requestId: id, approverType: 'CFO', approverId: cfoUserId, status: 'PENDING', comments: notes || null },
+            });
+        }
+
+        if (request.tenantId && request.requestTypeId) {
+            void runPurchaseRequisitionApprovalShadow({
+                requestId: id,
+                tenantId: request.tenantId,
+                requestTypeId: request.requestTypeId,
+                actorId: currentUser?.id || 'system',
             });
         }
 
@@ -359,6 +378,15 @@ export const cfoDecision = async (req: Request, res: Response) => {
             if (!existingGroupDceoApproval && groupDceoId) {
                 await prisma.requestApproval.create({
                     data: { requestId: id, approverType: 'GROUP_DCEO', approverId: groupDceoId, status: 'PENDING', comments: null },
+                });
+            }
+
+            if (request.tenantId && request.requestTypeId) {
+                void runPurchaseRequisitionApprovalShadow({
+                    requestId: id,
+                    tenantId: request.tenantId,
+                    requestTypeId: request.requestTypeId,
+                    actorId: userId || 'system',
                 });
             }
 
