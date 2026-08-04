@@ -940,23 +940,40 @@ model WorkflowCommandResult {
 }
 
 // P04 Task 15: Transactional outbox for reliable event publishing
+enum OutboxEventStatus {
+  PENDING
+  CLAIMED
+  PUBLISHED
+  FAILED
+  DEAD_LETTER
+}
+
 model OutboxEvent {
-  id               String    @id @default(uuid()) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  departmentId     String?   @map("department_id") @db.Uuid
-  eventType        String    @map("event_type") @db.VarChar(100)
-  aggregateId      String    @map("aggregate_id") @db.Uuid
-  aggregateVersion Int       @map("aggregate_version")
-  payload          Json      @db.JsonB
-  published        Boolean   @default(false) @map("published")
-  publishedAt      DateTime? @map("published_at") @db.Timestamp(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id               String           @id @default(uuid()) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  departmentId     String?          @map("department_id") @db.Uuid
+  eventType        String           @map("event_type") @db.VarChar(100)
+  aggregateId      String           @map("aggregate_id") @db.Uuid
+  aggregateVersion Int              @map("aggregate_version")
+  payload          Json             @db.JsonB
+  published        Boolean          @default(false) @map("published")
+  publishedAt      DateTime?        @map("published_at") @db.Timestamp(6)
+  status           OutboxEventStatus @default(PENDING) @map("status")
+  attempts         Int              @default(0) @map("attempts")
+  maxAttempts      Int              @default(5) @map("max_attempts")
+  nextAttemptAt    DateTime?        @map("next_attempt_at") @db.Timestamp(6)
+  lastError        String?          @map("last_error") @db.Text
+  claimedAt        DateTime?        @map("claimed_at") @db.Timestamp(6)
+  claimedBy        String?          @map("claimed_by") @db.VarChar(100)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
 
   @@unique([tenantId, eventType, aggregateId, aggregateVersion])
   @@index([published, createdAt])
   @@index([tenantId, published, createdAt])
   @@index([departmentId, createdAt])
   @@index([aggregateId, aggregateVersion])
+  @@index([status, nextAttemptAt])
+  @@index([status, createdAt])
   @@map("outbox_events")
 }
 
