@@ -24,6 +24,7 @@ import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitio
 import { executeWorkflowCommand } from './workflowCommand.service';
 import { RequestStatus } from '@prisma/client';
 import { registerOutboxHandler } from './outboxDispatcher.service';
+import { AppError } from '../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Outbox handler: durable notification delivery for status changes
@@ -248,7 +249,7 @@ export async function transitionRequest(
   });
 
   if (!currentRequest || (tenantId && currentRequest.tenantId !== tenantId)) {
-    throw new Error(`Request not found: ${requestId}`);
+    throw new AppError(`Request not found: ${requestId}`, 404);
   }
 
   const fromStatus = currentRequest.status;
@@ -271,7 +272,7 @@ export async function transitionRequest(
   if (!skipValidation) {
     const valid = await isValidTransition(fromStatus, toStatus);
     if (!valid) {
-      throw new Error(`Invalid status transition from ${fromStatus} to ${toStatus}`);
+      throw new AppError(`Invalid status transition from ${fromStatus} to ${toStatus}`, 422);
     }
   } else {
     validationSkipped = true;
@@ -280,13 +281,13 @@ export async function transitionRequest(
   // ── 3. Run guard conditions ──────────────────────────────────────────────
   const guardError = await runGuards(currentRequest, fromStatus, toStatus, options);
   if (guardError) {
-    throw new Error(`Transition guard blocked: ${guardError}`);
+    throw new AppError(`Transition guard blocked: ${guardError}`, 403);
   }
 
   // ── 4. Check requiresComment from transition metadata ────────────────────
   const transitionMeta = await getTransitionMeta(fromStatus, toStatus);
   if (transitionMeta?.requiresComment && !comment) {
-    throw new Error(`Transition from ${fromStatus} to ${toStatus} requires a comment`);
+    throw new AppError(`Transition from ${fromStatus} to ${toStatus} requires a comment`, 400);
   }
 
   // ── 5. Determine terminal timestamps ─────────────────────────────────────

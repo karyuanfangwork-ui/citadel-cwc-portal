@@ -906,4 +906,42 @@ describe('P6-04: Transition Guards', () => {
       ).rejects.toThrow(/Custom block: test guard/i);
     });
   });
+
+  // ── 8. HTTP error mapping (AppError with correct status codes) ────────
+
+  describe('8. Transition error mapping to AppError', () => {
+    it('throws AppError 404 when the request does not exist', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(null);
+      const { transitionRequest: tr } = await import('../requestTransition.service');
+
+      await expect(
+        tr('missing', 'RESOLVED', { userName: 'Test' }),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it('throws AppError 422 for an invalid transition', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'SUBMITTED' }),
+      );
+      // The transitionValidation module is mocked, so the error comes from the mock's
+      // isValidTransition returning false, which triggers the AppError.
+      // We set skipValidation: false to exercise the validation path.
+      const { transitionRequest: tr } = await import('../requestTransition.service');
+
+      await expect(
+        tr('req-001', 'PAYMENT_COMPLETED', { userName: 'Test', skipValidation: false }),
+      ).rejects.toMatchObject({ statusCode: 422 });
+    });
+
+    it('throws AppError 403 when a guard blocks', async () => {
+      mockPrisma.request.findUnique.mockResolvedValue(
+        makeRequest({ status: 'SUBMITTED', serviceDesk: { code: 'HR' } }),
+      );
+      const { transitionRequest: tr } = await import('../requestTransition.service');
+
+      await expect(
+        tr('req-001', 'PROCUREMENT_IN_PROGRESS', { userName: 'Test', skipValidation: true }),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+  });
 });
