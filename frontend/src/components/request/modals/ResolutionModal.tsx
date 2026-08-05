@@ -67,26 +67,30 @@ const ResolutionModal: React.FC<ResolutionModalProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 justify-end">
+      <div className="border-t border-gray-100 pt-5">
+        <p className="text-xs text-[#44546f] mb-3">
+          Choose how you want to finish this request:
+        </p>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 sm:justify-end">
         <button
           type="button"
-          className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+          className="px-4 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
           onClick={onClose}
           disabled={updatingStatus}
         >
-          Cancel
+          Keep Request Open
         </button>
         <button
           type="button"
-          className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+          className="px-4 py-2.5 text-sm font-bold text-[#44546f] border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
           onClick={onSkipResolution}
           disabled={updatingStatus}
         >
-          Skip & Resolve Anyway
+          Resolve Without Comment
         </button>
         <button
           type="button"
-          className="px-6 py-2.5 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2.5 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           onClick={onSubmitResolution}
           disabled={updatingStatus}
         >
@@ -98,10 +102,11 @@ const ResolutionModal: React.FC<ResolutionModalProps> = ({
           ) : (
             <>
               <span className="material-symbols-outlined text-lg">check</span>
-              Add Comment & Resolve
+              Resolve With Comment
             </>
           )}
         </button>
+        </div>
       </div>
     </ModalWrapper>
   );

@@ -41,7 +41,7 @@ export const ADMIN_TABS = [
     { id: 'email-notifications', label: 'Email Notifications', icon: 'mail', group: 'Configuration' },
     { id: 'onboarding-tasks', label: 'Onboarding Tasks',  icon: 'checklist',      group: 'Workflows' },
     { id: 'offboarding-tasks',label: 'Offboarding Tasks', icon: 'checklist_rtl',  group: 'Workflows' },
-    { id: 'workflow-config',  label: 'Workflow Config',   icon: 'account_tree',   group: 'Workflows' },
+    { id: 'workflow-config',  label: 'Runtime Transitions', icon: 'account_tree', group: 'Workflows' },
     { id: 'status-definitions',label:'Request Statuses',  icon: 'fact_check',     group: 'Workflows' },
     { id: 'sla-escalation',  label: 'SLA Escalation',    icon: 'timer',          group: 'Workflows' },
     { id: 'esm-settings',   label: 'ESM Settings',     icon: 'flight_takeoff', group: 'Workflows' },

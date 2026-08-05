@@ -115,22 +115,33 @@ export const WorkflowTransitionTab: React.FC = () => {
     return acc;
   }, {});
   const isVersionScoped = (transition: WorkflowTransition) => Boolean(transition.workflowTypeId && versionedWorkflowIds.includes(transition.workflowTypeId));
+  const scopedTransitionCount = transitions.filter(isVersionScoped).length;
+  const fallbackTransitionCount = transitions.length - scopedTransitionCount;
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-black text-[#101418]">Workflow Transitions</h2>
-          <p className="text-sm text-[#44546f] mt-1">{transitions.length} transition{transitions.length !== 1 ? 's' : ''} configured</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-black text-[#101418]">Runtime Transition Registry</h2>
+            <span className="rounded-full bg-[#f0f3f8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#44546f]">Admin / Runtime</span>
+          </div>
+          <p className="text-sm text-[#44546f] mt-1">Inspect compiled rules and manage global fallback transitions.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white rounded-lg text-sm font-bold hover:bg-[#0747a6] transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-          Add Transition
-        </button>
+        <div className="flex items-center gap-3">
+          <a href="/admin/workflows" className="flex items-center gap-2 px-4 py-2 border border-[#b9c8de] text-[#0052cc] rounded-lg text-sm font-bold hover:bg-[#e8f0fe] transition-colors">
+            <span className="material-symbols-outlined text-lg">account_tree</span>
+            Open Workflow Designer
+          </a>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white rounded-lg text-sm font-bold hover:bg-[#0747a6] transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+            Add Global Fallback
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -138,19 +149,41 @@ export const WorkflowTransitionTab: React.FC = () => {
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
       )}
 
-      {versionedWorkflowIds.length > 0 && (
-        <div className="mb-4 rounded-xl border border-[#b9c8de] bg-[#e8f0fe] p-4 text-sm text-[#334a70]">
-          Versioned workflows are now authored in Workflow Designer. Scoped compiled rules below are read-only; global fallback transitions remain editable.
-          <a className="ml-2 font-bold text-[#0052cc] underline" href="/admin/workflows">Open Workflow Designer</a>
+      <div className="mb-6 rounded-xl border border-[#b9c8de] bg-[#e8f0fe] p-4 text-sm text-[#334a70]">
+        <div className="flex items-start gap-3">
+          <span className="material-symbols-outlined mt-0.5 text-[#0052cc]">info</span>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-[#1d3f7a]">Where should workflow changes be made?</p>
+            <p className="mt-1 leading-6">
+              Use <span className="font-bold">Workflow Designer</span> to create or change versioned workflows. This page is for runtime inspection; only global fallback rules can be edited here.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-[#c7d7f2] bg-white/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-[#44546f]">Workflow Designer rules</span>
+                  <span className="font-black text-[#0052cc]">{scopedTransitionCount}</span>
+                </div>
+                <p className="mt-1 text-xs text-[#5d6f8d]">Compiled from a published or draft workflow. Read-only here.</p>
+              </div>
+              <div className="rounded-lg border border-[#c7d7f2] bg-white/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-[#44546f]">Global fallback rules</span>
+                  <span className="font-black text-[#0052cc]">{fallbackTransitionCount}</span>
+                </div>
+                <p className="mt-1 text-xs text-[#5d6f8d]">Used only when a workflow has no compiled scoped rule.</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-[#101418]">{editing ? 'Edit Transition' : 'Add Transition'}</h3>
+              <h3 className="text-lg font-bold text-[#101418]">{editing ? 'Edit Global Fallback' : 'Add Global Fallback'}</h3>
+              <p className="mt-1 text-xs text-[#5d6f8d]">This rule is used only when no published workflow-specific transition exists.</p>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -324,6 +357,9 @@ export const WorkflowTransitionTab: React.FC = () => {
                               {t.requiresComment && (
                                 <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">💬</span>
                               )}
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isVersionScoped(t) ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {isVersionScoped(t) ? 'Workflow Designer' : 'Global fallback'}
+                              </span>
                               {!t.isActive && (
                                 <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full font-bold">Inactive</span>
                               )}
