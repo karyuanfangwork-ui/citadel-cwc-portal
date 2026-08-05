@@ -298,6 +298,12 @@ describe('P02-08: Central Policy Decision Service', () => {
             if (decision.allowed) expect(decision.reason).toBe('team_scope');
         });
 
+        it('allows a team agent to assign a request within their service desk', () => {
+            const decision = policyService.authorize(itAgent, 'assign', itRequestOtherAssignee);
+            expect(decision.allowed).toBe(true);
+            if (decision.allowed) expect(decision.reason).toBe('team_scope');
+        });
+
         it('returns "executive_role" reason for CEO approval', () => {
             const decision = policyService.authorize(ceo, 'read', pendingCeoNoApprover);
             expect(decision.allowed).toBe(true);
