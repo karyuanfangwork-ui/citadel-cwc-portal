@@ -195,6 +195,11 @@ export const config = {
         serviceApiKey: process.env.SERVICE_API_KEY || '',  // P0-5: for service-to-service auth
     },
 
+    // Workflow designer
+    workflow: {
+        remapMaxRequests: parseInt(process.env.WORKFLOW_REMAP_MAX_REQUESTS || '1000', 10),
+    },
+
     // Credit
     credit: {
         encryptionKey: process.env.CREDIT_ENCRYPTION_KEY || '',

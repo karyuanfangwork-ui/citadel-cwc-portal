@@ -54,7 +54,11 @@ export type FindingCode =
   | 'OCCUPIED_STATUS_NO_EXIT'
   | 'OPEN_EDGE'
   | 'UNPLACED_STATUS'
-  | 'REJECT_WITHOUT_COMMENT';
+  | 'REJECT_WITHOUT_COMMENT'
+  | 'REMAP_TARGET_MISSING'
+  | 'REMAP_TARGET_NO_EXIT'
+  | 'REMAP_SELF'
+  | 'REMAP_VOLUME_EXCEEDED';
 
 export interface Finding {
   code: FindingCode;
@@ -66,4 +70,23 @@ export interface Finding {
 export interface ValidationResult {
   blocking: Finding[];
   warnings: Finding[];
+}
+
+/** One status that the draft removes while live requests still occupy it. */
+export interface RemapEntry {
+  statusCode: string;
+  requestCount: number;
+  /** Nearest surviving status reachable from this one in the ACTIVE version, or null. */
+  suggestedTarget: string | null;
+  /** Human-readable provenance for the suggestion, e.g. "v3 allows A → B". */
+  suggestionReason: string;
+  /** Every surviving status code in the draft. */
+  allowedTargets: string[];
+  /** Whether the removed status paused the SLA — drives the UI mismatch warning. */
+  sourcePausesSla: boolean;
+}
+
+export interface RemapPlan {
+  entries: RemapEntry[];
+  totalRequests: number;
 }
