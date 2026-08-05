@@ -8,6 +8,7 @@
  */
 
 import { Finding, GraphNode, ValidationResult, WorkflowGraph } from './workflowGraph.types';
+import prisma from '../utils/prisma';
 
 const label = (node: GraphNode): string => node.statusCode ?? node.id;
 
@@ -167,4 +168,70 @@ export function validateStructure(graph: WorkflowGraph): ValidationResult {
   }
 
   return { blocking, warnings };
+}
+
+export interface ValidateGraphInput {
+  workflowTypeId: string;
+  graph: WorkflowGraph;
+}
+
+/**
+ * Checks that publishing this graph would not strand a request that is already
+ * in flight. Re-run inside the publish transaction, because occupancy counts
+ * move between an admin looking at the canvas and clicking Publish.
+ */
+export async function validateLiveData(input: ValidateGraphInput): Promise<Finding[]> {
+  const { workflowTypeId, graph } = input;
+
+  const requestTypes = await prisma.requestType.findMany({
+    where: { workflowTypeId },
+    select: { id: true },
+  });
+  if (requestTypes.length === 0) return [];
+
+  const occupancy = await prisma.request.groupBy({
+    by: ['status'],
+    where: { requestTypeId: { in: requestTypes.map((rt) => rt.id) } },
+    _count: { _all: true },
+  });
+
+  const findings: Finding[] = [];
+  const nodesByStatus = new Map(
+    graph.nodes.filter((n) => n.statusCode !== null).map((n) => [n.statusCode as string, n]),
+  );
+  const hasOutgoing = new Set(graph.edges.map((e) => e.fromNodeId));
+
+  for (const row of occupancy) {
+    const count = row._count._all;
+    if (count === 0) continue;
+
+    const node = nodesByStatus.get(row.status);
+    if (!node) {
+      findings.push({
+        code: 'STATUS_IN_USE_REMOVED',
+        message: `${count} request${count === 1 ? ' is' : 's are'} currently in ${row.status} — it cannot be removed from this workflow`,
+      });
+      continue;
+    }
+
+    if (!node.isFinal && !hasOutgoing.has(node.id)) {
+      findings.push({
+        code: 'OCCUPIED_STATUS_NO_EXIT',
+        nodeId: node.id,
+        message: `${count} request${count === 1 ? ' is' : 's are'} in ${row.status}, which would have no available transitions`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+/** Structural + live-data validation. The publish gate and the API both use this. */
+export async function validateGraph(input: ValidateGraphInput): Promise<ValidationResult> {
+  const structural = validateStructure(input.graph);
+  const live = await validateLiveData(input);
+  return {
+    blocking: [...structural.blocking, ...live],
+    warnings: structural.warnings,
+  };
 }
