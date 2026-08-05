@@ -279,6 +279,14 @@ describe('publishVersion with a status remap', () => {
     await expect(publishVersion('v4', 'u1', { LEGACY: 'NOPE' })).rejects.toThrow('bad target');
     expect(mockApplyStatusRemap).not.toHaveBeenCalled();
   });
+
+  it('does not archive or activate when remap application fails', async () => {
+    mockApplyStatusRemap.mockRejectedValueOnce(new Error('WORKFLOW_VERSION_CONFLICT'));
+    await expect(publishVersion('v4', 'u1', { LEGACY: 'IN_PROGRESS' })).rejects.toThrow('WORKFLOW_VERSION_CONFLICT');
+    expect(mockTx.workflowVersion.updateMany).not.toHaveBeenCalled();
+    expect(mockTx.workflowVersion.update).not.toHaveBeenCalled();
+    expect(mockCompileVersionInTransaction).not.toHaveBeenCalled();
+  });
 });
 
 describe('getVersionDetail', () => {

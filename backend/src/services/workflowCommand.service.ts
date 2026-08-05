@@ -48,6 +48,8 @@ export interface WorkflowCommand {
             now: Date;
         },
     ) => Promise<void>;
+    /** Create the outbox event but mark it published without delivering notifications. */
+    skipNotifications?: boolean;
 }
 
 export interface WorkflowCommandResult {
@@ -137,8 +139,9 @@ function replayResult(existing: {
  * @throws AppError(404) for request/tenant mismatch (BOLA-safe)
  * @throws AppError(409) for stale version/status or idempotency mismatch
  */
-export async function executeWorkflowCommand(
+export async function executeWorkflowCommandInTransaction(
     command: WorkflowCommand,
+    tx: any,
 ): Promise<WorkflowCommandResult> {
     const {
         requestId,
@@ -156,6 +159,7 @@ export async function executeWorkflowCommand(
         slaTransition,
         audit,
         transactionMutations,
+        skipNotifications,
     } = command;
 
     if (!tenantId) throw new AppError('Request not found', 404);
@@ -166,7 +170,7 @@ export async function executeWorkflowCommand(
     }
 
     const commandHash = commandFingerprint(command);
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await (async () => {
         if (idempotencyKey) {
             const existing = await tx.workflowCommandResult.findUnique({
                 where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
@@ -355,6 +359,13 @@ export async function executeWorkflowCommand(
             },
         });
 
+        if (skipNotifications) {
+            await tx.outboxEvent.updateMany({
+                where: { aggregateId: requestId, aggregateVersion: newVersion, eventType: 'REQUEST_STATUS_CHANGED' },
+                data: { status: 'PUBLISHED', published: true, publishedAt: new Date() },
+            });
+        }
+
         if (transactionMutations) {
             await transactionMutations(tx, {
                 requestId,
@@ -396,10 +407,19 @@ export async function executeWorkflowCommand(
             idempotent: false,
             historyId: history.id,
         };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+    })();
 
     logger.info(
         `executeWorkflowCommand: ${requestId} ${fromStatus} → ${toStatus} v${result.version} (source: ${source})`,
     );
     return result;
+}
+
+export async function executeWorkflowCommand(
+    command: WorkflowCommand,
+): Promise<WorkflowCommandResult> {
+    return prisma.$transaction(
+        (tx: any) => executeWorkflowCommandInTransaction(command, tx),
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    );
 }

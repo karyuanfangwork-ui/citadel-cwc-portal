@@ -8,7 +8,9 @@
  * target is a hop the workflow already sanctions rather than a guess.
  */
 
+import { RequestStatus } from '@prisma/client';
 import prisma from '../utils/prisma';
+import { executeWorkflowCommandInTransaction } from './workflowCommand.service';
 import { loadGraph } from './workflowCompiler.service';
 import { GraphNode, RemapEntry, RemapPlan, WorkflowGraph } from './workflowGraph.types';
 
@@ -165,52 +167,30 @@ export async function applyStatusRemap(
     where: { id: actorId },
     select: { firstName: true, lastName: true },
   });
-  const authorName = actor ? `${actor.firstName ?? ''} ${actor.lastName ?? ''}`.trim() || 'System' : 'System';
+  const actorName = actor ? `${actor.firstName ?? ''} ${actor.lastName ?? ''}`.trim() || 'System' : 'System';
 
   let movedCount = 0;
   for (const [fromStatus, toStatus] of pairs) {
     const affected = await tx.request.findMany({
       where: { requestTypeId: { in: requestTypeIds }, status: fromStatus },
-      select: { id: true, tenantId: true, departmentId: true, version: true },
-    });
-    if (affected.length === 0) continue;
-
-    await tx.request.updateMany({
-      where: { id: { in: affected.map((r: { id: string }) => r.id) } },
-      data: { status: toStatus, version: { increment: 1 } },
+      select: { id: true, tenantId: true, status: true, version: true },
     });
 
-    await tx.workflowHistory.createMany({
-      data: affected.map((r: { id: string; tenantId: string; departmentId: string | null; version: number }) => ({
-        tenantId: r.tenantId,
-        departmentId: r.departmentId,
-        requestId: r.id,
-        fromStatus,
-        toStatus,
+    for (const request of affected) {
+      await executeWorkflowCommandInTransaction({
+        requestId: request.id,
+        tenantId: request.tenantId,
+        fromStatus: request.status as RequestStatus,
+        toStatus: toStatus as RequestStatus,
+        expectedVersion: request.version,
         actorId,
-        actorName: authorName,
+        actorName,
         source: REMAP_SOURCE,
-        comment: null,
-        metadata: {},
-        requestVersion: r.version + 1,
-        idempotencyKey: null,
-      })),
-    });
-
-    await tx.requestActivity.createMany({
-      data: affected.map((r: { id: string; version: number }) => ({
-        requestId: r.id,
-        authorId: actorId,
-        authorName,
-        authorRole: null,
-        activityType: 'STATUS_CHANGE',
-        message: `Status changed from ${fromStatus} to ${toStatus} — ${fromStatus} was removed when a new workflow version was published`,
-        isSystemGenerated: false,
-        metadata: { fromStatus, toStatus, source: REMAP_SOURCE, version: r.version + 1 },
-      })),
-    });
-
-    movedCount += affected.length;
+        metadata: { fromStatus, toStatus, source: REMAP_SOURCE },
+        skipNotifications: true,
+      }, tx);
+      movedCount += 1;
+    }
   }
 
   return { movedCount };

@@ -201,6 +201,25 @@ describe('validateLiveData with a status remap', () => {
     expect(capped).toBeDefined();
     expect(capped!.message).toContain('5000');
   });
+
+  it('validates remap targets even when there is no occupancy', async () => {
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { LEGACY: 'NOT_A_STATUS' },
+    });
+    expect(findings.map((f) => f.code)).toContain('REMAP_TARGET_MISSING');
+  });
+
+  it('rejects a remap source that still exists in the draft', async () => {
+    occupyStatus('LEGACY', 1);
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { IN_PROGRESS: 'CLOSED' },
+    });
+    expect(findings.map((f) => f.code)).toContain('REMAP_SOURCE_NOT_REMOVED');
+  });
 });
 
 describe('validateGraph', () => {

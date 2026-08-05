@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   GraphNode,
   RemapPlan,
@@ -17,12 +17,13 @@ interface PublishDialogProps {
   /** Draft nodes — used to read the target's SLA pause flag. */
   nodes: GraphNode[];
   busy: boolean;
+  publishError?: string | null;
   onConfirm: (statusRemap: Record<string, string>) => void;
   onClose: () => void;
 }
 
 export default function PublishDialog({
-  workflow, version, blocking, warnings, remapPlan, nodes, busy, onConfirm, onClose,
+  workflow, version, blocking, warnings, remapPlan, nodes, busy, publishError, onConfirm, onClose,
 }: PublishDialogProps) {
   const entries = remapPlan?.entries ?? [];
   const needsRemap = entries.length > 0;
@@ -33,6 +34,10 @@ export default function PublishDialog({
   );
   const [accepted, setAccepted] = useState(warnings.length === 0);
   const [remapAccepted, setRemapAccepted] = useState(!needsRemap);
+
+  useEffect(() => {
+    if (publishError && needsRemap) setStep(1);
+  }, [publishError, needsRemap]);
 
   const pausesSla = useMemo(
     () => new Map(nodes.filter((n) => n.statusCode).map((n) => [n.statusCode as string, n.slaPause])),
@@ -64,6 +69,7 @@ export default function PublishDialog({
           {entries.length} status{entries.length === 1 ? ' is' : 'es are'} being removed but still hold live requests.
           Choose where those requests should go.
         </p>
+        {publishError && <p className="mt-3 rounded-lg bg-[#fff0f0] p-3 text-sm text-[#b42318]" role="alert">{publishError}</p>}
         <div className="mt-4 grid gap-4">
           {entries.map((entry) => {
             const chosen = selections[entry.statusCode] ?? '';

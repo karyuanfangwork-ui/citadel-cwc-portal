@@ -95,4 +95,10 @@ describe('PublishDialog', () => {
     renderDialog({ blocking: [{ code: 'MISSING_FINAL', message: 'no final node' }] });
     expect(screen.getByRole('button', { name: /Publish version/ })).toBeDisabled();
   });
+
+  it('returns to step one and shows a server remap error', () => {
+    renderDialog({ remapPlan: plan, publishError: 'Remap target is no longer valid' });
+    expect(screen.getByText(/Step 1 of 2/)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Remap target is no longer valid');
+  });
 });

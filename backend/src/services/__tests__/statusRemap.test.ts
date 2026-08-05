@@ -10,6 +10,11 @@ jest.mock('../workflowCompiler.service', () => ({
   loadGraph: (...args: unknown[]) => mockLoadGraph(...args),
 }));
 
+const mockExecuteWorkflowCommandInTransaction = jest.fn().mockResolvedValue({ version: 5, historyId: 'h1' });
+jest.mock('../workflowCommand.service', () => ({
+  executeWorkflowCommandInTransaction: (...args: unknown[]) => mockExecuteWorkflowCommandInTransaction(...args),
+}));
+
 import { applyStatusRemap, planStatusRemap } from '../statusRemap.service';
 import { GraphEdge, GraphNode, WorkflowGraph } from '../workflowGraph.types';
 
@@ -149,10 +154,11 @@ describe('applyStatusRemap', () => {
   };
   beforeEach(() => {
     jest.clearAllMocks();
+    mockExecuteWorkflowCommandInTransaction.mockResolvedValue({ version: 5, historyId: 'h1' });
     mockTx.requestType.findMany.mockResolvedValue([{ id: 'rt1' }]);
     mockTx.user.findUnique.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
     mockTx.request.findMany.mockResolvedValue([
-      { id: 'req1', tenantId: 'ten1', departmentId: 'dep1', version: 4 },
+      { id: 'req1', tenantId: 'ten1', departmentId: 'dep1', status: 'LEGACY', version: 4 },
     ]);
   });
 
@@ -162,61 +168,39 @@ describe('applyStatusRemap', () => {
     expect(mockTx.request.updateMany).not.toHaveBeenCalled();
   });
 
-  it('moves requests and bumps the optimistic-concurrency version', async () => {
+  it('moves requests through the workflow command boundary with optimistic concurrency', async () => {
     const result = await applyStatusRemap(mockTx, {
       workflowTypeId: 'wf1',
       remap: { LEGACY: 'IN_PROGRESS' },
       actorId: 'u1',
     });
     expect(result).toEqual({ movedCount: 1 });
-    expect(mockTx.request.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['req1'] } },
-      data: { status: 'IN_PROGRESS', version: { increment: 1 } },
-    });
-  });
-
-  it('never writes SLA columns', async () => {
-    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
-    const written = mockTx.request.updateMany.mock.calls[0][0].data;
-    expect(written).not.toHaveProperty('slaPausedAt');
-    expect(written).not.toHaveProperty('slaDueAt');
-    expect(written).not.toHaveProperty('slaPauseDurationMs');
-  });
-
-  it('writes a workflow history row with the post-increment version and the actor name', async () => {
-    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
-    expect(mockTx.workflowHistory.createMany).toHaveBeenCalledWith({
-      data: [
-        {
-          tenantId: 'ten1',
-          departmentId: 'dep1',
-          requestId: 'req1',
-          fromStatus: 'LEGACY',
-          toStatus: 'IN_PROGRESS',
-          actorId: 'u1',
-          actorName: 'Ada Lovelace',
-          source: 'workflow_version_publish_remap',
-          comment: null,
-          metadata: {},
-          requestVersion: 5,
-          idempotencyKey: null,
-        },
-      ],
-    });
-  });
-
-  it('writes a status-change activity so the move shows on the request timeline', async () => {
-    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
-    const [{ data }] = mockTx.requestActivity.createMany.mock.calls[0];
-    expect(data[0]).toMatchObject({
+    expect(mockExecuteWorkflowCommandInTransaction).toHaveBeenCalledWith(expect.objectContaining({
       requestId: 'req1',
-      authorId: 'u1',
-      authorName: 'Ada Lovelace',
-      activityType: 'STATUS_CHANGE',
-      isSystemGenerated: false,
-    });
-    expect(data[0].message).toContain('LEGACY');
-    expect(data[0].message).toContain('IN_PROGRESS');
+      fromStatus: 'LEGACY',
+      toStatus: 'IN_PROGRESS',
+      expectedVersion: 4,
+      actorId: 'u1',
+      actorName: 'Ada Lovelace',
+      source: 'workflow_version_publish_remap',
+      skipNotifications: true,
+    }), mockTx);
+    expect(mockTx.request.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('never includes SLA fields in the command patch', async () => {
+    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
+    const command = mockExecuteWorkflowCommandInTransaction.mock.calls[0][0];
+    expect(command).not.toHaveProperty('requestPatch.slaPausedAt');
+    expect(command).not.toHaveProperty('requestPatch.slaDueAt');
+    expect(command).not.toHaveProperty('requestPatch.slaPauseDurationMs');
+  });
+
+  it('propagates a concurrent version conflict', async () => {
+    mockExecuteWorkflowCommandInTransaction.mockRejectedValueOnce(new Error('WORKFLOW_VERSION_CONFLICT'));
+    await expect(applyStatusRemap(mockTx, {
+      workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1',
+    })).rejects.toThrow('WORKFLOW_VERSION_CONFLICT');
   });
 
   it('skips a mapped status that turns out to hold nothing', async () => {
@@ -227,6 +211,6 @@ describe('applyStatusRemap', () => {
       actorId: 'u1',
     });
     expect(result).toEqual({ movedCount: 0 });
-    expect(mockTx.workflowHistory.createMany).not.toHaveBeenCalled();
+    expect(mockExecuteWorkflowCommandInTransaction).not.toHaveBeenCalled();
   });
 });

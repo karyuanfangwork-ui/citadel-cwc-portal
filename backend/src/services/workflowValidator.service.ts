@@ -234,7 +234,6 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
   const remap = input.statusRemap ?? {};
 
   const occupancy = await loadOccupancy(workflowTypeId, client);
-  if (occupancy.size === 0) return [];
 
   const findings: Finding[] = [];
   const nodesByStatus = new Map(
@@ -267,6 +266,21 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
         code: 'REMAP_TARGET_NO_EXIT',
         nodeId: target.id,
         message: `Remap target ${to} has no outgoing transitions — requests moved there would be stranded again`,
+      });
+      continue;
+    }
+    if (nodesByStatus.has(from)) {
+      findings.push({
+        code: 'REMAP_SOURCE_NOT_REMOVED',
+        nodeId: nodesByStatus.get(from)!.id,
+        message: `Remap source ${from} still exists in this version and cannot be moved`,
+      });
+      continue;
+    }
+    if (!occupancy.has(from)) {
+      findings.push({
+        code: 'REMAP_SOURCE_NOT_OCCUPIED',
+        message: `Remap source ${from} has no live requests and is not eligible for this publish`,
       });
       continue;
     }

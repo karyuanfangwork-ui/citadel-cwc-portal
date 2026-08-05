@@ -58,7 +58,9 @@ export type FindingCode =
   | 'REMAP_TARGET_MISSING'
   | 'REMAP_TARGET_NO_EXIT'
   | 'REMAP_SELF'
-  | 'REMAP_VOLUME_EXCEEDED';
+  | 'REMAP_VOLUME_EXCEEDED'
+  | 'REMAP_SOURCE_NOT_REMOVED'
+  | 'REMAP_SOURCE_NOT_OCCUPIED';
 
 export interface Finding {
   code: FindingCode;

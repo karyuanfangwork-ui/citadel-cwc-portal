@@ -126,7 +126,13 @@ export async function publishVersion(
 
     const loaded = await loadGraph(versionId, tx);
     const validation = await validateGraph({ ...loaded, statusRemap }, tx);
-    if (validation.blocking.length > 0) throw new AppError(`Cannot publish: ${describeBlocking(validation)}`, 422);
+    if (validation.blocking.length > 0) {
+      throw new AppError(
+        `Cannot publish: ${describeBlocking(validation)}`,
+        422,
+        validation.blocking,
+      );
+    }
 
     // Move stranded requests before the swap, so no request is ever observed
     // sitting in a status the newly-active version does not define.
