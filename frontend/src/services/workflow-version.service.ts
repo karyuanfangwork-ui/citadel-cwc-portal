@@ -72,16 +72,32 @@ export interface ValidationResult {
   warnings: ValidationFinding[];
 }
 
+export interface RemapEntry {
+  statusCode: string;
+  requestCount: number;
+  suggestedTarget: string | null;
+  suggestionReason: string;
+  allowedTargets: string[];
+  sourcePausesSla: boolean;
+}
+
+export interface RemapPlan {
+  entries: RemapEntry[];
+  totalRequests: number;
+}
+
 export interface WorkflowVersionDetail {
   version: WorkflowVersionSummary & { workflowTypeId: string };
   graph: WorkflowGraph;
   validation: ValidationResult;
+  remapPlan: RemapPlan;
 }
 
 export interface PublishResult {
   version: number;
   transitionCount: number;
   stepCount: number;
+  movedCount: number;
 }
 
 export interface NodeBatch {
@@ -126,12 +142,12 @@ export const workflowVersionService = {
     return unwrap(await apiClient.patch<ApiEnvelope<{ upserted: number; removed: number }>>(`/admin/workflows/versions/${versionId}/edges`, batch));
   },
 
-  async validateVersion(versionId: string): Promise<{ validation: ValidationResult }> {
-    return unwrap(await apiClient.post<ApiEnvelope<{ validation: ValidationResult }>>(`/admin/workflows/versions/${versionId}/validate`));
+  async validateVersion(versionId: string): Promise<{ validation: ValidationResult; remapPlan: RemapPlan }> {
+    return unwrap(await apiClient.post<ApiEnvelope<{ validation: ValidationResult; remapPlan: RemapPlan }>>(`/admin/workflows/versions/${versionId}/validate`));
   },
 
-  async publishVersion(versionId: string): Promise<PublishResult> {
-    return unwrap(await apiClient.post<ApiEnvelope<PublishResult>>(`/admin/workflows/versions/${versionId}/publish`));
+  async publishVersion(versionId: string, statusRemap: Record<string, string> = {}): Promise<PublishResult> {
+    return unwrap(await apiClient.post<ApiEnvelope<PublishResult>>(`/admin/workflows/versions/${versionId}/publish`, { statusRemap }));
   },
 
   async rollbackVersion(versionId: string): Promise<{ version: number }> {
