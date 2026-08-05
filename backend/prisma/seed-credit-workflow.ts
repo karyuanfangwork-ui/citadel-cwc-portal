@@ -173,13 +173,8 @@ async function main() {
   let updated = 0;
 
   for (const t of TRANSITIONS) {
-    const existing = await prisma.workflowTransition.findUnique({
-      where: {
-        fromStatus_toStatus: {
-          fromStatus: t.fromStatus,
-          toStatus: t.toStatus,
-        },
-      },
+    const existing = await prisma.workflowTransition.findFirst({
+      where: { fromStatus: t.fromStatus, toStatus: t.toStatus, tenantId: null, workflowTypeId: null },
     });
 
     if (existing) {

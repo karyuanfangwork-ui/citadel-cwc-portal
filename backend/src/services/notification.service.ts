@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { pushToUser } from '../utils/sseClients';
 import { config } from '../config';
 import { registerEmailEnabledCacheInvalidator } from '../controllers/systemSetting.controller';
+import { enqueueNotificationDelivery } from '../queues/notification.queue';
 
 // Global email toggle — 30-second TTL cache to avoid a DB hit on every notification
 let _emailEnabledCache: { value: boolean; expiresAt: number } | null = null;
@@ -439,6 +440,43 @@ export async function notify(options: NotifyOptions): Promise<void> {
 
   for (const deliveryId of result.deliveryIds) {
     await deliverNotification(deliveryId);
+  }
+}
+
+/**
+ * Create notification deliveries without performing provider delivery inline.
+ * The notification worker owns delivery and BullMQ retries failed jobs.
+ */
+export async function notifyDurably(options: NotifyOptions): Promise<void> {
+  const { userId, eventType, variables, relatedRequestId, wrapInLayout = true } = options;
+
+  const recipientUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tenantId: true, email: true },
+  });
+  if (!recipientUser?.tenantId) {
+    logger.warn(`Skipping notification for missing or tenantless user ${userId}`, { eventType });
+    return;
+  }
+
+  const eventDigest = crypto
+    .createHash('sha256')
+    .update(JSON.stringify({ eventType, relatedRequestId: relatedRequestId ?? null, userId, variables }))
+    .digest('hex');
+  const result = await prisma.$transaction((tx) => publishDomainEvent(tx, {
+    eventKey: `legacy:${eventType}:${eventDigest}`,
+    tenantId: recipientUser.tenantId as string,
+    eventType,
+    classification: 'INTERNAL',
+    resourceType: relatedRequestId ? 'request' : 'notification',
+    resourceId: relatedRequestId ?? null,
+    payload: { variables, relatedRequestId: relatedRequestId ?? null, wrapInLayout },
+    recipientIds: [userId],
+    channels: recipientUser.email ? ['IN_APP', 'EMAIL'] : ['IN_APP'],
+  }));
+
+  for (const deliveryId of result.deliveryIds) {
+    await enqueueNotificationDelivery(deliveryId);
   }
 }
 

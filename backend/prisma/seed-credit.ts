@@ -223,13 +223,12 @@ async function seedWorkflow() {
     });
   }
 
-  // Upsert transitions (unique on fromStatus + toStatus)
+  // Seed global transitions idempotently; scoped rows are preserved.
   for (const t of TRANSITIONS) {
-    await prisma.workflowTransition.upsert({
-      where: { fromStatus_toStatus: { fromStatus: t.fromStatus, toStatus: t.toStatus } },
-      update: { transitionLabel: t.transitionLabel, requiresComment: t.requiresComment },
-      create: { fromStatus: t.fromStatus, toStatus: t.toStatus, transitionLabel: t.transitionLabel, requiresComment: t.requiresComment },
+    const existing = await prisma.workflowTransition.findFirst({
+      where: { fromStatus: t.fromStatus, toStatus: t.toStatus, tenantId: null, workflowTypeId: null },
     });
+    if (!existing) await prisma.workflowTransition.create({ data: t });
   }
 
   console.log(`  ✅ ${STEPS.length} steps, ${TRANSITIONS.length} transitions`);

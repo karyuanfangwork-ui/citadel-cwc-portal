@@ -66,6 +66,13 @@ export const prisma = baseClient.$extends({
                 const isTenantScoped = TENANT_SCOPED_MODELS.has(modelKey);
                 const scope = getExecutionScope();
 
+                // Workflow history is append-only. DELETE is blocked at the
+                // application boundary so parent Request FK cascades can still
+                // remove history during legitimate request deletion.
+                if (modelKey === 'workflowHistory' && ['delete', 'deleteMany'].includes(operation)) {
+                    throw new Error('WORKFLOW_HISTORY_IMMUTABLE: workflow history cannot be deleted directly');
+                }
+
                 // ── Unscoped operations on tenant-scoped models ──
                 if (isTenantScoped && !scope) {
                     const isRead = ['findMany', 'findFirst', 'findUnique', 'count', 'aggregate', 'groupBy'].includes(operation);

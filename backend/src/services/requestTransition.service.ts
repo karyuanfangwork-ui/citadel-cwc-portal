@@ -39,7 +39,7 @@ registerOutboxHandler('REQUEST_STATUS_CHANGED', async (event) => {
   });
   if (!request) return; // request deleted; nothing to deliver
 
-  const { notify } = await import('./notification.service');
+  const { notifyDurably } = await import('./notification.service');
   const participants = await prisma.requestParticipant.findMany({
     where: { requestId },
     select: { userId: true },
@@ -47,7 +47,7 @@ registerOutboxHandler('REQUEST_STATUS_CHANGED', async (event) => {
   const recipients = [request.requesterId, ...participants.map((p) => p.userId)];
   // Throwing propagates to the dispatcher, which retries with backoff.
   for (const userId of new Set(recipients)) {
-    await notify({
+    await notifyDurably({
       userId,
       eventType: 'STATUS_CHANGED',
       variables: { referenceNumber: request.referenceNumber, newStatus: toStatus },

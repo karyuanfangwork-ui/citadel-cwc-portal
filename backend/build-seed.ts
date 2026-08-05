@@ -90,11 +90,10 @@ const seedingLogic = `
 
         console.log('Seeding workflow transitions...');
         for (const tr of SEED_WORKFLOW_TRANSITIONS) {
-            await prisma.workflowTransition.upsert({
-                where: { fromStatus_toStatus: { fromStatus: tr.fromStatus, toStatus: tr.toStatus } },
-                update: {},
-                create: tr,
+            const existing = await prisma.workflowTransition.findFirst({
+                where: { fromStatus: tr.fromStatus, toStatus: tr.toStatus, tenantId: null, workflowTypeId: null },
             });
+            if (!existing) await prisma.workflowTransition.create({ data: tr });
         }
         console.log(\`✅ Seeded \${SEED_WORKFLOW_TRANSITIONS.length} workflow transitions\`);
 

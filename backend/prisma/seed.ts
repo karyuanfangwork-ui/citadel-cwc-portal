@@ -1740,23 +1740,25 @@ async function main() {
         console.log('⏭️  Skipping workflow transitions (RETAIN_ADMIN_CONFIG enabled)');
     } else {
         for (const t of SEED_WORKFLOW_TRANSITIONS) {
-            await prisma.workflowTransition.upsert({
-                where: { fromStatus_toStatus: { fromStatus: t.fromStatus, toStatus: t.toStatus } },
-                update: {},
-                create: {
+            const existing = await prisma.workflowTransition.findFirst({
+                where: { fromStatus: t.fromStatus, toStatus: t.toStatus, tenantId: null, workflowTypeId: null },
+            });
+            if (!existing) await prisma.workflowTransition.create({
+                data: {
                     fromStatus: t.fromStatus,
                     toStatus: t.toStatus,
                     transitionLabel: t.transitionLabel ?? null,
                     requiresComment: t.requiresComment ?? false,
                     autoAssignRole: t.autoAssignRole ?? null,
-                    autoAssignUserId: t.autoAssignUserId ?? null,
                     isActive: t.isActive ?? true,
                 },
             });
         }
         // Prune workflow transitions not in seed
         const seedTransKeys = SEED_WORKFLOW_TRANSITIONS.map(t => `${t.fromStatus}→${t.toStatus}`);
-        const allTrans = await prisma.workflowTransition.findMany();
+        const allTrans = await prisma.workflowTransition.findMany({
+            where: { tenantId: null, workflowTypeId: null },
+        });
         const extraTransKeys = allTrans.filter(t => !seedTransKeys.includes(`${t.fromStatus}→${t.toStatus}`));
         if (extraTransKeys.length > 0) {
             for (const et of extraTransKeys) {

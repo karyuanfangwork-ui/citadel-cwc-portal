@@ -35,7 +35,7 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
     userName: user?.firstName || user?.email || 'System',
     userRole: userRoles[0] || undefined,
     metadata: { userRoles, ...overrides?.metadata },
-    skipNotifications: overrides?.skipNotifications ?? true,
+    skipNotifications: overrides?.skipNotifications ?? false,
     skipAutoAssignment: overrides?.skipAutoAssignment ?? true,
     skipSlaPause: true, // Controllers manage SLA pause/resume explicitly where needed
     comment: overrides?.comment,
