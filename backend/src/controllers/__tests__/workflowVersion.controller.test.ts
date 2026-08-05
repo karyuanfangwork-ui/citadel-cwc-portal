@@ -90,14 +90,57 @@ describe('WorkflowVersionController API contracts', () => {
   });
 
   it('passes the authenticated publisher to the lifecycle service', async () => {
-    mockVersion.publishVersion.mockResolvedValue({ version: 2, transitionCount: 3, stepCount: 4 });
+    mockVersion.publishVersion.mockResolvedValue({ version: 2, transitionCount: 3, stepCount: 4, movedCount: 0 });
     const controller = new WorkflowVersionController();
     const result = await invoke(controller.publish, {}, { versionId: 'v2' }, { id: 'user-1' });
 
     expect(result.response?.body).toEqual({
       status: 'success',
-      data: { version: 2, transitionCount: 3, stepCount: 4 },
+      data: { version: 2, transitionCount: 3, stepCount: 4, movedCount: 0 },
     });
-    expect(mockVersion.publishVersion).toHaveBeenCalledWith('v2', 'user-1');
+    expect(mockVersion.publishVersion).toHaveBeenCalledWith('v2', 'user-1', {});
+  });
+});
+
+describe('publish endpoint status remap contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockVersion.publishVersion.mockResolvedValue({ version: 4, transitionCount: 1, stepCount: 2, movedCount: 2 });
+  });
+
+  const controller = new WorkflowVersionController();
+
+  it('forwards a well-formed mapping to the service', async () => {
+    const { response } = await invoke(controller.publish, { statusRemap: { LEGACY: 'IN_PROGRESS' } }, { versionId: 'v4' }, { id: 'u1' });
+    expect(mockVersion.publishVersion).toHaveBeenCalledWith('v4', 'u1', { LEGACY: 'IN_PROGRESS' });
+    expect(response!.statusCode).toBe(200);
+  });
+
+  it('defaults to an empty mapping when the body omits it', async () => {
+    await invoke(controller.publish, {}, { versionId: 'v4' }, { id: 'u1' });
+    expect(mockVersion.publishVersion).toHaveBeenCalledWith('v4', 'u1', {});
+  });
+
+  it('rejects a mapping that is not an object of strings', async () => {
+    const { error } = await invoke(controller.publish, { statusRemap: { LEGACY: 42 } }, { versionId: 'v4' }, { id: 'u1' });
+    expect(error).toBeDefined();
+    expect((error as { statusCode?: number }).statusCode).toBe(422);
+    expect(mockVersion.publishVersion).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mapping sent as an array', async () => {
+    const { error } = await invoke(controller.publish, { statusRemap: ['LEGACY'] }, { versionId: 'v4' }, { id: 'u1' });
+    expect((error as { statusCode?: number }).statusCode).toBe(422);
+  });
+});
+
+describe('validate endpoint', () => {
+  const controller = new WorkflowVersionController();
+
+  it('returns the remap plan alongside validation so the dialog can be prefilled', async () => {
+    const remapPlan = { entries: [], totalRequests: 0 };
+    mockVersion.getVersionDetail.mockResolvedValue({ version: {}, graph: { nodes: [], edges: [] }, validation: { blocking: [], warnings: [] }, remapPlan });
+    const { response } = await invoke(controller.validate, {}, { versionId: 'v4' });
+    expect((response!.body as any).data).toEqual({ validation: { blocking: [], warnings: [] }, remapPlan });
   });
 });

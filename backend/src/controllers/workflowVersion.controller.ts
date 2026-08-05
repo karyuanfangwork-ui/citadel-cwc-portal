@@ -29,6 +29,17 @@ const isNullableNumber = (value: unknown): value is number | null => value === n
 const isUuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
+const parseStatusRemap = (value: unknown): Record<string, string> => {
+  if (value === undefined || value === null) return {};
+  if (!isObject(value)) throw new AppError('statusRemap must be an object of status code pairs', 422);
+  for (const [from, to] of Object.entries(value)) {
+    if (typeof from !== 'string' || from === '' || typeof to !== 'string' || to === '') {
+      throw new AppError('statusRemap must map non-empty status codes to non-empty status codes', 422);
+    }
+  }
+  return value as Record<string, string>;
+};
+
 const validateNodeBatch = (upsert: unknown[]) => {
   for (const item of upsert as Record<string, unknown>[]) {
     if (
@@ -129,13 +140,14 @@ export class WorkflowVersionController {
 
   validate = asyncHandler(async (req: Request, res: Response) => {
     const versionId = req.params.versionId as string;
-    const { validation } = await versionService.getVersionDetail(versionId);
-    res.json({ status: 'success', data: { validation } });
+    const { validation, remapPlan } = await versionService.getVersionDetail(versionId);
+    res.json({ status: 'success', data: { validation, remapPlan } });
   });
 
   publish = asyncHandler(async (req: AuthedRequest, res: Response) => {
     const versionId = req.params.versionId as string;
-    const result = await versionService.publishVersion(versionId, req.user!.id);
+    const statusRemap = parseStatusRemap(req.body?.statusRemap);
+    const result = await versionService.publishVersion(versionId, req.user!.id, statusRemap);
     res.json({ status: 'success', data: result });
   });
 
