@@ -40,6 +40,8 @@ const accountBodySchema = z.object({
   bankAccount: z.string().max(100).optional(),
   purchaseCashTrust: z.coerce.boolean().optional(),
   accountType: z.enum(['INDIVIDUAL', 'CORPORATE']).default('CORPORATE'),
+  ownerId: z.string().uuid().optional(),
+  parentAccountId: z.string().uuid().optional().nullable(),
 });
 
 export const createAccountSchema = z.object({ body: accountBodySchema });
@@ -91,15 +93,19 @@ export const contactFiltersSchema = paginationSchema.extend({
 
 const leadBodySchema = z.object({
   title: z.string().min(1).max(255),
-  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER']).default('OTHER'),
+  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'WHATSAPP', 'OTHER']).default('OTHER'),
   accountId: z.string().uuid().optional(),
   contactId: z.string().uuid().optional(),
+  ownerId: z.string().uuid().optional(),
   contactName: z.string().max(200).optional(),
   contactEmail: z.string().email().max(255).optional().or(z.literal('')),
   contactPhone: z.string().max(50).optional(),
   companyName: z.string().max(255).optional(),
+  industry: z.string().max(100).optional(),
   estimatedValue: z.coerce.number().nonnegative().optional(),
   description: z.string().optional(),
+  followUpDate: z.string().optional(),
+  followUpNote: z.string().optional(),
 });
 
 export const createLeadSchema = z.object({ body: leadBodySchema });
@@ -108,14 +114,12 @@ export const updateLeadSchema = z.object({
   body: leadBodySchema.partial().extend({
     status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
     lostReason: z.string().optional(),
-    followUpDate: z.string().optional(),
-    followUpNote: z.string().optional(),
   }),
 });
 
 export const leadFiltersSchema = paginationSchema.extend({
   status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
-  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER']).optional(),
+  source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'WHATSAPP', 'OTHER']).optional(),
   ownerId: z.string().uuid().optional(),
   followUpDate: z.string().optional(),
 });
@@ -147,6 +151,7 @@ const opportunityBodySchema = z.object({
   probability: z.coerce.number().int().min(0).max(100).default(0),
   expectedCloseDate: z.string().optional(),
   description: z.string().optional(),
+  ownerId: z.string().uuid().optional(),
 });
 
 export const createOpportunitySchema = z.object({ body: opportunityBodySchema });
@@ -327,3 +332,169 @@ const beneficiaryBodySchema = z.object({
 export const createBeneficiarySchema = z.object({ body: beneficiaryBodySchema });
 
 export const updateBeneficiarySchema = z.object({ body: beneficiaryBodySchema.partial() });
+
+// ============================================================================
+// IMPORT / EXPORT
+// ============================================================================
+
+export const importMappingSchema = z.object({
+  body: z.object({
+    columnMapping: z.record(z.string(), z.string()),
+  }),
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+});
+
+export const importExecuteSchema = z.object({
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+});
+
+export const exportRequestSchema = z.object({
+  body: z.object({
+    entity: z.enum(['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY']),
+    filters: z.record(z.unknown()).optional(),
+    format: z.enum(['CSV', 'XLSX']).default('CSV'),
+  }),
+});
+
+// ======== TERRITORY & QUOTA ========
+
+export const createTerritorySchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().optional(),
+    regions: z.object({
+      states: z.array(z.string()).optional(),
+      countries: z.array(z.string()).optional(),
+    }).optional(),
+  }),
+});
+
+export const updateTerritorySchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(100).optional(),
+    description: z.string().nullable().optional(),
+    regions: z.object({
+      states: z.array(z.string()).optional(),
+      countries: z.array(z.string()).optional(),
+    }).optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+export const addTerritoryMemberSchema = z.object({
+  body: z.object({
+    userId: z.string().uuid(),
+    role: z.enum(['MANAGER', 'MEMBER']).default('MEMBER'),
+  }),
+});
+
+export const createQuotaSchema = z.object({
+  body: z.object({
+    territoryId: z.string().uuid().optional(),
+    userId: z.string().uuid().optional(),
+    period: z.string().min(1),
+    periodType: z.enum(['MONTHLY', 'QUARTERLY', 'ANNUALLY']).default('MONTHLY'),
+    targetAmount: z.number().positive(),
+    currency: z.string().max(3).default('MYR'),
+  }),
+});
+
+export const updateQuotaSchema = z.object({
+  body: z.object({
+    period: z.string().min(1).optional(),
+    periodType: z.enum(['MONTHLY', 'QUARTERLY', 'ANNUALLY']).optional(),
+    targetAmount: z.number().positive().optional(),
+    currency: z.string().max(3).optional(),
+  }),
+});
+
+// ============================================================================
+// WORKFLOW AUTOMATION
+// ============================================================================
+
+export const createWorkflowSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(200),
+    description: z.string().optional(),
+    isActive: z.boolean().default(true),
+    trigger: z.object({
+      event: z.string().min(1),
+      conditions: z.array(z.object({
+        field: z.string().min(1),
+        op: z.enum(['eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'contains', 'in']),
+        value: z.unknown(),
+      })).optional(),
+    }),
+    actions: z.array(z.object({
+      type: z.enum(['CREATE_TASK', 'SEND_NOTIFICATION', 'UPDATE_FIELD', 'REASSIGN_OWNER']),
+      config: z.record(z.unknown()),
+    })).min(1),
+    executionOrder: z.number().int().default(0),
+  }),
+});
+
+export const updateWorkflowSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().optional(),
+    isActive: z.boolean().optional(),
+    trigger: z.object({
+      event: z.string().min(1),
+      conditions: z.array(z.object({
+        field: z.string().min(1),
+        op: z.enum(['eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'contains', 'in']),
+        value: z.unknown(),
+      })).optional(),
+    }).optional(),
+    actions: z.array(z.object({
+      type: z.enum(['CREATE_TASK', 'SEND_NOTIFICATION', 'UPDATE_FIELD', 'REASSIGN_OWNER']),
+      config: z.record(z.unknown()),
+    })).min(1).optional(),
+    executionOrder: z.number().int().optional(),
+  }),
+});
+
+// ── Custom Field Validators ──
+export const createCustomFieldSchema = z.object({
+  body: z.object({
+    entity: z.enum(['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY', 'ACTIVITY']),
+    fieldKey: z.string().regex(/^[a-z][a-z0-9_]*$/, 'Must be a lowercase slug'),
+    label: z.string().min(1).max(200),
+    fieldType: z.enum(['TEXT', 'NUMBER', 'DATE', 'DROPDOWN', 'MULTI_SELECT', 'CHECKBOX', 'URL']),
+    group: z.string().max(100).optional(),
+    options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    validation: z.object({
+      required: z.boolean().optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+      pattern: z.string().optional(),
+    }).optional(),
+    defaultValue: z.string().max(500).optional(),
+    displayOrder: z.number().int().optional(),
+    isSearchable: z.boolean().optional(),
+    isRequired: z.boolean().optional(),
+  }),
+});
+
+export const updateCustomFieldSchema = z.object({
+  body: z.object({
+    label: z.string().min(1).max(200).optional(),
+    group: z.string().max(100).optional().nullable(),
+    options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    validation: z.object({
+      required: z.boolean().optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+      pattern: z.string().optional(),
+    }).optional(),
+    defaultValue: z.string().max(500).optional().nullable(),
+    displayOrder: z.number().int().optional(),
+    isSearchable: z.boolean().optional(),
+    isRequired: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});

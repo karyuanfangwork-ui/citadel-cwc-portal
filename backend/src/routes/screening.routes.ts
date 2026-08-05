@@ -17,7 +17,7 @@ router.use(authenticate);
 
 /**
  * @route   POST /api/screening/requests/:id/start
- * @desc    Start HR screening (background and reference checks)
+ * @desc    Start HR reference check
  * @access  Private (HR Agent)
  */
 router.post('/requests/:id/start', startHRScreening);

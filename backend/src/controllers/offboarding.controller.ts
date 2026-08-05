@@ -1,18 +1,21 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile } from '../middleware/upload.middleware';
-import { notify } from '../services/notification.service';
+import { notifyMultiple } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
+import { logger } from '../utils/logger';
 import path from 'path';
 import fs from 'fs';
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 export const resignationUpload = { single: (field: string) => uploadSingleFile(field) };
 
 export const createOffboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { employeeFirstName, employeeLastName, employeeEmail, department, managerId, lastWorkingDay, reasonForDeparture } = req.body;
         const request = await prisma.request.findUnique({ where: { id: requestId } });
         if (!request) return res.status(404).json({ error: 'Request not found' });
@@ -36,9 +39,11 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
                 manager: { select: { id: true, firstName: true, lastName: true, email: true } },
             },
         });
-        await prisma.request.update({
-            where: { id: requestId },
-            data: { status: 'OFFBOARDING_SUBMITTED' },
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'OFFBOARDING_SUBMITTED',
+            source: 'offboarding.create',
         });
         res.status(201).json(offboarding);
     } catch (error) {
@@ -49,7 +54,9 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
 
 export const getOffboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: {
@@ -72,8 +79,10 @@ export const getOffboardingRequest = async (req: Request, res: Response) => {
 
 export const updateOffboardingStatus = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
-        const { overallStatus, currentPhase, exitInterviewScheduledDate, ...rest } = req.body;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
+        const { overallStatus, currentPhase, exitInterviewScheduledDate, lastWorkingDay, department, ...rest } = req.body;
         const user = (req as any).user;
 
         const currentRequest = await prisma.request.findUnique({ where: { id: requestId } });
@@ -85,6 +94,9 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                 exitInterviewScheduledDate: exitInterviewScheduledDate
                     ? new Date(exitInterviewScheduledDate.includes('T') ? exitInterviewScheduledDate : exitInterviewScheduledDate + 'T00:00:00.000Z')
                     : null,
+            }),
+            ...(lastWorkingDay !== undefined && {
+                lastWorkingDay: new Date(lastWorkingDay.includes('T') ? lastWorkingDay : lastWorkingDay + 'T00:00:00.000Z'),
             }),
         };
 
@@ -135,6 +147,13 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             include: { request: true, tasks: true },
         });
 
+        // Sync lastWorkingDay change to request custom_fields.lastDay
+        // (folded into transition requestPatch below when a transition occurs;
+        //  falls back to a direct update when no status transition happens)
+        const lastDayPatch = lastWorkingDay !== undefined
+            ? { customFields: { ...((currentRequest.customFields || {}) as Record<string, any>), lastDay: lastWorkingDay } }
+            : undefined;
+
         // Close open AssetAssignments when hardwareReturned is toggled on
         if (rest.hardwareReturned === true && offboarding.employeeId) {
             const openAssignments = await prisma.assetAssignment.findMany({
@@ -168,12 +187,21 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (finalStatus !== currentRequest.status) {
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { 
-                    status: finalStatus as any,
-                    ...(finalStatus === 'OFFBOARDING_COMPLETED' && { closedAt: new Date() })
-                },
+            const completedAt = finalStatus === 'OFFBOARDING_COMPLETED' ? new Date() : undefined;
+            const transitionPatch: Record<string, unknown> = {};
+            if (completedAt) {
+                transitionPatch.closedAt = completedAt;
+                transitionPatch.completedAt = completedAt;
+            }
+            if (lastDayPatch) {
+                Object.assign(transitionPatch, lastDayPatch);
+            }
+            await transitionHttpRequest({
+                req,
+                request: currentRequest,
+                toStatus: finalStatus,
+                source: 'offboarding.update-status',
+                requestPatch: Object.keys(transitionPatch).length > 0 ? transitionPatch : undefined,
             });
 
             await prisma.requestActivity.create({
@@ -189,21 +217,17 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                 },
             });
 
-            await notify({
-                userId: currentRequest.requesterId,
-                eventType: 'STATUS_CHANGED',
-                variables: {
-                    referenceNumber: currentRequest.referenceNumber,
-                    newStatus: finalStatus,
-                },
-                relatedRequestId: requestId,
-            });
-
             await auditLog(req, 'STATUS_CHANGED', 'request', requestId, {
                 newStatus: finalStatus,
                 referenceNumber: currentRequest.referenceNumber,
             }, {
                 oldStatus: currentRequest.status,
+            });
+        } else if (lastDayPatch) {
+            // No status transition, but custom fields still need persisting
+            await prisma.request.update({
+                where: { id: requestId },
+                data: lastDayPatch,
             });
         }
 
@@ -216,7 +240,9 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
 
 export const createOffboardingTask = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { taskName, taskDescription, taskCategory, assignedTo, dueDate, priority } = req.body;
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
@@ -243,7 +269,9 @@ export const createOffboardingTask = async (req: Request, res: Response) => {
 
 export const getOffboardingTasks = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             select: { id: true },
@@ -324,7 +352,9 @@ export const deleteOffboardingTask = async (req: Request, res: Response) => {
 
 export const getOffboardingProgress = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: { tasks: true },
@@ -351,7 +381,9 @@ export const getOffboardingProgress = async (req: Request, res: Response) => {
 
 export const uploadResignationLetter = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const file = (req as any).file;
         const userId = (req as any).user?.id;
         const userName = `${(req as any).user?.firstName || ''} ${(req as any).user?.lastName || ''}`.trim();
@@ -387,7 +419,9 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
 
 export const deleteResignationLetter = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
         if (offboarding.resignationLetterUrl) {
@@ -427,4 +461,63 @@ export async function createDefaultOffboardingTasks(offboardingId: string, lastW
                 : lastWorkingDay,
         })),
     });
+
+    console.log(`✅ Created ${templates.length} offboarding tasks from templates`);
+
+    // ── Notify the dedicated IT agent if any IT-category tasks were created ──
+    const hasItTasks = templates.some(t => t.taskCategory.toUpperCase() === 'IT');
+    if (!hasItTasks) return;
+
+    // Resolve the offboarding request + parent ticket for notification context
+    const offboarding = await prisma.offboardingRequest.findUnique({
+        where: { id: offboardingId },
+        select: {
+            requestId: true,
+            employeeFirstName: true,
+            employeeLastName: true,
+            department: true,
+            lastWorkingDay: true,
+        },
+    });
+    if (!offboarding) return;
+
+    // Read the dedicated IT agent from system settings (shared with onboarding)
+    const itAgentSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'onboarding_it_agent_user_id' },
+    });
+
+    if (!itAgentSetting || !itAgentSetting.value) {
+        logger.warn('[Offboarding] No dedicated IT agent configured (system setting "onboarding_it_agent_user_id" not set) — skipping IT task notification');
+        return;
+    }
+
+    const itAgentId = itAgentSetting.value;
+
+    // Verify the agent still exists and is active
+    const itAgent = await prisma.user.findUnique({
+        where: { id: itAgentId },
+        select: { id: true, isActive: true },
+    });
+
+    if (!itAgent || !itAgent.isActive) {
+        logger.warn(`[Offboarding] Configured IT agent ${itAgentId} not found or inactive — skipping IT task notification`);
+        return;
+    }
+
+    const employeeName = `${offboarding.employeeFirstName} ${offboarding.employeeLastName}`;
+    const itTaskCount = templates.filter(t => t.taskCategory.toUpperCase() === 'IT').length;
+
+    await notifyMultiple(
+        [itAgentId],
+        'OFFBOARDING_IT_TASKS_CREATED',
+        {
+            employeeName,
+            department: offboarding.department || '',
+            lastWorkingDay: offboarding.lastWorkingDay.toLocaleDateString('en-GB'),
+            itTaskCount: String(itTaskCount),
+        },
+        offboarding.requestId,
+    );
+
+    logger.info(`[Offboarding] Notified dedicated IT agent ${itAgentId} about ${itTaskCount} IT task(s) for ${employeeName}`);
 }

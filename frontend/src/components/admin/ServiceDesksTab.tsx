@@ -1,5 +1,6 @@
 import React from 'react';
 import { CategoryData } from '../../services/admin.service';
+import { parseFormConfig } from '../../utils/formConfig';
 
 interface ServiceDesksTabProps {
     serviceDesks: any[];
@@ -30,6 +31,7 @@ interface ServiceDesksTabProps {
     onEditService: (type: any) => void;
     onEditTypeName: (type: any) => void;
     onOpenFormBuilder: (type: any) => void;
+    onOpenCatalogDetail: (type: any) => void; // P5-03
     // Service Desk CRUD props
     onAddDesk: () => void;
     onEditDesk: (desk: any) => void;
@@ -66,6 +68,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     onEditService,
     onEditTypeName,
     onOpenFormBuilder,
+    onOpenCatalogDetail,
     onAddDesk,
     onEditDesk,
     onDeleteDesk,
@@ -381,6 +384,14 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                             >
                                                 <span className="material-symbols-outlined text-[22px]">dynamic_form</span>
                                             </button>
+                                            <button
+                                                onClick={() => onOpenCatalogDetail(type)}
+                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                                title="Governance & Entitlements"
+                                                aria-label="View governance detail"
+                                            >
+                                                <span className="material-symbols-outlined text-[22px]">shield</span>
+                                            </button>
                                             {type.isActive !== false ? (
                                                 <button
                                                     onClick={() => onDeleteService(type.id)}
@@ -419,7 +430,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
 
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-50">
                                         <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#0052cc] bg-blue-50 px-3 py-1 rounded-full">
-                                            {type.formConfig?.length || 0} Custom Fields
+                                            {parseFormConfig(type.formConfig).length || 0} Custom Fields
                                         </span>
                                         <span className="material-symbols-outlined text-gray-300 group-hover:text-[#0052cc] transition-colors">arrow_forward</span>
                                     </div>

@@ -27,10 +27,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
   onSuccess,
   onClose,
 }) => {
-  const invoiceAttachment = attachments.find(a =>
-    a.storageUrl.includes('invoice') ||
-    a.fileName.toLowerCase().includes('invoice')
-  );
+  const invoiceAttachments = attachments;
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +40,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
       await itWorkflowService.cfoDecision(requestId, 'APPROVED', comments || undefined);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to approve request');
+      setError(err.response?.data?.error || 'Failed to confirm decision');
     } finally {
       setSubmitting(false);
     }
@@ -64,46 +61,52 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-amber-50">
           <div className="size-9 rounded-lg bg-amber-100 flex items-center justify-center">
             <span className="material-symbols-outlined text-amber-600">account_balance</span>
           </div>
           <div>
-            <h2 className="font-bold text-base text-gray-900">CFO Approval</h2>
-            <p className="text-xs text-gray-500">IT Workflow · CFO Decision Required</p>
+            <h2 className="font-bold text-base text-gray-900">CFO Decision</h2>
+            <p className="text-xs text-gray-500">IT Workflow · Review Invoice & Confirm</p>
           </div>
         </div>
         <form className="flex flex-col min-h-0 flex-1">
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              {invoiceAttachment && (
+              {invoiceAttachments.length > 0 && (
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Invoice
+                  {invoiceAttachments.length === 1 ? 'Attachment' : `Attachments (${invoiceAttachments.length})`}
                 </label>
-                {invoiceAttachment.mimeType === 'application/pdf' ? (
-                  <iframe
-                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
-                    className="w-full h-48 rounded-lg border border-gray-200"
-                    title="Invoice"
-                  />
-                ) : (
-                  <img
-                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
-                    alt="Invoice"
-                    className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
-                  />
-                )}
-                <a
-                  href={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-600 hover:underline"
-                >
-                  <span className="material-symbols-outlined text-sm">open_in_new</span>
-                  {invoiceAttachment.fileName}
-                </a>
+                <div className="space-y-2">
+                  {invoiceAttachments.map(att => (
+                    <div key={att.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                      {att.mimeType === 'application/pdf' ? (
+                        <iframe
+                          src={`${API_BASE}/requests/${requestId}/attachments/${att.id}?inline=true`}
+                          className="w-full h-48"
+                          title={att.fileName}
+                        />
+                      ) : (
+                        <img
+                          src={`${API_BASE}/requests/${requestId}/attachments/${att.id}?inline=true`}
+                          alt={att.fileName}
+                          className="w-full max-h-48 object-contain bg-gray-50"
+                        />
+                      )}
+                      <a
+                        href={`${API_BASE}/requests/${requestId}/attachments/${att.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 hover:underline bg-gray-50 border-t border-gray-100"
+                      >
+                        <span className="material-symbols-outlined text-sm">open_in_new</span>
+                        {att.fileName}
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             <div>
@@ -144,7 +147,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
             >
-              {submitting ? 'Approving…' : 'Approve'}
+              {submitting ? 'Confirming…' : 'Confirm'}
             </button>
           </div>
         </form>

@@ -147,17 +147,21 @@ const ChangePassword = () => {
             {/* Form */}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5, 20px)' }}>
                 {error && (
-                    <div style={{
-                        background: '#fef2f2',
-                        border: '1px solid #fecaca',
-                        borderRadius: 'var(--radius-md, 8px)',
-                        padding: 'var(--space-3, 12px) var(--space-4, 16px)',
-                        fontSize: 'var(--text-sm)',
-                        color: '#dc2626',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-2)',
-                    }}>
+                    <div
+                        id="form-error"
+                        role="alert"
+                        style={{
+                            background: '#fef2f2',
+                            border: '1px solid #fecaca',
+                            borderRadius: 'var(--radius-md, 8px)',
+                            padding: 'var(--space-3, 12px) var(--space-4, 16px)',
+                            fontSize: 'var(--text-sm)',
+                            color: '#dc2626',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-2)',
+                        }}
+                    >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
                         {error}
                     </div>
@@ -177,6 +181,8 @@ const ChangePassword = () => {
                         value={formData.currentPassword}
                         onChange={handleChange}
                         placeholder="Enter your current password"
+                        aria-invalid={!!error}
+                        aria-describedby={error ? "form-error" : undefined}
                         style={{
                             width: '100%',
                             padding: '11px 14px',
@@ -211,6 +217,8 @@ const ChangePassword = () => {
                             value={formData.newPassword}
                             onChange={handleChange}
                             placeholder="Enter your new password"
+                            aria-invalid={!!error || (formData.newPassword.length > 0 && formData.newPassword.length < 8)}
+                            aria-describedby={error ? "form-error" : undefined}
                             style={{
                                 width: '100%',
                                 padding: '11px 44px 11px 14px',
@@ -266,6 +274,8 @@ const ChangePassword = () => {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             placeholder="Confirm your new password"
+                            aria-invalid={formData.confirmPassword && formData.newPassword !== formData.confirmPassword}
+                            aria-describedby={(formData.confirmPassword && formData.newPassword !== formData.confirmPassword ? 'confirmPassword-error' : '') || (error ? 'form-error' : '') || undefined}
                             style={{
                                 width: '100%',
                                 padding: '11px 44px 11px 14px',
@@ -298,17 +308,17 @@ const ChangePassword = () => {
                                 background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
                                 color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center',
                             }}
-                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                        >
-                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                                {showConfirmPassword ? 'visibility_off' : 'visibility'}
-                            </span>
-                        </button>
-                    </div>
-                    {formData.confirmPassword && formData.newPassword !== formData.confirmPassword && (
-                        <p style={{ fontSize: 'var(--text-xs)', color: '#ef4444', marginTop: 'var(--space-1)' }}>Passwords do not match</p>
-                    )}
-                </div>
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                </button>
+            </div>
+            {formData.confirmPassword && formData.newPassword !== formData.confirmPassword && (
+                <p id="confirmPassword-error" role="alert" style={{ fontSize: 'var(--text-xs)', color: '#ef4444', marginTop: 'var(--space-1)' }}>Passwords do not match</p>
+            )}
+        </div>
 
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: 'var(--space-3)', paddingTop: 'var(--space-2)' }}>

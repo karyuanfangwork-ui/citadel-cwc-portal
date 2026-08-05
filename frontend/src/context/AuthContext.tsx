@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService } from '../services/auth.service';
+import type { PolicyDecision } from '../types/policy';
+
+export interface DelegateUser {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+}
 
 export interface User {
     id: string;
@@ -9,6 +17,15 @@ export interface User {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    tenantId?: string | null;
+    /** Task 14: Department memberships from server-authoritative policy */
+    departmentIds?: string[];
+    outOfOffice?: boolean;
+    outOfOfficeUntil?: string | null;
+    outOfOfficeMessage?: string | null;
+    delegationEnabled?: boolean;
+    delegatedToId?: string | null;
+    delegatedTo?: DelegateUser | null;
 }
 
 interface RegisterData {
@@ -28,6 +45,12 @@ interface AuthContextType {
     register: (data: RegisterData) => Promise<void>;
     logout: () => Promise<void>;
     isAuthenticated: boolean;
+    refreshUser: () => Promise<void>;
+    updateOutOfOffice: (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => Promise<void>;
+    updateDelegation: (data: { delegationEnabled: boolean; delegatedToId?: string | null }) => Promise<void>;
+    /** Task 14: Server-authoritative policy (permissions, departments, allowed actions) */
+    policy: PolicyDecision | null;
+    refreshPolicy: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,11 +59,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [policy, setPolicy] = useState<PolicyDecision | null>(null);
 
     useEffect(() => {
         // Ask the server if we have a valid session (cookie sent automatically)
         authService.getCurrentUser()
-            .then(setUser)
+            .then((u) => {
+                setUser(u);
+                // Task 14: Fetch policy decisions alongside user profile
+                authService.getMyPolicy()
+                    .then(setPolicy)
+                    .catch(() => setPolicy(null));
+            })
             .catch(() => setUser(null))
             .finally(() => setLoading(false));
     }, []);
@@ -55,6 +85,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             roles: response.roles,
             permissions: response.permissions,
             agentTeam: response.agentTeam,
+            tenantId: response.tenantId,
+            departmentIds: response.departmentIds,
         });
         setAccessToken(response.accessToken ?? null);
     };
@@ -70,8 +102,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAccessToken(null);
     };
 
+    const refreshUser = async () => {
+        const u = await authService.getCurrentUser();
+        setUser(u);
+    };
+
+    /** Task 14: Fetch server-authoritative policy decisions */
+    const refreshPolicy = async () => {
+        try {
+            const data = await authService.getMyPolicy();
+            setPolicy(data);
+        } catch {
+            setPolicy(null);
+        }
+    };
+
+    const updateOutOfOffice = async (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => {
+        const apiClient = (await import('../services/api')).default;
+        const res = await apiClient.put('/users/me/out-of-office', data);
+        setUser(prev => prev ? {
+            ...prev,
+            outOfOffice: res.data.data.outOfOffice,
+            outOfOfficeUntil: res.data.data.outOfOfficeUntil,
+            outOfOfficeMessage: res.data.data.outOfOfficeMessage,
+            delegationEnabled: res.data.data.delegationEnabled ?? prev.delegationEnabled,
+            delegatedToId: res.data.data.delegatedToId ?? prev.delegatedToId,
+        } : prev);
+    };
+
+    const updateDelegation = async (data: { delegationEnabled: boolean; delegatedToId?: string | null }) => {
+        const apiClient = (await import('../services/api')).default;
+        const res = await apiClient.put('/users/me/delegation', data);
+        setUser(prev => prev ? {
+            ...prev,
+            delegationEnabled: res.data.data.delegationEnabled,
+            delegatedToId: res.data.data.delegatedToId ?? null,
+            delegatedTo: res.data.data.delegatedTo ?? null,
+        } : prev);
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user, refreshUser, updateOutOfOffice, updateDelegation, policy, refreshPolicy }}>
             {children}
         </AuthContext.Provider>
     );

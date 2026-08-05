@@ -25,6 +25,9 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const [editingStartDate, setEditingStartDate] = useState(false);
     const [startDateInput, setStartDateInput] = useState('');
     const [savingStartDate, setSavingStartDate] = useState(false);
+    const [editingField, setEditingField] = useState<string | null>(null);
+    const [fieldInput, setFieldInput] = useState<Record<string, string>>({});
+    const [savingField, setSavingField] = useState(false);
 
     const isAdminOrHRAgent = user?.roles?.includes('ADMIN') ||
         (user?.roles?.includes('AGENT') && (user as any)?.agentTeam?.toUpperCase() === 'HR');
@@ -206,6 +209,42 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         setEditingStartDate(true);
     };
 
+    const handleEditField = (field: string, currentValue: string) => {
+        setFieldInput(prev => ({ ...prev, [field]: currentValue }));
+        setEditingField(field);
+    };
+
+    const handleSaveField = async (field: string) => {
+        const value = fieldInput[field];
+        if (value === undefined || savingField) return;
+        setSavingField(true);
+        try {
+            const res = await apiClient.patch(`/onboarding/requests/${requestId}/onboarding/hire-info`, {
+                [field]: value,
+            });
+            setOnboarding(prev => prev ? { ...prev, ...res.data } : prev);
+            setEditingField(null);
+            const fieldLabels: Record<string, string> = {
+                newHireFirstName: 'First Name',
+                newHireLastName: 'Last Name',
+                newHireEmail: 'Email',
+                newHirePhone: 'Phone',
+                jobTitle: 'Position',
+                department: 'Department',
+            };
+            toast.success('Field Updated', `${fieldLabels[field] || field} has been updated`);
+            await fetchOnboardingData();
+        } catch (err: any) {
+            toast.error('Update Failed', err.response?.data?.error || err.message || 'Failed to update field');
+        } finally {
+            setSavingField(false);
+        }
+    };
+
+    const handleCancelField = () => {
+        setEditingField(null);
+    };
+
     const getTaskIcon = (status: string, taskId?: string) => {
         if (updatingTaskId === taskId) {
             return <span className="material-symbols-outlined text-gray-400 animate-spin">autorenew</span>;
@@ -316,29 +355,150 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
             <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">New Hire Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Name (First + Last) */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">person</span>
-                        <div>
-                            <p className="text-sm text-gray-500">Name</p>
-                            <p className="font-medium text-gray-900">
-                                {formatName(onboarding.newHireFirstName, onboarding.newHireLastName)}
-                            </p>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">First Name</p>
+                            {editingField === 'newHireFirstName' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="text"
+                                        value={fieldInput.newHireFirstName ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, newHireFirstName: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('newHireFirstName')}
+                                        disabled={savingField || !fieldInput.newHireFirstName?.trim()}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{onboarding.newHireFirstName || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('newHireFirstName', onboarding.newHireFirstName || '')} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit first name">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    <div className="flex items-start space-x-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">person</span>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">Last Name</p>
+                            {editingField === 'newHireLastName' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="text"
+                                        value={fieldInput.newHireLastName ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, newHireLastName: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('newHireLastName')}
+                                        disabled={savingField || !fieldInput.newHireLastName?.trim()}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{onboarding.newHireLastName || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('newHireLastName', onboarding.newHireLastName || '')} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit last name">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Email */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">mail</span>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm text-gray-500">Email</p>
-                            <p className="font-medium text-gray-900">{onboarding.newHireEmail || 'Not set'}</p>
+                            {editingField === 'newHireEmail' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="email"
+                                        value={fieldInput.newHireEmail ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, newHireEmail: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('newHireEmail')}
+                                        disabled={savingField || !fieldInput.newHireEmail?.trim()}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{onboarding.newHireEmail || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('newHireEmail', onboarding.newHireEmail || '')} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit email">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    {/* Position */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">work</span>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm text-gray-500">Position</p>
-                            <p className="font-medium text-gray-900">{onboarding.jobTitle || 'Not set'}</p>
+                            {editingField === 'jobTitle' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="text"
+                                        value={fieldInput.jobTitle ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, jobTitle: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingField}
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('jobTitle')}
+                                        disabled={savingField || !fieldInput.jobTitle?.trim()}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{onboarding.jobTitle || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('jobTitle', onboarding.jobTitle || '')} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit position">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    {/* Start Date (already editable, kept as-is) */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
                         <div>
@@ -390,15 +550,44 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                             )}
                         </div>
                     </div>
-                    {onboarding.newHirePhone && (
-                        <div className="flex items-start space-x-3">
-                            <span className="material-symbols-outlined text-gray-400 text-xl">phone</span>
-                            <div>
-                                <p className="text-sm text-gray-500">Phone</p>
-                                <p className="font-medium text-gray-900">{onboarding.newHirePhone}</p>
-                            </div>
+                    {/* Phone */}
+                    <div className="flex items-start space-x-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">phone</span>
+                        <div className="flex-1">
+                            <p className="text-sm text-gray-500">Phone</p>
+                            {editingField === 'newHirePhone' ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="tel"
+                                        value={fieldInput.newHirePhone ?? ''}
+                                        onChange={e => setFieldInput(prev => ({ ...prev, newHirePhone: e.target.value }))}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingField}
+                                        placeholder="Optional"
+                                    />
+                                    <button
+                                        onClick={() => handleSaveField('newHirePhone')}
+                                        disabled={savingField}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingField ? <span className="material-symbols-outlined text-sm animate-spin">autorenew</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                                        {savingField ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button onClick={handleCancelField} disabled={savingField} className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50">Cancel</button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{onboarding.newHirePhone || 'Not set'}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button onClick={() => handleEditField('newHirePhone', onboarding.newHirePhone || '')} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit phone">
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
+                    {/* Department — read-only, not editable */}
                     <div className="flex items-start space-x-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">corporate_fare</span>
                         <div>

@@ -4,11 +4,14 @@ import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { useToast } from '../src/context/ToastContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { validateFormValues } from '../src/utils/requestValidation';
 import { useCreateRequestWizard, WizardStep } from '../src/components/create-request/useCreateRequestWizard';
 import WizardStepper from '../src/components/create-request/WizardStepper';
 import StepRequestType from '../src/components/create-request/StepRequestType';
 import StepDetails from '../src/components/create-request/StepDetails';
 import StepReview from '../src/components/create-request/StepReview';
+import RecentServices from '../src/components/create-request/RecentServices';
+import { useDraftSave, DraftSaveChip } from '../src/components/create-request/useDraftSave';
 
 const WIZARD_STEPS: { id: WizardStep; label: string; icon: string }[] = [
   { id: 'type', label: 'Request Type', icon: 'category' },
@@ -23,26 +26,55 @@ const CreateRequest = () => {
 
     const wizard = useCreateRequestWizard(deskId!, categoryId!, deskType!);
 
+    // Draft auto-save with localStorage
+    const draftKey = `request_${deskId}_${categoryId}`;
+    const { hasDraft, lastSaved, restoreDraft, clearDraft } = useDraftSave(
+        draftKey,
+        wizard.formData,
+        wizard.setFormData,
+    );
+
+    const handleRestoreDraft = () => {
+        const restored = restoreDraft();
+        if (restored && wizard.selectedRequestType && wizard.step === 'type') {
+            wizard.setStep('details');
+        }
+    };
+
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!deskId || !wizard.selectedRequestType) return;
         if (wizard.isRoleBlocked) return;
 
         try {
-            wizard.setSubmitting(true);
-            wizard.setError(null);
+          wizard.setSubmitting(true);
+          wizard.setError(null);
 
-            const request = await requestService.createRequest({
+          // P03 Task 13: Final validation before submit using published form schema
+          if (wizard.selectedRequestType?.formConfig) {
+            const failures = validateFormValues(
+              wizard.selectedRequestType.formConfig,
+              wizard.formData.customFields,
+            );
+            if (failures.length > 0) {
+              wizard.setError(failures.map(f => f.message).join('. '));
+              return;
+            }
+          }
+
+          const request = await requestService.createRequest({
                 serviceDeskId: deskId,
                 requestTypeId: wizard.selectedRequestType.id,
-                summary: wizard.formData.summary,
+                formVersion: wizard.selectedRequestType.formConfigVersion,
+                summary: wizard.formData.summary.trim() || wizard.autoSummary,
                 description: wizard.formData.description,
                 priority: wizard.formData.urgency as any,
                 customFields: wizard.formData.customFields,
-                isConfidential: wizard.formData.isConfidential
+                isConfidential: wizard.isAutoConfidential ? true : wizard.formData.isConfidential
             });
 
-            navigate(`/request/${request.id}`);
+            clearDraft(); // Clear draft on successful submit
+            navigate(`/request/${(request as any).referenceNumber || request.id}`);
             toast.success('Request Created', 'Your request has been submitted successfully.');
         } catch (err: any) {
             console.error('Error creating request:', err);
@@ -82,6 +114,23 @@ const CreateRequest = () => {
                 </p>
             </div>
 
+            {/* Recently Used Services - quick access */}
+            {wizard.step === 'type' && (
+                <RecentServices deskSlug={deskType} className="mb-8" />
+            )}
+
+            {/* Draft save indicator */}
+            {hasDraft && (
+                <div className="mb-4">
+                    <DraftSaveChip
+                        hasDraft={hasDraft}
+                        lastSaved={lastSaved}
+                        onRestore={handleRestoreDraft}
+                        onClear={clearDraft}
+                    />
+                </div>
+            )}
+
             <div>
                 {/* Main Form Area */}
                 <div className="w-full max-w-[800px]">
@@ -92,6 +141,15 @@ const CreateRequest = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-8">
+                            {/* P03 Task 13: Step-transition validation errors */}
+                            {wizard.validationErrors.length > 0 && (
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-cwc-md text-red-700 text-sm">
+                                    {wizard.validationErrors.map((msg, i) => (
+                                        <p key={i}>{msg}</p>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Step Content */}
                             {wizard.step === 'type' && (
                                 <StepRequestType
@@ -100,6 +158,7 @@ const CreateRequest = () => {
                                     onSelectType={wizard.setSelectedRequestType}
                                     loading={false}
                                     error={wizard.error}
+                                    workflow={wizard.workflow}
                                 />
                             )}
 
@@ -109,6 +168,7 @@ const CreateRequest = () => {
                                     setFormData={wizard.setFormData}
                                     selectedRequestType={wizard.selectedRequestType}
                                     entityOptions={wizard.entityOptions}
+                                    ceoOptions={wizard.ceoOptions}
                                     uploadingFields={wizard.uploadingFields}
                                     setUploadingFields={wizard.setUploadingFields}
                                     isRoleBlocked={wizard.isRoleBlocked}
@@ -117,6 +177,9 @@ const CreateRequest = () => {
                                     error={wizard.error}
                                     setError={wizard.setError}
                                     handleCustomFieldChange={wizard.handleCustomFieldChange}
+                                    autoSummary={wizard.autoSummary}
+                                    isAutoSummary={wizard.isAutoSummary}
+                                    isAutoConfidential={wizard.isAutoConfidential}
                                 />
                             )}
 
@@ -126,7 +189,11 @@ const CreateRequest = () => {
                                     selectedRequestType={wizard.selectedRequestType}
                                     deskType={deskType!}
                                     entityOptions={wizard.entityOptions}
+                                    ceoOptions={wizard.ceoOptions}
                                     isRoleBlocked={wizard.isRoleBlocked}
+                                    autoSummary={wizard.autoSummary}
+                                    isAutoConfidential={wizard.isAutoConfidential}
+                                    workflow={wizard.workflow}
                                 />
                             )}
 

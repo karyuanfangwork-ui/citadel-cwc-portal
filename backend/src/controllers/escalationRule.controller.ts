@@ -27,7 +27,7 @@ export const escalationRuleController = {
       res.status(400).json({ message: 'triggerHoursAfterBreach must be a non-negative integer' });
       return;
     }
-    const VALID_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO'];
+    const VALID_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_DCEO'];
     if (notifyRoles.length === 0 || !notifyRoles.every((r: string) => VALID_ROLES.includes(r))) {
       res.status(400).json({ message: 'notifyRoles must be a non-empty array of valid role names' });
       return;

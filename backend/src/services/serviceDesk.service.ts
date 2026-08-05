@@ -49,14 +49,13 @@ class ServiceDeskService {
     }
 
     async updateServiceDesk(id: string, data: {
-        name?: string; code?: string; description?: string; isActive?: boolean;
+        name?: string; description?: string; isActive?: boolean;
         autoAssignTeam?: string; assignmentStrategy?: string; lastAssignedIndex?: number;
     }) {
         return prisma.serviceDesk.update({
             where: { id },
             data: {
                 ...(data.name !== undefined && { name: data.name }),
-                ...(data.code !== undefined && { code: data.code }),
                 ...(data.description !== undefined && { description: data.description }),
                 ...(data.isActive !== undefined && { isActive: data.isActive }),
                 ...(data.autoAssignTeam !== undefined && { autoAssignTeam: data.autoAssignTeam }),
@@ -166,6 +165,7 @@ class ServiceDeskService {
                 serviceDeskId: deskId,
             },
             isActive: true,
+            lifecycleStatus: 'PUBLISHED', // P5-01: Portal only shows published catalog items
         };
 
         if (categoryId) {
@@ -176,6 +176,7 @@ class ServiceDeskService {
             where,
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
                 workflow: {
                     include: {
                         steps: {
@@ -202,6 +203,7 @@ class ServiceDeskService {
             where,
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
                 workflow: {
                     include: {
                         steps: {
@@ -218,6 +220,7 @@ class ServiceDeskService {
             where: { id: typeId },
             include: {
                 serviceCategory: true,
+                owner: { select: { id: true, firstName: true, lastName: true, email: true } }, // P5-01
             },
         });
 
@@ -237,6 +240,9 @@ class ServiceDeskService {
         slaHours?: number | null;
         formConfig?: any;
         requiredRole?: string | null;
+        ownerId?: string | null;
+        lifecycleStatus?: string;
+        reviewDate?: Date | null;
     }) {
         return prisma.requestType.create({
             data: {
@@ -247,8 +253,12 @@ class ServiceDeskService {
                 requiresApproval: !!data.requiresApproval,
                 slaHours: data.slaHours ?? null,
                 formConfig: data.formConfig || [],
+                formConfigVersion: 1, // P5-04: initial version
                 requiredRole: data.requiredRole || null,
                 isActive: true,
+                ownerId: data.ownerId || null,
+                lifecycleStatus: (data.lifecycleStatus as any) || 'DRAFT',
+                reviewDate: data.reviewDate ?? null,
             },
         });
     }
@@ -263,20 +273,46 @@ class ServiceDeskService {
         isActive?: boolean;
         requiredRole?: string | null;
         workflowTypeId?: string | null;
+        ownerId?: string | null;
+        lifecycleStatus?: string;
+        reviewDate?: Date | null;
     }) {
+        // P5-04: If formConfig is being updated, increment the version
+        const updateData: any = {
+            name: data.name,
+            description: data.description,
+            icon: data.icon,
+            requiresApproval: data.requiresApproval !== undefined ? !!data.requiresApproval : undefined,
+            slaHours: data.slaHours !== undefined ? (data.slaHours ?? null) : undefined,
+            formConfig: data.formConfig,
+            isActive: data.isActive,
+            requiredRole: data.requiredRole !== undefined ? (data.requiredRole || null) : undefined,
+            workflowTypeId: data.workflowTypeId !== undefined ? (data.workflowTypeId || null) : undefined,
+            ownerId: data.ownerId !== undefined ? (data.ownerId || null) : undefined,
+            lifecycleStatus: data.lifecycleStatus as any,
+            reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
+        };
+        // P5-05: Sanitize formConfig — strip incomplete showWhen conditions before persisting
+        if (data.formConfig !== undefined) {
+            const sanitizedConfig = (data.formConfig as any[])?.map((field: any) => {
+                if (!field.showWhen) return field;
+                const validConditions = (field.showWhen.conditions as any[])?.filter(
+                    (c: any) => c.fieldId && c.fieldId.trim() !== ''
+                );
+                if (!validConditions || validConditions.length === 0) {
+                    const { showWhen, ...rest } = field;
+                    return rest;
+                }
+                return { ...field, showWhen: { ...field.showWhen, conditions: validConditions } };
+            });
+            updateData.formConfig = sanitizedConfig ?? data.formConfig;
+        }
+        if (data.formConfig !== undefined) {
+            updateData.formConfigVersion = { increment: 1 };
+        }
         return prisma.requestType.update({
             where: { id: typeId },
-            data: {
-                name: data.name,
-                description: data.description,
-                icon: data.icon,
-                requiresApproval: data.requiresApproval !== undefined ? !!data.requiresApproval : undefined,
-                slaHours: data.slaHours !== undefined ? (data.slaHours ?? null) : undefined,
-                formConfig: data.formConfig,
-                isActive: data.isActive,
-                requiredRole: data.requiredRole !== undefined ? (data.requiredRole || null) : undefined,
-                workflowTypeId: data.workflowTypeId !== undefined ? (data.workflowTypeId || null) : undefined,
-            },
+            data: updateData,
         });
     }
 

@@ -3,9 +3,104 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import citadelLogo from '../assets/citadel-logo-mark.svg';
 
-/* ─── Shared brand panel (copy from Login — identical markup) ───── */
+/* ─── Module spotlight data ─────────────────────────────────────── */
+interface Module {
+  icon: string;
+  name: string;
+  desc: string;
+  color: string;
+}
+
+const MODULES: Module[] = [
+  { icon: 'devices',    name: 'IT Support',       desc: 'Hardware, software & access requests', color: '#60a5fa' },
+  { icon: 'groups',     name: 'Group HR',          desc: 'Leave, onboarding & people requests',  color: '#34d399' },
+  { icon: 'payments',   name: 'Group Finance',     desc: 'Reimbursements & payment requests',    color: '#f59e0b' },
+  { icon: 'handshake',  name: 'CRM',               desc: 'Customer relationship management',     color: '#a78bfa' },
+  { icon: 'monitoring', name: 'Credit Assessment', desc: 'Risk scoring & credit decisions',      color: '#f87171' },
+];
+
+/* ─── Module spotlight component ───────────────────────────────── */
+const ModuleSpotlight: React.FC = () => {
+  const [active, setActive] = React.useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setActive(prev => (prev + 1) % MODULES.length);
+    }, 2500);
+    return () => clearInterval(id);
+  }, []);
+
+  const current = MODULES[active];
+  const rest = MODULES.filter((_, i) => i !== active);
+
+  return (
+    <div style={{ zIndex: 1 }}>
+      {/* Dot progress bar */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
+        {MODULES.map((m, i) => (
+          <div
+            key={m.name}
+            style={{
+              height: '4px',
+              borderRadius: '2px',
+              background: i === active ? m.color : 'rgba(255,255,255,0.2)',
+              width: i === active ? '32px' : '20px',
+              transition: 'width 0.3s, background 0.3s',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Spotlight card */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          borderRadius: 'var(--radius-md)',
+          padding: '14px 16px',
+          marginBottom: '12px',
+          opacity: 1,
+          transition: 'opacity 0.3s',
+        }}
+      >
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: '22px', color: current.color, display: 'block', marginBottom: '6px' }}
+        >
+          {current.icon}
+        </span>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: current.color, marginBottom: '3px' }}>
+          {current.name}
+        </div>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.55)' }}>
+          {current.desc}
+        </div>
+      </div>
+
+      {/* Mini list — remaining modules */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        {rest.map(m => (
+          <div
+            key={m.name}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.45)',
+              paddingBottom: '5px',
+              borderBottom: '1px solid rgba(255,255,255,0.05)',
+            }}
+          >
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: m.color + '88', flexShrink: 0 }} />
+            {m.name}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ─── Shared brand panel ────────────────────────────────────────── */
 const brandPanelStyle: React.CSSProperties = {
-  background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+  background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
   padding: 'var(--space-10) var(--space-8)',
   display: 'flex',
   flexDirection: 'column',
@@ -38,29 +133,14 @@ const BrandPanel = () => (
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '2px', marginTop: '2px' }}>WORKPLACE CONNECT</div>
           </div>
         </div>
-        <div style={{ height: '1px', background: 'linear-gradient(90deg, rgba(91,191,232,0.4) 0%, rgba(255,255,255,0.05) 100%)', marginTop: 'var(--space-3)' }} />
+        <div style={{ height: '1px', background: 'linear-gradient(90deg, rgba(96,165,250,0.4) 0%, rgba(255,255,255,0.05) 100%)', marginTop: 'var(--space-3)' }} />
       </div>
 
-      <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 'var(--space-3)' }}>Get started with<br /><span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 400 }}>CWC.</span></h1>
-      <p style={{ fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: 'var(--space-8)' }}>Create your account to submit IT, HR, and Finance requests — and track them in real time.</p>
+      <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 'var(--space-3)' }}>Get started with<br /><span style={{ color: '#60a5fa', fontWeight: 700 }}>CWC.</span></h1>
+      <p style={{ fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: 'var(--space-8)' }}>Create your account to submit and track requests across every module.</p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        {[
-          { icon: 'devices',  bg: 'rgba(74,141,184,0.4)',  name: 'IT Support',    desc: 'Hardware, software & access requests' },
-          { icon: 'groups',   bg: 'rgba(5,150,105,0.35)',  name: 'HR Services',   desc: 'Leave, onboarding & people requests' },
-          { icon: 'payments', bg: 'rgba(217,119,6,0.35)',  name: 'Group Finance', desc: 'Reimbursements & payment requests' },
-        ].map(({ icon, bg, name, desc }) => (
-          <div key={name} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(91,191,232,0.15)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-sm)', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '16px' }}>{icon}</span>
-            </div>
-            <div>
-              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff' }}>{name}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.5)' }}>{desc}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Module spotlight */}
+      <ModuleSpotlight />
     </div>
 
     <div style={{ position: 'relative', zIndex: 1 }}>

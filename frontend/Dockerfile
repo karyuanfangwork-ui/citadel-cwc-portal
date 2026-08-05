@@ -6,7 +6,7 @@ ENV VITE_API_URL=$VITE_API_URL
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
 # Stage 2: Serve
 FROM nginx:alpine

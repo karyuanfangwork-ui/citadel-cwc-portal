@@ -3,13 +3,16 @@ import { RequestPriority, RequestStatus } from '@prisma/client';
 
 export const createRequestSchema = z.object({
     body: z.object({
-        requestTypeId: z.string().uuid().optional(),
+        requestTypeId: z.string().uuid('Request type is required'),
         serviceDeskId: z.string().uuid('Service desk is required'),
-        summary: z.string().min(1, 'Summary is required').max(500),
+        formVersion: z.number().int().positive(),
+        summary: z.string().max(500).optional().default(''),
         description: z.string().optional(),
         priority: z.nativeEnum(RequestPriority).optional(),
         customFields: z.record(z.any()).optional(),
-    }),
+        // Accepted only as a compatibility assertion; the server policy ignores it.
+        isConfidential: z.boolean().optional(),
+    }).strict(),
 });
 
 export const updateRequestSchema = z.object({
@@ -17,6 +20,7 @@ export const updateRequestSchema = z.object({
         summary: z.string().min(1).max(500).optional(),
         description: z.string().optional(),
         priority: z.nativeEnum(RequestPriority).optional(),
+        customFields: z.record(z.any()).optional(),
     }),
 });
 

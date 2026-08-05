@@ -1,15 +1,19 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Schedule interview with candidate
  * POST /requests/:id/schedule-interview
  */
 export const scheduleInterview = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
             candidateId,
             interviewDate,
@@ -32,7 +36,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
         // Get the request
         const request = await prisma.request.findUnique({
             where: { id },
-            include: { candidateResumes: true }
+            include: { candidates: true }
         });
 
         if (!request) {
@@ -42,19 +46,30 @@ export const scheduleInterview = async (req: Request, res: Response) => {
             });
         }
 
-        if (request.status !== 'MANAGER_APPROVED') {
+        if (request.status !== 'MANAGER_APPROVED' && request.status !== 'INTERVIEW_SCHEDULED') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Request must be in MANAGER_APPROVED status to schedule interview'
+                message: 'Request must be in MANAGER_APPROVED or INTERVIEW_SCHEDULED status to schedule interview'
             });
         }
 
         // Verify candidate exists
-        const candidate = request.candidateResumes.find(r => r.id === candidateId);
+        const candidate = request.candidates.find(c => c.id === candidateId);
         if (!candidate) {
             return res.status(404).json({
                 status: 'error',
                 message: 'Candidate not found'
+            });
+        }
+
+        // Check for duplicate interview schedule (same request + same candidate)
+        const existingSchedule = await prisma.interviewSchedule.findFirst({
+            where: { requestId: id, candidateId }
+        });
+        if (existingSchedule) {
+            return res.status(409).json({
+                status: 'error',
+                message: `Interview already scheduled for ${candidate.fullName}. Use edit to update.`
             });
         }
 
@@ -72,7 +87,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
                 scheduledBy: userId
             },
             include: {
-                candidateResume: true,
+                candidate: true,
                 scheduledByUser: {
                     select: {
                         id: true,
@@ -93,11 +108,17 @@ export const scheduleInterview = async (req: Request, res: Response) => {
             }
         }
 
-        // Update request status
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: 'INTERVIEW_SCHEDULED' }
-        });
+        // Update request status — only transition to INTERVIEW_SCHEDULED if not already there
+        let updatedRequest: any = request;
+        if (request.status !== 'INTERVIEW_SCHEDULED') {
+            updatedRequest = await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'INTERVIEW_SCHEDULED',
+                source: 'interview.schedule',
+                comment: notes,
+            });
+        }
 
         // Create activity log
         await prisma.requestActivity.create({
@@ -107,18 +128,10 @@ export const scheduleInterview = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `Interview scheduled with ${candidate.candidateName || 'candidate'} on ${interviewDate} at ${interviewTime}`,
+                message: `Interview scheduled with ${candidate.fullName} on ${interviewDate} at ${interviewTime}`,
                 isSystemGenerated: true
             }
         });
-
-        // Transform BigInt to string for JSON serialization
-        if (interviewSchedule && interviewSchedule.candidateResume) {
-            (interviewSchedule as any).candidateResume = {
-                ...interviewSchedule.candidateResume,
-                fileSize: interviewSchedule.candidateResume.fileSize.toString()
-            };
-        }
 
         res.json({
             status: 'success',
@@ -142,8 +155,13 @@ export const scheduleInterview = async (req: Request, res: Response) => {
  */
 export const submitInterviewFeedback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
+            candidateId,
             decision,
             overallRating,
             technicalSkills,
@@ -200,6 +218,7 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
         const interviewFeedback = await prisma.interviewFeedback.create({
             data: {
                 requestId: id,
+                candidateId: candidateId || null,
                 decision,
                 overallRating: overallRating || null,
                 technicalSkills: technicalSkills || null,
@@ -221,18 +240,54 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             }
         });
 
-        // Update request status based on decision
-        const newStatus = decision === 'PROCEED' ? 'INTERVIEW_FEEDBACK_PENDING' : 'CANDIDATE_REJECTED_INTERVIEW';
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: newStatus }
+        // Check if all selected candidates have submitted feedback
+        // Determine the selected candidates from customFields
+        const selectedCandidateIds: string[] = (request.customFields as any)?.selectedCandidateIds || [];
+        const totalSelected = selectedCandidateIds.length || 1; // fallback to 1 for legacy single-candidate
+
+        const allFeedbacks = await prisma.interviewFeedback.findMany({
+            where: { requestId: id }
         });
+
+        // Filter feedback for the selected candidates specifically (or all feedback if no selection)
+        const relevantFeedbacks = selectedCandidateIds.length > 0
+            ? allFeedbacks.filter(f => f.candidateId && selectedCandidateIds.includes(f.candidateId))
+            : allFeedbacks;
+
+        // Get candidate info for activity log
+        let candidateLabel = 'candidate';
+        if (candidateId) {
+            const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+            if (candidate?.fullName) {
+                candidateLabel = candidate.fullName;
+            }
+        }
+
+        // Determine status transition
+        let newStatus: string | null = null;
+        const allFeedbackReceived = relevantFeedbacks.length >= totalSelected;
+
+        if (allFeedbackReceived) {
+            // All candidates have feedback — decide the overall status
+            const anyProceed = relevantFeedbacks.some(f => f.decision === 'PROCEED');
+            newStatus = anyProceed ? 'INTERVIEW_FEEDBACK_PENDING' : 'CANDIDATE_REJECTED_INTERVIEW';
+        }
+        // If not all feedback received yet, stay in INTERVIEW_SCHEDULED
+
+        const updatedRequest = newStatus
+            ? await transitionHttpRequest({
+                req,
+                request,
+                toStatus: newStatus,
+                source: 'interview.feedback',
+                comment: feedback,
+            })
+            : request;
 
         // Create activity log
         const activityMessage = decision === 'PROCEED'
-            ? `Hiring Manager approved candidate to proceed after interview`
-            : `Hiring Manager rejected candidate after interview`;
-
+            ? `Hiring Manager approved ${candidateLabel} to proceed after interview`
+            : `Hiring Manager rejected ${candidateLabel} after interview`;
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -249,7 +304,8 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             status: 'success',
             data: {
                 request: updatedRequest,
-                interviewFeedback
+                interviewFeedback,
+                allFeedbackReceived
             }
         });
     } catch (error) {
@@ -267,7 +323,11 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
  */
 export const updateInterviewSchedule = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
             interviewDate,
             interviewTime,
@@ -292,8 +352,16 @@ export const updateInterviewSchedule = async (req: Request, res: Response) => {
             return res.status(400).json({ status: 'error', message: 'Interview can only be updated in MANAGER_APPROVED or INTERVIEW_SCHEDULED status' });
         }
 
+        // Find the first schedule for this request (support multi-schedule)
+        const existingSchedule = await prisma.interviewSchedule.findFirst({
+            where: { requestId: id }
+        });
+        if (!existingSchedule) {
+            return res.status(404).json({ status: 'error', message: 'No interview schedule found for this request' });
+        }
+
         const updated = await prisma.interviewSchedule.update({
-            where: { requestId: id },
+            where: { id: existingSchedule.id },
             data: {
                 interviewDate: new Date(interviewDate),
                 interviewTime,
@@ -333,14 +401,18 @@ export const updateInterviewSchedule = async (req: Request, res: Response) => {
  */
 export const getInterviewDetails = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
 
-        // Get interview schedule and feedback
-        const [interviewSchedule, interviewFeedback] = await Promise.all([
-            prisma.interviewSchedule.findUnique({
+        // Get all interview schedules and all feedback for this request
+        const [interviewSchedules, interviewFeedbacks] = await Promise.all([
+            prisma.interviewSchedule.findMany({
                 where: { requestId: id },
                 include: {
-                    candidateResume: true,
+                    candidate: true,
                     scheduledByUser: {
                         select: {
                             id: true,
@@ -349,9 +421,10 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
                             email: true
                         }
                     }
-                }
+                },
+                orderBy: { createdAt: 'asc' }
             }),
-            prisma.interviewFeedback.findUnique({
+            prisma.interviewFeedback.findMany({
                 where: { requestId: id },
                 include: {
                     submittedByUser: {
@@ -362,23 +435,18 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
                             email: true
                         }
                     }
-                }
+                },
+                orderBy: { createdAt: 'asc' }
             })
         ]);
 
-        // Transform BigInt to string and parse interviewers
-        if (interviewSchedule) {
-            if (interviewSchedule.candidateResume) {
-                (interviewSchedule as any).candidateResume = {
-                    ...interviewSchedule.candidateResume,
-                    fileSize: interviewSchedule.candidateResume.fileSize.toString()
-                };
-            }
-            if (typeof interviewSchedule.interviewers === 'string') {
+        // Parse interviewers for each schedule
+        for (const schedule of interviewSchedules) {
+            if (typeof schedule.interviewers === 'string') {
                 try {
-                    (interviewSchedule as any).interviewers = JSON.parse(interviewSchedule.interviewers);
+                    (schedule as any).interviewers = JSON.parse(schedule.interviewers);
                 } catch (e) {
-                    (interviewSchedule as any).interviewers = [];
+                    (schedule as any).interviewers = [];
                 }
             }
         }
@@ -386,8 +454,10 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
         res.json({
             status: 'success',
             data: {
-                schedule: interviewSchedule,
-                feedback: interviewFeedback
+                schedule: interviewSchedules[0] || null,
+                schedules: interviewSchedules,
+                feedback: interviewFeedbacks[0] || null,
+                feedbacks: interviewFeedbacks
             }
         });
     } catch (error) {

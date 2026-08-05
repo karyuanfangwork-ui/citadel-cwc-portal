@@ -8,12 +8,22 @@
 //
 // Dry run (shows what would be deleted without actually deleting):
 //   DRY_RUN=true npx tsx prisma/seed-clear-tickets.ts
+//
+// ⛔ PRODUCTION GUARD: This script will REFUSE to run if NODE_ENV=production.
+//    To override (NOT recommended): ALLOW_PRODUCTION_DATA_CLEAR=true npx tsx prisma/seed-clear-tickets.ts
 // ═══════════════════════════════════════════════════════════════
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const DRY_RUN = process.env.DRY_RUN === 'true';
+
+// Production guard
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_DATA_CLEAR !== 'true') {
+    console.error('⛔ ABORTING: This script deletes data and must NOT run on production.');
+    console.error('   If you are absolutely sure, set ALLOW_PRODUCTION_DATA_CLEAR=true to override.');
+    process.exit(1);
+}
 
 async function main() {
     if (DRY_RUN) {

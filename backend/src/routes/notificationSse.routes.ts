@@ -7,11 +7,10 @@ const router = Router();
 /**
  * @route   GET /api/v1/notifications/stream
  * @desc    SSE stream for real-time notifications
- * @access  Private (auth via ?token= query param for EventSource compatibility)
+ * @access  Private (auth via HttpOnly cookie preferred, Authorization header, or deprecated ?token= query param)
  *
- * Note: This route uses sseAuth instead of the standard authenticate middleware
- * because EventSource cannot send HTTP-only cookies or custom headers.
- * The token is passed as ?token=<jwt> query parameter.
+ * P1-02: Cookie-based auth (withCredentials) is the primary method.
+ * Query-param ?token= is retained as a deprecated fallback.
  */
 router.get('/stream', sseAuth, notificationController.streamNotifications);
 

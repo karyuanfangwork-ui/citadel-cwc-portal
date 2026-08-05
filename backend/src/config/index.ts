@@ -2,6 +2,20 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const corsOrigins = Array.from(
+    new Set(
+        (process.env.CORS_ORIGIN || 'http://localhost:5173')
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean)
+    )
+);
+
+if (process.env.NODE_ENV !== 'production') {
+    corsOrigins.push('http://localhost:5173');
+    corsOrigins.push('http://127.0.0.1:5173');
+}
+
 export const config = {
     env: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT || '3000', 10),
@@ -34,7 +48,7 @@ export const config = {
 
     // CORS
     cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origins: corsOrigins,
     },
 
     // File Upload
@@ -62,6 +76,11 @@ export const config = {
         devRecipient: process.env.EMAIL_DEV_RECIPIENT || '',
     },
 
+    // OpenAI
+    openai: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+    },
+
     // Elasticsearch
     elasticsearch: {
         node: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
@@ -73,12 +92,25 @@ export const config = {
     rateLimit: {
         windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10), // 1 minute
         maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200', 10),
+        // P1-05: Enable Redis-backed rate limiting for cluster-safe counters.
+        // When false (default), falls back to in-memory store.
+        redisEnabled: process.env.RATE_LIMIT_REDIS_ENABLED === 'true',
     },
 
     // Logging
     logging: {
         level: process.env.LOG_LEVEL || 'debug',
         format: process.env.LOG_FORMAT || 'json',
+        // P1-09: Gate Prisma query/info logging. Only enable in development or
+        // when explicitly requested — never in production by default.
+        prismaLogQueries: process.env.PRISMA_LOG_QUERIES === 'true',
+    },
+
+    // P3-03: Prometheus metrics endpoint
+    // When enabled, /metrics is served at root level (no auth).
+    // Restrict via network policy in production (e.g. only Prometheus namespace).
+    metrics: {
+        enabled: process.env.METRICS_ENABLED !== 'false', // enabled by default
     },
 
     // S3/MinIO Storage
@@ -91,6 +123,21 @@ export const config = {
         forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     },
 
+    // ClamAV daemon used by the governed attachment scanner worker.
+    attachmentScanner: {
+        enabled: process.env.ATTACHMENT_SCANNER_ENABLED !== 'false',
+        host: process.env.CLAMAV_HOST || 'clamav',
+        port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
+        timeoutMs: parseInt(process.env.CLAMAV_TIMEOUT_MS || '30000', 10),
+        concurrency: parseInt(process.env.ATTACHMENT_SCANNER_CONCURRENCY || '2', 10),
+        reconciliationIntervalMs: parseInt(process.env.ATTACHMENT_RECONCILIATION_INTERVAL_MS || '60000', 10),
+    },
+
+    // P1-15: Static file serving — disabled in production by default.
+    // Set SERVE_LOCAL_UPLOADS=true to re-enable (legacy migration / dev only).
+    // In production, files should be served through S3 presigned URLs via /api/v1/files/download/:key.
+    serveLocalUploads: process.env.SERVE_LOCAL_UPLOADS === 'true',
+
     // Session
     session: {
         secret: process.env.SESSION_SECRET || '',
@@ -99,8 +146,8 @@ export const config = {
     // Hardware VP Approval
     hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
 
-    // Finance Group CEO Approval threshold (amounts above this require Group CEO approval)
-    groupCeoApprovalThreshold: parseInt(process.env.GROUP_CEO_APPROVAL_THRESHOLD || '15000', 10),
+    // Finance Group Deputy CEO Approval threshold (amounts above this require Group Deputy CEO approval)
+    groupDceoApprovalThreshold: parseInt(process.env.GROUP_DCEO_APPROVAL_THRESHOLD || '15000', 10),
 
     // SLA Checker Schedule
     // Supports two modes:
@@ -110,6 +157,15 @@ export const config = {
         mode: (process.env.SLA_SCHEDULE_MODE || 'cron') as 'interval' | 'cron',
         intervalMs: parseInt(process.env.SLA_CHECK_INTERVAL_MS || '60000', 10),
         cronExpression: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5',
+    },
+
+    // Scheduler distributed lock (P3-05)
+    // When SCHEDULER_SINGLETON_MODE=true, only one instance runs each cron job.
+    // Requires Redis. If Redis is unavailable in singleton mode, jobs are SKIPPED
+    // to prevent duplicates. When false (default), jobs run on all instances if
+    // Redis is down — matches pre-P3-05 behavior.
+    scheduler: {
+        singletonMode: process.env.SCHEDULER_SINGLETON_MODE === 'true',
     },
 
     // CRM Automation Schedule
@@ -133,6 +189,17 @@ export const config = {
     security: {
         checkPasswordBreach: process.env.CHECK_PASSWORD_BREACH === 'true',
         passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
+        accountLockoutMaxAttempts: parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || '5', 10),
+        accountLockoutWindowMs: parseInt(process.env.ACCOUNT_LOCKOUT_WINDOW_MS || `${15 * 60 * 1000}`, 10),
+        internalScanToken: process.env.INTERNAL_SCAN_TOKEN || '',
+        serviceApiKey: process.env.SERVICE_API_KEY || '',  // P0-5: for service-to-service auth
+    },
+
+    // Credit
+    credit: {
+        encryptionKey: process.env.CREDIT_ENCRYPTION_KEY || '',
+        // P1-3 — absolute staleness ceiling for committee submission (days)
+        scoreMaxAgeDays: parseInt(process.env.SCORE_MAX_AGE_DAYS || '30', 10),
     },
 };
 

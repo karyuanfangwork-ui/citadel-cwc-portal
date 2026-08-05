@@ -1,5 +1,4 @@
 import cron, { ScheduledTask } from 'node-cron';
-import { config } from '../config';
 import {
   checkActivityReminders,
   checkLeadAging,
@@ -7,148 +6,85 @@ import {
   checkStaleDeals,
   checkTrustReviewDates,
   checkKycExpiration,
+  checkRepInactivity,
 } from '../services/crm-automation.service';
 import { logger } from '../utils/logger';
 
-let activityReminderTask: ScheduledTask | null = null;
-let leadAgingTask: ScheduledTask | null = null;
-let overdueFollowUpTask: ScheduledTask | null = null;
-let staleDealsTask: ScheduledTask | null = null;
-let trustReviewTask: ScheduledTask | null = null;
-let kycExpirationTask: ScheduledTask | null = null;
-
-// Cron expressions — run each check at a different time to spread load
-const ACTIVITY_REMINDER_CRON = '0 */4 * * *';   // Every 4 hours
-const LEAD_AGING_CRON = '0 8 * * 1-5';           // Mon–Fri 8:00 AM
-const OVERDUE_FOLLOWUP_CRON = '30 8 * * 1-5';    // Mon–Fri 8:30 AM
-const STALE_DEALS_CRON = '0 9 * * 1-5';           // Mon–Fri 9:00 AM
-const TRUST_REVIEW_CRON = '0 10 * * 1-5';          // Mon–Fri 10:00 AM
-const KYC_EXPIRATION_CRON = '0 6 * * 1-5';        // Mon–Fri 6:00 AM
-
-async function runActivityReminders(): Promise<void> {
-  await checkActivityReminders().catch((err) =>
-    logger.error('[CRM] Activity reminder check failed', { error: err }),
-  );
+export interface JobConfig {
+  enabled: boolean;
+  mode: 'cron' | 'interval';
+  cronExpr?: string;
+  intervalMs?: number;
 }
 
-async function runLeadAging(): Promise<void> {
-  await checkLeadAging().catch((err) =>
-    logger.error('[CRM] Lead aging check failed', { error: err }),
-  );
+export type CrmJobKey =
+  | 'crm.activity_reminders'
+  | 'crm.lead_aging'
+  | 'crm.overdue_followups'
+  | 'crm.stale_deals'
+  | 'crm.trust_reviews'
+  | 'crm.kyc_expiration'
+  | 'crm.rep_inactivity';
+
+function safeRun(key: string, fn: () => Promise<void>): Promise<void> {
+  return fn().catch((e) => { logger.error(`[CRM] ${key} failed`, { error: e }); });
 }
 
-async function runOverdueFollowUps(): Promise<void> {
-  await checkOverdueFollowUps().catch((err) =>
-    logger.error('[CRM] Overdue follow-up check failed', { error: err }),
-  );
-}
+export const CRM_JOB_FNS: Record<CrmJobKey, () => Promise<void>> = {
+  'crm.activity_reminders': () => safeRun('Activity reminders', checkActivityReminders),
+  'crm.lead_aging':         () => safeRun('Lead aging', checkLeadAging),
+  'crm.overdue_followups':  () => safeRun('Overdue follow-ups', checkOverdueFollowUps),
+  'crm.stale_deals':        () => safeRun('Stale deals', checkStaleDeals),
+  'crm.trust_reviews':      () => safeRun('Trust reviews', checkTrustReviewDates),
+  'crm.kyc_expiration':     () => safeRun('KYC expiration', checkKycExpiration),
+  'crm.rep_inactivity':     () => safeRun('Rep inactivity', checkRepInactivity),
+};
 
-async function runStaleDeals(): Promise<void> {
-  await checkStaleDeals().catch((err) =>
-    logger.error('[CRM] Stale deals check failed', { error: err }),
-  );
-}
+const tasks = new Map<CrmJobKey, ScheduledTask | ReturnType<typeof setInterval>>();
 
-async function runTrustReviewDates(): Promise<void> {
-  await checkTrustReviewDates().catch((err) =>
-    logger.error('[CRM] Trust review dates check failed', { error: err }),
-  );
-}
-
-async function runKycExpiration(): Promise<void> {
-  await checkKycExpiration().catch((err) =>
-    logger.error('[CRM] KYC expiration check failed', { error: err }),
-  );
-}
-
-function scheduleTask(
-  label: string,
-  cronExpr: string,
-  task: () => Promise<void>,
-): ScheduledTask | null {
-  if (!cron.validate(cronExpr)) {
-    logger.error(`[CRM] Invalid cron expression for ${label}: "${cronExpr}" — skipping`);
-    return null;
-  }
-
-  // Run once immediately on startup
-  task();
-
-  const scheduled = cron.schedule(cronExpr, () => {
-    logger.info(`[CRM] Running ${label} (cron: ${cronExpr})`);
-    task();
-  });
-
-  logger.info(`[CRM] ${label} scheduled (cron: ${cronExpr})`);
-  return scheduled;
-}
-
-export function startCrmChecker(): void {
-  const { mode } = config.crmSchedule;
-
-  if (mode === 'disabled') {
-    logger.info('[CRM] CRM checker is disabled (mode=disabled)');
+export function startCrmJob(jobKey: CrmJobKey, cfg: JobConfig): void {
+  stopCrmJob(jobKey);
+  if (!cfg.enabled) {
+    logger.info(`[CRM] ${jobKey} disabled — skipping`);
     return;
   }
-
-  if (mode === 'cron') {
-    activityReminderTask = scheduleTask('Activity Reminders', ACTIVITY_REMINDER_CRON, runActivityReminders);
-    leadAgingTask = scheduleTask('Lead Aging', LEAD_AGING_CRON, runLeadAging);
-    overdueFollowUpTask = scheduleTask('Overdue Follow-Ups', OVERDUE_FOLLOWUP_CRON, runOverdueFollowUps);
-    staleDealsTask = scheduleTask('Stale Deals', STALE_DEALS_CRON, runStaleDeals);
-    trustReviewTask = scheduleTask('Trust Review Dates', TRUST_REVIEW_CRON, runTrustReviewDates);
-    kycExpirationTask = scheduleTask('KYC Expiration', KYC_EXPIRATION_CRON, runKycExpiration);
+  const fn = CRM_JOB_FNS[jobKey];
+  if (cfg.mode === 'cron') {
+    const expr = cfg.cronExpr || '0 9 * * 1-5';
+    if (!cron.validate(expr)) {
+      logger.error(`[CRM] Invalid cron for ${jobKey}: "${expr}" — skipping`);
+      return;
+    }
+    const task = cron.schedule(expr, () => {
+      logger.info(`[CRM] ${jobKey} running (cron: ${expr})`);
+      fn();
+    });
+    tasks.set(jobKey, task);
+    logger.info(`[CRM] ${jobKey} scheduled (cron: ${expr})`);
   } else {
-    // Legacy interval mode — run all checks on a shared interval
-    const { intervalMs } = config.crmSchedule;
-    logger.info(`[CRM] CRM checker started (interval: ${intervalMs / 1000}s)`);
-
-    // Run once on startup
-    Promise.allSettled([
-      runActivityReminders(),
-      runLeadAging(),
-      runOverdueFollowUps(),
-      runStaleDeals(),
-      runTrustReviewDates(),
-      runKycExpiration(),
-    ]);
-
-    setInterval(() => {
-      logger.info(`[CRM] Running all checks (interval: ${intervalMs / 1000}s)`);
-      runActivityReminders();
-      runLeadAging();
-      runOverdueFollowUps();
-      runStaleDeals();
-      runTrustReviewDates();
-      runKycExpiration();
-    }, intervalMs);
+    const ms = cfg.intervalMs || 3600000;
+    const id = setInterval(() => { fn(); }, ms);
+    tasks.set(jobKey, id);
+    logger.info(`[CRM] ${jobKey} started (interval: ${ms / 1000}s)`);
   }
+}
+
+export function stopCrmJob(jobKey: CrmJobKey): void {
+  const handle = tasks.get(jobKey);
+  if (!handle) return;
+  if (typeof handle === 'object' && 'stop' in handle) {
+    (handle as ScheduledTask).stop();
+  } else {
+    clearInterval(handle as ReturnType<typeof setInterval>);
+  }
+  tasks.delete(jobKey);
+}
+
+export function startCrmChecker(configs: Record<CrmJobKey, JobConfig>): void {
+  (Object.keys(configs) as CrmJobKey[]).forEach((key) => startCrmJob(key, configs[key]));
 }
 
 export function stopCrmChecker(): void {
-  if (activityReminderTask) {
-    activityReminderTask.stop();
-    activityReminderTask = null;
-  }
-  if (leadAgingTask) {
-    leadAgingTask.stop();
-    leadAgingTask = null;
-  }
-  if (overdueFollowUpTask) {
-    overdueFollowUpTask.stop();
-    overdueFollowUpTask = null;
-  }
-  if (staleDealsTask) {
-    staleDealsTask.stop();
-    staleDealsTask = null;
-  }
-  if (trustReviewTask) {
-    trustReviewTask.stop();
-    trustReviewTask = null;
-  }
-  if (kycExpirationTask) {
-    kycExpirationTask.stop();
-    kycExpirationTask = null;
-  }
-  logger.info('[CRM] CRM checker stopped');
+  (Object.keys(CRM_JOB_FNS) as CrmJobKey[]).forEach(stopCrmJob);
+  logger.info('[CRM] All CRM jobs stopped');
 }

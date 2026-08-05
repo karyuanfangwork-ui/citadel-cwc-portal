@@ -10,12 +10,20 @@ interface Toast {
   relatedRequestId: string | null;
 }
 
+export interface CrmUpdateEvent {
+  type: string;
+  entityType: 'lead' | 'opportunity' | 'activity' | 'note' | 'account' | 'contact' | 'duplicate';
+  id: string;
+  changedBy: string;
+}
+
 interface NotificationContextType {
   unreadCount: number;
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
   recentNotification: Notification | null;
   toast: Toast | null;
   dismissToast: () => void;
+  lastCrmEvent: CrmUpdateEvent | null;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -28,8 +36,10 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotification, setRecentNotification] = useState<Notification | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [lastCrmEvent, setLastCrmEvent] = useState<CrmUpdateEvent | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cursorRef = useRef<string | null>(null);
 
   // Load initial unread count
   useEffect(() => {
@@ -42,14 +52,29 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       .catch(() => {});
   }, [userId]);
 
-  const showToast = useCallback((subject: string, body: string, relatedRequestId?: string | null) => {
-    const id = Math.random().toString(36).slice(2);
+  const showToast = useCallback((subject: string, body: string, relatedRequestId?: string | null, notificationId?: string) => {
+    const id = notificationId || Math.random().toString(36).slice(2);
     setToast({ id, subject, body, relatedRequestId: relatedRequestId ?? null });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   }, []);
 
+  const applyNotification = useCallback((data: Notification) => {
+    cursorRef.current = data.id;
+    setUnreadCount((prev) => prev + 1);
+    setRecentNotification(data);
+    showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
+  }, [showToast]);
+
+  const replayInbox = useCallback(async () => {
+    const replay = await notificationService.replayAfter(cursorRef.current);
+    replay.notifications.forEach(applyNotification);
+    cursorRef.current = replay.cursor ?? cursorRef.current;
+  }, [applyNotification]);
+
   // Open/close SSE stream based on auth state
+  // P1-02: Use cookie-based auth (withCredentials) instead of ?token= query param
+  // to avoid logging JWTs in server access logs and browser history.
   useEffect(() => {
     if (!userId || !accessToken) {
       esRef.current?.close();
@@ -57,15 +82,21 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       return;
     }
 
-    const esUrl = `${SSE_URL}?token=${encodeURIComponent(accessToken)}`;
-    const es = new EventSource(esUrl);
+    const es = new EventSource(SSE_URL, { withCredentials: true });
     esRef.current = es;
 
+    replayInbox().catch(() => {});
+
     es.addEventListener('notification', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as Notification;
-      setUnreadCount((prev) => prev + 1);
-      setRecentNotification(data);
-      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId);
+      const wakeup = JSON.parse(e.data) as { cursor?: string; id?: string };
+      if (wakeup.cursor || wakeup.id) {
+        replayInbox().catch(() => {});
+      }
+    });
+
+    es.addEventListener('crm_update', (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as CrmUpdateEvent;
+      setLastCrmEvent(data);
     });
 
     es.onerror = () => {
@@ -76,7 +107,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       es.close();
       esRef.current = null;
     };
-  }, [userId, accessToken, showToast]);
+  }, [userId, accessToken, replayInbox]);
 
   const dismissToast = useCallback(() => {
     setToast(null);
@@ -84,7 +115,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   }, []);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, setUnreadCount, recentNotification, toast, dismissToast }}>
+    <NotificationContext.Provider value={{ unreadCount, setUnreadCount, recentNotification, toast, dismissToast, lastCrmEvent }}>
       {children}
     </NotificationContext.Provider>
   );

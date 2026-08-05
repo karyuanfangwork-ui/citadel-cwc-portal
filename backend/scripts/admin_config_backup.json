@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "exportedAt": "2026-05-07T08:47:07.155Z",
+    "exportedAt": "2026-05-15T06:02:19.618Z",
     "description": "CWC 2.0 Production Admin Configuration Backup"
   },
   "roles": [
@@ -8,25 +8,30 @@
       "name": "ADMIN",
       "description": "System administrator with full access",
       "permissions": [
-        "request:create",
-        "request:read",
-        "request:update",
-        "request:delete",
-        "request:approve",
-        "request:assign",
-        "request:confidential",
-        "user:manage",
         "admin:access",
         "admin:settings",
-        "report:read",
-        "kb:manage",
-        "notification:manage",
-        "workflow:manage",
-        "banner:manage",
+        "announcement:admin",
+        "announcement:read",
+        "announcement:write",
+        "asset:delete",
+        "asset:import",
         "asset:read",
         "asset:write",
-        "asset:import",
-        "asset:delete"
+        "banner:manage",
+        "crm:admin",
+        "crm:delete",
+        "crm:read",
+        "crm:write",
+        "notification:manage",
+        "report:read",
+        "request:assign",
+        "request:confidential",
+        "request:create",
+        "request:delete",
+        "request:read",
+        "request:update",
+        "user:manage",
+        "workflow:manage"
       ]
     },
     {
@@ -38,7 +43,9 @@
         "request:update",
         "request:delete",
         "request:approve",
-        "request:assign"
+        "request:assign",
+        "request:confidential",
+        "announcement:read"
       ]
     },
     {
@@ -46,7 +53,8 @@
       "description": "Chief Executive Officer with approval authority",
       "permissions": [
         "request:read",
-        "request:approve"
+        "request:approve",
+        "announcement:read"
       ]
     },
     {
@@ -54,20 +62,27 @@
       "description": "Chief Financial Officer with finance approval authority",
       "permissions": [
         "request:read",
-        "request:approve"
+        "request:approve",
+        "announcement:read"
       ]
     },
     {
       "name": "CMO",
       "description": "Chief Marketing Officer with marketing approval authority",
-      "permissions": []
+      "permissions": [
+        "request:read",
+        "request:approve",
+        "announcement:read"
+      ]
     },
     {
       "name": "CTO",
       "description": "Chief Technology Officer with IT approval authority",
       "permissions": [
+        "request:approve",
         "request:read",
-        "request:approve"
+        "admin:access",
+        "announcement:read"
       ]
     },
     {
@@ -75,15 +90,17 @@
       "description": "Can approve expense reimbursement requests as Finance Head",
       "permissions": [
         "request:read",
-        "request:approve"
+        "request:approve",
+        "announcement:read"
       ]
     },
     {
-      "name": "GROUP_CEO",
+      "name": "GROUP_DCEO",
       "description": "Group Chief Executive Officer with highest approval authority",
       "permissions": [
         "request:read",
-        "request:approve"
+        "request:approve",
+        "announcement:read"
       ]
     },
     {
@@ -109,7 +126,26 @@
       "description": "Normal staff member who can create requests and access knowledge base",
       "permissions": [
         "request:create",
-        "request:read"
+        "request:read",
+        "announcement:read"
+      ]
+    },
+    {
+      "name": "SALES_MANAGER",
+      "description": "CRM Sales Manager — full CRM access including pipeline management",
+      "permissions": [
+        "crm:read",
+        "crm:write",
+        "crm:delete",
+        "crm:admin"
+      ]
+    },
+    {
+      "name": "SALES_REP",
+      "description": "CRM Sales Representative — can manage own accounts, leads, and deals",
+      "permissions": [
+        "crm:read",
+        "crm:write"
       ]
     }
   ],
@@ -484,11 +520,12 @@
       "jobTitle": "Administrator",
       "executiveRole": null,
       "agentTeam": null,
-      "entityCode": null,
+      "entityCode": "CGT",
       "roles": [
         "ADMIN",
         "AGENT",
-        "HIRING_MANAGER"
+        "HIRING_MANAGER",
+        "SALES_REP"
       ],
       "isActive": true
     },
@@ -517,7 +554,7 @@
       "entityCode": "CG",
       "roles": [
         "NORMAL_STAFF",
-        "GROUP_CEO"
+        "GROUP_DCEO"
       ],
       "isActive": true
     },
@@ -554,7 +591,7 @@
       "email": "cfo@test.local",
       "firstName": "Saravanan",
       "lastName": "Ramaiah",
-      "department": "",
+      "department": "Finance",
       "jobTitle": "Chief Finance Officer",
       "executiveRole": "CFO",
       "agentTeam": null,
@@ -582,7 +619,7 @@
       "email": "cto@test.local",
       "firstName": "Raymond",
       "lastName": "Kueh",
-      "department": "",
+      "department": "IT",
       "jobTitle": "Chief Technology Officer",
       "executiveRole": "CTO",
       "agentTeam": null,
@@ -668,12 +705,12 @@
       "firstName": "Alain",
       "lastName": "Boey",
       "department": "Executive",
-      "jobTitle": "Chairman and Group Chief Executive Officer",
-      "executiveRole": "GROUP_CEO",
+      "jobTitle": "Chairman & Group Chief Executive Officer",
+      "executiveRole": "GROUP_DCEO",
       "agentTeam": null,
       "entityCode": "CG",
       "roles": [
-        "GROUP_CEO"
+        "GROUP_DCEO"
       ],
       "isActive": true
     },
@@ -682,7 +719,7 @@
       "firstName": "Sasha",
       "lastName": "Nair",
       "department": "HR",
-      "jobTitle": "Senior HR Executive",
+      "jobTitle": "HR Agent",
       "executiveRole": null,
       "agentTeam": "HR",
       "entityCode": "CG",
@@ -741,12 +778,12 @@
       "lastName": "Medina",
       "department": "Executive",
       "jobTitle": "Chairman & Group Chief Executive Officer",
-      "executiveRole": "GROUP_CEO",
+      "executiveRole": "GROUP_DCEO",
       "agentTeam": null,
       "entityCode": "CG",
       "roles": [
         "NORMAL_STAFF",
-        "GROUP_CEO"
+        "GROUP_DCEO"
       ],
       "isActive": true
     },
@@ -774,7 +811,8 @@
       "agentTeam": null,
       "entityCode": null,
       "roles": [
-        "NORMAL_STAFF"
+        "NORMAL_STAFF",
+        "HIRING_MANAGER"
       ],
       "isActive": true
     },
@@ -830,13 +868,15 @@
       "agentTeam": "IT",
       "entityCode": "CGT",
       "roles": [
-        "NORMAL_STAFF"
+        "NORMAL_STAFF",
+        "SALES_MANAGER",
+        "SALES_REP"
       ],
       "isActive": true
     },
     {
       "email": "khaliesah.badruddin@citadelgroup.com.my",
-      "firstName": "Kha’liesah",
+      "firstName": "Kha'liesah",
       "lastName": "Badruddin",
       "department": "Marketing",
       "jobTitle": "Marketing Executive cum Graphic Designer",
@@ -929,7 +969,6 @@
       "agentTeam": "HR",
       "entityCode": "CG",
       "roles": [
-        "AGENT",
         "NORMAL_STAFF",
         "HIRING_MANAGER"
       ],
@@ -994,6 +1033,34 @@
       "isActive": true
     },
     {
+      "email": "salesmanager@test.local",
+      "firstName": "Ahmad",
+      "lastName": "Razali",
+      "department": "Sales",
+      "jobTitle": "Sales Manager",
+      "executiveRole": null,
+      "agentTeam": null,
+      "entityCode": null,
+      "roles": [
+        "SALES_MANAGER"
+      ],
+      "isActive": true
+    },
+    {
+      "email": "salesrep@test.local",
+      "firstName": "Nurul",
+      "lastName": "Ain",
+      "department": "Sales",
+      "jobTitle": "Relationship Manager",
+      "executiveRole": null,
+      "agentTeam": null,
+      "entityCode": null,
+      "roles": [
+        "SALES_REP"
+      ],
+      "isActive": true
+    },
+    {
       "email": "saravanan.ramaiah@citadelgroup.com.my",
       "firstName": "Saravanan",
       "lastName": "Ramaiah",
@@ -1003,7 +1070,6 @@
       "agentTeam": "Finance",
       "entityCode": "CG",
       "roles": [
-        "AGENT",
         "NORMAL_STAFF",
         "CFO"
       ],
@@ -1019,7 +1085,6 @@
       "agentTeam": "HR",
       "entityCode": "CG",
       "roles": [
-        "AGENT",
         "NORMAL_STAFF",
         "HIRING_MANAGER"
       ],
@@ -1035,7 +1100,6 @@
       "agentTeam": "FINANCE",
       "entityCode": "CG",
       "roles": [
-        "AGENT",
         "NORMAL_STAFF"
       ],
       "isActive": true
@@ -1107,7 +1171,6 @@
       "agentTeam": "FINANCE",
       "entityCode": "CG",
       "roles": [
-        "AGENT",
         "NORMAL_STAFF"
       ],
       "isActive": true
@@ -1199,8 +1262,8 @@
           "slaPause": true
         },
         {
-          "status": "PENDING_GROUP_CEO_APPROVAL",
-          "label": "Group CEO",
+          "status": "PENDING_GROUP_DCEO_APPROVAL",
+          "label": "Group Deputy CEO",
           "icon": "radio_button_checked",
           "displayOrder": 4,
           "isInitial": false,
@@ -1312,10 +1375,37 @@
           "slaPause": true
         },
         {
+          "status": "CEO_APPROVED",
+          "label": "CEO Approved",
+          "icon": "check_circle",
+          "displayOrder": 4,
+          "isInitial": false,
+          "isFinal": false,
+          "slaPause": false
+        },
+        {
+          "status": "PENDING_GROUP_DCEO_APPROVAL",
+          "label": "Group Deputy CEO Approval",
+          "icon": "radio_button_checked",
+          "displayOrder": 5,
+          "isInitial": false,
+          "isFinal": false,
+          "slaPause": true
+        },
+        {
+          "status": "GROUP_DCEO_APPROVED",
+          "label": "Group Deputy CEO Approved",
+          "icon": "check_circle",
+          "displayOrder": 6,
+          "isInitial": false,
+          "isFinal": false,
+          "slaPause": false
+        },
+        {
           "status": "JOB_POSTED",
           "label": "Job Posted",
           "icon": "radio_button_checked",
-          "displayOrder": 4,
+          "displayOrder": 7,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
@@ -1324,16 +1414,25 @@
           "status": "PENDING_MANAGER_REVIEW",
           "label": "Manager Review",
           "icon": "radio_button_checked",
-          "displayOrder": 5,
+          "displayOrder": 8,
           "isInitial": false,
           "isFinal": false,
           "slaPause": true
         },
         {
+          "status": "MANAGER_APPROVED",
+          "label": "Manager Approved",
+          "icon": "check_circle",
+          "displayOrder": 9,
+          "isInitial": false,
+          "isFinal": false,
+          "slaPause": false
+        },
+        {
           "status": "INTERVIEW_SCHEDULED",
           "label": "Interview",
           "icon": "radio_button_checked",
-          "displayOrder": 6,
+          "displayOrder": 10,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
@@ -1342,25 +1441,25 @@
           "status": "INTERVIEW_FEEDBACK_PENDING",
           "label": "Feedback",
           "icon": "radio_button_checked",
-          "displayOrder": 7,
+          "displayOrder": 11,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
         },
         {
           "status": "HR_SCREENING",
-          "label": "Screening",
+          "label": "Reference Check",
           "icon": "radio_button_checked",
-          "displayOrder": 8,
+          "displayOrder": 12,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
         },
         {
           "status": "LOA_PENDING_APPROVAL",
-          "label": "LOA Pending",
+          "label": "LOA Issuance",
           "icon": "radio_button_checked",
-          "displayOrder": 9,
+          "displayOrder": 13,
           "isInitial": false,
           "isFinal": false,
           "slaPause": true
@@ -1369,7 +1468,7 @@
           "status": "LOA_APPROVED",
           "label": "LOA Approved",
           "icon": "radio_button_checked",
-          "displayOrder": 10,
+          "displayOrder": 14,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
@@ -1378,7 +1477,7 @@
           "status": "LOA_ISSUED",
           "label": "LOA Issued",
           "icon": "radio_button_checked",
-          "displayOrder": 11,
+          "displayOrder": 15,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
@@ -1387,7 +1486,7 @@
           "status": "LOA_ACCEPTED",
           "label": "LOA Accepted",
           "icon": "radio_button_checked",
-          "displayOrder": 12,
+          "displayOrder": 16,
           "isInitial": false,
           "isFinal": false,
           "slaPause": false
@@ -1396,7 +1495,7 @@
           "status": "COMPLETED",
           "label": "Completed",
           "icon": "check_circle",
-          "displayOrder": 13,
+          "displayOrder": 17,
           "isInitial": false,
           "isFinal": true,
           "slaPause": false
@@ -1805,7 +1904,7 @@
         },
         {
           "status": "ONBOARDING_DAY_1_ORIENTATION",
-          "label": "Day 1",
+          "label": "Orientation",
           "icon": "radio_button_checked",
           "displayOrder": 4,
           "isInitial": false,
@@ -1814,7 +1913,7 @@
         },
         {
           "status": "ONBOARDING_WEEK_1_INTEGRATION",
-          "label": "Week 1",
+          "label": "Integration",
           "icon": "radio_button_checked",
           "displayOrder": 5,
           "isInitial": false,
@@ -1843,13 +1942,6 @@
     },
     {
       "fromStatus": "ACTION_REQUIRED",
-      "toStatus": "IN_PROGRESS",
-      "transitionLabel": "ADVANCE",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
-      "fromStatus": "ACTION_REQUIRED",
       "toStatus": "IN_REVIEW",
       "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
@@ -1857,8 +1949,8 @@
     },
     {
       "fromStatus": "ACTION_REQUIRED",
-      "toStatus": "REJECTED",
-      "transitionLabel": "REJECT",
+      "toStatus": "IN_PROGRESS",
+      "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -1866,6 +1958,13 @@
       "fromStatus": "ACTION_REQUIRED",
       "toStatus": "RESOLVED",
       "transitionLabel": "CLOSE",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "ACTION_REQUIRED",
+      "toStatus": "REJECTED",
+      "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -1885,8 +1984,8 @@
     },
     {
       "fromStatus": "CEO_APPROVED",
-      "toStatus": "JOB_POSTED",
-      "transitionLabel": "ADVANCE",
+      "toStatus": "PENDING_GROUP_DCEO_APPROVAL",
+      "transitionLabel": "ROUTE_TO_GROUP_DCEO",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -1961,6 +2060,20 @@
       "isActive": true
     },
     {
+      "fromStatus": "GROUP_DCEO_APPROVED",
+      "toStatus": "JOB_POSTED",
+      "transitionLabel": "ADVANCE",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "GROUP_DCEO_REJECTED",
+      "toStatus": "SUBMITTED",
+      "transitionLabel": "RESUBMIT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
       "fromStatus": "HARDWARE_ORDERED",
       "toStatus": "HARDWARE_RECEIVED",
       "transitionLabel": "ADVANCE",
@@ -1983,15 +2096,15 @@
     },
     {
       "fromStatus": "INTERVIEW_FEEDBACK_PENDING",
-      "toStatus": "CANDIDATE_REJECTED_INTERVIEW",
-      "transitionLabel": "REJECT",
+      "toStatus": "HR_SCREENING",
+      "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
       "isActive": true
     },
     {
       "fromStatus": "INTERVIEW_FEEDBACK_PENDING",
-      "toStatus": "HR_SCREENING",
-      "transitionLabel": "ADVANCE",
+      "toStatus": "CANDIDATE_REJECTED_INTERVIEW",
+      "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2004,15 +2117,8 @@
     },
     {
       "fromStatus": "IN_PROGRESS",
-      "toStatus": "ACTION_REQUIRED",
+      "toStatus": "WAITING",
       "transitionLabel": "ADVANCE",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
-      "fromStatus": "IN_PROGRESS",
-      "toStatus": "REJECTED",
-      "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2025,6 +2131,27 @@
     },
     {
       "fromStatus": "IN_PROGRESS",
+      "toStatus": "REJECTED",
+      "transitionLabel": "REJECT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "IN_PROGRESS",
+      "toStatus": "ACTION_REQUIRED",
+      "transitionLabel": "ADVANCE",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "IN_REVIEW",
+      "toStatus": "RESOLVED",
+      "transitionLabel": "CLOSE",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "IN_REVIEW",
       "toStatus": "WAITING",
       "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
@@ -2048,20 +2175,6 @@
       "fromStatus": "IN_REVIEW",
       "toStatus": "REJECTED",
       "transitionLabel": "REJECT",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
-      "fromStatus": "IN_REVIEW",
-      "toStatus": "RESOLVED",
-      "transitionLabel": "CLOSE",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
-      "fromStatus": "IN_REVIEW",
-      "toStatus": "WAITING",
-      "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2095,15 +2208,15 @@
     },
     {
       "fromStatus": "LOA_PENDING_APPROVAL",
-      "toStatus": "LOA_APPROVED",
-      "transitionLabel": "APPROVE",
+      "toStatus": "LOA_REJECTED",
+      "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
     {
       "fromStatus": "LOA_PENDING_APPROVAL",
-      "toStatus": "LOA_REJECTED",
-      "transitionLabel": "REJECT",
+      "toStatus": "LOA_APPROVED",
+      "transitionLabel": "APPROVE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2186,21 +2299,14 @@
     },
     {
       "fromStatus": "PENDING_CEO_APPROVAL",
-      "toStatus": "CEO_APPROVED",
-      "transitionLabel": "APPROVE",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
-      "fromStatus": "PENDING_CEO_APPROVAL",
       "toStatus": "CEO_REJECTED",
       "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
     {
-      "fromStatus": "PENDING_CEO_APPROVAL_IT",
-      "toStatus": "CEO_APPROVED_IT",
+      "fromStatus": "PENDING_CEO_APPROVAL",
+      "toStatus": "CEO_APPROVED",
       "transitionLabel": "APPROVE",
       "autoAssignRole": null,
       "isActive": true
@@ -2209,6 +2315,13 @@
       "fromStatus": "PENDING_CEO_APPROVAL_IT",
       "toStatus": "CEO_REJECTED_IT",
       "transitionLabel": "REJECT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "PENDING_CEO_APPROVAL_IT",
+      "toStatus": "CEO_APPROVED_IT",
+      "transitionLabel": "APPROVE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2228,15 +2341,15 @@
     },
     {
       "fromStatus": "PENDING_CTO_APPROVAL_IT",
-      "toStatus": "CTO_APPROVED_IT",
-      "transitionLabel": "APPROVE",
+      "toStatus": "CTO_REJECTED_IT",
+      "transitionLabel": "REJECT",
       "autoAssignRole": null,
       "isActive": true
     },
     {
       "fromStatus": "PENDING_CTO_APPROVAL_IT",
-      "toStatus": "CTO_REJECTED_IT",
-      "transitionLabel": "REJECT",
+      "toStatus": "CTO_APPROVED_IT",
+      "transitionLabel": "APPROVE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2258,6 +2371,20 @@
       "fromStatus": "PENDING_FINANCE_HEAD_APPROVAL",
       "toStatus": "FINANCE_HEAD_REJECTED",
       "transitionLabel": "REJECT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+      "toStatus": "GROUP_DCEO_REJECTED",
+      "transitionLabel": "GROUP_DCEO_REJECT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+      "toStatus": "GROUP_DCEO_APPROVED",
+      "transitionLabel": "GROUP_DCEO_APPROVE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2305,6 +2432,13 @@
     },
     {
       "fromStatus": "SUBMITTED",
+      "toStatus": "REJECTED",
+      "transitionLabel": "REJECT",
+      "autoAssignRole": null,
+      "isActive": true
+    },
+    {
+      "fromStatus": "SUBMITTED",
       "toStatus": "ACKNOWLEDGED_IT",
       "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
@@ -2339,16 +2473,9 @@
       "isActive": true
     },
     {
-      "fromStatus": "SUBMITTED",
-      "toStatus": "REJECTED",
-      "transitionLabel": "REJECT",
-      "autoAssignRole": null,
-      "isActive": true
-    },
-    {
       "fromStatus": "WAITING",
-      "toStatus": "IN_PROGRESS",
-      "transitionLabel": "ADVANCE",
+      "toStatus": "RESOLVED",
+      "transitionLabel": "CLOSE",
       "autoAssignRole": null,
       "isActive": true
     },
@@ -2361,15 +2488,15 @@
     },
     {
       "fromStatus": "WAITING",
-      "toStatus": "RESOLVED",
-      "transitionLabel": "CLOSE",
+      "toStatus": "IN_PROGRESS",
+      "transitionLabel": "ADVANCE",
       "autoAssignRole": null,
       "isActive": true
     }
   ],
   "escalationRules": [
     {
-      "requestTypeId": "ce30679b-7759-4c16-8b7d-d6f0e483d8fc",
+      "requestTypeId": "441da4af-4178-4342-9980-e85a36509db4",
       "triggerHoursAfterBreach": 2,
       "notifyRoles": [
         "ADMIN"
@@ -2378,7 +2505,7 @@
       "isActive": true
     },
     {
-      "requestTypeId": "c27bfee1-d9af-485a-aac1-a8e5e5329676",
+      "requestTypeId": "5c94181d-e877-4446-8fe0-ea4d0bc4b103",
       "triggerHoursAfterBreach": 0,
       "notifyRoles": [
         "ADMIN"
@@ -2498,7 +2625,7 @@
     },
     {
       "code": "HR_SCREENING",
-      "label": "HR Screening",
+      "label": "Reference Check",
       "category": "HR",
       "displayOrder": 19
     },
@@ -2581,15 +2708,15 @@
       "displayOrder": 38
     },
     {
-      "code": "ONBOARDING_COMPLETED",
-      "label": "Onboarding Completed",
-      "category": "ONBOARDING",
-      "displayOrder": 39
-    },
-    {
       "code": "OFFBOARDING_FINAL_WEEK",
       "label": "Final Week",
       "category": "OFFBOARDING",
+      "displayOrder": 39
+    },
+    {
+      "code": "ONBOARDING_COMPLETED",
+      "label": "Onboarding Completed",
+      "category": "ONBOARDING",
       "displayOrder": 39
     },
     {
@@ -2713,22 +2840,16 @@
       "displayOrder": 63
     },
     {
-      "code": "FINANCE_PENDING_ACK",
-      "label": "Pending Finance Acknowledgement",
-      "category": "FINANCE",
-      "displayOrder": 70
-    },
-    {
       "code": "PENDING_MANAGER_APPROVAL_FIN",
       "label": "Pending Manager Approval (Finance)",
       "category": "FINANCE",
       "displayOrder": 70
     },
     {
-      "code": "MANAGER_APPROVED_FIN",
-      "label": "Manager Approved (Finance)",
+      "code": "FINANCE_PENDING_ACK",
+      "label": "Pending Finance Acknowledgement",
       "category": "FINANCE",
-      "displayOrder": 71
+      "displayOrder": 70
     },
     {
       "code": "FINANCE_ACKNOWLEDGED",
@@ -2737,14 +2858,20 @@
       "displayOrder": 71
     },
     {
-      "code": "MANAGER_REJECTED_FIN",
-      "label": "Manager Rejected (Finance)",
+      "code": "MANAGER_APPROVED_FIN",
+      "label": "Manager Approved (Finance)",
       "category": "FINANCE",
-      "displayOrder": 72
+      "displayOrder": 71
     },
     {
       "code": "FINANCE_IN_PROGRESS",
       "label": "Finance In Progress",
+      "category": "FINANCE",
+      "displayOrder": 72
+    },
+    {
+      "code": "MANAGER_REJECTED_FIN",
+      "label": "Manager Rejected (Finance)",
       "category": "FINANCE",
       "displayOrder": 72
     },
@@ -2773,27 +2900,27 @@
       "displayOrder": 74
     },
     {
-      "code": "CFO_REJECTED_FIN",
-      "label": "CFO Rejected (Finance)",
-      "category": "FINANCE",
-      "displayOrder": 75
-    },
-    {
       "code": "FINANCE_HEAD_REJECTED",
       "label": "Finance Head Rejected",
       "category": "FINANCE",
       "displayOrder": 75
     },
     {
-      "code": "PENDING_GROUP_CEO_APPROVAL",
-      "label": "Pending Group CEO Approval",
+      "code": "CFO_REJECTED_FIN",
+      "label": "CFO Rejected (Finance)",
       "category": "FINANCE",
-      "displayOrder": 76
+      "displayOrder": 75
     },
     {
       "code": "PAYMENT_PROCESSING",
       "label": "Payment Processing",
       "category": "FINANCE",
+      "displayOrder": 76
+    },
+    {
+      "code": "PENDING_GROUP_DCEO_APPROVAL",
+      "label": "Pending Group Deputy CEO Approval",
+      "category": "HR,FINANCE",
       "displayOrder": 76
     },
     {
@@ -2803,20 +2930,20 @@
       "displayOrder": 77
     },
     {
-      "code": "GROUP_CEO_APPROVED",
-      "label": "Group CEO Approved",
-      "category": "FINANCE",
+      "code": "GROUP_DCEO_APPROVED",
+      "label": "Group Deputy CEO Approved",
+      "category": "HR,FINANCE",
       "displayOrder": 77
+    },
+    {
+      "code": "GROUP_DCEO_REJECTED",
+      "label": "Group Deputy CEO Rejected",
+      "category": "HR,FINANCE",
+      "displayOrder": 78
     },
     {
       "code": "REIMBURSEMENT_CLOSED",
       "label": "Reimbursement Closed",
-      "category": "FINANCE",
-      "displayOrder": 78
-    },
-    {
-      "code": "GROUP_CEO_REJECTED",
-      "label": "Group CEO Rejected",
       "category": "FINANCE",
       "displayOrder": 78
     },
@@ -2859,8 +2986,8 @@
       "role": "agent",
       "status": "INTERVIEW_FEEDBACK_PENDING",
       "icon": "play_arrow",
-      "title": "Next Step: Start HR Screening",
-      "description": "Interview feedback received. Begin background and reference checks.",
+      "title": "Next Step: Start Reference Check",
+      "description": "Interview feedback received. Begin reference check.",
       "colorScheme": "blue",
       "isActive": true
     },
@@ -2949,8 +3076,8 @@
       "role": "all",
       "status": "HR_SCREENING",
       "icon": "hourglass_top",
-      "title": "HR Screening in progress",
-      "description": "HR Screening in progress",
+      "title": "Reference Check in progress",
+      "description": "Reference check in progress",
       "colorScheme": "blue",
       "isActive": true
     },
@@ -3138,8 +3265,8 @@
       "role": "hiring_manager",
       "status": "HR_SCREENING",
       "icon": "fact_check",
-      "title": "In Progress: HR Screening",
-      "description": "Background and reference checks are being conducted by HR.",
+      "title": "In Progress: Reference Check",
+      "description": "Reference checks are being conducted by HR.",
       "colorScheme": "blue",
       "isActive": true
     },
@@ -3239,7 +3366,7 @@
       "eventType": "ACTION_REQUIRED",
       "name": "action_required",
       "emailSubject": "Action Required — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#f6ad55;'>Action Required</h2><p>Hello {{userName}},</p><p>Action is needed on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>ACTION NEEDED</span></p><p>Please review and take the necessary steps.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Take Action</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#f6ad55;'>Action Required</h2><p>Hello {{userName}},</p><p>Action is needed on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>ACTION NEEDED</span></p><p>Please review and take the necessary steps.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Take Action</a></p>",
       "smsBody": "",
       "pushTitle": "Action Required",
       "pushBody": "Request {{requestId}} requires your action.",
@@ -3249,7 +3376,7 @@
       "eventType": "APPROVAL_REQUIRED",
       "name": "approval_required",
       "emailSubject": "{{approverRole}} Approval Needed — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Executive Approval Required</h2><p>Hello {{userName}},</p><p><strong>{{approverRole}}</strong> approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Approval Level</td><td style='padding:8px 12px;border:1px solid #eee;'>{{approvalLevel}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Executive Approval Required</h2><p>Hello {{userName}},</p><p><strong>{{approverRole}}</strong> approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Approval Level</td><td style='padding:8px 12px;border:1px solid #eee;'>{{approvalLevel}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
       "smsBody": "",
       "pushTitle": "Approval Required",
       "pushBody": "Request #{{requestId}} needs {{approverRole}} approval.",
@@ -3259,7 +3386,7 @@
       "eventType": "COMMENT_ADDED",
       "name": "comment_added",
       "emailSubject": "New Comment on Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Comment</h2><p>Hello {{userName}},</p><p><strong>{{commenterName}}</strong> added a comment on request <strong>#{{requestId}} — {{requestTitle}}</strong>:</p><div style='background:#f4f5f7;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #1a1a2e;'>{{commentText}}</div><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Comment</h2><p>Hello {{userName}},</p><p><strong>{{commenterName}}</strong> added a comment on request <strong>#{{requestId}} — {{requestTitle}}</strong>:</p><div style='background:#f4f5f7;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #1a1a2e;'>{{commentText}}</div><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "New Comment",
       "pushBody": "New comment on {{referenceNumber}}.",
@@ -3269,7 +3396,7 @@
       "eventType": "FINANCE_ACKNOWLEDGED",
       "name": "finance_acknowledged",
       "emailSubject": "Finance Acknowledged — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Acknowledged</h2><p>Hello {{userName}},</p><p>Your finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been acknowledged by the Finance team.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ACKNOWLEDGED</span></p><p>The request is being reviewed and will be routed to the appropriate approver.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Acknowledged</h2><p>Hello {{userName}},</p><p>Your finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been acknowledged by the Finance team.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ACKNOWLEDGED</span></p><p>The request is being reviewed and will be routed to the appropriate approver.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Finance Request Acknowledged",
       "pushBody": "Finance request #{{requestId}} acknowledged.",
@@ -3279,27 +3406,27 @@
       "eventType": "FINANCE_CFO_DECISION",
       "name": "finance_cfo_decision",
       "emailSubject": "CFO Decision — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>CFO Decision</h2><p>Hello {{userName}},</p><p>The CFO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>CFO Decision</h2><p>Hello {{userName}},</p><p>The CFO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
       "smsBody": "",
       "pushTitle": "CFO Decision",
       "pushBody": "CFO reviewed request #{{requestId}}.",
       "isActive": true
     },
     {
-      "eventType": "FINANCE_GROUP_CEO_DECISION",
-      "name": "finance_group_ceo_decision",
-      "emailSubject": "Group CEO Decision — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Group CEO Decision</h2><p>Hello {{userName}},</p><p>The Group CEO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p>This request was escalated to Group CEO level due to the amount exceeding the CFO approval threshold.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+      "eventType": "FINANCE_GROUP_DCEO_DECISION",
+      "name": "finance_group_dceo_decision",
+      "emailSubject": "Group Deputy CEO Decision — Request #{{requestId}}",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Group Deputy CEO Decision</h2><p>Hello {{userName}},</p><p>The Group Deputy CEO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p>This request was escalated to Group Deputy CEO level due to the amount exceeding the CFO approval threshold.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
       "smsBody": "",
-      "pushTitle": "Group CEO Decision",
-      "pushBody": "Group CEO reviewed request #{{requestId}}.",
+      "pushTitle": "Group Deputy CEO Decision",
+      "pushBody": "Group Deputy CEO reviewed request #{{requestId}}.",
       "isActive": true
     },
     {
       "eventType": "FINANCE_HEAD_APPROVAL_REQUESTED",
       "name": "finance_head_approval_requested",
       "emailSubject": "Finance Head Approval Required — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Approval Required</h2><p>Hello {{userName}},</p><p>Finance head approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Approval Required</h2><p>Hello {{userName}},</p><p>Finance head approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
       "smsBody": "",
       "pushTitle": "Finance Head Approval Required",
       "pushBody": "Request {{requestId}} needs finance head approval.",
@@ -3309,7 +3436,7 @@
       "eventType": "FINANCE_HEAD_DECISION",
       "name": "finance_head_decision",
       "emailSubject": "Finance Head Decision — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Decision</h2><p>Hello {{userName}},</p><p>The finance head has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Decision</h2><p>Hello {{userName}},</p><p>The finance head has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
       "smsBody": "",
       "pushTitle": "Finance Head Decision",
       "pushBody": "Finance head reviewed {{requestId}}: {{decision}}.",
@@ -3319,7 +3446,7 @@
       "eventType": "FINANCE_MANAGER_APPROVAL_REQUESTED",
       "name": "finance_manager_approval_requested",
       "emailSubject": "Finance Approval Required — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is required for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is required for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
       "smsBody": "",
       "pushTitle": "Finance Approval Required",
       "pushBody": "Request {{requestId}} needs finance manager approval.",
@@ -3329,7 +3456,7 @@
       "eventType": "FINANCE_MANAGER_DECISION",
       "name": "finance_manager_decision",
       "emailSubject": "Finance Manager Decision — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Manager Decision</h2><p>Hello {{userName}},</p><p>The finance manager has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Manager Decision</h2><p>Hello {{userName}},</p><p>The finance manager has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
       "smsBody": "",
       "pushTitle": "Finance Manager Decision",
       "pushBody": "Finance manager reviewed {{requestId}}: {{decision}}.",
@@ -3339,7 +3466,7 @@
       "eventType": "FINANCE_PAYMENT_COMPLETE",
       "name": "finance_payment_complete",
       "emailSubject": "Payment Complete — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Payment Complete</h2><p>Hello {{userName}},</p><p>Payment has been completed for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Payment Ref</td><td style='padding:8px 12px;border:1px solid #eee;'>{{paymentRef}}</td></tr></table><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>PAID</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Payment Complete</h2><p>Hello {{userName}},</p><p>Payment has been completed for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Payment Ref</td><td style='padding:8px 12px;border:1px solid #eee;'>{{paymentRef}}</td></tr></table><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>PAID</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Payment Complete",
       "pushBody": "Payment for request #{{requestId}} completed.",
@@ -3349,7 +3476,7 @@
       "eventType": "FINANCE_PAYMENT_UPDATE",
       "name": "finance_payment_update",
       "emailSubject": "Payment Update — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Payment Update</h2><p>Hello {{userName}},</p><p>There is a payment status update for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Payment Update</h2><p>Hello {{userName}},</p><p>There is a payment status update for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Payment Update",
       "pushBody": "Payment update for {{requestId}}: {{paymentStatus}}.",
@@ -3359,7 +3486,7 @@
       "eventType": "FINANCE_ROUTED_CFO",
       "name": "finance_routed_cfo",
       "emailSubject": "CFO Review — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Routed to CFO</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been routed to the Chief Financial Officer for approval.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Routed to CFO</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been routed to the Chief Financial Officer for approval.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Routed to CFO",
       "pushBody": "Request #{{requestId}} routed to CFO.",
@@ -3369,7 +3496,7 @@
       "eventType": "FINANCE_TICKET_CLOSED",
       "name": "finance_ticket_closed",
       "emailSubject": "Closed — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Closed</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been formally closed.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>CLOSED</span></p><p>All approvals and payments for this request have been completed.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Closed</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been formally closed.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>CLOSED</span></p><p>All approvals and payments for this request have been completed.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Closed",
       "pushBody": "Finance request #{{requestId}} closed.",
@@ -3379,7 +3506,7 @@
       "eventType": "HARDWARE_DELIVERED",
       "name": "hardware_delivered",
       "emailSubject": "Delivered — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Delivered</h2><p>Hello {{userName}},</p><p>Your request <strong>#{{requestId}} — {{requestTitle}}</strong> has been fulfilled and delivered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>DELIVERED</span></p><p>If you have any issues, please create a new support ticket.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Delivered</h2><p>Hello {{userName}},</p><p>Your request <strong>#{{requestId}} — {{requestTitle}}</strong> has been fulfilled and delivered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>DELIVERED</span></p><p>If you have any issues, please create a new support ticket.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Hardware Ready",
       "pushBody": "Hardware for {{requestId}} is ready for pickup.",
@@ -3389,7 +3516,7 @@
       "eventType": "HARDWARE_ORDERED",
       "name": "hardware_ordered",
       "emailSubject": "Hardware Ordered — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Ordered</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been ordered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ORDERED</span></p><p>You will be notified when the item is received.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Ordered</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been ordered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ORDERED</span></p><p>You will be notified when the item is received.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Hardware Ordered",
       "pushBody": "Hardware for {{requestId}} has been ordered.",
@@ -3399,7 +3526,7 @@
       "eventType": "HARDWARE_RECEIVED",
       "name": "hardware_received",
       "emailSubject": "Hardware Received — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Received</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been received and is being prepared for provisioning.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RECEIVED</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Received</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been received and is being prepared for provisioning.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RECEIVED</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Hardware Arrived",
       "pushBody": "Hardware for {{requestId}} has arrived.",
@@ -3409,7 +3536,7 @@
       "eventType": "MANAGER_APPROVAL_REQUIRED",
       "name": "manager_approval_required",
       "emailSubject": "Approval Needed — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is requested for the following IT support request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is requested for the following IT support request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
       "smsBody": "",
       "pushTitle": "Approval Required",
       "pushBody": "Request {{requestId}} needs your approval.",
@@ -3419,7 +3546,7 @@
       "eventType": "MANAGER_APPROVED",
       "name": "manager_approved",
       "emailSubject": "Request #{{requestId}} — Manager Approved",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Manager Approved</h2><p>Hello {{userName}},</p><p>The manager has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>APPROVED</span></p><p>The request will proceed to the next stage in the workflow.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Manager Approved</h2><p>Hello {{userName}},</p><p>The manager has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>APPROVED</span></p><p>The request will proceed to the next stage in the workflow.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Approved",
       "pushBody": "Your request {{requestId}} was approved.",
@@ -3429,10 +3556,20 @@
       "eventType": "MANAGER_REJECTED",
       "name": "manager_rejected",
       "emailSubject": "Request #{{requestId}} — Manager Rejected",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>Manager Rejected</h2><p>Hello {{userName}},</p><p>The manager has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>Manager Rejected</h2><p>Hello {{userName}},</p><p>The manager has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Declined",
       "pushBody": "Your request {{requestId}} was declined.",
+      "isActive": true
+    },
+    {
+      "eventType": "PARTICIPANT_ADDED",
+      "name": "Added as Request Participant",
+      "emailSubject": "You have been added to request {{referenceNumber}}",
+      "emailBody": "<p>Hi {{userName}},</p><p>You have been added as a participant to request <strong>{{referenceNumber}}</strong>: {{summary}}. You can now view this request and will receive status updates.</p>",
+      "smsBody": "",
+      "pushTitle": "Added to Request",
+      "pushBody": "You have been added as a participant to request {{referenceNumber}}.",
       "isActive": true
     },
     {
@@ -3449,7 +3586,7 @@
       "eventType": "PROCUREMENT_INITIATED",
       "name": "procurement_initiated",
       "emailSubject": "Procurement Started — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Procurement Initiated</h2><p>Hello {{userName}},</p><p>Procurement has been initiated for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>PROCUREMENT IN PROGRESS</span></p><p>The IT team is now sourcing the required hardware/software.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Procurement Initiated</h2><p>Hello {{userName}},</p><p>Procurement has been initiated for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>PROCUREMENT IN PROGRESS</span></p><p>The IT team is now sourcing the required hardware/software.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Procurement Started",
       "pushBody": "Procurement for {{requestId}} has begun.",
@@ -3459,7 +3596,7 @@
       "eventType": "REQUEST_ASSIGNED",
       "name": "request_assigned",
       "emailSubject": "Request #{{requestId}} Assigned to You",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Request Assigned</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been assigned to <strong>{{assigneeName}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Assignee</td><td style='padding:8px 12px;border:1px solid #eee;'>{{assigneeName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Request Assigned</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been assigned to <strong>{{assigneeName}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Assignee</td><td style='padding:8px 12px;border:1px solid #eee;'>{{assigneeName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "New Assignment",
       "pushBody": "Request {{referenceNumber}} assigned to you.",
@@ -3469,7 +3606,7 @@
       "eventType": "REQUEST_CREATED",
       "name": "request_created",
       "emailSubject": "New Request #{{requestId}} — {{requestTitle}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Request Submitted</h2><p>Hello {{userName}},</p><p>A new request has been submitted by <strong>{{requesterName}}</strong>:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Category</td><td style='padding:8px 12px;border:1px solid #eee;'>{{categoryName}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Priority</td><td style='padding:8px 12px;border:1px solid #eee;'>{{priority}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Request Submitted</h2><p>Hello {{userName}},</p><p>A new request has been submitted by <strong>{{requesterName}}</strong>:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Category</td><td style='padding:8px 12px;border:1px solid #eee;'>{{categoryName}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Priority</td><td style='padding:8px 12px;border:1px solid #eee;'>{{priority}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Created",
       "pushBody": "Your request {{referenceNumber}} has been submitted.",
@@ -3479,7 +3616,7 @@
       "eventType": "REQUEST_REJECTED",
       "name": "request_rejected",
       "emailSubject": "Request #{{requestId}} — Rejected by {{approverRole}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>Request Rejected</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been rejected by <strong>{{approverRole}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>Request Rejected</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been rejected by <strong>{{approverRole}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Declined",
       "pushBody": "Request {{requestId}} was declined.",
@@ -3489,7 +3626,7 @@
       "eventType": "REQUEST_RESOLVED",
       "name": "request_resolved",
       "emailSubject": "Resolved — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Resolved</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been resolved.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RESOLVED</span></p><p>If the issue persists, you can reopen this request within 7 days.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Resolved</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been resolved.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RESOLVED</span></p><p>If the issue persists, you can reopen this request within 7 days.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Request Resolved",
       "pushBody": "Request {{referenceNumber}} has been resolved.",
@@ -3499,7 +3636,7 @@
       "eventType": "SLA_BREACHED",
       "name": "sla_breached",
       "emailSubject": "⚠️ SLA Breach — Request #{{requestId}} [{{status}}]",
-      "emailBody": "<h2 style=\"margin:0 0 16px;color:#e53e3e;\">SLA Breach Alert</h2><p>Hello {{userName}},</p><p>An SLA deadline has been breached on the following request:</p><table style=\"width:100%;border-collapse:collapse;margin:16px 0;\"><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;\">Reference</td><td style=\"padding:8px 12px;border:1px solid #eee;\">#{{requestId}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Title</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTitle}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Status</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{status}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Priority</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{priority}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Assigned To</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{assigneeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Requested By</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requesterName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Category</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{categoryName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Type</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTypeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">SLA Deadline</td><td style=\"padding:8px 12px;border:1px solid #eee;color:#e53e3e;font-weight:600;\">{{slaDeadline}}</td></tr></table><p style=\"margin:24px 0 0;\"><a href=\"{{appUrl}}/#/requests/{{requestUuid}}\" style=\"display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Take Action</a></p>",
+      "emailBody": "<h2 style=\"margin:0 0 16px;color:#e53e3e;\">SLA Breach Alert</h2><p>Hello {{userName}},</p><p>An SLA deadline has been breached on the following request:</p><table style=\"width:100%;border-collapse:collapse;margin:16px 0;\"><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;\">Reference</td><td style=\"padding:8px 12px;border:1px solid #eee;\">#{{requestId}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Title</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTitle}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Status</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{status}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Priority</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{priority}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Assigned To</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{assigneeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Requested By</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requesterName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Category</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{categoryName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Type</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTypeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">SLA Deadline</td><td style=\"padding:8px 12px;border:1px solid #eee;color:#e53e3e;font-weight:600;\">{{slaDeadline}}</td></tr></table><p style=\"margin:24px 0 0;\"><a href=\"{{appUrl}}/request/{{requestUuid}}\" style=\"display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Take Action</a></p>",
       "smsBody": "",
       "pushTitle": "SLA Breach",
       "pushBody": "Request {{referenceNumber}} has breached its SLA.",
@@ -3509,7 +3646,7 @@
       "eventType": "SLA_ESCALATED",
       "name": "sla_escalated",
       "emailSubject": "🚨 SLA Escalation — Request #{{requestId}} [{{status}}] assigned to {{assigneeName}}",
-      "emailBody": "<h2 style=\"margin:0 0 16px;color:#c05621;\">SLA Escalation Alert</h2><p>Hello {{userName}},</p><p>The following request has exceeded its SLA deadline and is being escalated to your attention:</p><table style=\"width:100%;border-collapse:collapse;margin:16px 0;\"><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;\">Reference</td><td style=\"padding:8px 12px;border:1px solid #eee;\">#{{requestId}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Title</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTitle}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Status</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{status}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Priority</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{priority}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Assigned To</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{assigneeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Requested By</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requesterName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Category</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{categoryName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Type</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTypeName}}</td></tr><tr style=\"background:#fff8f1;\"><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;color:#c05621;\">⚡ Escalation</td><td style=\"padding:8px 12px;border:1px solid #eee;\"><strong>{{escalationHours}}h</strong> after SLA breach{{escalationLabel}} — notifying <strong>{{notifyRoles}}</strong></td></tr></table><p style=\"margin:24px 0 0;\"><a href=\"{{appUrl}}/#/requests/{{requestUuid}}\" style=\"display:inline-block;padding:12px 24px;background:#c05621;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Review Request</a></p>",
+      "emailBody": "<h2 style=\"margin:0 0 16px;color:#c05621;\">SLA Escalation Alert</h2><p>Hello {{userName}},</p><p>The following request has exceeded its SLA deadline and is being escalated to your attention:</p><table style=\"width:100%;border-collapse:collapse;margin:16px 0;\"><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;\">Reference</td><td style=\"padding:8px 12px;border:1px solid #eee;\">#{{requestId}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Title</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTitle}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Status</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{status}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Priority</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{priority}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Assigned To</td><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;\">{{assigneeName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Requested By</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requesterName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Category</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{categoryName}}</td></tr><tr><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;\">Type</td><td style=\"padding:8px 12px;border:1px solid #eee;\">{{requestTypeName}}</td></tr><tr style=\"background:#fff8f1;\"><td style=\"padding:8px 12px;border:1px solid #eee;font-weight:600;color:#c05621;\">⚡ Escalation</td><td style=\"padding:8px 12px;border:1px solid #eee;\"><strong>{{escalationHours}}h</strong> after SLA breach{{escalationLabel}} — notifying <strong>{{notifyRoles}}</strong></td></tr></table><p style=\"margin:24px 0 0;\"><a href=\"{{appUrl}}/request/{{requestUuid}}\" style=\"display:inline-block;padding:12px 24px;background:#c05621;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Review Request</a></p>",
       "smsBody": "",
       "pushTitle": "SLA Escalation",
       "pushBody": "Request #{{referenceNumber}} has been escalated due to SLA breach.",
@@ -3519,7 +3656,7 @@
       "eventType": "STATUS_CHANGED",
       "name": "request_status_changed",
       "emailSubject": "Request #{{requestId}} — Status Updated to {{newStatus}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Status Update</h2><p>Hello {{userName}},</p><p>The status of request <strong>#{{requestId}} — {{requestTitle}}</strong> has been updated:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Previous</td><td style='padding:8px 12px;border:1px solid #eee;'>{{oldStatus}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Current</td><td style='padding:8px 12px;border:1px solid #eee;'><span style='display:inline-block;padding:4px 12px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>{{newStatus}}</span></td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Changed By</td><td style='padding:8px 12px;border:1px solid #eee;'>{{changedBy}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Status Update</h2><p>Hello {{userName}},</p><p>The status of request <strong>#{{requestId}} — {{requestTitle}}</strong> has been updated:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Previous</td><td style='padding:8px 12px;border:1px solid #eee;'>{{oldStatus}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Current</td><td style='padding:8px 12px;border:1px solid #eee;'><span style='display:inline-block;padding:4px 12px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>{{newStatus}}</span></td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Changed By</td><td style='padding:8px 12px;border:1px solid #eee;'>{{changedBy}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "Status Updated",
       "pushBody": "Request {{referenceNumber}} is now {{newStatus}}.",
@@ -3529,7 +3666,7 @@
       "eventType": "VP_APPROVAL_REQUIRED",
       "name": "vp_approval_required",
       "emailSubject": "VP Approval Needed — Request #{{requestId}}",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>VP Approval Required</h2><p>Hello {{userName}},</p><p>VICE PRESIDENT approval is required for this high-value IT request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p>This request requires VP-level authorization due to the estimated value.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>VP Approval Required</h2><p>Hello {{userName}},</p><p>VICE PRESIDENT approval is required for this high-value IT request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p>This request requires VP-level authorization due to the estimated value.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
       "smsBody": "",
       "pushTitle": "VP Approval Required",
       "pushBody": "Request {{requestId}} requires VP approval.",
@@ -3539,7 +3676,7 @@
       "eventType": "VP_APPROVED",
       "name": "vp_approved",
       "emailSubject": "Request #{{requestId}} — VP Approved",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>VP Approved</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>VP APPROVED</span></p><p>The request will now proceed to procurement or fulfillment.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#2e7d32;'>VP Approved</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>VP APPROVED</span></p><p>The request will now proceed to procurement or fulfillment.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "VP Approved",
       "pushBody": "Request {{requestId}} VP approved.",
@@ -3549,11 +3686,81 @@
       "eventType": "VP_REJECTED",
       "name": "vp_rejected",
       "emailSubject": "Request #{{requestId}} — VP Rejected",
-      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>VP Rejected</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>VP REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+      "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>VP Rejected</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>VP REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
       "smsBody": "",
       "pushTitle": "VP Declined",
       "pushBody": "Request {{requestId}} was declined by VP.",
       "isActive": true
+    },
+    {
+      "eventType": "crm_activity_reminder",
+      "name": "CRM Activity Reminder",
+      "emailSubject": "Reminder: \"{{activitySubject}}\" is scheduled for {{scheduledTime}}",
+      "emailBody": "<p>Hi {{userName}},</p>\n<p>This is a reminder that your CRM activity <strong>{{activitySubject}}</strong> is coming up on <strong>{{scheduledTime}}</strong>.</p>\n<p><a href=\"{{appUrl}}/crm\">Open CRM</a></p>",
+      "smsBody": "",
+      "pushTitle": "Activity reminder: {{activitySubject}}",
+      "pushBody": "Scheduled for {{scheduledTime}}.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_lead_aging",
+      "name": "CRM Lead Aging — Owner",
+      "emailSubject": "Action Required: Lead \"{{leadTitle}}\" has been inactive for {{daysStale}} days",
+      "emailBody": "<p>Hi {{userName}},</p>\n<p>Your lead <strong>{{leadTitle}}</strong> has had no activity for <strong>{{daysStale}} days</strong>.</p>\n<p>Please log an activity or update the status to keep your pipeline healthy.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+      "smsBody": "",
+      "pushTitle": "Lead inactive: {{leadTitle}}",
+      "pushBody": "No activity for {{daysStale}} days. Tap to review.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_lead_aging_manager",
+      "name": "CRM Lead Aging — Manager",
+      "emailSubject": "Pipeline Alert: {{ownerName}}'s lead \"{{leadTitle}}\" is stale ({{daysStale}} days)",
+      "emailBody": "<p>Hi {{userName}},</p>\n<p><strong>{{ownerName}}</strong>'s lead <strong>{{leadTitle}}</strong> has had no activity for <strong>{{daysStale}} days</strong>.</p>\n<p>You may want to follow up with your team member.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+      "smsBody": "",
+      "pushTitle": "Stale lead: {{leadTitle}}",
+      "pushBody": "{{ownerName}} has not updated this lead in {{daysStale}} days.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_lead_auto_assigned",
+      "name": "CRM Lead Auto-Assigned",
+      "emailSubject": "New Lead Assigned to You",
+      "emailBody": "<p>Hi {{userName}},</p><p>A new lead has been automatically assigned to you via round-robin assignment.</p><p>Please review and begin outreach as soon as possible.</p><p><a href=\"{{appUrl}}/crm/leads\">View Your Leads</a></p>",
+      "smsBody": "",
+      "pushTitle": "New lead assigned to you",
+      "pushBody": "A new lead has been auto-assigned. Tap to view.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_overdue_followup",
+      "name": "CRM Overdue Follow-Up",
+      "emailSubject": "Overdue Follow-Up: \"{{leadTitle}}\" was due on {{followUpDate}}",
+      "emailBody": "<p>Hi {{userName}},</p>\n<p>Your follow-up for lead <strong>{{leadTitle}}</strong> was scheduled for <strong>{{followUpDate}}</strong> and is now overdue.</p>\n<p>Please contact the lead or reschedule the follow-up date.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+      "smsBody": "",
+      "pushTitle": "Overdue follow-up: {{leadTitle}}",
+      "pushBody": "Follow-up was due {{followUpDate}}. Take action now.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_stale_deal",
+      "name": "CRM Stale Deal",
+      "emailSubject": "Deal Alert: \"{{dealName}}\" expected close date {{expectedCloseDate}} has passed",
+      "emailBody": "<p>Hi {{userName}},</p><p>Your deal <strong>{{dealName}}</strong> had an expected close date of <strong>{{expectedCloseDate}}</strong> which has now passed.</p><p>Please update the deal status or revise the expected close date.</p><p><a href=\"{{appUrl}}/crm/opportunities\">View Deals</a></p>",
+      "smsBody": "",
+      "pushTitle": "Stale deal: {{dealName}}",
+      "pushBody": "Expected close {{expectedCloseDate}} has passed. Update required.",
+      "isActive": false
+    },
+    {
+      "eventType": "crm_trust_review_due",
+      "name": "CRM Trust Product Review Due",
+      "emailSubject": "Trust Review Due in {{daysUntilReview}} Days: {{trustType}} — {{accountName}}",
+      "emailBody": "<p>Hi {{userName}},</p><p>The trust product <strong>{{trustType}}</strong> for account <strong>{{accountName}}</strong> is due for review in <strong>{{daysUntilReview}} days</strong> ({{nextReviewDate}}).</p><p>Please schedule a client review meeting and prepare the necessary documentation.</p><p><a href=\"{{appUrl}}/crm/accounts\">View Accounts</a></p>",
+      "smsBody": "",
+      "pushTitle": "Trust review in {{daysUntilReview}} days",
+      "pushBody": "{{trustType}} for {{accountName}} — review due {{nextReviewDate}}.",
+      "isActive": false
     }
   ],
   "onboardingTemplates": [
@@ -3618,33 +3825,6 @@
       "priority": "HIGH",
       "dueDayOffset": 0,
       "displayOrder": 8,
-      "isActive": true
-    },
-    {
-      "taskName": "Complete Security Training",
-      "taskDescription": "Mandatory cybersecurity awareness training",
-      "taskCategory": "TRAINING",
-      "priority": "HIGH",
-      "dueDayOffset": 7,
-      "displayOrder": 9,
-      "isActive": true
-    },
-    {
-      "taskName": "Complete Compliance Training",
-      "taskDescription": "Regulatory compliance and ethics training",
-      "taskCategory": "TRAINING",
-      "priority": "HIGH",
-      "dueDayOffset": 7,
-      "displayOrder": 10,
-      "isActive": true
-    },
-    {
-      "taskName": "Department Orientation",
-      "taskDescription": "Introduction to team and department processes",
-      "taskCategory": "TRAINING",
-      "priority": "MEDIUM",
-      "dueDayOffset": 7,
-      "displayOrder": 11,
       "isActive": true
     },
     {

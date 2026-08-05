@@ -2,7 +2,6 @@ import { Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { permissionService } from '../services/permission.service';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -12,15 +11,104 @@ import { tokenService } from '../services/token.service';
 import { passwordResetService } from '../services/password-reset.service';
 import { notify } from '../services/notification.service';
 import { validatePassword, checkPasswordBreach } from '../utils/password';
+import { createRedisClient, ensureConnected } from '../utils/redis';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
+const lockoutRedis = createRedisClient({ maxRetriesPerRequest: 1 });
+
+type LockoutEntry = {
+    attempts: number;
+    lockUntil: number | null;
+};
+
+const loginLockouts = new Map<string, LockoutEntry>();
+
+function lockoutKey(email: string): string {
+    return `auth:lockout:${email}`;
+}
+
+function getLockoutTtlSeconds(): number {
+    return Math.max(1, Math.ceil(config.security.accountLockoutWindowMs / 1000));
+}
+
+function getFallbackLockoutEntry(email: string): LockoutEntry {
+    return loginLockouts.get(email) || { attempts: 0, lockUntil: null };
+}
+
+async function getLockoutEntry(email: string): Promise<LockoutEntry> {
+    try {
+        await ensureConnected(lockoutRedis);
+        const raw = await lockoutRedis.get(lockoutKey(email));
+        if (!raw) {
+            return { attempts: 0, lockUntil: null };
+        }
+
+        const parsed = JSON.parse(raw) as LockoutEntry;
+        return {
+            attempts: Number(parsed.attempts) || 0,
+            lockUntil: parsed.lockUntil ? Number(parsed.lockUntil) : null,
+        };
+    } catch {
+        return getFallbackLockoutEntry(email);
+    }
+}
+
+async function isLockedOut(email: string): Promise<boolean> {
+    const entry = await getLockoutEntry(email);
+    if (!entry.lockUntil) {
+        return false;
+    }
+
+    if (entry.lockUntil <= Date.now()) {
+        await clearFailedLogin(email);
+        return false;
+    }
+
+    return true;
+}
+
+async function recordFailedLogin(email: string): Promise<void> {
+    const current = await getLockoutEntry(email);
+    const attempts = current.attempts + 1;
+    const lockUntil = attempts >= config.security.accountLockoutMaxAttempts
+        ? Date.now() + config.security.accountLockoutWindowMs
+        : null;
+    const entry = { attempts, lockUntil };
+
+    loginLockouts.set(email, entry);
+
+    try {
+        await ensureConnected(lockoutRedis);
+        await lockoutRedis.set(lockoutKey(email), JSON.stringify(entry), 'EX', getLockoutTtlSeconds());
+    } catch {
+        // In-memory fallback already updated above.
+    }
+
+    // P0-4: Audit log when account gets locked
+    if (lockUntil) {
+        logger.warn(`Account locked: ${email} after ${attempts} failed attempts (locked for ${Math.ceil(config.security.accountLockoutWindowMs / 60000)} min)`);
+    }
+}
+
+async function clearFailedLogin(email: string): Promise<void> {
+    loginLockouts.delete(email);
+
+    try {
+        await ensureConnected(lockoutRedis);
+        await lockoutRedis.del(lockoutKey(email));
+    } catch {
+        // In-memory fallback already cleared above.
+    }
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function generateAccessToken(userId: string, email: string): { token: string; jti: string } {
+function generateAccessToken(userId: string, email: string, tenantId?: string): { token: string; jti: string } {
     const jti = crypto.randomUUID();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const token = jwt.sign({ userId, email, jti }, config.jwt.secret, {
+    const payload: any = { userId, email, jti };
+    if (tenantId) payload.tenantId = tenantId;
+    const token = jwt.sign(payload, config.jwt.secret, {
         expiresIn: config.jwt.expiresIn as any,
         algorithm: 'HS256',
     });
@@ -104,7 +192,7 @@ class AuthController {
             await prisma.userRole.create({ data: { userId: user.id, roleId: normalStaffRole.id } });
         }
 
-        const { token: accessToken } = generateAccessToken(user.id, user.email);
+        const { token: accessToken } = generateAccessToken(user.id, user.email, user.tenantId ?? undefined);
         const refreshToken = generateRefreshToken(user.id, user.email);
 
         await prisma.session.create({
@@ -123,29 +211,58 @@ class AuthController {
         res.status(201).json({
             status: 'success',
             data: {
-                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, agentTeam: user.agentTeam },
+                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, agentTeam: user.agentTeam, tenantId: user.tenantId },
             },
         });
     });
 
     login = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { email, password } = req.body;
+        const normalizedEmail = email.toLowerCase().trim();
+
+        if (await isLockedOut(normalizedEmail)) {
+            throw new AppError('Account temporarily locked due to repeated failed login attempts. Please try again later.', 429);
+        }
 
         const user = await prisma.user.findUnique({
-            where: { email },
-            include: { roles: { include: { role: true } } },
+            where: { email: normalizedEmail },
+            include: {
+                roles: { include: { role: true } },
+                departmentMemberships: {
+                    where: {
+                        validFrom: { lte: new Date() },
+                        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+                    },
+                    select: { departmentId: true },
+                },
+            },
         });
 
         if (!user || !user.isActive) {
+            await recordFailedLogin(normalizedEmail);
             throw new AppError('Invalid email or password', 401);
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
+            await recordFailedLogin(normalizedEmail);
             throw new AppError('Invalid email or password', 401);
         }
 
-        const { token: accessToken } = generateAccessToken(user.id, user.email);
+        await clearFailedLogin(normalizedEmail);
+
+        // P0-2: Enforce mustResetPassword — block login until user changes password
+        if (user.mustResetPassword) {
+            // Generate a one-time reset token so the frontend can redirect to /reset-password
+            const { plainToken } = await passwordResetService.createToken(user.id);
+            throw new AppError(
+                'PASSWORD_RESET_REQUIRED',
+                403,
+                { resetToken: plainToken, email: user.email },
+            );
+        }
+
+        const { token: accessToken } = generateAccessToken(user.id, user.email, user.tenantId ?? undefined);
         const refreshToken = generateRefreshToken(user.id, user.email);
 
         await prisma.session.create({
@@ -173,7 +290,9 @@ class AuthController {
                     lastName: user.lastName,
                     roles: user.roles.map((ur) => ur.role.name),
                     agentTeam: user.agentTeam,
+                    tenantId: user.tenantId,
                     permissions: await permissionService.getUserPermissions(user.id),
+                    departmentIds: user.departmentMemberships?.map((m: any) => m.departmentId) || [],
                 },
                 accessToken, // exposed for SSE EventSource auth
             },
@@ -206,9 +325,9 @@ class AuthController {
             throw new AppError('Refresh token is required', 401);
         }
 
-        let decoded: { userId: string; email: string };
+        let decoded: { userId: string; email: string; tenantId?: string };
         try {
-            decoded = jwt.verify(refreshToken, config.jwt.refreshSecret) as { userId: string; email: string };
+            decoded = jwt.verify(refreshToken, config.jwt.refreshSecret) as { userId: string; email: string; tenantId?: string };
         } catch {
             clearAuthCookies(res);
             throw new AppError('Invalid or expired refresh token', 401);
@@ -230,35 +349,24 @@ class AuthController {
         // Rotate: delete old session, create new one with new refresh token
         const newRefreshToken = generateRefreshToken(decoded.userId, decoded.email);
 
-        try {
-            // Try to delete old session, but don't fail if it doesn't exist
-            await prisma.session.deleteMany({
-                where: {
-                    id: session.id,
-                    userId: decoded.userId,
-                },
-            });
-        } catch (deleteError) {
-            // Log but don't fail — session may have been deleted already
-            console.warn('Could not delete old session during rotation:', deleteError);
-        }
+        await prisma.session.deleteMany({
+            where: {
+                id: session.id,
+                userId: decoded.userId,
+            },
+        });
 
-        try {
-            await prisma.session.create({
-                data: {
-                    userId: decoded.userId,
-                    token: hashRefreshToken(newRefreshToken),
-                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                    ipAddress: req.ip,
-                    userAgent: req.headers['user-agent'],
-                },
-            });
-        } catch (createError) {
-            console.error('Error creating new session:', createError);
-            // Still return success for access token — session creation is best-effort
-        }
+        await prisma.session.create({
+            data: {
+                userId: decoded.userId,
+                token: hashRefreshToken(newRefreshToken),
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+            },
+        });
 
-        const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email);
+        const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email, decoded.tenantId);
         setAuthCookies(res, newAccessToken, newRefreshToken);
 
         res.json({ status: 'success', message: 'Token refreshed' });
@@ -317,6 +425,30 @@ class AuthController {
         await tokenService.revokeAllForUser(record.userId);
 
         res.json({ status: 'success', message: 'Password reset successful. Please log in again.' });
+    });
+
+    /**
+     * P0-4: Admin unlocks a locked-out account.
+     * POST /api/v1/auth/admin-unlock  { email: string }
+     * Requires: user:manage permission
+     */
+    adminUnlock = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { email } = req.body;
+        if (!email) {
+            throw new AppError('Email is required', 400);
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (!user) {
+            // Don't reveal whether user exists
+            res.json({ status: 'success', message: 'Unlock processed' });
+            return;
+        }
+
+        await clearFailedLogin(normalizedEmail);
+        logger.info(`Admin ${req.user?.email} unlocked account: ${normalizedEmail}`);
+        res.json({ status: 'success', message: 'Account unlocked successfully' });
     });
 }
 

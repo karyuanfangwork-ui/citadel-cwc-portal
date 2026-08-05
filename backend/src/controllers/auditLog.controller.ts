@@ -1,13 +1,12 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
- * Get audit logs for confidential request access
- * GET /admin/audit-logs?page=1&limit=20&action=CONFIDENTIAL_VIEW&resourceId=uuid&userId=uuid
+ * Get global audit logs
+ * GET /admin/audit-logs?page=1&limit=20&action=STATUS_CHANGED&resourceId=uuid&resourceType=request&userId=uuid&startDate=&endDate=
  */
 export const getConfidentialAccessLogs = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
     const {
@@ -15,6 +14,7 @@ export const getConfidentialAccessLogs = asyncHandler(async (req: AuthRequest, r
         limit = '20',
         action,
         resourceId,
+        resourceType,
         userId,
         startDate,
         endDate,
@@ -24,13 +24,13 @@ export const getConfidentialAccessLogs = asyncHandler(async (req: AuthRequest, r
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
     const skip = (pageNum - 1) * limitNum;
 
-    // Build filter — only show confidential-related actions
-    const where: any = {
-        action: { in: ['CONFIDENTIAL_VIEW', 'CONFIDENTIAL_RESUME_ACCESS', 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD'] },
-    };
+    const where: any = {};
 
     if (action) {
         where.action = action;
+    }
+    if (resourceType) {
+        where.resourceType = resourceType;
     }
     if (resourceId) {
         where.resourceId = resourceId as string;

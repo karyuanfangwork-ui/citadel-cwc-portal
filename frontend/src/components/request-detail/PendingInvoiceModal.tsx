@@ -17,6 +17,10 @@ interface PendingInvoiceModalProps {
   onClose: () => void;
 }
 
+const MAX_FILES = 5;
+const MAX_SIZE_PER_FILE = 10 * 1024 * 1024; // 10 MB
+const ACCEPTED_EXTENSIONS = '.pdf,.doc,.docx,.png,.jpg,.jpeg';
+
 const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
   requestId,
   onSuccess,
@@ -27,7 +31,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [notes, setNotes] = useState('');
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceFiles, setInvoiceFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,13 +64,49 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
     );
   }, [search, cfos]);
 
+  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = e.target.files;
+    if (!incoming || incoming.length === 0) return;
+
+    const newFiles: File[] = [];
+    for (let i = 0; i < incoming.length; i++) {
+      const f = incoming[i];
+      if (f.size > MAX_SIZE_PER_FILE) {
+        setError(`"${f.name}" exceeds 10 MB limit`);
+        return;
+      }
+      newFiles.push(f);
+    }
+
+    const merged = [...invoiceFiles, ...newFiles];
+    if (merged.length > MAX_FILES) {
+      setError(`Maximum ${MAX_FILES} files allowed`);
+      return;
+    }
+
+    setInvoiceFiles(merged);
+    setError(null);
+    // Reset the input so the same file can be re-selected
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setInvoiceFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedId || !invoiceFile) return;
+    if (!selectedId || invoiceFiles.length === 0) return;
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.routeToCfoApproval(requestId, selectedId, invoiceFile, notes || undefined);
+      await itWorkflowService.routeToCfoApproval(requestId, selectedId, invoiceFiles, notes || undefined);
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to route to CFO');
@@ -77,7 +117,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] my-auto">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-purple-50 shrink-0">
           <div className="size-9 rounded-lg bg-purple-100 flex items-center justify-center">
@@ -85,7 +125,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
           </div>
           <div>
             <h2 className="font-bold text-base text-gray-900">Pending Invoice</h2>
-            <p className="text-xs text-gray-500">IT Workflow · Select CFO for Approval</p>
+            <p className="text-xs text-gray-500">IT Workflow · Select CFO & Upload Invoices</p>
           </div>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
@@ -156,34 +196,48 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                Invoice <span className="text-red-500">*</span>
+                Invoices <span className="text-red-500">*</span>
+                <span className="font-normal normal-case text-gray-400 ml-1">({invoiceFiles.length}/{MAX_FILES})</span>
               </label>
-              {invoiceFile ? (
-                <div className="flex items-center gap-2 p-3 border border-purple-300 bg-purple-50 rounded-lg">
-                  <span className="material-symbols-outlined text-purple-600 text-base">attach_file</span>
-                  <span className="text-sm text-gray-800 flex-1 truncate">{invoiceFile.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceFile(null)}
-                    className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                    aria-label="Remove file"
-                  >
-                    <span className="material-symbols-outlined text-base">close</span>
-                  </button>
+
+              {/* File list */}
+              {invoiceFiles.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {invoiceFiles.map((f, i) => (
+                    <div key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 p-2.5 border border-purple-200 bg-purple-50 rounded-lg">
+                      <span className="material-symbols-outlined text-purple-600 text-base">attach_file</span>
+                      <span className="text-sm text-gray-800 flex-1 truncate">{f.name}</span>
+                      <span className="text-xs text-gray-400 flex-shrink-0">{formatSize(f.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(i)}
+                        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        <span className="material-symbols-outlined text-base">close</span>
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
+              )}
+
+              {/* Add more files button (or initial upload area) */}
+              {invoiceFiles.length < MAX_FILES && (
                 <label className="flex items-center gap-2 p-3 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors">
                   <span className="material-symbols-outlined text-gray-400 text-base">upload_file</span>
-                  <span className="text-sm text-gray-500">Click to upload invoice</span>
+                  <span className="text-sm text-gray-500">
+                    {invoiceFiles.length === 0 ? 'Click to upload invoices' : 'Add more files'}
+                  </span>
                   <input
                     type="file"
-                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                    accept={ACCEPTED_EXTENSIONS}
+                    multiple
                     className="hidden"
-                    onChange={e => setInvoiceFile(e.target.files?.[0] ?? null)}
+                    onChange={handleFileAdd}
                   />
                 </label>
               )}
-              <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, PNG, JPG · Max 10MB</p>
+              <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, PNG, JPG · Max 10 MB each · Up to {MAX_FILES} files</p>
             </div>
             {error && (
               <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
@@ -195,7 +249,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!selectedId || !invoiceFile || submitting}
+              disabled={!selectedId || invoiceFiles.length === 0 || submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
             >
               {submitting ? 'Routing…' : 'Route to CFO for Approval'}

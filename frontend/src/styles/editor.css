@@ -1,0 +1,101 @@
+/* Tiptap rich text editor styles */
+.tiptap-content {
+  outline: none;
+  min-height: 200px;
+  font-size: var(--text-sm, 14px);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+}
+
+.tiptap-content p {
+  margin: 0.5em 0;
+}
+
+.tiptap-content h1 {
+  font-size: 1.75em;
+  font-weight: 800;
+  margin: 0.75em 0 0.25em;
+  color: var(--color-text-primary);
+}
+
+.tiptap-content h2 {
+  font-size: 1.35em;
+  font-weight: 700;
+  margin: 0.65em 0 0.2em;
+  color: var(--color-text-primary);
+}
+
+.tiptap-content h3 {
+  font-size: 1.1em;
+  font-weight: 700;
+  margin: 0.5em 0 0.15em;
+  color: var(--color-text-primary);
+}
+
+.tiptap-content ul {
+  list-style: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.tiptap-content ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.tiptap-content li {
+  margin: 0.15em 0;
+}
+
+.tiptap-content a {
+  color: var(--color-brand-600, #2E4A7A);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tiptap-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 0.5em 0;
+}
+
+.tiptap-content blockquote {
+  border-left: 3px solid var(--color-brand-300, #5BBFE8);
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.tiptap-content hr {
+  border: none;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  margin: 1em 0;
+}
+
+.tiptap-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--color-text-tertiary, #94a3b8);
+  pointer-events: none;
+  height: 0;
+}
+
+/* ProseMirror content area */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--color-text-tertiary, #94a3b8);
+  pointer-events: none;
+  height: 0;
+}

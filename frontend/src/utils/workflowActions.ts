@@ -8,7 +8,8 @@ export type WorkflowActionType =
   | 'ASSIGN'
   | 'RESUBMIT_REQUEST'
   | 'ACKNOWLEDGE_IT'
-  | 'CEO_DECISION'
+  | 'CEO_DECISION_IT'
+  | 'CEO_DECISION_HR'
   | 'CTO_DECISION'
   | 'ROUTE_TO_CFO'
   | 'CFO_DECISION'
@@ -17,12 +18,15 @@ export type WorkflowActionType =
   | 'MANAGER_DECISION'
   | 'LOA_APPROVAL'
   | 'ROUTE_TO_CEO_HR'
+  | 'ROUTE_TO_GROUP_DCEO_HR'
+  | 'GROUP_DCEO_DECISION_HR'
   | 'MARK_JOB_POSTED'
   | 'UPLOAD_RESUME'
   | 'ROUTE_TO_MANAGER'
   | 'SCHEDULE_INTERVIEW'
   | 'UPDATE_SCREENING'
   | 'UPLOAD_LOA'
+  | 'ROUTE_LOA_FOR_APPROVAL'
   | 'ISSUE_LOA'
   | 'UPLOAD_SIGNED_LOA'
   | 'MARK_LOA_ACCEPTED'
@@ -36,11 +40,15 @@ export type WorkflowActionType =
   // Finance Purchase Requisition workflow actions
   | 'FIN_ACKNOWLEDGE'
   | 'SET_FINALIZED_AMOUNT'
-  | 'ROUTE_TO_CEO_FIN'
+  | 'ROUTE_TO_CFO_FIN'
+  | 'ROUTE_TO_CFO_BP'
   | 'CFO_DECISION_FIN'
-  | 'GROUP_CEO_DECISION_FIN'
+  | 'REASSIGN_GROUP_DCEO_APPROVER_FIN'
+
+  | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
   | 'CLOSE_TICKET_FIN'
+  | 'CLOSE_BUDGET_PROPOSAL'
   // Inter-Company Chargeback workflow actions
   | 'CHARGEBACK_SUBMIT'
   | 'FROM_ENTITY_APPROVE'
@@ -54,7 +62,17 @@ export type WorkflowActionType =
   | 'MANAGER_REJECT_EXPENSE'
   | 'FINANCE_HEAD_APPROVE_EXPENSE'
   | 'FINANCE_HEAD_REJECT_EXPENSE'
-  | 'MARK_EXPENSE_PAYMENT_COMPLETE';
+  | 'MARK_EXPENSE_PAYMENT_COMPLETE'
+  | 'SUBMIT_INTERVIEW_FEEDBACK'
+  | 'CANCEL_REQUEST'
+  // ESM Travel Request workflow actions
+  | 'SUBMIT_FOR_CEO_ESM'
+  | 'REASSIGN_CEO_APPROVER_ESM'
+  | 'CEO_DECISION_ESM'
+  | 'GROUP_DCEO_DECISION_ESM'
+  | 'FIN_ACKNOWLEDGE_ESM'
+  | 'CFO_DECISION_ESM'
+  | 'CLOSE_TRAVEL_REQUEST';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -92,30 +110,53 @@ export function getWorkflowActions(
   requiresApproval = true,
   requestTypeCode = '',
   hasResumes = false,
+  allCandidatesComplete = false,
   screeningCompleted = false,
   hasLOA = false,
   hasSignedLOA = false,
   assignedToId = '',
-  currentUserId = ''
+  currentUserId = '',
+  agentTeam = '',
+  assignedTeam = '',
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
+  // Agent can act on tickets belonging to their own service desk OR tickets
+  // cross-routed to their team (e.g. Finance agent acknowledging an ESM travel request).
+  const canActOnDesk = canAct && (isAdmin
+    || (agentTeam?.toUpperCase() || '') === (serviceDeskCode?.toUpperCase() || '')
+    || (agentTeam?.toUpperCase() || '') === (assignedTeam?.toUpperCase() || ''));
   const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
+  const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring'));
+  const isOnboardingTicket = requestTypeCode === 'EMPLOYEE_ONBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
+  const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
+  const isESMTravel = requestTypeCode === 'CWC_TRAVEL_REQUEST' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('travel request'));
   // Procurement lifecycle actions: only assigned person + admin can act
-  // (prevents other agents from wrongly updating hardware status)
+  // Also requires the agent to be from the IT desk (procurement is IT-specific)
   const isAssignedToMe = !!assignedToId && !!currentUserId && assignedToId === currentUserId;
-  const canActOnProcurement = canAct && (isAdmin || isAssignedToMe);
+  const canActOnProcurement = canActOnDesk && (isAdmin || isAssignedToMe);
 
   const actions: WorkflowAction[] = [];
 
   // Designated approver (e.g. CEO as IT manager approver) — removed (Scenario 3 dead code)
   // CEO/CTO/CFO decision blocks — must be above the canAct guard as these roles are not agents/admins
   if (userRoles.includes('CEO')) {
-    if (status === 'PENDING_CEO_APPROVAL_IT' || status === 'PENDING_CEO_APPROVAL') {
+    if (status === 'PENDING_CEO_APPROVAL_IT') {
       actions.push({
-        type: 'CEO_DECISION',
+        type: 'CEO_DECISION_IT',
+        label: 'CEO Approval Decision',
+        description: 'Review and approve or reject this IT request as CEO.',
+        variant: 'primary',
+      });
+    } else if (!isESMTravel && status === 'PENDING_CEO_APPROVAL') {
+      actions.push({
+        type: 'CEO_DECISION_HR',
         label: 'CEO Approval Decision',
         description: 'Review and approve or reject this request as CEO.',
         variant: 'primary',
@@ -141,46 +182,170 @@ export function getWorkflowActions(
     });
   }
 
-  // Finance Purchase Requisition — Executive approver actions (not gated by canAct)
+  // IT Payment Processing — the assigned finance agent (or admin) must be able
+  // to mark payment done even though this is an IT desk request (cross-desk reassignment)
+  if (status === 'PAYMENT_PROCESSING_IT' && (isAdmin || isAssignedToMe)) {
+    actions.push({
+      type: 'PAYMENT_DONE',
+      label: 'Mark Payment Done',
+      description: 'Enter payment details and mark payment as completed.',
+      variant: 'success',
+    });
+  }
+
+  // Finance — Executive approver actions (not gated by canAct)
   const isPurchaseRequisition = requestTypeCode === 'PURCHASE_REQUISITION' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('purchase requisition'));
+  const isBudgetProposal = requestTypeCode === 'BUDGET_PROPOSAL' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('budget proposal'));
+  const isFinanceRequest = isPurchaseRequisition || isBudgetProposal;
 
-  if (isPurchaseRequisition) {
+  if (isFinanceRequest) {
     if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_FIN') {
       actions.push({
         type: 'CFO_DECISION_FIN',
         label: 'CFO Approval Decision',
-        description: 'Review and approve or reject this Purchase Requisition as CFO.',
+        description: isBudgetProposal
+          ? 'Review and approve or reject this Budget Proposal as CFO.'
+          : 'Review and approve or reject this Purchase Requisition as CFO.',
         variant: 'primary',
       });
     }
 
-    if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL') {
+    // Group DCEO only applies to Purchase Requisitions (not Budget Proposals)
+    if (isPurchaseRequisition && userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
       actions.push({
-        type: 'GROUP_CEO_DECISION_FIN',
-        label: 'Group CEO Approval Decision',
-        description: 'Review and approve or reject this high-value Purchase Requisition as Group CEO.',
+        type: 'GROUP_DCEO_DECISION_FIN',
+        label: 'Group Deputy CEO Approval Decision',
+        description: 'Review and approve or reject this high-value Purchase Requisition as Group Deputy CEO.',
         variant: 'primary',
       });
     }
 
-    // Finance Agent / Admin actions
-    if (canAct) {
-      if (status === 'FINANCE_PENDING_ACK' || (isPurchaseRequisition && status === 'SUBMITTED')) {
+    if (isPurchaseRequisition && canActOnDesk && status === 'PENDING_GROUP_DCEO_APPROVAL') {
+      actions.push({
+        type: 'REASSIGN_GROUP_DCEO_APPROVER_FIN',
+        label: 'Change Group DCEO Approver',
+        description: 'Select a different Group DCEO approver for this Purchase Requisition.',
+        variant: 'warning',
+      });
+    }
+
+
+  }
+
+  // Group Deputy CEO decision for HR hiring requests — must be before canAct guard
+  if (userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL' && (requestTypeCode === 'NEW_HIRING' || (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring')))) {
+    actions.push({
+      type: 'GROUP_DCEO_DECISION_HR',
+      label: 'Group Deputy CEO Approval Decision',
+      description: 'Review and approve or reject this hiring request as Group Deputy CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // ─── ESM Travel Request workflow ─────────────────────────────────────────
+  // Agent submits for CEO approval
+  if (isESMTravel && canActOnDesk && status === 'SUBMITTED') {
+    actions.push({
+      type: 'SUBMIT_FOR_CEO_ESM',
+      label: 'Submit for CEO Approval',
+      description: 'Route this travel request to the CEO for approval.',
+      variant: 'primary',
+    });
+  }
+
+  // Requester/Admin can correct the selected CEO/GROUP_DCEO before approval.
+  if (isESMTravel && status === 'PENDING_CEO_APPROVAL' && (isRequester || isAdmin)) {
+    actions.push({
+      type: 'REASSIGN_CEO_APPROVER_ESM',
+      label: 'Change CEO Approver',
+      description: 'Select a different CEO or Group Deputy CEO approver for this travel request.',
+      variant: 'warning',
+    });
+  }
+
+  // CEO decision for ESM Travel (not gated by canAct — CEO is not an agent)
+  if (isESMTravel && (userRoles.includes('CEO') || userRoles.includes('GROUP_DCEO')) && status === 'PENDING_CEO_APPROVAL' && (isAssignedToMe || isDesignatedApprover)) {
+    actions.push({
+      type: 'CEO_DECISION_ESM',
+      label: 'CEO Approval Decision',
+      description: 'Review and approve or reject this travel request as CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // GROUP_DCEO decision for ESM Travel (not gated by canAct)
+  if (isESMTravel && userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
+    actions.push({
+      type: 'GROUP_DCEO_DECISION_ESM',
+      label: 'Group Deputy CEO Approval Decision',
+      description: 'Review and approve or reject this travel request as Group Deputy CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // Finance Agent acknowledges travel request and routes to CFO
+  if (isESMTravel && canActOnDesk && status === 'FINANCE_ACKNOWLEDGED') {
+    actions.push({
+      type: 'FIN_ACKNOWLEDGE_ESM',
+      label: 'Acknowledge & Route to CFO',
+      description: 'Review this travel request and route it to the CFO for final approval.',
+      variant: 'primary',
+    });
+  }
+
+  // CFO decision for ESM Travel
+  if (isESMTravel && (userRoles.includes('CFO') || isAdmin) && status === 'PENDING_CFO_APPROVAL_FIN') {
+    actions.push({
+      type: 'CFO_DECISION_ESM',
+      label: 'CFO Approval Decision',
+      description: 'Review and approve or reject this travel request as CFO.',
+      variant: 'primary',
+    });
+  }
+
+  // Agent/Admin closes the travel request
+  if (isESMTravel && canActOnDesk && status === 'COMPLETED') {
+    actions.push({
+      type: 'CLOSE_TRAVEL_REQUEST',
+      label: 'Close Travel Request',
+      description: 'Close and resolve this travel request.',
+      variant: 'success',
+    });
+  }
+
+  // Finance Agent / Admin actions — only finance desk agents/admins
+  if (canActOnDesk && serviceDeskCode === 'FINANCE') {
+      if (status === 'FINANCE_PENDING_ACK' || (isFinanceRequest && status === 'SUBMITTED')) {
         actions.push({
           type: 'FIN_ACKNOWLEDGE',
           label: 'Acknowledge Request',
-          description: 'Acknowledge this Purchase Requisition and begin your review.',
+          description: isBudgetProposal
+            ? 'Acknowledge this Budget Proposal and begin your review.'
+            : 'Acknowledge this Purchase Requisition and begin your review.',
           variant: 'primary',
         });
       }
       if (status === 'FINANCE_ACKNOWLEDGED') {
-        actions.push({
-          type: 'ROUTE_TO_CEO_FIN',
-          label: 'Set Amount & Route to CFO',
-          description: 'Enter the finalized amount and route this request to the CFO for approval.',
-          variant: 'warning',
-        });
+        // Budget Proposals: simple route to CFO (no finalized amount or invoice required)
+        if (isBudgetProposal) {
+          actions.push({
+            type: 'ROUTE_TO_CFO_BP',
+            label: 'Route to CFO',
+            description: 'Forward this Budget Proposal to the CFO for approval.',
+            variant: 'primary',
+          });
+        }
+        // Purchase Requisitions: must set finalized amount and attach invoice
+        if (isPurchaseRequisition) {
+          actions.push({
+            type: 'ROUTE_TO_CFO_FIN',
+            label: 'Set Amount & Route to CFO',
+            description: 'Enter the finalized amount and route this request to the CFO for approval.',
+            variant: 'warning',
+          });
+        }
       }
       if (status === 'PAYMENT_PROCESSING_FIN') {
         actions.push({
@@ -198,14 +363,22 @@ export function getWorkflowActions(
           variant: 'success',
         });
       }
+      // Budget Proposal: after CFO approval, Finance updates & closes (no payment phase)
+      if (isBudgetProposal && status === 'FINANCE_IN_PROGRESS') {
+        actions.push({
+          type: 'CLOSE_BUDGET_PROPOSAL',
+          label: 'Update & Close',
+          description: 'Update the budget record and close this ticket. The budget is now adopted.',
+          variant: 'success',
+        });
+      }
     }
-  }
 
   // Inter-Company Chargeback workflow
   const isChargeback = requestTypeCode === 'INTERCOMPANY_CHARGEBACK' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('inter-company chargeback'));
   // Finance actions — only finance desk agents/admins, not entity approvers or other staff
-  const isFinanceAgent = canAct && serviceDeskCode === 'FINANCE';
+  const isFinanceAgent = canActOnDesk && serviceDeskCode === 'FINANCE';
 
   if (isChargeback) {
     // Finance agent submits chargeback (SUBMITTED → PENDING_FROM_ENTITY_APPROVAL)
@@ -276,7 +449,7 @@ export function getWorkflowActions(
 
   if (isExpenseReimbursement) {
     // Finance agent: route submitted expense to manager
-    if (canAct && status === 'SUBMITTED') {
+    if (canActOnDesk && status === 'SUBMITTED') {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Route to Manager Approval',
@@ -284,9 +457,8 @@ export function getWorkflowActions(
         variant: 'primary',
       });
     }
-    // Manager approval — the requester's manager (isRequester gate doesn't apply here;
-    // manager is the designated approver or admin/agent can act on behalf)
-    if ((isDesignatedApprover || canAct) && status === 'PENDING_MANAGER_APPROVAL_FIN') {
+    // Manager approval — the designated approver or finance desk admin/agent
+    if ((isDesignatedApprover || canActOnDesk) && status === 'PENDING_MANAGER_APPROVAL_FIN') {
       actions.push(
         {
           type: 'MANAGER_APPROVE_EXPENSE',
@@ -303,7 +475,7 @@ export function getWorkflowActions(
       );
     }
     // Finance Head approval
-    if (canAct && status === 'PENDING_FINANCE_HEAD_APPROVAL') {
+    if (canActOnDesk && status === 'PENDING_FINANCE_HEAD_APPROVAL') {
       actions.push(
         {
           type: 'FINANCE_HEAD_APPROVE_EXPENSE',
@@ -320,7 +492,7 @@ export function getWorkflowActions(
       );
     }
     // Payment processing
-    if (canAct && status === 'PAYMENT_PROCESSING') {
+    if (canActOnDesk && status === 'PAYMENT_PROCESSING') {
       actions.push({
         type: 'MARK_EXPENSE_PAYMENT_COMPLETE',
         label: 'Mark Payment Complete',
@@ -343,9 +515,19 @@ export function getWorkflowActions(
   if (isRequester && status === 'PENDING_MANAGER_REVIEW') {
     actions.push({
       type: 'MANAGER_DECISION',
-      label: 'Review & Select Candidate',
-      description: 'Review the submitted candidate resumes and select one to proceed.',
+      label: 'Review & Select Candidates',
+      description: 'Review the submitted candidate resumes and select up to 3 candidates for interview.',
       variant: 'warning',
+    });
+  }
+
+  // Interview feedback — hiring manager submits feedback after interview
+  if (isRequester && status === 'INTERVIEW_SCHEDULED' && isHR && isNewHiring) {
+    actions.push({
+      type: 'SUBMIT_INTERVIEW_FEEDBACK',
+      label: 'Submit Interview Feedback',
+      description: 'The interview has been scheduled. Submit your feedback and hiring decision.',
+      variant: 'primary',
     });
   }
 
@@ -362,7 +544,7 @@ export function getWorkflowActions(
 
   if (!canAct) return actions;
 
-  // Unassigned — surface assign action for all agent/admin statuses
+  // Unassigned — surface assign action for any agent/admin (cross-desk allowed)
   if (!isAssigned) {
     actions.push({
       type: 'ASSIGN',
@@ -372,18 +554,16 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct) {
-    // Only non-procurement IT requests basic lifecycle — no manager approval (Scenario 3 removed)
-    // HR hiring requests go to CEO approval instead — skip this action for HR
-    if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
-      actions.push({
-        type: 'START_IT_REVIEW',
-        label: 'Start Review',
-        description: 'Begin reviewing this request and move it to In Review.',
-        variant: 'primary',
-      });
-    }
+  // Below this point: only agents belonging to this ticket's service desk (or admins) see actions
+  if (!canActOnDesk) return actions;
 
+  if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
+    actions.push({
+      type: 'START_IT_REVIEW',
+      label: 'Start Review',
+      description: 'Begin reviewing this request and move it to In Review.',
+      variant: 'primary',
+    });
   }
 
   if (canActOnProcurement && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
@@ -419,8 +599,9 @@ export function getWorkflowActions(
     });
   }
 
-  // IT Hardware Executive Approval Chain
-  if (canAct && status === 'SUBMITTED' && isProcurement) {
+  // IT Executive Approval Chain — any IT SUBMITTED request that requires approval
+  // (covers both NEW_HARDWARE procurement and SOFTWARE_INSTALLATION)
+  if (canActOnDesk && status === 'SUBMITTED' && requiresApproval && serviceDeskCode === 'IT') {
     actions.push({
       type: 'ACKNOWLEDGE_IT',
       label: 'Acknowledge & Route to CEO',
@@ -430,9 +611,7 @@ export function getWorkflowActions(
   }
 
   // HR New Hiring — Route to CEO
-  const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring'));
-  if (canAct && isHR && isNewHiring && status === 'JOB_POSTED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'JOB_POSTED') {
     if (hasResumes) {
       actions.push({
         type: 'ROUTE_TO_MANAGER',
@@ -449,11 +628,11 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'HR_SCREENING') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'HR_SCREENING') {
     actions.push({
       type: 'UPDATE_SCREENING',
-      label: 'Update Screening Status',
-      description: 'Update background check and references check status.',
+      label: 'Update Reference Check',
+      description: 'Update reference check status.',
       variant: 'primary',
     });
     if (!hasLOA) {
@@ -461,14 +640,21 @@ export function getWorkflowActions(
         type: 'UPLOAD_LOA',
         label: 'Upload LOA Document',
         description: screeningCompleted
-          ? 'Screening complete. Upload the draft Letter of Acceptance.'
+          ? 'Reference check complete. Upload the draft Letter of Acceptance.'
           : 'Upload the draft Letter of Acceptance for the candidate.',
+        variant: 'success',
+      });
+    } else {
+      actions.push({
+        type: 'ROUTE_LOA_FOR_APPROVAL',
+        label: 'Route LOA for Approval',
+        description: 'LOA document uploaded. Route it to the hiring manager for approval.',
         variant: 'success',
       });
     }
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_ACCEPTED' && hasSignedLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_ACCEPTED' && hasSignedLOA) {
     actions.push({
       type: 'MARK_LOA_ACCEPTED',
       label: 'Mark LOA Accepted',
@@ -477,7 +663,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_ISSUED' && !hasSignedLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_ISSUED' && !hasSignedLOA) {
     actions.push({
       type: 'UPLOAD_SIGNED_LOA',
       label: 'Upload Signed LOA',
@@ -486,7 +672,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_APPROVED') {
     actions.push({
       type: 'ISSUE_LOA',
       label: 'Issue LOA to Candidate',
@@ -495,7 +681,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_PENDING_APPROVAL' && screeningCompleted && !hasLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_PENDING_APPROVAL' && screeningCompleted && !hasLOA) {
     actions.push({
       type: 'UPLOAD_LOA',
       label: 'Upload LOA Document',
@@ -504,7 +690,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'MANAGER_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'MANAGER_APPROVED') {
     actions.push({
       type: 'SCHEDULE_INTERVIEW',
       label: 'Schedule Interview',
@@ -513,25 +699,34 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'CEO_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'CEO_APPROVED') {
+    actions.push({
+      type: 'ROUTE_TO_GROUP_DCEO_HR',
+      label: 'Route to Group Deputy CEO for Approval',
+      description: 'CEO has approved. Route this hiring request to the Group Deputy CEO for final sign-off.',
+      variant: 'primary',
+    });
+  }
+
+  if (canActOnDesk && isHR && isNewHiring && status === 'GROUP_DCEO_APPROVED') {
     actions.push({
       type: 'MARK_JOB_POSTED',
       label: 'Mark Job as Posted',
-      description: 'CEO has approved. Record the job posting URL to proceed.',
+      description: 'Group Deputy CEO has approved. Record the job posting URL to proceed.',
       variant: 'primary',
     });
   }
 
-  if (canAct && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
+  if (canActOnDesk && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
     actions.push({
       type: 'ROUTE_TO_CEO_HR',
-      label: 'Route to CEO for Approval',
-      description: 'Route this hiring request to the CEO for sign-off.',
+      label: 'Route to Executive Approval',
+      description: 'Route this hiring request to the CEO or Group Deputy CEO for approval.',
       variant: 'primary',
     });
   }
 
-  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_REVIEW') {
+  if (canActOnDesk && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_REVIEW') {
     actions.push({
       type: 'MARK_IN_PROGRESS',
       label: 'Mark In Progress',
@@ -540,7 +735,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_PROGRESS') {
+  if (canActOnDesk && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_PROGRESS') {
     actions.push({
       type: 'RESOLVE_IT',
       label: 'Resolve Ticket',
@@ -549,7 +744,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && status === 'PENDING_INVOICE_IT') {
+  if (canActOnDesk && status === 'PENDING_INVOICE_IT') {
     actions.push({
       type: 'ROUTE_TO_CFO',
       label: 'Route to CFO for Approval',
@@ -558,18 +753,7 @@ export function getWorkflowActions(
     });
   }
 
-  // Only the assigned finance agent (or admin) can mark payment done —
-  // CFO approval reassigns the ticket to FINANCE team via reassignToTeam('FINANCE')
-  if ((isAdmin || isAssignedToMe) && status === 'PAYMENT_PROCESSING_IT') {
-    actions.push({
-      type: 'PAYMENT_DONE',
-      label: 'Mark Payment Done',
-      description: 'Enter payment details and mark payment as completed.',
-      variant: 'success',
-    });
-  }
-
-  if (canAct && status === 'PENDING_DELIVERY_IT') {
+  if (canActOnDesk && status === 'PENDING_DELIVERY_IT') {
     actions.push({
       type: 'COMPLETE_DELIVERY',
       label: 'Complete Delivery',
@@ -579,9 +763,7 @@ export function getWorkflowActions(
   }
 
   // Offboarding ticket phase advancement
-  const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
-  if (canAct && isHR && isOffboardingTicket) {
+  if (canActOnDesk && isHR && isOffboardingTicket) {
     const offboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {
         label: 'Start Notice Period',
@@ -624,9 +806,7 @@ export function getWorkflowActions(
   }
 
   // Onboarding ticket phase advancement
-  const isOnboardingTicket = requestTypeCode === 'EMPLOYEE_ONBOARDING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
-  if (canAct && isHR && isOnboardingTicket) {
+  if (canActOnDesk && isHR && isOnboardingTicket) {
     const onboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {
         label: 'Start Pre-Arrival Setup',
@@ -666,6 +846,35 @@ export function getWorkflowActions(
         variant: 'success',
       });
     }
+  }
+
+  // ─── Cancel / Reject Request ──────────────────────────────────────────────
+  // Agents and admins can cancel a request at early stages where
+  // the CANCELLED transition is valid — this handles the "wrong ticket" scenario
+  // where staff submitted an incorrect request and the agent needs to close it out.
+  const CANCELLABLE_STATUSES = new Set([
+    'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING',
+    'ACKNOWLEDGED_IT', 'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED',
+    'FINANCE_IN_PROGRESS', 'PAYMENT_PROCESSING', 'PAYMENT_PROCESSING_IT',
+    'PROCUREMENT_IN_PROGRESS', 'HARDWARE_ORDERED', 'HARDWARE_RECEIVED',
+    'SOFTWARE_PROVISIONED', 'PENDING_INVOICE_IT',
+  ]);
+  if (canActOnDesk && CANCELLABLE_STATUSES.has(status)) {
+    actions.push({
+      type: 'CANCEL_REQUEST',
+      label: 'Cancel Request',
+      description: 'Cancel this request as CANCELLED (distinct from REJECTED). Use when a ticket was submitted in error or is no longer needed.',
+      variant: 'danger',
+    });
+  }
+  // Admins can cancel from any non-terminal status (broader override)
+  if (isAdmin && !CANCELLABLE_STATUSES.has(status) && status !== 'RESOLVED' && status !== 'REJECTED' && status !== 'CANCELLED' && status !== 'COMPLETED' && status !== 'OFFBOARDING_COMPLETED' && status !== 'ONBOARDING_COMPLETED' && status !== 'REIMBURSEMENT_CLOSED' && status !== 'TICKET_CLOSED_FIN' && status !== 'CHARGEBACK_COMPLETED' && status !== 'LOA_REJECTED') {
+    actions.push({
+      type: 'CANCEL_REQUEST',
+      label: 'Cancel Request',
+      description: 'Cancel this request as CANCELLED (distinct from REJECTED). Admin override for any non-terminal status.',
+      variant: 'danger',
+    });
   }
 
   return actions;

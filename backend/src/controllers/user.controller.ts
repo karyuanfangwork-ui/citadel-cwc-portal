@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { PrismaClient, ExecutiveRole } from '@prisma/client';
+import { ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import xlsx from 'xlsx';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
@@ -8,8 +8,60 @@ import { sanitizeString } from '../utils/sanitize';
 import { permissionService } from '../services/permission.service';
 import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
+
+/**
+ * Task 14: Compute the allowed actions for a user based on their permissions and roles.
+ * Returns a flat list of { resource, action, scope } tuples that the frontend can
+ * use to render/hide action buttons and route guards.
+ */
+function computeAllowedActions(user: NonNullable<AuthRequest['user']>): Array<{ resource: string; action: string; scope: string }> {
+    const perms = user.permissions || [];
+    const roles = user.roles || [];
+    const isAdmin = roles.includes('ADMIN');
+    const isAgent = roles.includes('AGENT');
+    const actions: Array<{ resource: string; action: string; scope: string }> = [];
+
+    // Request management
+    if (perms.includes('request:create') || isAdmin) actions.push({ resource: 'request', action: 'create', scope: 'own' });
+    if (perms.includes('request:read') || isAdmin) actions.push({ resource: 'request', action: 'read', scope: 'own' });
+    if (perms.includes('request:assign') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'assign', scope: 'department' });
+    if (perms.includes('request:approve') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'approve', scope: 'department' });
+    if (perms.includes('request:close') || isAgent || isAdmin) actions.push({ resource: 'request', action: 'close', scope: 'department' });
+    if (isAdmin) actions.push({ resource: 'request', action: 'delete', scope: 'tenant' });
+    if (perms.includes('request:export') || isAdmin) actions.push({ resource: 'request', action: 'export', scope: 'department' });
+
+    // Asset management
+    if (perms.includes('asset:read') || isAdmin) actions.push({ resource: 'asset', action: 'read', scope: 'tenant' });
+    if (perms.includes('asset:create') || isAdmin) actions.push({ resource: 'asset', action: 'create', scope: 'tenant' });
+    if (perms.includes('asset:assign') || isAgent || isAdmin) actions.push({ resource: 'asset', action: 'assign', scope: 'department' });
+    if (perms.includes('asset:manage') || isAdmin) actions.push({ resource: 'asset', action: 'manage', scope: 'tenant' });
+
+    // Knowledge base
+    if (perms.includes('kb:read') || isAdmin) actions.push({ resource: 'kb', action: 'read', scope: 'tenant' });
+    if (perms.includes('kb:manage') || isAdmin) actions.push({ resource: 'kb', action: 'manage', scope: 'tenant' });
+
+    // Reports
+    if (perms.includes('report:read') || isAdmin) actions.push({ resource: 'report', action: 'read', scope: 'tenant' });
+
+    // Admin
+    if (perms.includes('admin:access') || isAdmin) actions.push({ resource: 'admin', action: 'access', scope: 'tenant' });
+    if (perms.includes('admin:settings') || isAdmin) actions.push({ resource: 'admin', action: 'settings', scope: 'tenant' });
+    if (perms.includes('announcement:write') || isAdmin) actions.push({ resource: 'announcement', action: 'write', scope: 'tenant' });
+
+    // CRM
+    if (perms.includes('crm:read') || isAdmin) actions.push({ resource: 'crm', action: 'read', scope: 'tenant' });
+    if (perms.includes('crm:delete') || isAdmin) actions.push({ resource: 'crm', action: 'delete', scope: 'own' });
+
+    // Credit
+    if (perms.includes('credit:read') || isAdmin) actions.push({ resource: 'credit', action: 'read', scope: 'tenant' });
+    if (perms.includes('credit:create') || isAdmin) actions.push({ resource: 'credit', action: 'create', scope: 'own' });
+    if (perms.includes('credit:approve') || isAdmin) actions.push({ resource: 'credit', action: 'approve', scope: 'department' });
+    if (perms.includes('credit:admin') || isAdmin) actions.push({ resource: 'credit', action: 'admin', scope: 'tenant' });
+
+    return actions;
+}
 import { tokenService } from '../services/token.service';
-import { validateExecutiveRoleAssignment } from '../utils/executive-role';
+import { EXECUTIVE_HIERARCHY, validateExecutiveRoleAssignment } from '../utils/executive-role';
 import { validatePassword } from '../utils/password';
 import { logger } from '../utils/logger';
 import {
@@ -22,7 +74,47 @@ import {
   resolveEntityCode,
 } from '../utils/importStaff';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
+import { sanitizeUser, sanitizeUsers } from '../dtos/user.dto';
+
+function generateTemporaryPassword(): string {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '!@#$%^&*';
+    const all = `${upper}${lower}${digits}${symbols}`;
+    const passwordChars = [upper, lower, digits, symbols].map((charset) => charset[crypto.randomInt(0, charset.length)]);
+
+    while (passwordChars.length < 16) {
+        passwordChars.push(all[crypto.randomInt(0, all.length)]);
+    }
+
+    for (let i = passwordChars.length - 1; i > 0; i -= 1) {
+        const swapIndex = crypto.randomInt(0, i + 1);
+        [passwordChars[i], passwordChars[swapIndex]] = [passwordChars[swapIndex], passwordChars[i]];
+    }
+
+    return passwordChars.join('');
+}
+
+function isExcelFileSignature(buffer: Buffer): boolean {
+    if (buffer.length < 8) {
+        return false;
+    }
+
+    const isZipContainer = buffer[0] === 0x50 && buffer[1] === 0x4b;
+    const isOleWorkbook =
+        buffer[0] === 0xd0 &&
+        buffer[1] === 0xcf &&
+        buffer[2] === 0x11 &&
+        buffer[3] === 0xe0 &&
+        buffer[4] === 0xa1 &&
+        buffer[5] === 0xb1 &&
+        buffer[6] === 0x1a &&
+        buffer[7] === 0xe1;
+
+    return isZipContainer || isOleWorkbook;
+}
 
 class UserController {
     /**
@@ -69,8 +161,46 @@ class UserController {
                     roles: user.roles.map((ur) => ur.role.name),
                     permissions: req.user?.permissions || [],
                     agentTeam: user.agentTeam,
+                    tenantId: user.tenantId,
+                    departmentIds: req.user?.departmentIds || [],
                     createdAt: user.createdAt,
                 },
+            },
+        });
+    });
+
+    /**
+     * GET /api/v1/users/me/policy
+     * Task 14: Return server-authoritative policy decisions for frontend route/action consumption.
+     * Includes permissions, department memberships, and allowed actions with scope.
+     */
+    getMyPolicy = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        if (!req.user) {
+            throw new AppError('Not authenticated', 401);
+        }
+
+        const [departments, allowedActions] = await Promise.all([
+            prisma.departmentMembership.findMany({
+                where: {
+                    userId: req.user.id,
+                    validFrom: { lte: new Date() },
+                    OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+                },
+                include: { department: { select: { id: true, code: true, name: true } } },
+            }),
+            computeAllowedActions(req.user),
+        ]);
+
+        res.json({
+            status: 'success',
+            data: {
+                permissions: req.user.permissions || [],
+                departments: departments.map((m: any) => ({
+                    id: m.department.id,
+                    code: m.department.code,
+                    name: m.department.name,
+                })),
+                allowedActions,
             },
         });
     });
@@ -145,8 +275,47 @@ class UserController {
 
         res.json({
             status: 'success',
-            data: { user },
+            data: { user: sanitizeUser(user) },
         });
+    });
+
+    /**
+     * Search users by name/email — lightweight endpoint for participant typeahead.
+     * Returns minimal fields (id, firstName, lastName, email, avatarUrl) so any
+     * authenticated user can find colleagues to add as participants.
+     */
+    searchUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { q, limit = '8' } = req.query;
+
+        if (!q || typeof q !== 'string' || !q.trim()) {
+            res.json({ status: 'success', data: { users: [] } });
+            return;
+        }
+
+        const limitNum = Math.min(parseInt(limit as string, 10) || 8, 20);
+        const search = q.trim();
+
+        const users = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                OR: [
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { firstName: { contains: search, mode: 'insensitive' } },
+                    { lastName: { contains: search, mode: 'insensitive' } },
+                ],
+            },
+            take: limitNum,
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                avatarUrl: true,
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ status: 'success', data: { users } });
     });
 
     /**
@@ -159,7 +328,6 @@ class UserController {
             search,
             department,
             isActive,
-            role,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -189,10 +357,13 @@ class UserController {
             where.isActive = isActive === 'true';
         }
 
-        if (role) {
+        // Support both ?role=SINGLE_ROLE (backward compat) and ?roles=ROLE1,ROLE2,ROLE3 (multi-role)
+        const roleParam = (req.query.roles || req.query.role) as string | undefined;
+        if (roleParam) {
+            const roleList = roleParam.split(',').map(r => r.trim());
             where.roles = {
                 some: {
-                    role: { name: { equals: role as string, mode: 'insensitive' } },
+                    role: { name: { in: roleList } },
                 },
             };
         }
@@ -223,7 +394,7 @@ class UserController {
         res.json({
             status: 'success',
             data: {
-                users,
+                users: sanitizeUsers(users),
                 pagination: {
                     page: pageNum,
                     limit: limitNum,
@@ -328,11 +499,83 @@ class UserController {
                 lastName: true,
                 email: true,
                 entityId: true,
+                agentTeam: true,
             },
             orderBy: { firstName: 'asc' },
         });
 
         res.json({ success: true, data: { agents } });
+    });
+
+    /**
+     * Get all active staff (any role) — used by reassignment modal so Agent/Admin
+     * can reassign a ticket to any person in the system, not just agents.
+     */
+    getStaff = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const staff = await prisma.user.findMany({
+            where: { isActive: true },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                roles: { select: { role: { select: { name: true } } } },
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ success: true, data: { staff } });
+    });
+
+    /**
+     * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
+     * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
+     * agent override the auto-selected approver before routing.
+     *
+     * Permission: any authenticated user who can route approvals (AGENT, ADMIN, executives).
+     * No PII beyond name/email/role is exposed.
+     */
+    getExecutives = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roles = String(req.query.role || '')
+            .split(',')
+            .map((r) => r.toUpperCase().trim())
+            .filter(Boolean) as ExecutiveRole[];
+
+        if (roles.length === 0) {
+            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_DCEO or CEO,GROUP_DCEO)', 400);
+        }
+        const invalidRoles = roles.filter((role) => !EXECUTIVE_HIERARCHY.includes(role));
+        if (invalidRoles.length > 0) {
+            throw new AppError(
+                `Invalid executive role "${invalidRoles.join(', ')}". Allowed: ${EXECUTIVE_HIERARCHY.join(', ')}`,
+                400,
+            );
+        }
+
+        const executives = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                OR: [
+                    { executiveRole: { in: roles } },
+                    { roles: { some: { role: { name: { in: roles } } } } },
+                ],
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                jobTitle: true,
+                executiveRole: true,
+                roles: { select: { role: { select: { name: true } } } },
+                entity: {
+                    select: { id: true, code: true, name: true },
+                },
+            },
+            orderBy: [{ entity: { code: 'asc' } }, { firstName: 'asc' }],
+        });
+
+        res.json({ success: true, data: { executives } });
     });
 
     /**
@@ -474,6 +717,167 @@ class UserController {
         res.json({ status: 'success', data: { roleId, permissionIds } });
     });
 
+    /**
+     * Create a new role (Admin only)
+     * Body: { name: string, description?: string }
+     */
+    createRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { name: rawName, description } = req.body;
+
+        if (!rawName || typeof rawName !== 'string') {
+            throw new AppError('name is required', 400);
+        }
+
+        // Normalize to UPPERCASE_SNAKE_CASE
+        const name = rawName.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+
+        if (name.length < 2 || name.length > 50) {
+            throw new AppError('Role name must be 2-50 characters (letters, digits, underscores)', 400);
+        }
+
+        const existing = await prisma.role.findUnique({ where: { name } });
+        if (existing) {
+            throw new AppError(`Role "${name}" already exists`, 409);
+        }
+
+        const role = await prisma.role.create({
+            data: { name, description: description || null },
+        });
+
+        await auditLog(req, 'ROLE_CREATED', 'role', role.id, { name, description });
+
+        res.status(201).json({ status: 'success', data: { role } });
+    });
+
+    /**
+     * Update a role's name/description (Admin only)
+     * Body: { name?: string, description?: string }
+     */
+    updateRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roleId = req.params.roleId as string;
+        const { name: rawName, description } = req.body;
+
+        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        if (!role) throw new AppError('Role not found', 404);
+
+        const updateData: { name?: string; description?: string | null } = {};
+
+        if (rawName !== undefined) {
+            const name = rawName.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+            if (name.length < 2 || name.length > 50) {
+                throw new AppError('Role name must be 2-50 characters (letters, digits, underscores)', 400);
+            }
+            if (name !== role.name) {
+                const existing = await prisma.role.findUnique({ where: { name } });
+                if (existing) throw new AppError(`Role "${name}" already exists`, 409);
+            }
+            updateData.name = name;
+        }
+
+        if (description !== undefined) {
+            updateData.description = description || null;
+        }
+
+        const updated = await prisma.role.update({
+            where: { id: roleId },
+            data: updateData,
+        });
+
+        // Invalidate all RBAC cache since role name affects JWT claims
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'ROLE_UPDATED', 'role', roleId, { ...updateData, oldName: role.name });
+
+        res.json({ status: 'success', data: { role: updated } });
+    });
+
+    /**
+     * Delete a role (Admin only)
+     * Safeguard: cannot delete if any users are assigned to the role.
+     */
+    deleteRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roleId = req.params.roleId as string;
+
+        const role = await prisma.role.findUnique({
+            where: { id: roleId },
+            include: { users: true },
+        });
+        if (!role) throw new AppError('Role not found', 404);
+
+        if (role.users.length > 0) {
+            throw new AppError(
+                `Cannot delete role "${role.name}" — ${role.users.length} user(s) are assigned. Remove role from users first.`,
+                400
+            );
+        }
+
+        // Delete role permissions first, then the role
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { roleId } }),
+            prisma.role.delete({ where: { id: roleId } }),
+        ]);
+
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'ROLE_DELETED', 'role', roleId, { name: role.name });
+
+        res.json({ status: 'success', message: `Role "${role.name}" deleted` });
+    });
+
+    /**
+     * Create a new permission (Admin only)
+     * Body: { name: string, resource: string, action: string, description?: string }
+     */
+    createPermission = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { name, resource, action, description } = req.body;
+
+        if (!name || !resource || !action) {
+            throw new AppError('name, resource, and action are required', 400);
+        }
+
+        // Auto-normalitize name to resource:action format if not provided
+        const normalizedName = name.includes(':') ? name : `${resource}:${action}`;
+        // Validate format
+        if (!/^[a-z_]+:[a-z_]+$/.test(normalizedName)) {
+            throw new AppError('Permission name must follow format "resource:action" (lowercase, underscores)', 400);
+        }
+
+        const existing = await prisma.permission.findUnique({ where: { name: normalizedName } });
+        if (existing) {
+            throw new AppError(`Permission "${normalizedName}" already exists`, 409);
+        }
+
+        const permission = await prisma.permission.create({
+            data: { name: normalizedName, resource, action, description: description || null },
+        });
+
+        await auditLog(req, 'PERMISSION_CREATED', 'permission', permission.id, { name: normalizedName, resource, action });
+
+        res.status(201).json({ status: 'success', data: { permission } });
+    });
+
+    /**
+     * Delete a permission (Admin only)
+     */
+    deletePermission = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const permissionId = req.params.permissionId as string;
+
+        const permission = await prisma.permission.findUnique({ where: { id: permissionId } });
+        if (!permission) throw new AppError('Permission not found', 404);
+
+        // Delete all role-permission links first, then the permission
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { permissionId } }),
+            prisma.permission.delete({ where: { id: permissionId } }),
+        ]);
+
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'PERMISSION_DELETED', 'permission', permissionId, { name: permission.name });
+
+        res.json({ status: 'success', message: `Permission "${permission.name}" deleted` });
+    });
+
     createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { firstName, lastName, email, department, jobTitle, entityId, executiveRole, agentTeam } = req.body;
 
@@ -502,14 +906,14 @@ class UserController {
 
         // Validate executive role if provided
         if (executiveRole) {
-            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_CEO'];
+            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_DCEO'];
             if (!validRoles.includes(executiveRole)) {
                 throw new AppError(`Invalid executive role. Must be one of: ${validRoles.join(', ')}`, 400);
             }
         }
 
-        const TEMP_PASSWORD='***';
-        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+        const tempPassword = generateTemporaryPassword();
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
         const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
         if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
@@ -520,6 +924,7 @@ class UserController {
                 lastName,
                 email: normalizedEmail,
                 passwordHash: hashedPassword,
+                passwordChangedAt: null,
                 department: department || null,
                 jobTitle: jobTitle || null,
                 entityId: entityId || null,
@@ -550,7 +955,7 @@ class UserController {
                     agentTeam: newUser.agentTeam,
                     roles: (newUser as any).roles.map((ur: any) => ur.role.name),
                 },
-                tempPassword: TEMP_PASSWORD,
+                tempPassword,
             },
         });
     });
@@ -572,14 +977,15 @@ class UserController {
         // Generate a random 16-char temporary password
         const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
 
-        // Hash the temporary password
-        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+        // Hash the temporary password (P0-6: salt rounds 12, was 10)
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-        // Update the user's password and set passwordChangedAt
+        // Update the user's password, set mustResetPassword=true and passwordChangedAt
         await prisma.user.update({
             where: { id },
             data: {
                 passwordHash: hashedPassword,
+                mustResetPassword: true,
                 passwordChangedAt: new Date(),
             },
         });
@@ -666,6 +1072,10 @@ class UserController {
             throw new AppError('No file uploaded. Please attach an .xlsx file.', 400);
         }
 
+        if (!isExcelFileSignature(file.buffer)) {
+            throw new AppError('Uploaded file is not a valid Excel workbook.', 400);
+        }
+
         // Parse the Excel buffer
         let staffData: StaffRow[];
         try {
@@ -719,13 +1129,11 @@ class UserController {
         const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
         if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
 
-        const TEMP_PASSWORD = 'abc@123';
-        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
-
         let created = 0;
         let updated = 0;
         let skipped = 0;
         let errorCount = 0;
+        const temporaryCredentials: Array<{ email: string; tempPassword: string }> = [];
 
         const details: {
             email: string;
@@ -782,12 +1190,16 @@ class UserController {
 
             // CREATE new user
             try {
+                const tempPassword = generateTemporaryPassword();
+                const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
                 await prisma.user.create({
                     data: {
                         firstName,
                         lastName,
                         email,
                         passwordHash: hashedPassword,
+                        passwordChangedAt: null,
                         jobTitle: staff.jobTitle,
                         department,
                         entityId,
@@ -805,6 +1217,7 @@ class UserController {
                     action: 'created',
                     message: `entity=${entityCode || '?'}, execRole=${executiveRole || 'none'}`,
                 });
+                temporaryCredentials.push({ email, tempPassword });
                 created++;
             } catch (err: any) {
                 details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
@@ -830,9 +1243,140 @@ class UserController {
                     skipped,
                     errors: errorCount,
                 },
+                temporaryCredentials,
                 details,
             },
         });
+    });
+
+    /**
+     * Toggle out-of-office status for the current user.
+     * PUT /api/v1/users/me/out-of-office
+     * Body: { outOfOffice: boolean, outOfOfficeUntil?: string (ISO date), outOfOfficeMessage?: string }
+     */
+    updateOutOfOffice = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { outOfOffice, outOfOfficeUntil, outOfOfficeMessage } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                outOfOffice: !!outOfOffice,
+                outOfOfficeUntil: outOfOfficeUntil ? new Date(outOfOfficeUntil) : null,
+                outOfOfficeMessage: outOfOfficeMessage || null,
+            },
+            select: {
+                id: true,
+                outOfOffice: true,
+                outOfOfficeUntil: true,
+                outOfOfficeMessage: true,
+                delegationEnabled: true,
+                delegatedToId: true,
+            },
+        });
+
+        res.json({ status: 'success', data: updated });
+    });
+
+    /**
+     * Update delegation settings for the current user.
+     * PUT /api/v1/users/me/delegation
+     * Body: { delegationEnabled: boolean, delegatedToId?: string }
+     */
+    updateDelegation = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { delegationEnabled, delegatedToId } = req.body;
+
+        // Validate delegatedToId if provided
+        if (delegatedToId) {
+            const delegate = await prisma.user.findUnique({
+                where: { id: delegatedToId },
+                select: { id: true, firstName: true, lastName: true, isActive: true },
+            });
+            if (!delegate || !delegate.isActive) {
+                return res.status(400).json({ status: 'error', message: 'Delegate user not found or inactive' });
+            }
+            // Cannot delegate to yourself
+            if (delegatedToId === userId) {
+                return res.status(400).json({ status: 'error', message: 'Cannot delegate to yourself' });
+            }
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                delegationEnabled: !!delegationEnabled,
+                delegatedToId: delegationEnabled ? (delegatedToId || null) : null,
+            },
+            select: {
+                id: true,
+                delegationEnabled: true,
+                delegatedToId: true,
+                delegatedTo: delegationEnabled && delegatedToId
+                    ? { select: { id: true, firstName: true, lastName: true, email: true } }
+                    : undefined,
+            },
+        });
+
+        res.json({ status: 'success', data: updated });
+    });
+
+    /**
+     * Search users for delegation (typeahead).
+     * GET /api/v1/users/me/delegation/search?q=term
+     */
+    searchDelegates = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { q } = req.query;
+        const term = String(q || '').trim();
+
+        if (!term || term.length < 2) {
+            return res.json({ status: 'success', data: [] });
+        }
+
+        const users = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                id: { not: userId },
+                OR: [
+                    { firstName: { contains: term, mode: 'insensitive' } },
+                    { lastName: { contains: term, mode: 'insensitive' } },
+                    { email: { contains: term, mode: 'insensitive' } },
+                ],
+            },
+            select: { id: true, firstName: true, lastName: true, email: true, department: true },
+            take: 10,
+            orderBy: [{ firstName: 'asc' }],
+        });
+
+        res.json({ status: 'success', data: users });
+    });
+
+    /**
+     * Get users who have delegated to the current user (incoming delegations).
+     * GET /api/v1/users/me/delegation/incoming
+     */
+    getIncomingDelegations = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+
+        const delegators = await prisma.user.findMany({
+            where: {
+                delegationEnabled: true,
+                delegatedToId: userId,
+                isActive: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                outOfOffice: true,
+                outOfOfficeUntil: true,
+                outOfOfficeMessage: true,
+            },
+        });
+
+        res.json({ status: 'success', data: delegators });
     });
 }
 

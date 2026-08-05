@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
-import { STATUS_CONFIG } from '../constants';
+import { STATUS_CONFIG, RESOLVED_STATUSES_LIST } from '../constants';
+import { stripHtml } from '../src/utils/format';
 import { useAuth } from '../src/context/AuthContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import axios from 'axios';
 
 interface Request {
   id: string;
@@ -26,39 +29,39 @@ interface Request {
     id: string;
     name: string;
   } | null;
+  participants?: { userId: string }[];
 }
 
-// Statuses that represent a terminal/closed state — used for server-side "open" filtering
-const RESOLVED_STATUSES = [
-  'RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
-  'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED',
-  'CTO_REJECTED_IT', 'CFO_REJECTED_IT',
-  'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED',
-  'LOA_ACCEPTED', 'COMPLETED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN',
-  'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED',
-  'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED',
-];
+type ViewMode = 'all' | 'created' | 'shared';
 
 const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [filter, setFilter] = useState<'open' | 'all'>('open');
+  const [statusFilter, setStatusFilter] = useState<'open' | 'all'>('open');
+  const [viewMode, setViewMode] = useState<ViewMode>('created');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const canExport = !!(user?.roles?.some(r => ['ADMIN', 'AGENT'].includes(r)));
   const limit = 10;
 
   useEffect(() => {
-    fetchRequests();
-  }, [filter, searchTerm, page, selectedRequestTypeId]);
+    const controller = new AbortController();
+    setSelectedIds(new Set()); // clear selections on filter change
+    fetchRequests(controller.signal);
+    return () => controller.abort();
+  }, [statusFilter, viewMode, debouncedSearch, page, selectedRequestTypeId]);
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError(null);
@@ -66,11 +69,19 @@ const MyRequests = () => {
       const apiFilters: any = {
         page,
         limit,
-        requesterId: user?.id,
       };
 
-      if (searchTerm) {
-        apiFilters.search = searchTerm;
+      // Apply view mode filter: "created" = only my own, "shared" = participant only
+      // "My Requests" page is personal — only shows tickets where user is involved, NOT the agent queue
+      if (viewMode === 'created') {
+        apiFilters.requesterId = user?.id;
+      } else if (viewMode === 'shared') {
+        apiFilters.participantId = user?.id;
+      }
+      // viewMode === 'all' → no requesterId/participantId, backend handles visibility
+
+      if (debouncedSearch) {
+        apiFilters.search = debouncedSearch;
       }
 
       if (selectedRequestTypeId) {
@@ -78,12 +89,12 @@ const MyRequests = () => {
       }
 
       // Server-side filtering by status
-      if (filter === 'open') {
-        apiFilters.excludedStatuses = RESOLVED_STATUSES.join(',');
+      if (statusFilter === 'open') {
+        apiFilters.excludedStatuses = RESOLVED_STATUSES_LIST.join(',');
       }
-      // filter === 'all' → no status filter needed
+      // statusFilter === 'all' → no status filter needed
 
-      const data = await requestService.getAllRequests(apiFilters);
+      const data = await requestService.getAllRequests(apiFilters, signal);
 
       setRequests(data.requests || []);
       setTotal(data.pagination?.total || 0);
@@ -102,10 +113,14 @@ const MyRequests = () => {
         setRequestTypeOptions(options);
       }
     } catch (err: any) {
+      // Swallow aborts — they're expected when dependencies change or React StrictMode remounts
+      if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.name === 'AbortError' || err?.code === 'ERR_CANCELED' || err?.message === 'canceled') {
+        return;
+      }
       console.error('Error fetching requests:', err);
       setError(friendlyMessage(err, 'Unable to load requests. Please refresh.'));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
@@ -136,6 +151,52 @@ const MyRequests = () => {
     return colors[code] || 'text-gray-600';
   };
 
+  const getViewModeLabel = () => {
+    if (viewMode === 'created') return 'Created by me';
+    if (viewMode === 'shared') return 'Shared with me';
+    return 'My requests';
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === requests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(requests.map(r => r.id)));
+    }
+  };
+
+  const handleExportXlsx = async () => {
+    if (selectedIds.size === 0) {
+      alert('Please select at least one ticket to export.');
+      return;
+    }
+    setExportingXlsx(true);
+    try {
+      const blob = await requestService.exportXlsx(Array.from(selectedIds));
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tickets-export-${timestamp}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to export Excel');
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <Breadcrumbs items={[
@@ -149,12 +210,13 @@ const MyRequests = () => {
           <nav className="flex flex-col gap-1">
             <button
               onClick={() => {
-                setFilter('open');
+                setStatusFilter('open');
+                setViewMode('created');
                 setPage(1);
               }}
-              aria-pressed={filter === 'open'}
+              aria-pressed={statusFilter === 'open' && viewMode === 'created'}
               aria-label="Show open requests"
-              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'open'
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'open' && viewMode === 'created'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
                 }`}
@@ -164,12 +226,13 @@ const MyRequests = () => {
             </button>
             <button
               onClick={() => {
-                setFilter('all');
+                setStatusFilter('all');
+                setViewMode('created');
                 setPage(1);
               }}
-              aria-pressed={filter === 'all'}
+              aria-pressed={statusFilter === 'all' && viewMode === 'created'}
               aria-label="Show all requests"
-              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'all'
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${statusFilter === 'all' && viewMode === 'created'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
                 }`}
@@ -178,20 +241,38 @@ const MyRequests = () => {
               All requests
             </button>
             <div className="h-px bg-gray-200 my-2"></div>
-            <a
-              href="#"
-              className="flex items-center gap-3 px-4 py-2.5 rounded text-sm text-[#44546f] hover:bg-gray-100 transition-all"
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('created');
+                setStatusFilter('all');
+                setPage(1);
+              }}
+              aria-pressed={viewMode === 'created'}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${viewMode === 'created'
+                  ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
+                  : 'text-[#44546f] hover:bg-gray-100'
+                }`}
             >
               <span className="material-symbols-outlined text-[20px]">person</span>
               Created by me
-            </a>
-            <a
-              href="#"
-              className="flex items-center gap-3 px-4 py-2.5 rounded text-sm text-[#44546f] hover:bg-gray-100 transition-all"
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('shared');
+                setStatusFilter('all');
+                setPage(1);
+              }}
+              aria-pressed={viewMode === 'shared'}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${viewMode === 'shared'
+                  ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
+                  : 'text-[#44546f] hover:bg-gray-100'
+                }`}
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
               Shared with me
-            </a>
+            </button>
           </nav>
         </aside>
 
@@ -202,7 +283,7 @@ const MyRequests = () => {
                 search
               </span>
               <input
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
                 placeholder="Search requests..."
                 type="text"
                 value={searchTerm}
@@ -213,7 +294,7 @@ const MyRequests = () => {
               />
             </div>
             <select
-              className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
+              className="pl-3 pr-8 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
               value={selectedRequestTypeId || ''}
               onChange={(e) => {
                 setSelectedRequestTypeId(e.target.value || null);
@@ -227,6 +308,47 @@ const MyRequests = () => {
             </select>
           </div>
 
+          {/* Active filter indicator */}
+          {viewMode === 'shared' && (
+            <div className="mb-4 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-[#0052cc]/10 text-[#0052cc]">
+                <span className="material-symbols-outlined text-[14px]">
+                  share
+                </span>
+                {getViewModeLabel()}
+                <button
+                  onClick={() => { setViewMode('created'); setPage(1); }}
+                  className="ml-1 hover:text-[#003d99]"
+                  aria-label="Clear filter"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </span>
+            </div>
+          )}
+
+          {/* Export toolbar — agents/admins only */}
+          {canExport && selectedIds.size > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleExportXlsx}
+                disabled={exportingXlsx}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-medium rounded-lg hover:bg-[#003d99] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {exportingXlsx ? 'hourglass_top' : 'download'}
+                </span>
+                {exportingXlsx ? 'Exporting...' : `Export (${selectedIds.size})`}
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-sm text-[#44546f] hover:text-[#0052cc] underline whitespace-nowrap"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0052cc]"></div>
@@ -237,17 +359,19 @@ const MyRequests = () => {
               <p className="text-sm">{error}</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
               {requests.length === 0 ? (
                 <div className="p-12 text-center text-[#44546f]">
                   <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
-                    inbox
+                    {viewMode === 'shared' ? 'share' : 'inbox'}
                   </span>
                   <p className="font-semibold mb-2">No requests found</p>
                   <p className="text-sm">
-                    {searchTerm
-                      ? 'Try adjusting your search'
-                      : 'Create your first request to get started'}
+                    {viewMode === 'shared'
+                      ? 'No requests have been shared with you yet'
+                      : searchTerm
+                        ? 'Try adjusting your search'
+                        : 'Create your first request to get started'}
                   </p>
                 </div>
               ) : (
@@ -255,7 +379,17 @@ const MyRequests = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-gray-50 text-[#44546f] text-[11px] uppercase tracking-widest font-bold">
+                        <tr className="bg-gray-50 dark:bg-gray-800 text-[#44546f] text-[11px] uppercase tracking-widest font-bold">
+                          {canExport && (
+                            <th className="px-4 py-4 w-10 text-center">
+                              <input
+                                type="checkbox"
+                                checked={requests.length > 0 && selectedIds.size === requests.length}
+                                onChange={toggleSelectAll}
+                                className="rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
+                              />
+                            </th>
+                          )}
                           <th className="px-6 py-4 w-12 text-center">Type</th>
                           <th className="px-6 py-4">Reference</th>
                           <th className="px-6 py-4">Summary</th>
@@ -269,9 +403,23 @@ const MyRequests = () => {
                         {requests.map((req) => (
                           <tr
                             key={req.id}
-                            className="hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors"
-                            onClick={() => navigate(`/request/${req.id}`)}
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-inset ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
+                            tabIndex={0}
+                            role="link"
+                            aria-label={`View request ${req.referenceNumber || req.id}`}
+                            onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/request/${req.referenceNumber || req.id}`); } }}
                           >
+                            {canExport && (
+                              <td className="px-4 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(req.id)}
+                                  onChange={() => toggleSelect(req.id)}
+                                  className="rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
+                                />
+                              </td>
+                            )}
                             <td className="px-6 py-4 text-center">
                               <span
                                 className={`material-symbols-outlined text-[20px] ${getServiceColor(
@@ -289,7 +437,7 @@ const MyRequests = () => {
                                 {req.referenceNumber}
                               </span>
                             </td>
-                            <td className="px-6 py-4 font-semibold">{req.summary}</td>
+                            <td className="px-6 py-4 font-semibold">{stripHtml(req.summary)}</td>
                             <td className="px-6 py-4 text-[#44546f]">
                               {req.requestType?.name || '—'}
                             </td>
@@ -307,7 +455,7 @@ const MyRequests = () => {
                                   </span>
                                 )}
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100 dark:bg-gray-700'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600 dark:text-gray-400'}`}
                                 >
                                   {STATUS_CONFIG[req.status]?.icon && (
                                     <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
@@ -326,13 +474,13 @@ const MyRequests = () => {
                       </tbody>
                     </table>
                   </div>
-                  <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
+                  <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/30">
                     <span className="text-xs text-[#44546f]">
                       Showing {requests.length} of {total} requests
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
+                        className="p-1 rounded hover:bg-white dark:hover:bg-gray-700 dark:bg-gray-900 disabled:opacity-30 border border-transparent hover:border-gray-200 dark:border-gray-700"
                         disabled={page === 1}
                         onClick={() => setPage(page - 1)}
                         aria-label="Previous page"
@@ -343,7 +491,7 @@ const MyRequests = () => {
                         Page {page} of {totalPages}
                       </span>
                       <button
-                        className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
+                        className="p-1 rounded hover:bg-white dark:hover:bg-gray-700 dark:bg-gray-900 disabled:opacity-30 border border-transparent hover:border-gray-200 dark:border-gray-700"
                         disabled={page === totalPages}
                         onClick={() => setPage(page + 1)}
                         aria-label="Next page"

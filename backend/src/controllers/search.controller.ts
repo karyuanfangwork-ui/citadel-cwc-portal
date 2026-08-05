@@ -1,9 +1,10 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
-import { AuthRequest, hasRole } from '../middleware/auth.middleware';
+import { AuthRequest } from '../middleware/auth.middleware';
+import { policyService } from '../security/policy.service';
+import { principalFromAuth } from '../security/resource-scope.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class SearchController {
     globalSearch = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -23,53 +24,36 @@ class SearchController {
         const searchTerm = q as string;
         const limitNum = parseInt(limit as string, 10);
 
-        // Confidentiality gate: exclude confidential requests for unauthorized users
-        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+        // P02-11: Use policy service for department-scoped visibility
+        // instead of role-based confidentiality flag
+        const principal = principalFromAuth(req.user!);
+        const requestVisible = policyService.buildVisibleWhere(principal, 'request');
+        const kbVisible = policyService.buildVisibleWhere(principal, 'kb_article');
 
         // Search across multiple resources
         const [requests, articles, users] = await Promise.all([
-            // Search requests — apply confidentiality filter
+            // Search requests — department-scoped via policy
             prisma.request.findMany({
                 where: {
                     deletedAt: null,
-                    ...(canSeeConfidential
-                        ? {
-                            OR: [
-                                { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
-                                { summary: { contains: searchTerm, mode: 'insensitive' } },
-                                { description: { contains: searchTerm, mode: 'insensitive' } },
-                            ],
-                        }
-                        : {
-                            AND: [
-                                {
-                                    OR: [
-                                        { isConfidential: false },
-                                        { requesterId: req.user!.id },
-                                        { approvals: { some: { approverId: req.user!.id } } },
-                                    ],
-                                },
-                                {
-                                    OR: [
-                                        { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
-                                        { summary: { contains: searchTerm, mode: 'insensitive' } },
-                                        { description: { contains: searchTerm, mode: 'insensitive' } },
-                                    ],
-                                },
-                            ],
-                        }
-                    ),
+                    ...(requestVisible.AND || requestVisible.OR ? requestVisible : {}),
+                    OR: [
+                        { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
+                        { summary: { contains: searchTerm, mode: 'insensitive' } },
+                        { description: { contains: searchTerm, mode: 'insensitive' } },
+                    ],
                 },
                 take: limitNum,
                 include: {
                     serviceDesk: true,
                 },
             }),
-            // Search KB articles
+            // Search KB articles — department-scoped via policy
             prisma.knowledgeBaseArticle.findMany({
                 where: {
                     isPublished: true,
                     deletedAt: null,
+                    ...(kbVisible.AND || kbVisible.OR ? kbVisible : {}),
                     OR: [
                         { title: { contains: searchTerm, mode: 'insensitive' } },
                         { content: { contains: searchTerm, mode: 'insensitive' } },
@@ -77,7 +61,7 @@ class SearchController {
                 },
                 take: limitNum,
             }),
-            // Search users (admin/agent only)
+            // Search users (admin/agent only) — no department filter needed
             req.user!.roles.includes('ADMIN') || req.user!.roles.includes('AGENT')
                 ? prisma.user.findMany({
                     where: {
@@ -117,18 +101,19 @@ class SearchController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
-        // Confidentiality gate: exclude confidential requests for unauthorized users
-        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+        // P02-11: Use policy service for department-scoped visibility
+        const principal = principalFromAuth(req.user!);
+        const requestVisible = policyService.buildVisibleWhere(principal, 'request');
 
         const where: any = {
             deletedAt: null,
         };
 
-        if (!canSeeConfidential) {
-            where.OR = [
-                { isConfidential: false },
-                { requesterId: req.user!.id },
-                { approvals: { some: { approverId: req.user!.id } } },
+        // Merge policy visibility conditions
+        if (requestVisible.AND || requestVisible.OR) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                requestVisible,
             ];
         }
 
@@ -138,13 +123,9 @@ class SearchController {
                 { summary: { contains: q as string, mode: 'insensitive' } },
                 { description: { contains: q as string, mode: 'insensitive' } },
             ];
-            // If confidentiality filter already set OR, wrap both with AND
-            if (where.OR) {
-                where.AND = [
-                    { OR: where.OR },
-                    { OR: searchConditions },
-                ];
-                delete where.OR;
+            // Merge search conditions with existing AND
+            if (where.AND) {
+                where.AND = [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: searchConditions }];
             } else {
                 where.OR = searchConditions;
             }
@@ -190,16 +171,33 @@ class SearchController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
+        // P02-11: Use policy service for department-scoped KB visibility
+        const principal = principalFromAuth(req.user!);
+        const kbVisible = policyService.buildVisibleWhere(principal, 'kb_article');
+
         const where: any = {
             isPublished: true,
             deletedAt: null,
         };
 
+        // Merge policy visibility conditions
+        if (kbVisible.AND || kbVisible.OR) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                kbVisible,
+            ];
+        }
+
         if (q) {
-            where.OR = [
+            const searchConditions = [
                 { title: { contains: q as string, mode: 'insensitive' } },
                 { content: { contains: q as string, mode: 'insensitive' } },
             ];
+            if (where.AND) {
+                where.AND = [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: searchConditions }];
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         const [articles, total] = await Promise.all([

@@ -26,7 +26,7 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
 
     if (!isOpen) return null;
 
-    const isCodeValid = deskFormData.code.length >= 3 && deskFormData.code.length <= 20 && /^[A-Z0-9_]+$/.test(deskFormData.code);
+    const isCodeValid = editingDesk || (deskFormData.code.length >= 3 && deskFormData.code.length <= 20 && /^[A-Z0-9_]+$/.test(deskFormData.code));
     const isFormValid = deskFormData.name.trim() !== '' && isCodeValid;
 
     return (
@@ -62,18 +62,27 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Desk Code * <span className="text-[#8993a4] font-medium normal-case tracking-normal text-[10px]">(3-20 chars, uppercase alphanumeric &amp; underscore)</span></label>
-                            <input
-                                required
-                                type="text"
-                                className={`w-full px-6 py-4 bg-gray-50 border rounded-2xl text-base font-bold font-mono tracking-wider focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all ${isCodeValid || deskFormData.code.length === 0 ? 'border-gray-200' : 'border-red-300'}`}
-                                placeholder="e.g. IT_HELPDESK"
-                                value={deskFormData.code}
-                                onChange={e => onFormDataChange({ ...deskFormData, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
-                                maxLength={20}
-                            />
-                            {!isCodeValid && deskFormData.code.length > 0 && (
-                                <p className="text-xs text-red-500 mt-2 font-medium">Code must be 3-20 uppercase alphanumeric characters or underscores.</p>
+                            <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Desk Code * {!editingDesk && <span className="text-[#8993a4] font-medium normal-case tracking-normal text-[10px]">(3-20 chars, uppercase alphanumeric &amp; underscore)</span>}</label>
+                            {editingDesk ? (
+                                <div className="w-full px-6 py-4 bg-gray-100 border border-gray-200 rounded-2xl text-base font-bold font-mono tracking-wider text-[#8993a4] select-none">
+                                    {deskFormData.code}
+                                    <span className="block text-[10px] text-[#8993a4] mt-1 font-medium normal-case tracking-normal">Code cannot be changed after creation</span>
+                                </div>
+                            ) : (
+                                <>
+                                    <input
+                                        required
+                                        type="text"
+                                        className={`w-full px-6 py-4 bg-gray-50 border rounded-2xl text-base font-bold font-mono tracking-wider focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all ${isCodeValid || deskFormData.code.length === 0 ? 'border-gray-200' : 'border-red-300'}`}
+                                        placeholder="e.g. IT_HELPDESK"
+                                        value={deskFormData.code}
+                                        onChange={e => onFormDataChange({ ...deskFormData, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })}
+                                        maxLength={20}
+                                    />
+                                    {!isCodeValid && deskFormData.code.length > 0 && (
+                                        <p className="text-xs text-red-500 mt-2 font-medium">Code must be 3-20 uppercase alphanumeric characters or underscores.</p>
+                                    )}
+                                </>
                             )}
                         </div>
 

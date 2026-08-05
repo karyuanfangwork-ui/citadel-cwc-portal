@@ -42,8 +42,8 @@ describe('Multi-browser session isolation', () => {
         const hashB = await bcrypt.hash(TEST_USER_B.password, 10);
         await prisma.user.createMany({
             data: [
-                { email: TEST_USER_A.email, passwordHash: hashA, firstName: TEST_USER_A.firstName, lastName: TEST_USER_A.lastName, isActive: true },
-                { email: TEST_USER_B.email, passwordHash: hashB, firstName: TEST_USER_B.firstName, lastName: TEST_USER_B.lastName, isActive: true },
+                { email: TEST_USER_A.email, passwordHash: hashA, firstName: TEST_USER_A.firstName, lastName: TEST_USER_A.lastName, isActive: true, tenantId: '00000000-0000-0000-0000-000000000001' },
+                { email: TEST_USER_B.email, passwordHash: hashB, firstName: TEST_USER_B.firstName, lastName: TEST_USER_B.lastName, isActive: true, tenantId: '00000000-0000-0000-0000-000000000001' },
             ],
         });
     });

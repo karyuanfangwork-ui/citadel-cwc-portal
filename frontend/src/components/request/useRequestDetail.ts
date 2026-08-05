@@ -7,13 +7,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { requestService } from '../../services/request.service';
-import approvalService from '../../services/approval.service';
+import approvalService, { type Candidate as CandidateType, type CandidateResume as CandidateResumeType } from '../../services/approval.service';
 import interviewService from '../../services/interview.service';
 import screeningService from '../../services/screening.service';
 import loaService from '../../services/loa.service';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import financeWorkflowService from '../../services/finance-workflow.service';
+import itWorkflowService from '../../services/it-workflow.service';
 import apiClient from '../../services/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,6 +22,9 @@ import apiClient from '../../services/api';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface InterviewSchedule {
+    id?: string;
+    candidateId?: string;
+    candidateResume?: { id: string; candidateName?: string; fileName?: string };
     interviewDate: string;
     interviewTime: string;
     meetingLink?: string;
@@ -30,6 +34,7 @@ export interface InterviewSchedule {
 }
 
 export interface InterviewFeedback {
+    candidateId?: string | null;
     decision: string;
     feedback: string;
     overallRating?: number;
@@ -64,20 +69,21 @@ export interface LetterOfAcceptance {
     approvalComments?: string;
 }
 
-export interface CandidateResume {
-    id: string;
-    candidateName?: string;
-    fileName: string;
-    notes?: string;
-    uploadedBy: { firstName: string; lastName: string };
-    createdAt: string;
-    fileSize: string;
-    fileUrl?: string;
-}
+export type CandidateResume = CandidateResumeType;
 
 export interface InterviewDetails {
     schedule: InterviewSchedule;
+    schedules: InterviewSchedule[];
     feedback: InterviewFeedback | null;
+    feedbacks: InterviewFeedback[];
+}
+
+export interface Attachment {
+    id: string;
+    fileName: string;
+    storageUrl: string;
+    mimeType: string | null;
+    fileSize: string;  // BigInt serialized as string
 }
 
 export interface Activity {
@@ -91,6 +97,7 @@ export interface Activity {
     isInternal: boolean;
     createdAt: string;
     user?: { firstName: string; lastName: string; email: string };
+    attachments?: Attachment[];
 }
 
 export interface Request {
@@ -110,6 +117,8 @@ export interface Request {
     requester?: { id: string; firstName: string; lastName: string; email: string };
     createdAt: string;
     updatedAt: string;
+    resolvedAt?: string | null;
+    completedAt?: string | null;
     slaDueAt?: string | null;
     priority: string;
     requestType?: {
@@ -131,11 +140,14 @@ export interface Request {
                 isFinal: boolean;
             }[];
         };
-        formConfig?: any[];
+        formConfig?: any;
     };
     approvals?: { id: string; approverId: string; approverType: string; status: string }[];
     attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
     customFields?: Record<string, any>;
+    // P5-04: Form config snapshot preserved at submission time
+    formConfigSnapshot?: any[] | null;
+    formConfigVersion?: number | null;
     candidateResumes?: CandidateResume[];
     childRequests?: { id: string; referenceNumber: string; summary: string; status: string }[];
     itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
@@ -144,9 +156,11 @@ export interface Request {
 interface UseRequestDetailReturn {
     id: string | undefined;
     request: Request | null;
+    setRequest: React.Dispatch<React.SetStateAction<Request | null>>;
     activities: Activity[];
     setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
     resumes: CandidateResume[];
+    candidates: CandidateType[];
     interviewDetails: InterviewDetails | null;
     screeningDetails: HRScreening | null;
     loaDetails: LetterOfAcceptance | null;
@@ -171,6 +185,8 @@ interface UseRequestDetailReturn {
     resolutionComment: string;
     pendingStatus: string | null;
     rejectionPendingStatus: string | null;
+    rejectionComment: string;
+    setRejectionComment: (value: string) => void;
     setRejectionPendingStatus: React.Dispatch<React.SetStateAction<string | null>>;
     setResolutionComment: (value: string) => void;
     setShowResolutionModal: (value: boolean) => void;
@@ -188,6 +204,8 @@ interface UseRequestDetailReturn {
     setShowLOAApprovalModal: (value: boolean) => void;
     setShowUploadSignedLOAModal: (value: boolean) => void;
     fetchRequestData: () => Promise<void>;
+    fetchResumes: () => Promise<void>;
+    fetchCandidates: () => Promise<void>;
     handleStatusChange: (newStatus: string) => Promise<void>;
     handleResolutionSubmit: () => Promise<void>;
     handleSkipResolution: () => Promise<void>;
@@ -200,8 +218,8 @@ interface UseRequestDetailReturn {
     handleLOAApprovalDecision: (decision: 'APPROVE' | 'REJECT', comments?: string) => Promise<void>;
     handleMarkLOAIssued: () => Promise<void>;
     handleMarkLOAAccepted: () => Promise<void>;
-    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>;
-    handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateId: string, comments: string) => Promise<void>;
+    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string, approverId?: string) => Promise<void>;
+    handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => Promise<void>;
     handleRouteToManager: () => Promise<void>;
     handleAdvanceOnboardingPhase: () => Promise<void>;
     handleCompleteOnboarding: () => Promise<void>;
@@ -210,9 +228,9 @@ interface UseRequestDetailReturn {
     handleCompleteOffboarding: () => Promise<void>;
     handleReviseAndResubmit: () => Promise<void>;
     handleReopenForNewCandidates: () => Promise<void>;
-    handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string) => Promise<void>;
+    handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string, documentType?: string) => Promise<void>;
     handleMarkJobPosted: () => Promise<void>;
-    updateStatusDirectly: (newStatus: string) => Promise<void>;
+    updateStatusDirectly: (newStatus: string, comment?: string) => Promise<void>;
 }
 
 export const useRequestDetail = (): UseRequestDetailReturn => {
@@ -223,6 +241,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     const [request, setRequest] = useState<Request | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [resumes, setResumes] = useState<CandidateResume[]>([]);
+    const [candidates, setCandidates] = useState<CandidateType[]>([]);
     const [interviewDetails, setInterviewDetails] = useState<InterviewDetails | null>(null);
     const [screeningDetails, setScreeningDetails] = useState<HRScreening | null>(null);
     const [loaDetails, setLoaDetails] = useState<LetterOfAcceptance | null>(null);
@@ -233,6 +252,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
 
     const [showResolutionModal, setShowResolutionModal] = useState(false);
     const [showRejectionConfirm, setShowRejectionConfirm] = useState(false);
+    const [rejectionComment, setRejectionComment] = useState('');
     const [showCompleteOnboardingConfirm, setShowCompleteOnboardingConfirm] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showJobPostModal, setShowJobPostModal] = useState(false);
@@ -305,6 +325,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         const relevantStatuses = ['JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING'];
         if (id && relevantStatuses.includes(request?.status || '')) {
             fetchResumes();
+            fetchCandidates();
         }
     }, [id, request?.status]);
 
@@ -317,11 +338,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         return true;
     }, [user?.roles, request?.assignedTo]);
 
-    const updateStatusDirectly = useCallback(async (newStatus: string) => {
+    const updateStatusDirectly = useCallback(async (newStatus: string, comment?: string) => {
         if (!id) return;
         try {
             setUpdatingStatus(true);
-            const updatedRequest = await requestService.updateStatus(id, newStatus as any);
+            const updatedRequest = await requestService.updateStatus(id, newStatus as any, comment);
             setRequest(updatedRequest);
             const updatedActivities = await requestService.getRequestActivities(id);
             setActivities(updatedActivities);
@@ -339,7 +360,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             setShowResolutionModal(true);
             return;
         }
-        if (newStatus === 'REJECTED') {
+        if (newStatus === 'REJECTED' || newStatus === 'CANCELLED') {
             setRejectionPendingStatus(newStatus);
             setShowRejectionConfirm(true);
             return;
@@ -385,6 +406,15 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id]);
 
+    const fetchCandidates = useCallback(async () => {
+        if (!id) return;
+        try {
+            setCandidates(await approvalService.getCandidates(id));
+        } catch (error) {
+            console.error('Error fetching candidates:', error);
+        }
+    }, [id]);
+
     const handleDeleteResume = useCallback(async (resumeId: string) => {
         if (!id || !confirm('Are you sure you want to delete this resume?')) return;
         try {
@@ -395,11 +425,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchResumes]);
 
-    const handleUploadResume = useCallback(async (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string) => {
+    const handleUploadResume = useCallback(async (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string, documentType?: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.uploadResume(id, file, candidateName, notes);
+            await approvalService.uploadResume(id, file, candidateName, notes, documentType);
             await fetchResumes();
             setShowUploadModal(false);
         } catch (error: any) {
@@ -417,7 +447,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             await fetchRequestData();
             setShowScheduleInterviewModal(false);
         } catch (error: any) {
-            toast.error('Schedule Failed', error.message || 'Failed to schedule interview');
+            toast.error('Schedule Failed', error?.response?.data?.message || error?.message || 'Failed to schedule interview');
         } finally {
             setProcessingAction(false);
         }
@@ -458,7 +488,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             await screeningService.startScreening(id);
             await fetchRequestData();
         } catch (error: any) {
-            toast.error('Screening Failed', error.message || 'Failed to start HR screening');
+            toast.error('Reference Check Failed', error.message || 'Failed to start reference check');
         } finally {
             setProcessingAction(false);
         }
@@ -517,25 +547,31 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchRequestData]);
 
-    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string) => {
+    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string, approverId?: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.ceoDecision(id, decision, comments);
+            // Route to the correct service based on request status
+            const isITRequest = request?.status === 'PENDING_CEO_APPROVAL_IT';
+            if (isITRequest) {
+                await itWorkflowService.ceoDecision(id, decision, comments, approverId);
+            } else {
+                await approvalService.ceoDecision(id, decision, comments);
+            }
             await fetchRequestData();
             setShowCEODecisionModal(false);
         } catch (error: any) {
-            toast.error('CEO Decision Failed', error.response?.data?.message || 'Failed to process CEO decision');
+            toast.error('CEO Decision Failed', error.response?.data?.error || error.response?.data?.message || 'Failed to process CEO decision');
         } finally {
             setProcessingAction(false);
         }
-    }, [id, fetchRequestData]);
+    }, [id, request?.status, fetchRequestData]);
 
-    const handleManagerDecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', selectedCandidateId: string, comments: string) => {
+    const handleManagerDecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.managerDecision(id, decision, selectedCandidateId, comments);
+            await approvalService.managerDecision(id, decision, selectedCandidateIds, comments);
             await fetchRequestData();
             setShowManagerDecisionModal(false);
         } catch (error: any) {
@@ -696,12 +732,13 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     }, [id, fetchRequestData]);
 
     return {
-        id, request, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
+        id, request, setRequest, activities, setActivities, resumes, candidates, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
+        rejectionComment, setRejectionComment,
         setRejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,
-        fetchRequestData, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
+        fetchRequestData, fetchResumes, fetchCandidates, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
         updateStatusDirectly,
     };
 };

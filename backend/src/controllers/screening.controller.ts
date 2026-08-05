@@ -1,16 +1,19 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
- * Start HR screening (background and reference checks)
+ * Start HR reference check
  * POST /requests/:id/start-screening
  */
 export const startHRScreening = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -18,7 +21,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
         const request = await prisma.request.findUnique({
             where: { id },
             include: {
-                interviewFeedback: true
+                interviewFeedbacks: true
             }
         });
 
@@ -37,7 +40,8 @@ export const startHRScreening = async (req: Request, res: Response) => {
         }
 
         // Verify interview feedback exists and decision is PROCEED
-        if (!request.interviewFeedback || request.interviewFeedback.decision !== 'PROCEED') {
+        // Verify interview feedback exists and at least one has decision PROCEED
+        if (!request.interviewFeedbacks || request.interviewFeedbacks.length === 0 || !request.interviewFeedbacks.some((f: any) => f.decision === 'PROCEED')) {
             return res.status(400).json({
                 status: 'error',
                 message: 'Interview feedback must indicate PROCEED before starting screening'
@@ -66,9 +70,12 @@ export const startHRScreening = async (req: Request, res: Response) => {
         });
 
         // Update request status
-        /* unused */ await await prisma.request.update({
-            where: { id },
-            data: { status: 'HR_SCREENING' }
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'HR_SCREENING',
+            source: 'screening.start',
+            comment: notes,
         });
 
         // Create activity log
@@ -79,7 +86,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `HR screening started - background and reference checks initiated${notes ? ': ' + notes : ''}`,
+                message: `Reference check initiated${notes ? ': ' + notes : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -103,10 +110,12 @@ export const startHRScreening = async (req: Request, res: Response) => {
  */
 export const updateScreeningStatus = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
-            backgroundCheckStatus,
-            backgroundCheckNotes,
             referencesCheckStatus,
             referencesCheckNotes,
             referencesContacted,
@@ -136,27 +145,27 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
             });
         }
 
-        // Determine overall status
+        // Determine overall status — reference check is the deciding factor
+        // (background check is auto-passed since it was removed from the UI)
         let calculatedStatus = agentOverallStatus || 'IN_PROGRESS';
 
-        // If not explicitly set by agent, calculate based on sub-statuses
+        // If not explicitly set by agent, calculate based on reference check status
         if (!agentOverallStatus) {
-            const bgPassed = backgroundCheckStatus === 'PASSED' || backgroundCheckStatus === 'COMPLETED';
             const refPassed = referencesCheckStatus === 'PASSED' || referencesCheckStatus === 'COMPLETED';
 
-            if (bgPassed && refPassed) {
+            if (refPassed) {
                 calculatedStatus = 'COMPLETED';
-            } else if (backgroundCheckStatus === 'FAILED' || referencesCheckStatus === 'FAILED') {
+            } else if (referencesCheckStatus === 'FAILED') {
                 calculatedStatus = 'ISSUES_FOUND';
             }
         }
 
-        // Update screening record
+        // Update screening record — auto-pass background check (removed from UI)
         const updatedScreening = await prisma.hRScreening.update({
             where: { id: request.hrScreening.id },
             data: {
-                backgroundCheckStatus: backgroundCheckStatus || request.hrScreening.backgroundCheckStatus,
-                backgroundCheckNotes: backgroundCheckNotes || request.hrScreening.backgroundCheckNotes,
+                backgroundCheckStatus: 'PASSED',
+                backgroundCheckNotes: 'Auto-passed (removed from workflow)',
                 referencesCheckStatus: referencesCheckStatus || request.hrScreening.referencesCheckStatus,
                 referencesCheckNotes: referencesCheckNotes || request.hrScreening.referencesCheckNotes,
                 referencesContacted: referencesContacted ? JSON.stringify(referencesContacted) : request.hrScreening.referencesContacted,
@@ -177,19 +186,21 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
 
         // If screening is COMPLETED or REJECTED, update the request status
         if (calculatedStatus === 'COMPLETED') {
-            await prisma.request.update({
-                where: { id },
-                data: { status: 'LOA_PENDING_APPROVAL' }
+            await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'LOA_PENDING_APPROVAL',
+                source: 'screening.complete',
+                comment: referencesCheckNotes,
             });
-            // Pause SLA — request entered LOA_PENDING_APPROVAL
-            await pauseSla(id);
         } else if (calculatedStatus === 'REJECTED') {
-            await prisma.request.update({
-                where: { id },
-                data: { status: 'REJECTED' }
+            await transitionHttpRequest({
+                req,
+                request,
+                toStatus: 'REJECTED',
+                source: 'screening.reject',
+                comment: referencesCheckNotes || 'HR screening rejected',
             });
-            // Resume SLA — leaving approval pause status (if any)
-            await resumeSla(id);
         }
 
         // Create activity log
@@ -200,7 +211,7 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `HR screening updated - Status: ${calculatedStatus}, Background: ${backgroundCheckStatus || 'unchanged'}, References: ${referencesCheckStatus || 'unchanged'}`,
+                message: `Reference check updated - Status: ${calculatedStatus}, References: ${referencesCheckStatus || 'unchanged'}`,
                 isSystemGenerated: true
             }
         });
@@ -234,7 +245,11 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
  */
 export const getScreeningDetails = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
 
         const hrScreening = await prisma.hRScreening.findUnique({
             where: { requestId: id },

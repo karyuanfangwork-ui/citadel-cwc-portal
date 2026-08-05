@@ -1,7 +1,6 @@
-import Redis from 'ioredis';
-import { config } from '../config';
+import { createRedisClient } from '../utils/redis';
 
-const redis = new Redis(config.redis.url);
+const redis = createRedisClient();
 
 const BLOCKLIST_PREFIX = 'jwt:blocked:';
 const USER_PREFIX = 'jwt:user:';

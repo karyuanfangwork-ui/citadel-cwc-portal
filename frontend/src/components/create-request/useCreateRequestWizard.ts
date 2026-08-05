@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { entityService } from '../../services/entity.service';
+import apiClient from '../../services/api';
 import { friendlyMessage } from '../../utils/errorMessages';
+import { parseFormConfig } from '../../utils/formConfig';
+import { validateFormValues, isConfidentialForClassification, type RequestClassification } from '../../utils/requestValidation';
 import { useAuth } from '../../context/AuthContext';
 
 export type WizardStep = 'type' | 'details' | 'review';
@@ -12,6 +15,24 @@ export interface FormData {
   urgency: string;
   isConfidential: boolean;
   customFields: Record<string, any>;
+}
+
+export interface WorkflowStepInfo {
+  id: string;
+  label: string;
+  status: string;
+  icon: string;
+  displayOrder: number;
+  isInitial: boolean;
+  isFinal: boolean;
+  slaPause: boolean;
+}
+
+export interface WorkflowInfo {
+  id: string;
+  code: string;
+  name: string;
+  steps: WorkflowStepInfo[];
 }
 
 export const URGENCY_OPTIONS = [
@@ -37,6 +58,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [entityOptions, setEntityOptions] = useState<{ code: string; name: string }[]>([]);
+  const [workflow, setWorkflow] = useState<WorkflowInfo | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     summary: '',
@@ -46,7 +68,253 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     customFields: {},
   });
 
+  // P03 Task 13: Client-side validation errors for step transitions
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
   const { user } = useAuth();
+
+  // Auto-generate summary for hiring, offboarding, hardware, and IT help request types
+  const isAutoSummary = useMemo(() => {
+    if (!selectedRequestType) return false;
+    const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_ONBOARDING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL' || code === 'CWC_TRAVEL_REQUEST';
+  }, [selectedRequestType]);
+
+  const autoSummary = useMemo(() => {
+    if (!isAutoSummary) return '';
+
+    const cf = formData.customFields;
+    const code = selectedRequestType?.code || selectedRequestType?.requestTypeCode || '';
+
+    if (code === 'EMPLOYEE_OFFBOARDING') {
+      const empName = cf.employeeName || '';
+      const reason = cf.reason || '';
+      return empName ? `Offboard: ${empName}${reason ? ` (${reason})` : ''}` : '';
+    }
+
+    if (code === 'NEW_HARDWARE') {
+      const hwName = cf.hardwareName || '';
+      // Resolve field by label in case admin changed field IDs
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const name = hwName || resolveByLabel('hardware name') || resolveByLabel('device type');
+      if (!name) return '';
+      return `Request new hardware: ${name}`;
+    }
+
+    if (code === 'SOFTWARE_INSTALLATION') {
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const swName = cf.sw_name || resolveByLabel('software name') || resolveByLabel('software') || '';
+      if (!swName) return '';
+      const swVersion = cf.sw_version || resolveByLabel('version') || '';
+      return swVersion ? `Install software: ${swName} v${swVersion}` : `Install software: ${swName}`;
+    }
+
+    if (code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'EMAIL_MANAGEMENT') {
+      const desc = (formData.description || '').trim();
+      if (!desc) {
+        // For EMAIL_MANAGEMENT, also try building from custom fields if no description
+        if (code === 'EMAIL_MANAGEMENT') {
+          const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+          const resolveByLabel = (labelMatch: string): string => {
+            for (const f of formConfig) {
+              if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                if (cf[f.id]) return cf[f.id];
+              }
+            }
+            return '';
+          };
+          const emailType = cf.field_email_request_type || resolveByLabel('request type') || '';
+          const emailAddress = cf.field_email_address || resolveByLabel('email address') || '';
+          if (!emailType && !emailAddress) return '';
+          const parts = ['Email Management'];
+          if (emailType) parts.push(emailType);
+          if (emailAddress) parts.push(`(${emailAddress})`);
+          return parts.join(': ').replace(/ \((.+)\)/, ' ($1)');
+        }
+        // For REPORT_SYSTEM_PROBLEM, build from form fields
+        if (code === 'REPORT_SYSTEM_PROBLEM') {
+          const systemName = (cf.field_system_name || '').toString().trim();
+          const problemType = (cf.field_problem_type || '').toString().trim();
+          if (!systemName && !problemType) return '';
+          const parts = [systemName, problemType].filter(Boolean);
+          return `System Problem: ${parts.join(' - ')}`;
+        }
+        return '';
+      }
+      const firstLine = desc.split('\n')[0].trim();
+      const maxLen = 120;
+      const prefixMap: Record<string, string> = { GET_IT_HELP: 'Get IT Help', REPORT_SYSTEM_PROBLEM: 'System Problem', EMAIL_MANAGEMENT: 'Email Management' };
+      const prefix = prefixMap[code] || 'Request';
+      // Reserve chars for prefix + ": "
+      const summaryMaxLen = maxLen - prefix.length - 2;
+      let shortSummary: string;
+      if (firstLine.length <= summaryMaxLen) {
+        shortSummary = firstLine;
+      } else {
+        const truncated = firstLine.substring(0, summaryMaxLen);
+        const lastSpace = truncated.lastIndexOf(' ');
+        shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+      }
+      return `${prefix}: ${shortSummary}`;
+    }
+
+    if (code === 'PURCHASE_REQUISITION') {
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const itemName = cf.itemName || resolveByLabel('item') || resolveByLabel('service name') || '';
+      const estimatedCost = cf.estimatedCost || resolveByLabel('estimated cost') || '';
+      if (!itemName) return '';
+      const costStr = estimatedCost ? ` (RM${estimatedCost})` : '';
+      return `Purchase: ${itemName}${costStr}`;
+    }
+
+    if (code === 'INTERCOMPANY_CHARGEBACK') {
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const fromEntity = cf.chargeFromEntity || resolveByLabel('charge from entity') || '';
+      const toEntity = cf.chargeToEntity || resolveByLabel('charge to entity') || '';
+      const amount = cf.amount || resolveByLabel('amount') || '';
+      if (!fromEntity && !toEntity) return '';
+      // Resolve entity codes to names
+      const fromName = entityOptions.find(e => e.code === fromEntity)?.name || fromEntity;
+      const toName = entityOptions.find(e => e.code === toEntity)?.name || toEntity;
+      const parts = ['Chargeback:'];
+      if (fromName) parts.push(fromName);
+      parts.push('→');
+      if (toName) parts.push(toName);
+      if (amount) parts.push(`(RM${Number(amount).toLocaleString()})`);
+      return parts.join(' ');
+    }
+
+    if (code === 'BUDGET_PROPOSAL') {
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const dept = cf.department || resolveByLabel('department') || '';
+      const period = cf.budgetPeriod || resolveByLabel('budget period') || '';
+      const amount = cf.totalAmount || resolveByLabel('total amount') || '';
+      if (!dept && !period && !amount) return '';
+      const parts = ['Budget:'];
+      if (dept) parts.push(dept);
+      if (period) parts.push(`(${period})`);
+      if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
+      return parts.join(' ');
+    }
+
+    // CWC_TRAVEL_REQUEST
+    if (code === 'CWC_TRAVEL_REQUEST') {
+      const formConfig = parseFormConfig(selectedRequestType?.formConfig);
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const destination = cf.travelDestination || resolveByLabel('destination') || '';
+      const purpose = cf.travelPurpose || resolveByLabel('purpose') || '';
+      const amount = cf.totalAmount || resolveByLabel('total estimated cost') || '';
+      const departureDate = cf.departureDate || resolveByLabel('departure date') || '';
+
+      if (!destination && !purpose) return '';
+
+      const parts = ['Travel'];
+      if (destination) parts.push(`to ${destination}`);
+      if (departureDate) {
+        try {
+          const d = new Date(departureDate);
+          const formatted = d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+          parts.push(`on ${formatted}`);
+        } catch { /* skip unparseable date */ }
+      }
+      if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
+
+      return parts.join(' ');
+    }
+
+    // EMPLOYEE_ONBOARDING
+    if (code === 'EMPLOYEE_ONBOARDING') {
+      const employeeName = cf.employeeName || '';
+      const jobTitle = cf.jobTitle || '';
+      const department = cf.department || '';
+      const startDate = cf.startDate || '';
+
+      const parts: string[] = [];
+      if (employeeName) parts.push(employeeName);
+      if (jobTitle) parts.push(`— ${jobTitle}`);
+      if (department) {
+        const entityName = entityOptions.find(e => e.code === department)?.name || department;
+        parts.push(`(${entityName})`);
+      }
+      if (startDate) parts.push(`Starting ${startDate}`);
+
+      const summary = parts.join(' ').trim();
+      return summary ? `Onboarding: ${summary}` : '';
+    }
+
+    // NEW_HIRING default
+    const position = cf.position || '';
+    const empType = cf.employmentType || '';
+    const dept = cf.department || '';
+
+    let parts: string[] = [];
+    if (empType) parts.push(empType);
+    if (position) parts.push(position);
+    if (dept) {
+      const entityName = entityOptions.find(e => e.code === dept)?.name || dept;
+      parts.push(`(${entityName})`);
+    }
+    const summary = parts.join(' ').trim();
+    return summary ? `New Hire: ${summary}` : '';
+  }, [isAutoSummary, formData.customFields, entityOptions, selectedRequestType]);
+  // P03 Task 13: Classification-driven confidentiality.
+  // CONFIDENTIAL/RESTRICTED types always force confidentiality.
+  // INTERNAL types allow the user to toggle. If the type doesn't yet
+  // have classification metadata, fall back to the desk code for compatibility.
+  const isAutoConfidential = useMemo(() => {
+    const classification = selectedRequestType?.classification as RequestClassification | undefined;
+    if (classification === 'CONFIDENTIAL' || classification === 'RESTRICTED') return true;
+    if (classification === 'INTERNAL') return false;
+    // Fallback for types without classification metadata yet
+    return deskType === 'hr' || deskType === 'finance';
+  }, [selectedRequestType?.classification, deskType]);
 
   const isRoleBlocked = !!(
     selectedRequestType?.requiredRole &&
@@ -65,6 +333,22 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     entityService.listActiveEntities()
       .then(setEntityOptions)
       .catch(() => setEntityOptions([]));
+  }, []);
+
+  // Fetch CEO / Group DCEO list for CEO approver dropdown
+  const [ceoOptions, setCeoOptions] = useState<{id: string; name: string; entity: string; role: string}[]>([]);
+  useEffect(() => {
+    apiClient.get('/users/executives?role=CEO,GROUP_DCEO')
+      .then(res => {
+        const execs = res.data?.data?.executives || res.data?.data || [];
+        setCeoOptions(execs.map((e: any) => ({
+          id: e.id,
+          name: `${e.firstName} ${e.lastName}`,
+          entity: e.entity?.name || e.entity?.code || '',
+          role: e.executiveRole || e.roles?.find((r: any) => ['CEO', 'GROUP_DCEO'].includes(r.role?.name))?.role?.name || '',
+        })));
+      })
+      .catch(() => setCeoOptions([]));
   }, []);
 
   const fetchData = async () => {
@@ -99,13 +383,35 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const handleRequestTypeChange = (type: any) => {
     setSelectedRequestType(type);
 
+    // Extract workflow if it comes embedded from the API
+    if (type.workflow && type.workflow.steps && type.workflow.steps.length > 0) {
+      setWorkflow({
+        id: type.workflow.id,
+        code: type.workflow.code,
+        name: type.workflow.name,
+        steps: type.workflow.steps
+          .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+          .map((s: any) => ({
+            id: s.id,
+            label: s.label,
+            status: s.status,
+            icon: s.icon || 'radio_button_checked',
+            displayOrder: s.displayOrder,
+            isInitial: s.isInitial,
+            isFinal: s.isFinal,
+            slaPause: s.slaPause ?? false,
+          })),
+      });
+    } else {
+      setWorkflow(null);
+    }
+
     // Initialize custom fields for the selected type
     const initialCustom: any = {};
-    if (type.formConfig) {
-      type.formConfig.forEach((field: any) => {
-        initialCustom[field.id] = '';
-      });
-    }
+    const fc = parseFormConfig(type.formConfig);
+    fc.forEach((field: any) => {
+      initialCustom[field.id] = '';
+    });
     setFormData(prev => ({
       ...prev,
       customFields: initialCustom,
@@ -114,7 +420,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }));
   };
 
-  const handleCustomFieldChange = (fieldId: string, value: string) => {
+  const handleCustomFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       customFields: {
@@ -127,13 +433,28 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const canProceed = useMemo(() => {
     switch (step) {
       case 'type': return !!selectedRequestType;
-      case 'details': return !!formData.summary.trim();
+      case 'details': return !!(formData.summary.trim() || isAutoSummary);
       case 'review': return true;
     }
-  }, [step, selectedRequestType, formData]);
+  }, [step, selectedRequestType, formData, isAutoSummary]);
 
   const next = () => {
     if (!canProceed) return;
+
+    // P03 Task 13: Validate form fields on step transitions using published form schema
+    if (step === 'details' && selectedRequestType?.formConfig) {
+      const failures = validateFormValues(
+        selectedRequestType.formConfig,
+        formData.customFields,
+      );
+      if (failures.length > 0) {
+        setValidationErrors(failures.map(f => f.message));
+        return;
+      }
+    }
+
+    // Clear validation errors on successful transition
+    setValidationErrors([]);
     switch (step) {
       case 'type': setStep('details'); break;
       case 'details': setStep('review'); break;
@@ -150,7 +471,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const getDeskName = () => {
     switch (deskType) {
       case 'it': return 'IT Support';
-      case 'hr': return 'HR Services';
+      case 'hr': return 'Group HR';
       case 'finance': return 'Group Finance';
       default: return 'Service Desk';
     }
@@ -174,10 +495,16 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     error,
     setError,
     entityOptions,
+    ceoOptions,
     uploadingFields,
     setUploadingFields,
     isRoleBlocked,
     handleCustomFieldChange,
     getDeskName,
+    autoSummary,
+    isAutoSummary,
+    isAutoConfidential,
+    workflow,
+    validationErrors,
   };
 }

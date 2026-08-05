@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminService, WorkflowTransition, WorkflowTransitionInput } from '../../services/admin.service';
 import apiClient from '../../services/api';
 
-const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'CMO', 'GROUP_CEO'];
+const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'CMO', 'GROUP_DCEO'];
 const LABEL_OPTIONS = ['APPROVE', 'REJECT', 'SUBMIT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE'];
 
 const emptyForm = (): WorkflowTransitionInput => ({
@@ -135,7 +135,7 @@ export const WorkflowTransitionTab: React.FC = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-lg font-bold text-[#101418]">{editing ? 'Edit Transition' : 'Add Transition'}</h3>
@@ -249,7 +249,7 @@ export const WorkflowTransitionTab: React.FC = () => {
 
       {/* Delete Confirmation */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
             <h3 className="text-lg font-bold text-[#101418] mb-2">Delete Transition?</h3>
             <p className="text-sm text-[#44546f] mb-6">This cannot be undone.</p>

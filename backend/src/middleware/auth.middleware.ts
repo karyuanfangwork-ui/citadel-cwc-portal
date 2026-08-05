@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from './error.middleware';
 import { config } from '../config';
 import { tokenService } from '../services/token.service';
 import { permissionService } from '../services/permission.service';
+import { runWithTenant } from '../lib/tenant-context';
+import { runWithUser } from '../lib/user-context';
+import { runWithExecutionScope } from '../lib/execution-scope';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -16,6 +18,14 @@ export interface AuthRequest extends Request {
         lastName: string;
         roles: string[];
         permissions: string[];
+        agentTeam?: string | null;
+        departmentIds?: string[];
+        tenantId?: string;
+        entityId?: string | null; // P5-02: catalog entitlement filtering
+        // P1-8 — MFA fields for requireMfa middleware
+        mfaEnabled?: boolean;
+        mustEnrollMfa?: boolean;
+        mfaVerifiedAt?: Date | null;
     };
     jti?: string;
     tokenExp?: number;
@@ -45,6 +55,7 @@ export const authenticate = async (
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            tenantId?: string;
             jti?: string;
             exp?: number;
             iat?: number;
@@ -68,10 +79,23 @@ export const authenticate = async (
             throw new AppError('Token has been revoked', 401);
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const membershipNow = new Date();
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: {
+                    roles: { include: { role: true } },
+                    departmentMemberships: {
+                        where: {
+                            validFrom: { lte: membershipNow },
+                            OR: [{ validUntil: null }, { validUntil: { gte: membershipNow } }],
+                        },
+                        select: { departmentId: true },
+                    },
+                },
+            }),
+        );
 
         if (!user || !user.isActive) {
             throw new AppError('User not found or inactive', 401);
@@ -94,12 +118,34 @@ export const authenticate = async (
             lastName: user.lastName,
             roles,
             permissions,
+            agentTeam: user.agentTeam,
+            departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
+            tenantId: user.tenantId ?? undefined,
+            entityId: user.entityId ?? undefined, // P5-02
+            // P1-8 — MFA fields for requireMfa middleware
+            mfaEnabled: user.mfaEnabled,
+            mustEnrollMfa: user.mustEnrollMfa,
+            mfaVerifiedAt: user.mfaVerifiedAt,
         };
         // Populate jti and tokenExp so logout can revoke the specific token
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
 
-        next();
+        // Wrap the remainder of the request in tenant + user context so all
+        // downstream Prisma queries are automatically scoped and auto-audit
+        // can attribute writes to the real user.
+        const tenantId = user.tenantId;
+        const userCtx = {
+          userId: user.id,
+          email: user.email,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent') ?? undefined,
+        };
+        const wrapNext = async () => next();
+        if (tenantId) {
+          return runWithTenant(tenantId, async () => runWithUser(userCtx, wrapNext));
+        }
+        return runWithUser(userCtx, wrapNext);
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {
             next(new AppError('Invalid token', 401));
@@ -145,10 +191,23 @@ export const optionalAuth = async (
             if (revokedAt > 0 && tokenIssuedAt < revokedAt) return next();
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const membershipNow = new Date();
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: {
+                    roles: { include: { role: true } },
+                    departmentMemberships: {
+                        where: {
+                            validFrom: { lte: membershipNow },
+                            OR: [{ validUntil: null }, { validUntil: { gte: membershipNow } }],
+                        },
+                        select: { departmentId: true },
+                    },
+                },
+            }),
+        );
 
         if (user?.isActive) {
             const roles = user.roles.map((ur) => ur.role.name);
@@ -167,13 +226,45 @@ export const optionalAuth = async (
                 lastName: user.lastName,
                 roles,
                 permissions,
+                agentTeam: user.agentTeam,
+                departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
+                tenantId: user.tenantId ?? undefined,
             };
         }
 
+        // Set tenant context if user has a tenant
+        if (user?.tenantId) {
+            return runWithTenant(user.tenantId, async () => next());
+        }
         next();
     } catch {
         next();
     }
+};
+
+// ── P0-5: Service API Key authentication ────────────────────────────────────────
+// For service-to-service endpoints (e.g. AV scan callback) that should NOT
+// be accessible via user JWT. Validates the X-Service-API-Key header against
+// the SERVICE_API_KEY env var. Falls back to INTERNAL_SCAN_TOKEN for backward
+// compatibility with the existing ClamAV scan-document pattern.
+
+export const requireServiceApiKey = (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+) => {
+    const apiKey = req.header('x-service-api-key') || req.header('x-internal-scan-token');
+    const configuredKey = config.security.serviceApiKey || config.security.internalScanToken;
+
+    if (!configuredKey) {
+        return next(new AppError('Service API key is not configured on the server', 503));
+    }
+
+    if (!apiKey || apiKey !== configuredKey) {
+        return next(new AppError('Valid service API key is required', 403));
+    }
+
+    next();
 };
 
 export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
@@ -181,9 +272,16 @@ export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
 }
 
 /**
- * SSE authentication middleware — accepts token from ?token= query param.
- * EventSource cannot send HTTP-only cookies or custom headers,
- * so SSE connections authenticate via ?token=<jwt> query parameter.
+ * SSE authentication middleware.
+ *
+ * P1-02: Cookie-based auth is now the primary method (withCredentials).
+ * Query-param ?token= is retained as a fallback for non-browser clients but
+ * is deprecated — it leaks JWTs into server logs and browser history.
+ *
+ * Priority order:
+ *   1. HttpOnly cookie (access_token)  — browser SSE with withCredentials
+ *   2. Authorization header            — curl/API clients
+ *   3. Query param (?token=)           — deprecated fallback
  */
 export const sseAuth = async (
     req: AuthRequest,
@@ -193,21 +291,16 @@ export const sseAuth = async (
     try {
         let token: string | undefined;
 
-        // 1. Query param (for SSE EventSource connections)
-        if ((req.query as Record<string, unknown>).token) {
-            token = String((req.query as Record<string, unknown>).token);
-        }
-        // 2. Cookie (standard browser sessions)
-        else if (req.cookies?.access_token) {
+        // 1. Cookie (preferred — browser SSE with withCredentials)
+        if (req.cookies?.access_token) {
             token = req.cookies.access_token;
         }
-        // 3. Authorization header (API clients / curl)
-        else {
-            const authHeader = req.headers.authorization;
-            if (authHeader?.startsWith('Bearer ')) {
-                token = authHeader.substring(7);
-            }
+        // 2. Authorization header (API clients / curl)
+        else if (req.headers.authorization?.startsWith('Bearer ')) {
+            token = req.headers.authorization.substring(7);
         }
+        // P01 Task 5 (Finding #37): Query-param token removed —
+        // it leaked JWTs into access logs and browser history.
 
         if (!token) {
             res.status(401).json({ error: 'No token provided' });
@@ -217,6 +310,7 @@ export const sseAuth = async (
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            tenantId?: string;
             jti?: string;
             exp?: number;
             iat?: number;
@@ -240,10 +334,13 @@ export const sseAuth = async (
             return;
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { roles: { include: { role: true } } },
-        });
+        const user = await runWithExecutionScope(
+            { kind: 'system', jobName: 'auth:lookup', runId: `auth-${decoded.userId}` },
+            async () => prisma.user.findUnique({
+                where: { id: decoded.userId },
+                include: { roles: { include: { role: true } } },
+            }),
+        );
 
         if (!user || !user.isActive) {
             res.status(401).json({ error: 'User not found or inactive' });
@@ -266,10 +363,16 @@ export const sseAuth = async (
             lastName: user.lastName,
             roles,
             permissions,
+            agentTeam: user.agentTeam,
+            tenantId: user.tenantId ?? undefined,
         };
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
 
+        // Set tenant context if user has a tenant
+        if (user.tenantId) {
+            return runWithTenant(user.tenantId, async () => next());
+        }
         next();
     } catch (error) {
         if (error instanceof jwt.JsonWebTokenError) {
@@ -326,4 +429,36 @@ export const requirePermission = (...permissionNames: string[]) => {
 
         next();
     };
+};
+
+/**
+ * P01 Task 5 (Findings #75–#77): Require that the authenticated user has
+ * completed MFA verification for privileged operations.
+ *
+ * Checks `req.user.mfaEnabled` and `req.user.mfaVerifiedAt`:
+ * - If MFA is not enabled for this user, allow (MFA not configured yet).
+ * - If MFA is enabled but the user hasn't verified in this session,
+ *   reject with 403 "MFA verification required".
+ * - If MFA is enabled and verified, allow.
+ *
+ * Usage: mount on privileged routes:
+ *   router.post('/admin/users', authenticate, requireMfa, adminController.createUser);
+ */
+export const requireMfa = (req: AuthRequest, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+        return next(new AppError('Not authenticated', 401));
+    }
+
+    // If MFA is not enabled for this user, they don't need MFA verification
+    if (!req.user.mfaEnabled) {
+        return next();
+    }
+
+    // MFA is enabled — check if the user has verified in this session
+    if (!req.user.mfaVerifiedAt) {
+        return next(new AppError('MFA verification required for this operation', 403));
+    }
+
+    // MFA is enabled and verified — allow
+    next();
 };

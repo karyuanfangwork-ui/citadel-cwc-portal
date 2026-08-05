@@ -22,16 +22,45 @@ interface AuthUser {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    tenantId?: string | null;
+    /** Task 14: Department memberships from server-authoritative policy */
+    departmentIds?: string[];
+}
+
+/** P0-2: Error thrown when the backend requires a password reset */
+export class PasswordResetRequiredError extends Error {
+    resetToken: string;
+    email: string;
+    constructor(resetToken: string, email: string) {
+        super('PASSWORD_RESET_REQUIRED');
+        this.name = 'PasswordResetRequiredError';
+        this.resetToken = resetToken;
+        this.email = email;
+    }
 }
 
 export const authService = {
     async login(credentials: LoginCredentials): Promise<AuthUser & { accessToken?: string }> {
-        const response = await apiClient.post('/auth/login', credentials);
-        // Backend returns { user, accessToken } - return both
-        return {
-            ...response.data.data.user,
-            accessToken: response.data.data.accessToken,
-        };
+        try {
+            const response = await apiClient.post('/auth/login', credentials);
+            return {
+                ...response.data.data.user,
+                accessToken: response.data.data.accessToken,
+            };
+        } catch (error: any) {
+            // P0-2: Handle mustResetPassword — backend returns 403 with PASSWORD_RESET_REQUIRED
+            if (
+                error?.response?.status === 403 &&
+                error?.response?.data?.message === 'PASSWORD_RESET_REQUIRED' &&
+                error?.response?.data?.details?.resetToken
+            ) {
+                throw new PasswordResetRequiredError(
+                    error.response.data.details.resetToken,
+                    error.response.data.details.email,
+                );
+            }
+            throw error;
+        }
     },
 
     async register(data: RegisterData): Promise<AuthUser> {
@@ -51,6 +80,12 @@ export const authService = {
     async getCurrentUser(): Promise<AuthUser> {
         const response = await apiClient.get('/users/me');
         return response.data.data.user;
+    },
+
+    /** Task 14: Fetch server-authoritative policy decisions for frontend route/action consumption */
+    async getMyPolicy(): Promise<import('../types/policy').PolicyDecision> {
+        const response = await apiClient.get('/users/me/policy');
+        return response.data.data;
     },
 
     async changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<{ message: string }> {

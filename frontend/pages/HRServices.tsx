@@ -42,11 +42,11 @@ const HRServices = () => {
         const cats = await serviceDeskService.getCategories(hrDesk.id);
         setCategories(cats);
       } else {
-        setError('HR Services service desk not found');
+        setError('Group HR service desk not found');
       }
     } catch (err: any) {
       console.error('Error fetching service desk:', err);
-      setError(friendlyMessage(err, 'Unable to load HR Services. Please try again.'));
+      setError(friendlyMessage(err, 'Unable to load Group HR. Please try again.'));
     } finally {
       setLoading(false);
     }

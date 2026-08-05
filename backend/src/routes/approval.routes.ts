@@ -6,12 +6,17 @@ import {
     markJobPosted,
     routeToManager,
     managerDecision,
-    entityDecision
+    entityDecision,
+    routeToGroupDceoHr,
+    groupDceoDecisionHr
 } from '../controllers/approval.controller';
 import {
     uploadResume,
     getResumes,
     deleteResume,
+    batchUploadDocs,
+    getCandidates,
+    deleteCandidate,
     upload
 } from '../controllers/resume.controller';
 
@@ -66,16 +71,51 @@ router.post('/requests/:id/manager-decision', managerDecision);
  */
 router.post('/requests/:id/entity-decision', entityDecision);
 
+/**
+ * @route   POST /api/approvals/requests/:id/route-to-group-dceo-hr
+ * @desc    Route HR hiring request to Group Deputy CEO for approval
+ * @access  Private (HR Agent)
+ */
+router.post('/requests/:id/route-to-group-dceo-hr', routeToGroupDceoHr);
+
+/**
+ * @route   POST /api/approvals/requests/:id/group-dceo-decision-hr
+ * @desc    Group Deputy CEO approve or reject HR hiring request
+ * @access  Private (Group Deputy CEO)
+ */
+router.post('/requests/:id/group-dceo-decision-hr', groupDceoDecisionHr);
+
 // ============================================================================
 // RESUME UPLOAD ROUTES
 // ============================================================================
 
 /**
  * @route   POST /api/approvals/requests/:id/upload-resume
- * @desc    Upload candidate resume
+ * @desc    Upload single candidate document
  * @access  Private (HR Agent)
  */
 router.post('/requests/:id/upload-resume', upload.single('file'), uploadResume);
+
+/**
+ * @route   POST /api/approvals/requests/:id/upload-candidate-docs
+ * @desc    Batch upload candidate documents (multiple files)
+ * @access  Private (HR Agent)
+ */
+router.post('/requests/:id/upload-candidate-docs', upload.array('files', 5), batchUploadDocs);
+
+/**
+ * @route   GET /api/approvals/requests/:id/candidates
+ * @desc    Get all candidates for a request (with documents)
+ * @access  Private
+ */
+router.get('/requests/:id/candidates', getCandidates);
+
+/**
+ * @route   DELETE /api/approvals/requests/:id/candidates/:candidateId
+ * @desc    Delete a candidate and their documents
+ * @access  Private (HR Agent)
+ */
+router.delete('/requests/:id/candidates/:candidateId', deleteCandidate);
 
 /**
  * @route   GET /api/approvals/requests/:id/resumes

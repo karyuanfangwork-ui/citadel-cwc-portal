@@ -2,10 +2,10 @@ import { ExecutiveRole, User } from '@prisma/client';
 
 /**
  * Executive approval hierarchy for high-value requests.
- * Order matters: GROUP_CEO > CEO > CTO > CFO > CMO > COO > CHRO
+ * Order matters: GROUP_DCEO > CEO > CTO > CFO > CMO > COO > CHRO
  */
 export const EXECUTIVE_HIERARCHY: ExecutiveRole[] = [
-    'GROUP_CEO',
+    'GROUP_DCEO',
     'CEO',
     'CTO',
     'CFO',

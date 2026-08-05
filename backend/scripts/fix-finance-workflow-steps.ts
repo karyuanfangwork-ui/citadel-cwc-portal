@@ -18,7 +18,7 @@ async function main() {
     { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle', displayOrder: 1, isInitial: true, isFinal: false },
     { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked', displayOrder: 2, isInitial: false, isFinal: false },
     { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked', displayOrder: 3, isInitial: false, isFinal: false },
-    { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked', displayOrder: 4, isInitial: false, isFinal: false },
+    { label: 'Group Deputy CEO', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', displayOrder: 4, isInitial: false, isFinal: false },
     { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked', displayOrder: 5, isInitial: false, isFinal: false },
     { label: 'Awaiting Confirmation', status: 'AWAITING_PAYMENT_CONFIRMATION', icon: 'hourglass_empty', displayOrder: 6, isInitial: false, isFinal: false },
     { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle', displayOrder: 7, isInitial: false, isFinal: true },

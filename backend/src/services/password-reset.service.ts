@@ -1,9 +1,8 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const TOKEN_EXPIRY_MINUTES = 15;
 
@@ -61,7 +60,7 @@ export const passwordResetService = {
       }),
       prisma.user.update({
         where: { id: userId },
-        data: { passwordHash },
+        data: { passwordHash, mustResetPassword: false, passwordChangedAt: new Date() },
       }),
     ]);
 

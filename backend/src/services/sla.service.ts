@@ -1,6 +1,8 @@
 import prisma from '../utils/prisma';
-import { notifyMultiple } from './notification.service';
+import { notify } from './notification.service';
 import { logger } from '../utils/logger';
+
+const db = prisma as any;
 
 export async function checkSlaBreaches(): Promise<number> {
   const now = new Date();
@@ -10,7 +12,7 @@ export async function checkSlaBreaches(): Promise<number> {
       where: {
         slaDueAt: { lte: now },
         slaPausedAt: null, // Skip paused requests — SLA clock is stopped
-        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
       },
       include: {
         assignedTo: { select: { id: true } },
@@ -46,16 +48,30 @@ export async function checkSlaBreaches(): Promise<number> {
         },
       });
 
-      const notifyIds: string[] = [];
-      if (req.assignedToId) notifyIds.push(req.assignedToId);
-      adminIds.forEach((id) => {
-        if (!notifyIds.includes(id)) notifyIds.push(id);
-      });
-
-      await notifyMultiple(notifyIds, 'SLA_BREACHED', {
-        referenceNumber: req.referenceNumber,
-        slaDeadline: req.slaDueAt?.toISOString() ?? '',
-      }, req.id);
+      // Single-recipient: notify assigned agent only.
+      // If no agent is assigned, fall back to a single admin.
+      if (req.assignedToId) {
+        await notify({
+          userId: req.assignedToId,
+          eventType: 'SLA_BREACHED',
+          variables: {
+            referenceNumber: req.referenceNumber,
+            slaDeadline: req.slaDueAt?.toISOString() ?? '',
+          },
+          relatedRequestId: req.id,
+        });
+      } else if (adminIds.length > 0) {
+        // No agent assigned — notify the single most senior admin
+        await notify({
+          userId: adminIds[0],
+          eventType: 'SLA_BREACHED',
+          variables: {
+            referenceNumber: req.referenceNumber,
+            slaDeadline: req.slaDueAt?.toISOString() ?? '',
+          },
+          relatedRequestId: req.id,
+        });
+      }
       logger.warn(`SLA breach detected for request ${req.referenceNumber}`);
     }
 
@@ -80,7 +96,7 @@ export async function checkEscalations(): Promise<number> {
         slaDueAt: { lte: now },
         slaPausedAt: null, // Skip paused requests — SLA clock is stopped
         requestTypeId: { not: null },
-        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
       },
       include: {
         activities: {
@@ -128,19 +144,64 @@ export async function checkEscalations(): Promise<number> {
           },
         });
 
-        const usersToNotify = await prisma.user.findMany({
-          where: { roles: { some: { role: { name: { in: rule.notifyRoles } } } } },
+        const tenantId = req.tenantId;
+        if (!tenantId) continue;
+        const escalationLevel = rule.triggerHoursAfterBreach;
+        const idempotencyKey = `${req.id}:rule:${rule.id}:level:${escalationLevel}`;
+        await db.slaEscalationEvent.upsert({
+          where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
+          update: {},
+          create: {
+            tenantId,
+            departmentId: req.departmentId ?? null,
+            requestId: req.id,
+            escalationLevel,
+            ruleId: rule.id,
+            idempotencyKey,
+            notifyRoles: rule.notifyRoles,
+            notificationIntent: {
+              eventType: 'SLA_ESCALATED',
+              referenceNumber: req.referenceNumber,
+              escalationHours: rule.triggerHoursAfterBreach,
+              escalationLabel: rule.label || '',
+              notifyRoles: rule.notifyRoles,
+            },
+          },
+        });
+
+        await db.outboxEvent.create({
+          data: {
+            tenantId,
+            departmentId: req.departmentId ?? null,
+            eventType: 'SLA_ESCALATION_INTENT_CREATED',
+            aggregateId: req.id,
+            aggregateVersion: rule.triggerHoursAfterBreach,
+            payload: { requestId: req.id, ruleId: rule.id, idempotencyKey, notifyRoles: rule.notifyRoles },
+          },
+        }).catch(() => undefined);
+
+        // Notify matching escalation handlers only. Do not grant access by adding
+        // participants; authorization remains policy-driven when recipients open the request.
+        const escalationHandlers = await prisma.user.findMany({
+          where: {
+            isActive: true,
+            roles: { some: { role: { name: { in: rule.notifyRoles } } } },
+          },
           select: { id: true },
         });
-        const notifyIds = usersToNotify.map((u) => u.id);
 
-        if (notifyIds.length > 0) {
-          await notifyMultiple(notifyIds, 'SLA_ESCALATED', {
-            referenceNumber: req.referenceNumber,
-            escalationHours: String(rule.triggerHoursAfterBreach),
-            escalationLabel: rule.label || '',
-            notifyRoles: rule.notifyRoles.join(', '),
-          }, req.id);
+        for (const handler of escalationHandlers) {
+          await notify({
+            userId: handler.id,
+            eventType: 'SLA_ESCALATED',
+            variables: {
+              referenceNumber: req.referenceNumber,
+              escalationHours: String(rule.triggerHoursAfterBreach),
+              escalationLabel: rule.label || '',
+              notifyRoles: rule.notifyRoles.join(', '),
+            },
+            relatedRequestId: req.id,
+          });
         }
 
         logger.warn(`SLA escalation fired for request ${req.referenceNumber} (rule: ${rule.id}, +${rule.triggerHoursAfterBreach}h)`);

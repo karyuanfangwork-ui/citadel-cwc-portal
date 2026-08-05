@@ -10,8 +10,6 @@ interface UpdateScreeningModalProps {
 }
 
 const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, onSuccess, onClose }) => {
-  const [bgStatus, setBgStatus] = useState('PENDING');
-  const [bgNotes, setBgNotes] = useState('');
   const [refStatus, setRefStatus] = useState('PENDING');
   const [refNotes, setRefNotes] = useState('');
   const [refContacted, setRefContacted] = useState('');
@@ -23,8 +21,6 @@ const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, 
   useEffect(() => {
     screeningService.getScreeningDetails(requestId).then(data => {
       if (!data) return;
-      setBgStatus(data.backgroundCheckStatus || 'PENDING');
-      setBgNotes(data.backgroundCheckNotes || '');
       setRefStatus(data.referencesCheckStatus || 'PENDING');
       setRefNotes(data.referencesCheckNotes || '');
       setRefContacted(Array.isArray(data.referencesContacted) ? data.referencesContacted.join(', ') : '');
@@ -38,8 +34,7 @@ const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, 
       setSubmitting(true);
       setError(null);
       await screeningService.updateScreeningStatus(requestId, {
-        backgroundCheckStatus: bgStatus,
-        backgroundCheckNotes: bgNotes || undefined,
+        backgroundCheckStatus: 'PASSED', // Auto-pass since we removed it from UI
         referencesCheckStatus: refStatus,
         referencesCheckNotes: refNotes || undefined,
         referencesContacted: refContacted ? refContacted.split(',').map(r => r.trim()).filter(Boolean) : [],
@@ -47,7 +42,7 @@ const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, 
       } as any);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update screening status');
+      setError(err.response?.data?.message || 'Failed to update reference check status');
     } finally {
       setSubmitting(false);
     }
@@ -55,43 +50,29 @@ const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, 
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
           <div className="flex items-center gap-3 p-5 border-b border-gray-100">
             <div className="size-9 rounded-lg bg-indigo-100 flex items-center justify-center">
               <span className="material-symbols-outlined text-indigo-600">fact_check</span>
             </div>
             <div>
-              <h2 className="font-bold text-base text-gray-900">Update Screening Status</h2>
-              <p className="text-xs text-gray-500">HR Workflow · HR Screening stage</p>
+              <h2 className="font-bold text-base text-gray-900">Update Reference Check</h2>
+              <p className="text-xs text-gray-500">HR Workflow · Reference Check stage</p>
             </div>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">BG Check Status</label>
-                  <select value={bgStatus} onChange={e => setBgStatus(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]">
-                    <option value="PENDING">Pending</option>
-                    <option value="PASSED">Passed</option>
-                    <option value="FAILED">Failed</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Ref Check Status</label>
-                  <select value={refStatus} onChange={e => setRefStatus(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]">
-                    <option value="PENDING">Pending</option>
-                    <option value="PASSED">Passed</option>
-                    <option value="FAILED">Failed</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Reference Check Status</label>
+                <select value={refStatus} onChange={e => setRefStatus(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]">
+                  <option value="PENDING">Pending</option>
+                  <option value="PASSED">Passed</option>
+                  <option value="FAILED">Failed</option>
+                </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Background Check Notes</label>
-                <textarea value={bgNotes} onChange={e => setBgNotes(e.target.value)} rows={2} placeholder="Observations from BG check..." className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] resize-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">References Check Notes</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Reference Check Notes</label>
                 <textarea value={refNotes} onChange={e => setRefNotes(e.target.value)} rows={2} placeholder="Feedback from references..." className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] resize-none" />
               </div>
               <div>
@@ -99,7 +80,7 @@ const UpdateScreeningModal: React.FC<UpdateScreeningModalProps> = ({ requestId, 
                 <input type="text" value={refContacted} onChange={e => setRefContacted(e.target.value)} placeholder="e.g. Michael Scott, Jim Halpert" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Overall Screening Status <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Overall Status <span className="text-red-500">*</span></label>
                 <select value={overallStatus} onChange={e => setOverallStatus(e.target.value)} required className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]">
                   <option value="IN_PROGRESS">In Progress</option>
                   <option value="COMPLETED">Completed (Proceed to LOA)</option>

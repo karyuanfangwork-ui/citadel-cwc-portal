@@ -8,7 +8,8 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.ACTION_REQUIRED]: { label: 'ACTION REQUIRED', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'warning' },
   [RequestStatus.APPROVED]: { label: 'APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.REJECTED]: { label: 'REJECTED', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
-  [RequestStatus.RESOLVED]: { label: 'COMPLETED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'task_alt' },
+  [RequestStatus.CANCELLED]: { label: 'CANCELLED', color: 'text-gray-700', bg: 'bg-gray-200', icon: 'block' },
+  [RequestStatus.RESOLVED]: { label: 'RESOLVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'task_alt' },
   [RequestStatus.IN_PROGRESS]: { label: 'IN PROGRESS', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'sync' },
   [RequestStatus.WAITING]: { label: 'WAITING', color: 'text-gray-600', bg: 'bg-gray-100', icon: 'hourglass_empty' },
   [RequestStatus.PENDING_CEO_APPROVAL]: { label: 'PENDING CEO APPROVAL', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
@@ -20,22 +21,22 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.INTERVIEW_SCHEDULED]: { label: 'INTERVIEW SCHEDULED', color: 'text-indigo-700', bg: 'bg-indigo-100', icon: 'event' },
   [RequestStatus.INTERVIEW_FEEDBACK_PENDING]: { label: 'FEEDBACK RECEIVED', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'rate_review' },
   [RequestStatus.CANDIDATE_REJECTED_INTERVIEW]: { label: 'CANDIDATE REJECTED', color: 'text-red-700', bg: 'bg-red-100', icon: 'person_off' },
-  [RequestStatus.HR_SCREENING]: { label: 'HR SCREENING', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'person_search' },
+  [RequestStatus.HR_SCREENING]: { label: 'REFERENCE CHECK', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'person_search' },
   [RequestStatus.LOA_PENDING_APPROVAL]: { label: 'LOA APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'pending' },
   [RequestStatus.LOA_APPROVED]: { label: 'LOA APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.LOA_ISSUED]: { label: 'LOA ISSUED', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'description' },
   [RequestStatus.LOA_ACCEPTED]: { label: 'LOA ACCEPTED', color: 'text-green-700', bg: 'bg-green-100', icon: 'handshake' },
-  [RequestStatus.COMPLETED]: { label: 'HIRING COMPLETE', color: 'text-emerald-800', bg: 'bg-emerald-200', icon: 'task_alt' },
+  [RequestStatus.COMPLETED]: { label: 'COMPLETED', color: 'text-emerald-800', bg: 'bg-emerald-200', icon: 'task_alt' },
   // Onboarding Statuses
   [RequestStatus.ONBOARDING_SUBMITTED]: { label: 'ONBOARDING SUBMITTED', color: 'text-cyan-700', bg: 'bg-cyan-100', icon: 'send' },
   [RequestStatus.ONBOARDING_PENDING_HR_APPROVAL]: { label: 'PENDING HR APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'pending' },
   [RequestStatus.ONBOARDING_PRE_ARRIVAL_SETUP]: { label: 'PRE-ARRIVAL SETUP', color: 'text-indigo-700', bg: 'bg-indigo-100', icon: 'settings' },
-  [RequestStatus.ONBOARDING_READY_FOR_DAY_1]: { label: 'READY FOR DAY 1', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'event_available' },
-  [RequestStatus.ONBOARDING_DAY_1_ORIENTATION]: { label: 'DAY 1 ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
-  [RequestStatus.ONBOARDING_WEEK_1_INTEGRATION]: { label: 'WEEK 1 INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
-  [RequestStatus.ONBOARDING_MONTH_1_MILESTONE]: { label: '30-DAY MILESTONE', color: 'text-sky-700', bg: 'bg-sky-100', icon: 'flag' },
-  [RequestStatus.ONBOARDING_MONTH_2_MILESTONE]: { label: '60-DAY MILESTONE', color: 'text-teal-700', bg: 'bg-teal-100', icon: 'flag' },
-  [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: '90-DAY MILESTONE', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'flag' },
+  [RequestStatus.ONBOARDING_READY_FOR_DAY_1]: { label: 'ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
+  [RequestStatus.ONBOARDING_DAY_1_ORIENTATION]: { label: 'ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
+  [RequestStatus.ONBOARDING_WEEK_1_INTEGRATION]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_1_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_2_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
   [RequestStatus.ONBOARDING_COMPLETED]: { label: 'ONBOARDING COMPLETE', color: 'text-green-800', bg: 'bg-green-200', icon: 'task_alt' },
   // IT Workflow Statuses
 
@@ -80,9 +81,9 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.PENDING_CFO_APPROVAL_FIN]: { label: 'Pending CFO Approval', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'pending' },
   [RequestStatus.CFO_APPROVED_FIN]: { label: 'CFO Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
   [RequestStatus.CFO_REJECTED_FIN]: { label: 'CFO Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
-  [RequestStatus.PENDING_GROUP_CEO_APPROVAL]: { label: 'Pending Group CEO', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
-  [RequestStatus.GROUP_CEO_APPROVED]: { label: 'Group CEO Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'verified' },
-  [RequestStatus.GROUP_CEO_REJECTED]: { label: 'Group CEO Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.PENDING_GROUP_DCEO_APPROVAL]: { label: 'Pending Group Deputy CEO', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
+  [RequestStatus.GROUP_DCEO_APPROVED]: { label: 'Group Deputy CEO Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'verified' },
+  [RequestStatus.GROUP_DCEO_REJECTED]: { label: 'Group Deputy CEO Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
   [RequestStatus.PAYMENT_PROCESSING_FIN]: { label: 'Payment Processing', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'payments' },
   [RequestStatus.AWAITING_PAYMENT_CONFIRMATION]: { label: 'Awaiting Confirmation', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'hourglass_empty' },
   [RequestStatus.PAYMENT_CONFIRMED_FIN]: { label: 'Payment Confirmed', color: 'text-green-700', bg: 'bg-green-100', icon: 'paid' },
@@ -98,6 +99,38 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION]: { label: 'Awaiting Confirmation', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'hourglass_empty' },
   [RequestStatus.CHARGEBACK_COMPLETED]: { label: 'Chargeback Complete', color: 'text-green-700', bg: 'bg-green-100', icon: 'task_alt' },
 };
+
+/**
+ * Terminal / closed statuses — requests in these states are treated as
+ * "resolved" in list views. Single source of truth; import everywhere instead
+ * of re-defining locally (audit finding C5).
+ */
+export const RESOLVED_STATUSES = new Set<string>([
+  RequestStatus.RESOLVED,
+  RequestStatus.COMPLETED,
+  RequestStatus.REJECTED,
+  RequestStatus.CANCELLED,
+  RequestStatus.CEO_REJECTED,
+  RequestStatus.REIMBURSEMENT_CLOSED,
+  RequestStatus.ONBOARDING_COMPLETED,
+  RequestStatus.OFFBOARDING_COMPLETED,
+  RequestStatus.PAYMENT_COMPLETED,
+  RequestStatus.LOA_ACCEPTED,
+  RequestStatus.CTO_REJECTED_IT,
+  RequestStatus.CFO_REJECTED_IT,
+  RequestStatus.MANAGER_REJECTED_FIN,
+  RequestStatus.FINANCE_HEAD_REJECTED,
+  RequestStatus.CFO_REJECTED_FIN,
+  RequestStatus.GROUP_DCEO_REJECTED,
+  RequestStatus.PAYMENT_CONFIRMED_FIN,
+  RequestStatus.TICKET_CLOSED_FIN,
+  RequestStatus.FROM_ENTITY_REJECTED,
+  RequestStatus.TO_ENTITY_REJECTED,
+  RequestStatus.CHARGEBACK_COMPLETED,
+]);
+
+/** Array form for APIs that accept a comma-joined excludedStatuses param. */
+export const RESOLVED_STATUSES_LIST = [...RESOLVED_STATUSES];
 
 export const MOCK_REQUESTS = [
   {
@@ -118,7 +151,7 @@ export const MOCK_REQUESTS = [
     id: '2',
     reference: 'HR-1044',
     summary: 'Annual Leave Request - December',
-    service: 'HR Services',
+    service: 'Group HR',
     status: RequestStatus.APPROVED,
     updated: 'Yesterday',
     created: 'Oct 23, 2023',
@@ -140,7 +173,7 @@ export const MOCK_REQUESTS = [
     id: '4',
     reference: 'HR-INC-502',
     summary: 'Discrepancy in Q3 performance review documentation',
-    service: 'HR Services',
+    service: 'Group HR',
     status: RequestStatus.IN_REVIEW,
     updated: 'Yesterday, 4:12 PM',
     created: 'Oct 24, 2023',

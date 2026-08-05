@@ -14,6 +14,8 @@ import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 import { EntitiesTab } from '../src/components/admin/EntitiesTab';
 import { AuditLogTab } from '../src/components/admin/AuditLogTab';
 import { SLAEscalationTab } from '../src/components/admin/SLAEscalationTab';
+import { ESMSettingsTab } from '../src/components/admin/ESMSettingsTab';
+import SchedulerSettings from '../src/components/admin/SchedulerSettings';
 import { useAdminState } from '../src/components/admin/useAdminState';
 import { ADMIN_TABS, CATEGORY_ICONS, COLOR_THEMES } from '../src/components/admin/adminConstants';
 import { ServiceDesksTab } from '../src/components/admin/ServiceDesksTab';
@@ -28,6 +30,7 @@ import { AgentTeamModal } from '../src/components/admin/AgentTeamModal';
 import { ResetPasswordModal } from '../src/components/admin';
 import { RequestTypeEditModal } from '../src/components/admin/RequestTypeEditModal';
 import { FormBuilderModal } from '../src/components/admin/FormBuilderModal';
+import { CatalogItemDetail } from '../src/components/admin/CatalogItemDetail';
 import { entityService, Entity } from '../src/services/entity.service';
 
 const AdminSettings = () => {
@@ -165,6 +168,7 @@ const AdminSettings = () => {
                             onEditService={admin.openEditServiceModal}
                             onEditTypeName={admin.openEditTypeName}
                             onOpenFormBuilder={admin.openFormBuilder}
+                            onOpenCatalogDetail={admin.openCatalogDetail}
                             onAddDesk={admin.openAddDeskModal}
                             onEditDesk={admin.openEditDeskModal}
                             onDeleteDesk={admin.handleDeleteDesk}
@@ -179,19 +183,28 @@ const AdminSettings = () => {
                             userPagination={admin.userPagination}
                             userSearch={admin.userSearch}
                             userRoleFilter={admin.userRoleFilter}
+                            userStatusFilter={admin.userStatusFilter}
+                            userStats={admin.userStats}
                             availableRoles={admin.availableRoles}
                             entities={entities}
                             approverEntityMap={approverEntityMap}
-                            onSearch={(value) => { admin.userSearch = value; admin.fetchUsers(1, value, admin.userRoleFilter); }}
-                            onRoleFilter={(value) => { admin.userRoleFilter = value; admin.fetchUsers(1, admin.userSearch, value); }}
-                            onFetchUsers={admin.fetchUsers}
+                            onSearch={(value) => admin.fetchUsers(1, value, admin.userRoleFilter, admin.userStatusFilter)}
+                            onRoleFilter={(value) => admin.fetchUsers(1, admin.userSearch, value, admin.userStatusFilter)}
+                            onStatusFilter={(value) => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter, value)}
+                            onFetchUsers={(page) => admin.fetchUsers(page, admin.userSearch, admin.userRoleFilter, admin.userStatusFilter)}
                             onCreateUser={() => admin.setShowCreateUserModal(true)}
                             onImportStaff={() => admin.setShowImportStaffModal(true)}
                             onEditUser={(user) => { admin.setEditingUser(user); admin.setShowEditUserModal(true); }}
                             onManageRoles={(user) => { admin.setRoleModalUser(user); admin.setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
                             onResetPassword={(user) => admin.setResetPasswordUser(user)}
                             onAssignAgentTeam={(user) => { admin.setRoleModalUser(user); admin.setShowAgentTeamModal(true); }}
-                            onToggleUserStatus={admin.handleToggleUserStatus}
+                            onToggleUserStatus={(user) => {
+                                if (user.isActive) {
+                                    admin.setConfirmDisableUser(user);
+                                } else {
+                                    admin.handleToggleUserStatus(user);
+                                }
+                            }}
                         />
                     )}
 
@@ -232,7 +245,9 @@ const AdminSettings = () => {
                     {admin.activeTab === 'banner-config' && <BannerConfigTab />}
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
                     {admin.activeTab === 'sla-escalation' && <SLAEscalationTab />}
+                    {admin.activeTab === 'esm-settings' && <ESMSettingsTab />}
                     {admin.activeTab === 'audit-logs' && <AuditLogTab />}
+                    {admin.activeTab === 'scheduler' && <SchedulerSettings />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}
                     {admin.activeTab === 'email-notifications' && <EmailNotificationsTab />}
 
@@ -347,6 +362,40 @@ const AdminSettings = () => {
                 />
             )}
 
+            {/* Confirm Disable User Dialog */}
+            {admin.confirmDisableUser && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-10 scale-in">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
+                                <span className="material-symbols-outlined text-red-500 text-2xl">block</span>
+                            </div>
+                            <h3 className="text-xl font-black text-[#101418]">Disable Account</h3>
+                        </div>
+                        <p className="text-[#44546f] font-medium mb-8">
+                            Are you sure you want to disable <strong>{admin.confirmDisableUser.firstName} {admin.confirmDisableUser.lastName}</strong>? They will no longer be able to log in.
+                        </p>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => admin.setConfirmDisableUser(null)}
+                                className="flex-1 py-3 bg-gray-100 text-[#44546f] font-black rounded-2xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    admin.handleToggleUserStatus(admin.confirmDisableUser);
+                                    admin.setConfirmDisableUser(null);
+                                }}
+                                className="flex-1 py-3 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 transition-all text-xs uppercase tracking-widest"
+                            >
+                                Disable
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Confirm Dialog */}
             {admin.pendingAction && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
@@ -403,6 +452,18 @@ const AdminSettings = () => {
                 selectedType={admin.selectedType}
                 onSave={admin.handleSaveFormConfig}
                 onClose={() => admin.setFormBuilderOpen(false)}
+            />
+
+            {/* P5-03: Catalog Item Detail Modal */}
+            <CatalogItemDetail
+                isOpen={admin.catalogDetailOpen && !!admin.selectedType}
+                requestType={admin.selectedType}
+                onClose={() => admin.setCatalogDetailOpen(false)}
+                onRefresh={() => {
+                    if (admin.selectedDesk?.id) {
+                        admin.fetchCategories(admin.selectedDesk.id);
+                    }
+                }}
             />
         </div>
     );

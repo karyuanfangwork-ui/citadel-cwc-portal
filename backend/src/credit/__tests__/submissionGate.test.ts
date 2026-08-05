@@ -1,0 +1,193 @@
+jest.mock('../../utils/prisma', () => ({
+  __esModule: true,
+  default: {
+    creditApplication: {
+      findUnique: jest.fn(),
+    },
+    retailIncome: {
+      findUnique: jest.fn(),
+    },
+    financialStatement: {
+      count: jest.fn(),
+    },
+    eclSnapshot: {
+      count: jest.fn(),
+    },
+  },
+}));
+
+jest.mock('../services/scoreOverride.service', () => ({
+  hasPendingScoreOverride: jest.fn().mockResolvedValue(false),
+}));
+
+jest.mock('../jobs/collateralInsuranceMonitor.job', () => ({
+  hasStaleCollateralValuations: jest.fn().mockResolvedValue({
+    blocked: false,
+    staleCollaterals: [],
+  }),
+}));
+
+jest.mock('../services/bureauCheck.service', () => ({
+  isBureauCheckFresh: jest.fn().mockResolvedValue({ fresh: true, staleProviders: [] }),
+  isBureauChecklistComplete: jest.fn().mockResolvedValue(true),
+  isBureauChecklistVerified: jest.fn().mockResolvedValue(true),
+  getBureauFreshnessDays: jest.fn().mockResolvedValue(30),
+}));
+
+jest.mock('../services/fatcaCrs.service', () => ({
+  fatcaCrsService: {
+    checkExpiry: jest.fn().mockResolvedValue({ exists: false, expired: false, expiryDate: null }),
+  },
+}));
+
+jest.mock('../services/creditFieldCheck.service', () => ({
+  checkRequiredFields: jest.fn(),
+}));
+
+// P1.3: Mock the rule engine for document requirements
+jest.mock('../services/creditRuleEngine.service', () => ({
+  resolveRequiredDocuments: jest.fn(async (scope: any) => {
+    const defaults: Record<string, { documentClass: string; label: string; isMandatory: boolean; sortOrder: number }[]> = {
+      INDIVIDUAL: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'PAYSLIP', label: 'Payslip', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      SOLE_PROPRIETOR: [
+        { documentClass: 'NRIC_PASSPORT', label: 'NRIC / Passport', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'BANK_STATEMENT', label: 'Bank Statement', isMandatory: true, sortOrder: 2 },
+      ],
+      JOINT: [
+        { documentClass: 'JV_AGREEMENT', label: 'JV Agreement', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+      ],
+      CORPORATE: [
+        { documentClass: 'SSM_CERT', label: 'SSM Certificate', isMandatory: true, sortOrder: 0 },
+        { documentClass: 'AUDITED_FINANCIALS', label: 'Audited Financials', isMandatory: true, sortOrder: 1 },
+        { documentClass: 'MOA_AOA', label: 'Memorandum & Articles (MOA/AOA)', isMandatory: true, sortOrder: 2 },
+      ],
+    };
+    return defaults[scope.borrowerType] ?? defaults.INDIVIDUAL;
+  }),
+}));
+
+jest.mock('../services/collateral.service', () => ({
+  collateralService: {
+    checkCollateralReadiness: jest.fn().mockResolvedValue({ ready: true, issues: [] }),
+    validateCollateralCoverage: jest.fn().mockResolvedValue({ coverageRatio: 1.0, meetsRequirement: true }),
+  },
+}));
+
+jest.mock('../services/smeFinancial.service', () => ({
+  smeFinancialService: { computeDualAssessment: jest.fn().mockResolvedValue({ ownerDsr: null, businessDscr: null, overallStatus: 'pass', smeLane: 'SME' }) },
+}));
+
+jest.mock('../services/policyParameter.service', () => ({
+  getNumberPolicy: jest.fn(async (_key: string, fallback: number) => fallback),
+}));
+
+import prisma from '../../utils/prisma';
+import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
+import { checkRequiredFields } from '../services/creditFieldCheck.service';
+
+const mockPrisma = prisma as unknown as {
+  creditApplication: { findUnique: jest.Mock };
+  retailIncome: { findUnique: jest.Mock };
+  financialStatement: { count: jest.Mock };
+  eclSnapshot: { count: jest.Mock };
+};
+
+const mockCheckRequiredFields = checkRequiredFields as jest.Mock;
+
+const BASE_APPLICATION = {
+  id: 'app-1',
+  state: 'DRAFT',
+  borrowerProfileId: 'bp-1',
+  productType: 'TERM_LOAN',
+  lane: 'PERSONAL_FAST',
+  purpose: 'Working capital',
+  borrowerProfile: {
+    borrowerType: 'INDIVIDUAL',
+    exposureLimit: null,
+    totalExposure: null,
+    amlRiskTier: null,
+  },
+  documents: [
+    { classification: 'NRIC_PASSPORT' },
+    { classification: 'PAYSLIP' },
+    { classification: 'BANK_STATEMENT' },
+  ],
+  facilities: [{ id: 'fac-1', amount: 10000 }],
+  parties: [],
+};
+
+describe('validateSubmissionReadiness — DRAFT submission gate', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.creditApplication.findUnique.mockResolvedValue(BASE_APPLICATION);
+    mockPrisma.retailIncome.findUnique.mockResolvedValue(null);
+    mockPrisma.financialStatement.count.mockResolvedValue(0);
+    mockPrisma.eclSnapshot.count.mockResolvedValue(0);
+  });
+
+  it('returns ready:false when required submission fields are missing', async () => {
+    mockCheckRequiredFields.mockResolvedValue({
+      ok: false,
+      missing: [{ fieldPath: 'requestedAmount', label: 'Requested Amount' }],
+    });
+    mockPrisma.creditApplication.findUnique.mockResolvedValue({
+      ...BASE_APPLICATION,
+      lane: 'SME',
+      borrowerProfile: {
+        borrowerType: 'SOLE_PROPRIETOR',
+        exposureLimit: null,
+        totalExposure: null,
+        amlRiskTier: null,
+      },
+      documents: [
+        { classification: 'NRIC_PASSPORT' },
+        { classification: 'SSM_CERT' },
+        { classification: 'BANK_STATEMENT' },
+      ],
+      facilities: [],
+    });
+
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+
+    expect(result.ready).toBe(false);
+    expect(result.errors.map((error: { field: string }) => error.field)).toEqual(
+      expect.arrayContaining(['facilities', 'requestedAmount']),
+    );
+  });
+
+  it('returns ready:true when submission requirements are satisfied', async () => {
+    mockCheckRequiredFields.mockResolvedValue({ ok: true, missing: [] });
+
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+
+    expect(result.ready).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(mockCheckRequiredFields).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productType: 'TERM_LOAN',
+        lane: 'PERSONAL_FAST',
+        borrowerType: 'INDIVIDUAL',
+      }),
+      expect.objectContaining({ id: 'app-1' }),
+    );
+  });
+
+  it('does not require facilities for PERSONAL_FAST submissions', async () => {
+    mockCheckRequiredFields.mockResolvedValue({ ok: true, missing: [] });
+    mockPrisma.creditApplication.findUnique.mockResolvedValue({
+      ...BASE_APPLICATION,
+      facilities: [],
+    });
+
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+
+    expect(result.ready).toBe(true);
+    expect(result.errors.find((error: { field: string }) => error.field === 'facilities')).toBeUndefined();
+  });
+});

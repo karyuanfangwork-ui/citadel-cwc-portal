@@ -1,0 +1,56 @@
+/*
+ * Credit Table Styles — §1.9
+ * Sticky headers + zebra striping for credit module data tables.
+ * Applied via the .credit-table class (used by <CreditTable> component).
+ */
+
+/* Zebra striping */
+.credit-table tbody tr:nth-child(even) {
+  background-color: var(--color-surface-muted, #f8f9fa);
+}
+
+.credit-table tbody tr:nth-child(odd) {
+  background-color: transparent;
+}
+
+/* Hover highlight */
+.credit-table tbody tr:hover {
+  background-color: var(--color-brand-50, #eef2ff);
+}
+
+/* Sticky thead */
+.credit-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--color-surface-muted, #f1f5f9);
+}
+
+.credit-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--color-surface-muted, #f1f5f9);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, #64748b);
+  padding: 0.75rem 1rem;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--color-border, #e2e8f0);
+}
+
+.credit-table tbody td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* Overdue row highlight */
+.credit-table tbody tr.row-overdue td {
+  background-color: #fff8f8;
+}
+
+.credit-table tbody tr.row-overdue:hover td {
+  background-color: #fde8e8;
+}

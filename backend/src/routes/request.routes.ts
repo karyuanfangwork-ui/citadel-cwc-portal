@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
+import { exportRequestPdf } from '../controllers/requestPdf.controller';
+import { exportRequestsXlsx } from '../controllers/requestExport.controller';
+import participantRoutes from './participant.routes';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { uploadSingleFile } from '../middleware/upload.middleware';
+import { authorizeResource, loadRequestScopeFromParam } from '../middleware/authorizeResource.middleware';
 import {
     createRequestSchema,
     updateRequestSchema,
@@ -17,7 +21,7 @@ router.use(authenticate);
 /**
  * @route   GET /api/v1/requests
  * @desc    Get all requests (with filters and pagination)
- * @access  Private
+ * @access  Private — visibility scoped by policy service (P02-09)
  */
 router.get('/', requestController.getAllRequests);
 
@@ -31,7 +35,7 @@ router.post('/', validate(createRequestSchema), requestController.createRequest)
 /**
  * @route   GET /api/v1/requests/pending-approvals
  * @desc    Get all requests pending current user's approval
- * @access  Private
+ * @access  Private — requirePermission('request:approve') + authorizeResource
  */
 router.get('/pending-approvals', requirePermission('request:approve'), requestController.getPendingApprovals);
 
@@ -43,40 +47,63 @@ router.get('/pending-approvals', requirePermission('request:approve'), requestCo
 router.post('/bulk-action', requirePermission('request:approve'), requestController.bulkAction);
 
 /**
- * @route   GET /api/v1/requests/:id
- * @desc    Get request by ID
+ * @route   GET /api/v1/requests/recent-services
+ * @desc    Get recently used request types for current user
  * @access  Private
  */
-router.get('/:id', requestController.getRequestById);
+router.get('/recent-services', requestController.recentServices);
+
+/**
+ * @route   POST /api/v1/requests/export/xlsx
+ * @desc    Export multiple tickets as Excel
+ * @access  Private (Agent/Admin — request:export)
+ */
+router.post('/export/xlsx', requirePermission('request:export'), exportRequestsXlsx);
+
+/**
+ * @route   GET /api/v1/requests/:id
+ * @desc    Get request by ID
+ * @access  Private — P02-09: authorizeResource as defense-in-depth;
+ *          controller also calls assertRequestAccess for full policy evaluation.
+ */
+router.get('/:id', authorizeResource(loadRequestScopeFromParam('id'), 'read'), requestController.getRequestById);
 
 /**
  * @route   PUT /api/v1/requests/:id
  * @desc    Update request
- * @access  Private
+ * @access  Private — authorizeResource + validate
  */
-router.put('/:id', validate(updateRequestSchema), requestController.updateRequest);
+router.put('/:id', authorizeResource(loadRequestScopeFromParam('id'), 'update'), validate(updateRequestSchema), requestController.updateRequest);
 
 /**
  * @route   DELETE /api/v1/requests/:id
  * @desc    Delete request (soft delete)
- * @access  Private
+ * @access  Private — requirePermission + authorizeResource
  */
-router.delete('/:id', requirePermission('request:delete'), requestController.deleteRequest);
+router.delete('/:id', requirePermission('request:delete'), authorizeResource(loadRequestScopeFromParam('id'), 'delete'), requestController.deleteRequest);
+
+/**
+ * @route   GET /api/v1/requests/:id/export/pdf
+ * @desc    Export single ticket as PDF
+ * @access  Private (Agent/Admin — request:export + authorizeResource)
+ */
+router.get('/:id/export/pdf', requirePermission('request:export'), authorizeResource(loadRequestScopeFromParam('id'), 'export'), exportRequestPdf);
 
 /**
  * @route   GET /api/v1/requests/:id/activities
  * @desc    Get request activities/timeline
- * @access  Private
+ * @access  Private — authorizeResource ensures request access
  */
-router.get('/:id/activities', requestController.getRequestActivities);
+router.get('/:id/activities', authorizeResource(loadRequestScopeFromParam('id'), 'read'), requestController.getRequestActivities);
 
 /**
  * @route   POST /api/v1/requests/:id/activities
  * @desc    Add activity/comment to request
- * @access  Private
+ * @access  Private — authorizeResource ensures request access
  */
 router.post(
     '/:id/activities',
+    authorizeResource(loadRequestScopeFromParam('id'), 'update'),
     validate(addActivitySchema),
     requestController.addActivity
 );
@@ -84,10 +111,11 @@ router.post(
 /**
  * @route   POST /api/v1/requests/:id/attachments
  * @desc    Upload attachment to request
- * @access  Private
+ * @access  Private — authorizeResource + upload
  */
 router.post(
     '/:id/attachments',
+    authorizeResource(loadRequestScopeFromParam('id'), 'update'),
     uploadSingleFile('file'),
     requestController.uploadAttachment
 );
@@ -95,29 +123,32 @@ router.post(
 /**
  * @route   GET /api/v1/requests/:id/attachments/:attachmentId
  * @desc    Download attachment
- * @access  Private
+ * @access  Private — authorizeResource as defense-in-depth (controller also checks)
  */
-router.get('/:id/attachments/:attachmentId', requestController.downloadAttachment);
+router.get('/:id/attachments/:attachmentId', authorizeResource(loadRequestScopeFromParam('id'), 'read'), requestController.downloadAttachment);
 
 /**
  * @route   DELETE /api/v1/requests/:id/attachments/:attachmentId
  * @desc    Delete attachment
- * @access  Private
+ * @access  Private — authorizeResource
  */
-router.delete('/:id/attachments/:attachmentId', requestController.deleteAttachment);
+router.delete('/:id/attachments/:attachmentId', authorizeResource(loadRequestScopeFromParam('id'), 'update'), requestController.deleteAttachment);
 
 /**
  * @route   PUT /api/v1/requests/:id/assign
  * @desc    Assign request to agent
- * @access  Private (Agent/Admin only)
+ * @access  Private (requirePermission('request:assign') + authorizeResource)
  */
-router.put('/:id/assign', requirePermission('request:assign'), requestController.assignRequest);
+router.put('/:id/assign', requirePermission('request:assign'), authorizeResource(loadRequestScopeFromParam('id'), 'assign'), requestController.assignRequest);
 
 /**
  * @route   PUT /api/v1/requests/:id/status
  * @desc    Update request status
- * @access  Private (Agent/Admin only)
+ * @access  Private (requirePermission('request:update') + authorizeResource)
  */
-router.put('/:id/status', requirePermission('request:update'), requestController.updateStatus);
+router.put('/:id/status', requirePermission('request:update'), authorizeResource(loadRequestScopeFromParam('id'), 'update'), requestController.updateStatus);
+
+// Participant routes — the participant controller uses assertRequestAccess internally
+router.use('/:id/participants', participantRoutes);
 
 export default router;

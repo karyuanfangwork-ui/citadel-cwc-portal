@@ -16,7 +16,7 @@ const CompleteOnboardingModal: React.FC<CompleteOnboardingModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
         <div className="p-8">
           <div className="flex items-start gap-4 mb-6">

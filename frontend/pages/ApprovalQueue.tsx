@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
+import { stripHtml } from '../src/utils/format';
 import approvalService from '../src/services/approval.service';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import StateBadge from '../src/components/ui/StateBadge';
 
 interface PendingRequest {
   id: string;
@@ -23,7 +25,7 @@ interface PendingRequest {
 const DESK_OPTIONS = [
   { value: '', label: 'All Desks' },
   { value: 'IT', label: 'IT Support' },
-  { value: 'HR', label: 'HR Services' },
+  { value: 'HR', label: 'Group HR' },
   { value: 'FINANCE', label: 'Group Finance' },
 ];
 
@@ -34,13 +36,6 @@ const PRIORITY_FILTERS = [
   { value: 'HIGH', label: 'High' },
   { value: 'CRITICAL', label: 'Critical' },
 ];
-
-const PRIORITY_BADGES: Record<string, string> = {
-  LOW: 'bg-gray-100 text-gray-600',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH: 'bg-orange-100 text-orange-700',
-  CRITICAL: 'bg-red-100 text-red-700',
-};
 
 const ApprovalQueue: React.FC = () => {
   const { user } = useAuth();
@@ -305,16 +300,14 @@ const ApprovalQueue: React.FC = () => {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/request/${r.id}`} className="text-brand-700 font-semibold text-sm hover:underline">
+                        <Link to={`/request/${r.referenceNumber || r.id}`} className="text-brand-700 font-semibold text-sm hover:underline">
                           {r.referenceNumber}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{r.summary}</td>
+                      <td className="px-4 py-3 text-sm text-text-primary max-w-[200px] truncate">{stripHtml(r.summary)}</td>
                       <td className="px-4 py-3 text-sm text-text-secondary">{r.requestType?.name || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-full ${PRIORITY_BADGES[r.priority] || PRIORITY_BADGES.MEDIUM}`}>
-                          {r.priority}
-                        </span>
+                        <StateBadge state={r.priority} size="sm" />
                       </td>
                       <td className="px-4 py-3 text-sm text-text-secondary">
                         {r.requester ? `${r.requester.firstName} ${r.requester.lastName}` : '—'}

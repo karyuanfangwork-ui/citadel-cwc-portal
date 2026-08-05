@@ -43,6 +43,8 @@ const mockRedis = {
     keys.forEach(k => redisStore.delete(k));
     return keys.length;
   }),
+  on: jest.fn(() => mockRedis),   // EventEmitter shim for createRedisClient
+  connect: jest.fn(() => Promise.resolve()),
 };
 
 jest.mock('ioredis', () => {

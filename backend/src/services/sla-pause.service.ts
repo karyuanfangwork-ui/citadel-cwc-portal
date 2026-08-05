@@ -1,9 +1,8 @@
 import prisma from '../utils/prisma';
-import Redis from 'ioredis';
-import { config } from '../config';
+import { createRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
-const redis = new Redis(config.redis.url);
+const redis = createRedisClient();
 const CACHE_PREFIX = 'sla:pause_status:';
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
@@ -142,7 +141,7 @@ export async function isPauseStatus(status: string): Promise<boolean> {
   }
 
   const step = await prisma.workflowStep.findFirst({
-    where: { status, slaPause: true },
+    where: { status: status as any, slaPause: true },
     select: { id: true },
   });
 
@@ -230,7 +229,7 @@ export async function checkStalePauses(): Promise<number> {
   const staleRequests = await prisma.request.findMany({
     where: {
       slaPausedAt: { lte: cutoff },
-      status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+      status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED', 'CANCELLED'] },
     },
     select: { id: true, referenceNumber: true },
   });

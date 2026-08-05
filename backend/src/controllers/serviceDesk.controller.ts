@@ -89,10 +89,10 @@ class ServiceDeskController {
 
     updateServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-        const { name, code, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
+        const { name, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
 
         const serviceDesk = await serviceDeskService.updateServiceDesk(id, {
-            name, code, description, isActive,
+            name, description, isActive,
             autoAssignTeam, assignmentStrategy, lastAssignedIndex,
         });
 
@@ -194,7 +194,7 @@ class ServiceDeskController {
     // --- Request Type Management Methods ---
 
     createRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { categoryId, name, description, icon, requiresApproval, slaHours, formConfig, requiredRole } = req.body;
+        const { categoryId, name, description, icon, requiresApproval, slaHours, formConfig, requiredRole, ownerId, lifecycleStatus, reviewDate } = req.body;
 
         const requestType = await serviceDeskService.createRequestType({
             serviceCategoryId: categoryId,
@@ -205,6 +205,9 @@ class ServiceDeskController {
             slaHours: parseInt(slaHours as string) || null,
             formConfig: formConfig || [],
             requiredRole: requiredRole || null,
+            ownerId: ownerId || null,
+            lifecycleStatus: lifecycleStatus || 'DRAFT',
+            reviewDate: reviewDate ? new Date(reviewDate) : null,
         });
 
         await auditLog(req, 'ADMIN_CREATE_REQUEST_TYPE', 'RequestType', requestType.id, {
@@ -221,7 +224,7 @@ class ServiceDeskController {
 
     updateRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { typeId } = req.params;
-        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole, workflowTypeId } = req.body;
+        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole, workflowTypeId, ownerId, lifecycleStatus, reviewDate } = req.body;
 
         const requestType = await serviceDeskService.updateRequestType(typeId as string, {
             name,
@@ -233,6 +236,9 @@ class ServiceDeskController {
             isActive,
             requiredRole: requiredRole !== undefined ? (requiredRole || null) : undefined,
             workflowTypeId: workflowTypeId !== undefined ? (workflowTypeId || null) : undefined,
+            ownerId: ownerId !== undefined ? (ownerId || null) : undefined,
+            lifecycleStatus,
+            reviewDate: reviewDate !== undefined ? (reviewDate ? new Date(reviewDate) : null) : undefined,
         });
 
         await auditLog(req, 'ADMIN_UPDATE_REQUEST_TYPE', 'RequestType', requestType.id, {

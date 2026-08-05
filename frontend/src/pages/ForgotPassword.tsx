@@ -31,7 +31,7 @@ const ForgotPassword = () => {
         return (
             <div className="flex flex-col md:flex-row min-h-screen">
                 <div style={{
-                    background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
                     padding: 'var(--space-10) var(--space-8)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -81,7 +81,7 @@ const ForgotPassword = () => {
     return (
         <div className="flex flex-col md:flex-row min-h-screen">
             <div style={{
-                background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
                 padding: 'var(--space-10) var(--space-8)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -91,7 +91,7 @@ const ForgotPassword = () => {
             }} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 'var(--space-3)' }}>
-                        Forgot your<br /><span style={{ color: '#5BBFE8', fontWeight: 700 }}>password?</span>
+                        Forgot your<br /><span style={{ color: '#60a5fa', fontWeight: 700 }}>password?</span>
                     </h1>
                     <p style={{ fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
                         No worries. Enter your email and we'll send you a link to reset it.

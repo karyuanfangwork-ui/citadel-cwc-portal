@@ -1,6 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import crmService, { CrmPipeline } from '../src/services/crm.service';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, FunnelChart, Funnel, LabelList,
+} from 'recharts';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +69,48 @@ interface KycComplianceReport {
 
 const myr = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
 
+function downloadCsv(data: Record<string, unknown>[], filename: string) {
+  if (!data || data.length === 0) return;
+  const headers = Object.keys(data[0]);
+  const escapeCell = (v: unknown): string => {
+    const s = v === null || v === undefined ? '' : String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  const csv = [headers.join(','), ...data.map(row => headers.map(h => escapeCell(row[h])).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const CsvBtn = ({ onClick, label }: { onClick: () => void; label?: string }) => (
+  <button
+    onClick={onClick}
+    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border border-border bg-bg-surface text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
+    style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+  >
+    <span className="material-symbols-outlined text-sm">download</span>
+    {label || 'Export CSV'}
+  </button>
+);
+
+// ── Chart brand palette ────────────────────────────────────────────────────────
+const CHART_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+const CHART_TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--bg-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 8,
+  fontSize: 12,
+  fontFamily: 'var(--font-sans)',
+};
+const myrFormatter = (v: number) => myr.format(v);
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -92,14 +138,15 @@ const TABS = [
   { id: 'lead-conversion', label: 'Lead Conversion' },
   { id: 'sales-performance', label: 'Sales Performance' },
   { id: 'pipeline-forecast', label: 'Pipeline Forecast' },
+  { id: 'forecast-categories', label: 'Forecast by Category' },
+  { id: 'forecast-accuracy', label: 'Forecast Accuracy' },
   { id: 'activity-summary', label: 'Activity Summary' },
   { id: 'lead-aging', label: 'Lead Aging' },
   { id: 'win-loss', label: 'Win/Loss' },
   { id: 'kyc-compliance', label: 'KYC Compliance' },
 ] as const;
-
 type TabId = typeof TABS[number]['id'];
-const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'win-loss'];
+const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'win-loss', 'forecast-accuracy'];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -124,6 +171,13 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
   );
 }
 
+const DATE_PRESETS = [
+  { label: 'This Month', from: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }, to: () => todayStr() },
+  { label: 'Last 30 Days', from: () => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); }, to: () => todayStr() },
+  { label: 'Last Quarter', from: () => { const d = new Date(); const q = Math.floor(d.getMonth() / 3) * 3; d.setMonth(q, 1); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); }, to: () => { const d = new Date(); const q = Math.floor(d.getMonth() / 3) * 3; d.setMonth(q, 1); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); } },
+  { label: 'Year to Date', from: () => { const d = new Date(); return `${d.getFullYear()}-01-01`; }, to: () => todayStr() },
+] as const;
+
 function DateRangeRow({
   from, to, onFromChange, onToChange, onRefresh,
 }: {
@@ -132,32 +186,51 @@ function DateRangeRow({
   onToChange: (v: string) => void;
   onRefresh: () => void;
 }) {
+  const invalid = from && to && from > to;
   return (
-    <div className="flex items-center gap-3 mb-5 flex-wrap">
-      <label className="flex items-center gap-2 text-sm text-text-secondary">
-        From:
-        <input
-          type="date"
-          value={from}
-          onChange={e => onFromChange(e.target.value)}
-          className="border border-border rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-sm text-text-secondary">
-        To:
-        <input
-          type="date"
-          value={to}
-          onChange={e => onToChange(e.target.value)}
-          className="border border-border rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-      </label>
-      <button
-        onClick={onRefresh}
-        className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
-      >
-        Refresh
-      </button>
+    <div className="space-y-3 mb-5">
+      {/* Preset buttons */}
+      <div className="flex flex-wrap gap-2">
+        {DATE_PRESETS.map(p => (
+          <button
+            key={p.label}
+            onClick={() => { onFromChange(p.from()); onToChange(p.to()); }}
+            className="px-3 py-1 rounded-lg text-xs font-medium border border-border bg-bg-surface text-text-secondary hover:bg-bg-subtle hover:text-text-primary hover:border-brand-300 transition-colors"
+            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {/* Date inputs + refresh */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          From:
+          <input
+            type="date"
+            value={from}
+            onChange={e => onFromChange(e.target.value)}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          To:
+          <input
+            type="date"
+            value={to}
+            onChange={e => onToChange(e.target.value)}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+          />
+        </label>
+        <button
+          onClick={onRefresh}
+          disabled={invalid}
+          className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Refresh
+        </button>
+        {invalid && <span className="text-xs text-red-600">"From" must be before "To"</span>}
+      </div>
     </div>
   );
 }
@@ -176,20 +249,74 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.bySource.map(r => ({ Source: r.source, Total: r.total, Converted: r.converted, Lost: r.lost, 'Conv. Rate': r.conversionRate.toFixed(1) + '%' })),
+      'lead-conversion-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <SummaryCard label="Overall Conversion Rate" value={`${data.overallConversionRate.toFixed(1)}%`} />
         <SummaryCard label="Period From" value={data.period.from ? new Date(data.period.from).toLocaleDateString('en-MY') : '—'} />
         <SummaryCard label="Period To" value={data.period.to ? new Date(data.period.to).toLocaleDateString('en-MY') : '—'} />
       </div>
 
+      {/* Bar Chart: Lead Conversion by Source */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Source</h3>
-        <table className="w-full text-sm">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Conversion by Source</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.bySource} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="source" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="total" fill="#4F46E5" name="Total" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="converted" fill="#10B981" name="Converted" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lost" fill="#EF4444" name="Lost" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pie Chart: Lead Status Distribution */}
+      <div className="bg-bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">By Status</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={data.byStatus}
+              dataKey="count"
+              nameKey="status"
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              label={({ name, value }: any) => `${name}: ${value}`}
+            >
+              {data.byStatus.map((_, i) => (
+                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Data table */}
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View detailed data table
+        </summary>
+        <div className="p-5 pt-0">
+          <table className="w-full text-sm">
           <thead>
             <tr className="text-text-secondary text-xs uppercase">
               <th className="text-left pb-2">Source</th>
@@ -205,18 +332,14 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
                 <td className="py-2 text-text-primary">{row.source || '—'}</td>
                 <td className="py-2 text-right text-text-secondary">{row.total}</td>
                 <td className="py-2 text-right text-green-600 font-medium">{row.converted}</td>
-                <td className="py-2 text-right text-red-500">{row.lost}</td>
+                <td className="py-2 text-right text-danger">{row.lost}</td>
                 <td className="py-2 text-right font-semibold">{row.conversionRate.toFixed(1)}%</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
-
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-2">By Status</h3>
-        <StatusChips items={data.byStatus} />
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -233,20 +356,52 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byOwner.map(r => ({
+        Agent: r.ownerName, 'Total Deals': r.totalDeals, Won: r.wonDeals, Lost: r.lostDeals,
+        'Win Rate': r.winRate.toFixed(1) + '%', 'Won Value': r.totalWonValue, 'Lost Value': r.totalLostValue, 'Avg Deal': r.avgDealSize,
+      })),
+      'sales-performance-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4">
         <SummaryCard label="Total Revenue (MYR)" value={myr.format(data.totalRevenue)} />
         <SummaryCard label="Overall Win Rate" value={`${data.overallWinRate.toFixed(1)}%`} />
       </div>
 
+      {/* Bar Chart: Won/Lost Deals by Agent */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Agent</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Deals by Agent</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.byOwner} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="ownerName" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="wonDeals" fill="#10B981" name="Won" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lostDeals" fill="#EF4444" name="Lost" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Data table (collapsible) */}
+      <details className="bg-bg-surface border border-border rounded-xl" open>
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          Agent performance data
+        </summary>
+        <div className="p-5 pt-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="text-text-secondary text-xs uppercase">
                 <th className="text-left pb-2">Agent</th>
@@ -264,7 +419,7 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
                   <td className="py-2 text-text-primary font-medium">{row.ownerName}</td>
                   <td className="py-2 text-right text-text-secondary">{row.totalDeals}</td>
                   <td className="py-2 text-right text-green-600">{row.wonDeals}</td>
-                  <td className="py-2 text-right text-red-500">{row.lostDeals}</td>
+                  <td className="py-2 text-right text-danger">{row.lostDeals}</td>
                   <td className="py-2 text-right font-semibold">{row.winRate.toFixed(1)}%</td>
                   <td className="py-2 text-right">{myr.format(row.totalWonValue)}</td>
                   <td className="py-2 text-right">{myr.format(row.avgDealSize)}</td>
@@ -273,7 +428,8 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -301,11 +457,23 @@ function PipelineForecastPanel() {
       .finally(() => setLoading(false));
   }, [selectedPipelineId]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.stages.map(s => ({
+        Stage: s.stageName, Deals: s.dealCount, 'Total Value': s.totalValue,
+        Probability: s.probability + '%', 'Weighted Value': s.weightedValue,
+      })),
+      'pipeline-forecast-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data && pipelines.length === 0) return <p className="text-text-secondary text-sm">No pipelines found. Create a pipeline first.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-text-primary">Pipeline:</label>
         <select
@@ -328,9 +496,31 @@ function PipelineForecastPanel() {
             <SummaryCard label="Overdue Value (MYR)" value={myr.format(data.overdueValue)} />
           </div>
 
+          {/* Funnel Chart: Pipeline by Stage */}
           <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Stages</h3>
-            <table className="w-full text-sm">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Pipeline Funnel</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={data.stages.map(s => ({ name: s.stageName, value: s.totalValue, deals: s.dealCount }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 80, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={myrFormatter} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number) => myr.format(v)} />
+                <Legend />
+                <Bar dataKey="value" fill="#4F46E5" name="Total Value (MYR)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <details className="bg-bg-surface border border-border rounded-xl">
+            <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+              View stage data table
+            </summary>
+            <div className="p-5 pt-0">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="text-text-secondary text-xs uppercase">
                   <th className="text-left pb-2">Stage</th>
@@ -352,7 +542,8 @@ function PipelineForecastPanel() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </details>
         </>
       )}
     </div>
@@ -371,6 +562,14 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byUser.map(r => ({ Agent: r.userName, Total: r.count, ...r.breakdown })),
+      'activity-summary-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
@@ -379,6 +578,7 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <SummaryCard label="Total Activities" value={data.totalActivities} />
 
       <div className="bg-bg-surface border border-border rounded-xl p-5">
@@ -440,45 +640,83 @@ function LeadAgingPanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byStatus.map(r => ({
+        Status: r.status, Count: r.count, 'Avg Age Days': r.avgAgeDays.toFixed(1),
+        'Max Age Days': r.maxAgeDays, '>30 Days': r.leadsOver30Days, '>60 Days': r.leadsOver60Days, '>90 Days': r.leadsOver90Days,
+      })),
+      'lead-aging-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4">
         <SummaryCard label="Stale Leads" value={data.staleLeads} />
         <SummaryCard label="Avg Age (days)" value={data.averageAgeAllLeads.toFixed(1)} />
       </div>
 
+      {/* Stacked BarChart: Aging Buckets by Status */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Status</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text-secondary text-xs uppercase">
-              <th className="text-left pb-2">Status</th>
-              <th className="text-right pb-2">Count</th>
-              <th className="text-right pb-2">Avg Age (d)</th>
-              <th className="text-right pb-2">Max Age (d)</th>
-              <th className="text-right pb-2">&gt;30d</th>
-              <th className="text-right pb-2">&gt;60d</th>
-              <th className="text-right pb-2">&gt;90d</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.byStatus.map(row => (
-              <tr key={row.status} className="border-t border-border">
-                <td className="py-2 text-text-primary">{row.status}</td>
-                <td className="py-2 text-right">{row.count}</td>
-                <td className="py-2 text-right">{row.avgAgeDays.toFixed(1)}</td>
-                <td className="py-2 text-right">{row.maxAgeDays}</td>
-                <td className="py-2 text-right text-amber-600">{row.leadsOver30Days}</td>
-                <td className="py-2 text-right text-orange-600">{row.leadsOver60Days}</td>
-                <td className="py-2 text-right text-red-600 font-semibold">{row.leadsOver90Days}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Lead Aging by Status</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.byStatus.map(r => ({
+            status: r.status,
+            '&gt;30d': r.leadsOver30Days,
+            '&gt;60d': r.leadsOver60Days,
+            '&gt;90d': r.leadsOver90Days,
+          }))} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="status" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="&gt;30d" stackId="age" fill="#F59E0B" name=">30d" />
+            <Bar dataKey="&gt;60d" stackId="age" fill="#EF4444" name=">60d" />
+            <Bar dataKey="&gt;90d" stackId="age" fill="#7F1D1D" name=">90d" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
+
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View aging data table
+        </summary>
+        <div className="p-5 pt-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text-secondary text-xs uppercase">
+                <th className="text-left pb-2">Status</th>
+                <th className="text-right pb-2">Count</th>
+                <th className="text-right pb-2">Avg Age (d)</th>
+                <th className="text-right pb-2">Max Age (d)</th>
+                <th className="text-right pb-2">&gt;30d</th>
+                <th className="text-right pb-2">&gt;60d</th>
+                <th className="text-right pb-2">&gt;90d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.byStatus.map(row => (
+                <tr key={row.status} className="border-t border-border">
+                  <td className="py-2 text-text-primary">{row.status}</td>
+                  <td className="py-2 text-right">{row.count}</td>
+                  <td className="py-2 text-right">{row.avgAgeDays.toFixed(1)}</td>
+                  <td className="py-2 text-right">{row.maxAgeDays}</td>
+                  <td className="py-2 text-right text-warning">{row.leadsOver30Days}</td>
+                  <td className="py-2 text-right text-orange-600">{row.leadsOver60Days}</td>
+                  <td className="py-2 text-right text-danger font-semibold">{row.leadsOver90Days}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
 }
@@ -495,20 +733,79 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byReason.map(r => ({
+        Reason: r.lostReason || '—', Count: r.count, 'Total Value': r.totalValue,
+      })),
+      'win-loss-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <SummaryCard label="Win Rate" value={`${data.winRate.toFixed(1)}%`} />
         <SummaryCard label="Won" value={`${data.totalWon.count} (${myr.format(data.totalWon.value)})`} />
         <SummaryCard label="Lost" value={`${data.totalLost.count} (${myr.format(data.totalLost.value)})`} />
       </div>
 
-      {data.byReason.length > 0 && (
+      {/* Won vs Lost PieChart */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Lost Reasons</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Won vs Lost</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Won', value: data.totalWon.count },
+                  { name: 'Lost', value: data.totalLost.count },
+                ]}
+                cx="50%" cy="50%" innerRadius={60} outerRadius={90}
+                dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                <Cell fill="#10B981" />
+                <Cell fill="#EF4444" />
+              </Pie>
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Lost Reasons BarChart */}
+        {data.byReason.length > 0 && (
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Lost Reasons</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart
+                data={data.byReason.map(r => ({ reason: r.lostReason || '—', count: r.count, value: r.totalValue }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 60, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="reason" tick={{ fontSize: 11 }} width={60} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number, name: string) => name === 'value' ? myr.format(v) : v} />
+                <Legend />
+                <Bar dataKey="count" fill="#EF4444" name="Count" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {data.byReason.length > 0 && (
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View lost reasons data table
+        </summary>
+        <div className="p-5 pt-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-secondary text-xs uppercase">
@@ -528,6 +825,7 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
             </tbody>
           </table>
         </div>
+      </details>
       )}
     </div>
   );
@@ -543,11 +841,20 @@ function KycCompliancePanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byStatus.map(r => ({ Status: r.status, Count: r.count })),
+      'kyc-compliance-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <SummaryCard label="Compliance Rate" value={`${data.complianceRate.toFixed(1)}%`} />
         <SummaryCard label="Approved" value={data.approvedCount} />
@@ -560,6 +867,183 @@ function KycCompliancePanel() {
       <div className="bg-bg-surface border border-border rounded-xl p-5">
         <h3 className="text-sm font-semibold text-text-primary mb-2">By KYC Status</h3>
         <StatusChips items={data.byStatus} />
+      </div>
+    </div>
+  );
+}
+
+// ── Forecast Categories Panel ─────────────────────────────────────────────────
+
+interface ForecastCategoryBreakdown {
+  totalValue: number;
+  weightedValue: number;
+  dealCount: number;
+}
+interface ForecastByCategory {
+  PIPELINE: ForecastCategoryBreakdown;
+  BEST_CASE: ForecastCategoryBreakdown;
+  COMMIT: ForecastCategoryBreakdown;
+  OMITTED: ForecastCategoryBreakdown;
+}
+interface ForecastCategoriesData {
+  stages: Array<{ stageId: string; stageName: string; probability: number; dealCount: number; totalValue: number; weightedValue: number; categories: ForecastByCategory }>;
+  categoryBreakdown: ForecastByCategory;
+  totalPipelineValue: number;
+  weightedPipelineValue: number;
+  overdueDeals: number;
+  overdueValue: number;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  PIPELINE: '#6366f1',
+  BEST_CASE: '#f59e0b',
+  COMMIT: '#22c55e',
+  OMITTED: '#94a3b8',
+};
+
+function ForecastCategoriesPanel() {
+  const [pipelines, setPipelines] = React.useState<CrmPipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = React.useState<string>('');
+  const [data, setData] = React.useState<ForecastCategoriesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    crmService.listPipelines().then(pipes => {
+      setPipelines(pipes);
+      if (pipes.length > 0 && !selectedPipelineId) setSelectedPipelineId(pipes[0].id);
+    }).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectedPipelineId) return;
+    setLoading(true);
+    crmService.getForecastCategoriesReport(selectedPipelineId)
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [selectedPipelineId]);
+
+  const handleExport = () => {
+    if (!data) return;
+    const rows = (Object.entries(data.categoryBreakdown) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => ({
+      Category: cat, Deals: b.dealCount, 'Total Value': b.totalValue, 'Weighted Value': b.weightedValue,
+    }));
+    downloadCsv(rows, 'forecast-by-category.csv');
+  };
+
+  if (loading) return <Skeleton />;
+  if (!data && pipelines.length === 0) return <p className="text-text-secondary text-sm">No pipelines found.</p>;
+
+  const cats = data?.categoryBreakdown;
+  const chartData = cats ? (Object.entries(cats) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => ({
+    name: cat, Total: b.totalValue, Weighted: b.weightedValue, Deals: b.dealCount,
+  })) : [];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <select value={selectedPipelineId} onChange={e => setSelectedPipelineId(e.target.value)}
+          className="px-3 py-2 border border-border rounded-lg text-sm">
+          {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <CsvBtn onClick={handleExport} />
+      </div>
+      {data && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(Object.entries(data.categoryBreakdown) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => (
+              <div key={cat} className="bg-bg-surface border border-border rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-3 h-3 rounded-full" style={{ background: CATEGORY_COLORS[cat] || '#94a3b8' }} />
+                  <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{cat.replace('_', ' ')}</span>
+                </div>
+                <p className="text-xl font-black text-text-primary">{myr.format(b.totalValue)}</p>
+                <p className="text-xs text-text-secondary mt-1">{b.dealCount} deal{b.dealCount !== 1 ? 's' : ''} · {myr.format(b.weightedValue)} weighted</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Category Breakdown</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v: number) => myr.format(v)} />
+                <Legend />
+                <Bar dataKey="Total" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Weighted" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Forecast Accuracy Panel ───────────────────────────────────────────────────
+
+interface ForecastAccuracyData {
+  commitTotal: number;
+  actualWonTotal: number;
+  accuracyPct: number;
+  period: { from: string; to: string };
+}
+
+function ForecastAccuracyPanel({ from, to }: { from: string; to: string }) {
+  const [data, setData] = React.useState<ForecastAccuracyData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setLoading(true);
+    crmService.getForecastAccuracyReport({ from, to })
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [from, to]);
+
+  if (loading) return <Skeleton />;
+  if (!data) return <p className="text-text-secondary text-sm">No data available for this period.</p>;
+
+  const diff = data.actualWonTotal - data.commitTotal;
+  const diffLabel = diff >= 0 ? `+${myr.format(diff)}` : myr.format(diff);
+  const diffColor = diff >= 0 ? 'text-green-600' : 'text-red-600';
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Committed Forecast</p>
+          <p className="text-2xl font-black text-text-primary">{myr.format(data.commitTotal)}</p>
+        </div>
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Actual Won Revenue</p>
+          <p className="text-2xl font-black text-text-primary">{myr.format(data.actualWonTotal)}</p>
+          <p className={`text-xs mt-1 font-semibold ${diffColor}`}>{diffLabel} vs commit</p>
+        </div>
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Forecast Accuracy</p>
+          <p className="text-3xl font-black" style={{ color: data.accuracyPct >= 80 ? '#22c55e' : data.accuracyPct >= 50 ? '#f59e0b' : '#ef4444' }}>
+            {data.accuracyPct}%
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            {data.accuracyPct >= 80 ? 'Excellent' : data.accuracyPct >= 50 ? 'Fair' : 'Needs improvement'}
+          </p>
+        </div>
+      </div>
+      <div className="bg-bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Accuracy Gauge</h3>
+        <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+          <div className="h-6 rounded-full transition-all duration-500"
+            style={{
+              width: `${Math.min(data.accuracyPct, 100)}%`,
+              background: data.accuracyPct >= 80 ? '#22c55e' : data.accuracyPct >= 50 ? '#f59e0b' : '#ef4444',
+            }} />
+        </div>
+        <div className="flex justify-between text-xs text-text-secondary mt-1">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
       </div>
     </div>
   );
@@ -608,13 +1092,18 @@ export default function CrmReports() {
         return <WinLossPanel key={`wl-${refreshKey}`} {...dateProps} />;
       case 'kyc-compliance':
         return <KycCompliancePanel key={`kyc-${refreshKey}`} />;
+      case 'forecast-categories':
+        return <ForecastCategoriesPanel key={`fc-${refreshKey}`} />;
+      case 'forecast-accuracy':
+        return <ForecastAccuracyPanel key={`fa-${refreshKey}`} {...dateProps} />;
     }
   }
 
   const showDateRange = DATE_TABS.includes(activeTab);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <>
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-secondary">
         <Link to="/crm" className="hover:text-text-primary transition-colors">CRM</Link>
@@ -662,5 +1151,6 @@ export default function CrmReports() {
         ))}
       </div>
     </div>
+    </>
   );
 }

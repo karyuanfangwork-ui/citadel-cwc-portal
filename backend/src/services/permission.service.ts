@@ -1,10 +1,8 @@
-import Redis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
-import { config } from '../config';
+import { createRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
-const redis = new Redis(config.redis.url);
-const prisma = new PrismaClient();
+const redis = createRedisClient();
+import prisma from '../utils/prisma';
 
 const CACHE_PREFIX = 'rbac:perms:';
 const CACHE_TTL_SECONDS = 300; // 5 minutes
@@ -28,7 +26,8 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
         // Fall through to DB query
     }
 
-    // 2. Query DB: user → roles → role_permissions → permissions
+    // 2. Query DB: global roles and currently active department-scoped roles.
+    const membershipNow = new Date();
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
@@ -45,6 +44,21 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
                     },
                 },
             },
+            departmentMemberships: {
+                where: {
+                    validFrom: { lte: membershipNow },
+                    OR: [{ validUntil: null }, { validUntil: { gte: membershipNow } }],
+                },
+                include: {
+                    role: {
+                        include: {
+                            permissions: {
+                                include: { permission: true },
+                            },
+                        },
+                    },
+                },
+            },
         },
     });
 
@@ -54,6 +68,11 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
     const permissionNames = new Set<string>();
     for (const userRole of user.roles) {
         for (const rolePerm of userRole.role.permissions) {
+            permissionNames.add(rolePerm.permission.name);
+        }
+    }
+    for (const membership of user.departmentMemberships) {
+        for (const rolePerm of membership.role.permissions) {
             permissionNames.add(rolePerm.permission.name);
         }
     }

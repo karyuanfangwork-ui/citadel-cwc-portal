@@ -15,12 +15,25 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// P5-05: Conditional-field rule types
+interface Condition {
+    fieldId: string;
+    operator: 'eq' | 'neq' | 'contains' | 'startsWith' | 'gt' | 'gte' | 'lt' | 'lte' | 'empty' | 'notEmpty' | 'in';
+    value?: string | number | boolean | string[];
+}
+
+interface ConditionalRule {
+    operator?: 'and' | 'or';
+    conditions: Condition[];
+}
+
 interface FormField {
     id: string;
     label: string;
     type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file' | 'entity';
     required: boolean;
     options?: string[];
+    showWhen?: ConditionalRule;
 }
 
 interface FormBuilderProps {
@@ -32,12 +45,13 @@ interface FormBuilderProps {
 
 interface SortableFieldProps {
     field: FormField;
+    fields: FormField[];
     onRemove: (id: string) => void;
     onUpdate: (id: string, updates: Partial<FormField>) => void;
     onDuplicate: (id: string) => void;
 }
 
-const SortableField: React.FC<SortableFieldProps> = ({ field, onRemove, onUpdate, onDuplicate }) => {
+const SortableField: React.FC<SortableFieldProps> = ({ field, fields, onRemove, onUpdate, onDuplicate }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id });
 
     const style: React.CSSProperties = {
@@ -176,6 +190,124 @@ const SortableField: React.FC<SortableFieldProps> = ({ field, onRemove, onUpdate
                         </p>
                     </div>
                 )}
+
+                {/* P5-05: Conditional visibility (showWhen) editor */}
+                <div className="sm:col-span-12 mt-2 pt-3 border-t border-gray-200/50">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="material-symbols-outlined text-sm text-[#44546f]">visibility_lock</span>
+                        <span className="text-[10px] font-bold text-[#44546f] uppercase tracking-wider">Show When (Conditional)</span>
+                        {field.showWhen && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded">
+                                {field.showWhen.conditions.length} rule{field.showWhen.conditions.length > 1 ? 's' : ''}
+                            </span>
+                        )}
+                    </div>
+                    {field.showWhen ? (
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-500">Match</span>
+                                <select
+                                    className="px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:border-[#0052cc] outline-none"
+                                    value={field.showWhen.operator || 'and'}
+                                    onChange={e => onUpdate(field.id, { showWhen: { ...field.showWhen!, operator: e.target.value as 'and' | 'or' } })}
+                                >
+                                    <option value="and">ALL (and)</option>
+                                    <option value="or">ANY (or)</option>
+                                </select>
+                                <span className="text-[10px] text-gray-500">of the following:</span>
+                            </div>
+                            {field.showWhen.conditions.map((cond, ci) => (
+                                <div key={ci} className="flex items-center gap-1.5 pl-2">
+                                    <select
+                                        className="px-1.5 py-1 bg-white border border-gray-200 rounded text-[11px] focus:border-[#0052cc] outline-none min-w-0 flex-shrink"
+                                        value={cond.fieldId}
+                                        onChange={e => {
+                                            const newConditions = [...field.showWhen!.conditions];
+                                            newConditions[ci] = { ...newConditions[ci], fieldId: e.target.value };
+                                            onUpdate(field.id, { showWhen: { ...field.showWhen!, conditions: newConditions } });
+                                        }}
+                                    >
+                                        <option value="">Select field…</option>
+                                        {/* Exclude self-references */}
+                                        {fields.filter(f => f.id !== field.id).map(f => (
+                                            <option key={f.id} value={f.id}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        className="px-1.5 py-1 bg-white border border-gray-200 rounded text-[11px] focus:border-[#0052cc] outline-none"
+                                        value={cond.operator}
+                                        onChange={e => {
+                                            const newConditions = [...field.showWhen!.conditions];
+                                            newConditions[ci] = { ...newConditions[ci], operator: e.target.value as Condition['operator'] };
+                                            onUpdate(field.id, { showWhen: { ...field.showWhen!, conditions: newConditions } });
+                                        }}
+                                    >
+                                        <option value="eq">equals</option>
+                                        <option value="neq">not equals</option>
+                                        <option value="contains">contains</option>
+                                        <option value="startsWith">starts with</option>
+                                        <option value="gt">greater than</option>
+                                        <option value="gte">≥</option>
+                                        <option value="lt">less than</option>
+                                        <option value="lte">≤</option>
+                                        <option value="empty">is empty</option>
+                                        <option value="notEmpty">not empty</option>
+                                        <option value="in">in list</option>
+                                    </select>
+                                    {!['empty', 'notEmpty'].includes(cond.operator) && (
+                                        <input
+                                            type="text"
+                                            placeholder="Value"
+                                            className="px-2 py-1 bg-white border border-gray-200 rounded text-[11px] focus:border-[#0052cc] outline-none min-w-0 flex-grow"
+                                            value={typeof cond.value === 'string' ? cond.value : typeof cond.value === 'number' ? String(cond.value) : Array.isArray(cond.value) ? cond.value.join(',') : ''}
+                                            onChange={e => {
+                                                const newConditions = [...field.showWhen!.conditions];
+                                                newConditions[ci] = { ...newConditions[ci], value: e.target.value };
+                                                onUpdate(field.id, { showWhen: { ...field.showWhen!, conditions: newConditions } });
+                                            }}
+                                        />
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const newConditions = field.showWhen!.conditions.filter((_, i) => i !== ci);
+                                            if (newConditions.length === 0) {
+                                                onUpdate(field.id, { showWhen: undefined });
+                                            } else {
+                                                onUpdate(field.id, { showWhen: { ...field.showWhen!, conditions: newConditions } });
+                                            }
+                                        }}
+                                        className="material-symbols-outlined text-sm text-gray-400 hover:text-red-500"
+                                    >
+                                        close
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => onUpdate(field.id, { showWhen: { ...field.showWhen!, conditions: [...field.showWhen!.conditions, { fieldId: '', operator: 'eq' as const, value: '' }] } })}
+                                className="text-[10px] font-bold text-[#0052cc] hover:underline mt-1"
+                            >
+                                + Add condition
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onUpdate(field.id, { showWhen: undefined })}
+                                className="text-[10px] font-bold text-red-500 hover:underline ml-3"
+                            >
+                                Remove all rules
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => onUpdate(field.id, { showWhen: { operator: 'and', conditions: [{ fieldId: '', operator: 'eq', value: '' }] } })}
+                            className="text-[10px] font-bold text-[#0052cc] hover:underline"
+                        >
+                            + Add visibility rule
+                        </button>
+                    )}
+                </div>
             </div>
 
             <button
@@ -275,6 +407,11 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                     <label className="block text-sm font-bold text-[#101418]">
                                         {field.label}
                                         {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                                        {field.showWhen && (
+                                            <span className="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded" title={JSON.stringify(field.showWhen)}>
+                                                conditional
+                                            </span>
+                                        )}
                                     </label>
                                     {field.type === 'textarea' ? (
                                         <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-400 min-h-[80px]">
@@ -337,6 +474,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                        <SortableField
                                            key={field.id}
                                            field={field}
+                                           fields={fields}
                                            onRemove={removeField}
                                            onUpdate={updateField}
                                            onDuplicate={duplicateField}

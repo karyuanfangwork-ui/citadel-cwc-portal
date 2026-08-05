@@ -21,12 +21,15 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/mark-software-provisioned`, data);
     return response.data;
   },
-  async acknowledgeRequest(requestId: string, ceoId: string, notes?: string) {
-    const response = await api.post(`/it-workflow/requests/${requestId}/acknowledge`, { ceoId, notes });
+  async acknowledgeRequest(requestId: string, notes?: string, ceoId?: string) {
+    const payload: Record<string, string | undefined> = {};
+    if (notes) payload.notes = notes;
+    if (ceoId) payload.ceoId = ceoId;
+    const response = await api.post(`/it-workflow/requests/${requestId}/acknowledge`, payload);
     return response.data;
   },
   async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string, ctoId?: string) {
-    const payload: Record<string, string> = { decision };
+    const payload: Record<string, string | undefined> = { decision };
     if (comments) payload.comments = comments;
     if (ctoId) payload.ctoId = ctoId;
     const response = await api.post(`/it-workflow/requests/${requestId}/ceo-decision`, payload);
@@ -36,10 +39,12 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/cto-decision`, { decision, comments });
     return response.data;
   },
-  async routeToCfoApproval(requestId: string, cfoId: string, invoiceFile: File, notes?: string) {
+  async routeToCfoApproval(requestId: string, cfoId: string, invoiceFiles: File[], notes?: string) {
     const formData = new FormData();
     formData.append('cfoId', cfoId);
-    formData.append('invoice', invoiceFile);
+    for (const file of invoiceFiles) {
+      formData.append('invoices', file);
+    }
     if (notes) formData.append('notes', notes);
     const response = await api.post(
       `/it-workflow/requests/${requestId}/route-to-cfo`,

@@ -5,6 +5,7 @@ import {
     hasAllPermissions,
     hasRole,
     hasAnyRole,
+    hasDepartment,
 } from '../permissions';
 
 // Minimal User shape matching the interface from AuthContext
@@ -16,9 +17,10 @@ type User = {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    departmentIds?: string[];
 };
 
-const makeUser = (overrides: Partial<Pick<User, 'roles' | 'permissions'>> = {}): User => ({
+const makeUser = (overrides: Partial<Pick<User, 'roles' | 'permissions' | 'departmentIds'>> = {}): User => ({
     id: 'u1',
     email: 'test@example.com',
     firstName: 'Test',
@@ -39,9 +41,15 @@ describe('hasPermission', () => {
         expect(hasPermission(null, 'kb:manage')).toBe(false);
     });
 
-    it('returns true for ADMIN user regardless of permission', () => {
-        expect(hasPermission(adminUser, 'kb:manage')).toBe(true);
-        expect(hasPermission({ ...adminUser, permissions: [] }, 'anything')).toBe(true);
+    it('returns false for ADMIN user without explicit permissions (no bypass)', () => {
+        // Task 14: ADMIN bypass removed — permissions must be explicit
+        expect(hasPermission(adminUser, 'kb:manage')).toBe(false);
+        expect(hasPermission({ ...adminUser, permissions: [] }, 'anything')).toBe(false);
+    });
+
+    it('returns true for ADMIN user with explicit permissions', () => {
+        const adminWithPerms = makeUser({ roles: ['ADMIN'], permissions: ['kb:manage'] });
+        expect(hasPermission(adminWithPerms, 'kb:manage')).toBe(true);
     });
 
     it('returns true when user has the exact permission', () => {
@@ -68,8 +76,14 @@ describe('hasAnyPermission', () => {
         expect(hasAnyPermission(null, ['kb:manage'])).toBe(false);
     });
 
-    it('returns true for ADMIN user regardless of permissions list', () => {
-        expect(hasAnyPermission(adminUser, ['nonexistent'])).toBe(true);
+    it('returns false for ADMIN user without explicit permissions (no bypass)', () => {
+        // Task 14: ADMIN bypass removed — permissions must be explicit
+        expect(hasAnyPermission(adminUser, ['nonexistent'])).toBe(false);
+    });
+
+    it('returns true for ADMIN user with explicit permissions', () => {
+        const adminWithPerms = makeUser({ roles: ['ADMIN'], permissions: ['admin:access'] });
+        expect(hasAnyPermission(adminWithPerms, ['admin:access'])).toBe(true);
     });
 
     it('returns true when user has at least one matching permission (OR)', () => {
@@ -94,8 +108,14 @@ describe('hasAllPermissions', () => {
         expect(hasAllPermissions(null, ['kb:manage'])).toBe(false);
     });
 
-    it('returns true for ADMIN user regardless of permissions list', () => {
-        expect(hasAllPermissions(adminUser, ['nonexistent'])).toBe(true);
+    it('returns false for ADMIN user without explicit permissions (no bypass)', () => {
+        // Task 14: ADMIN bypass removed — permissions must be explicit
+        expect(hasAllPermissions(adminUser, ['nonexistent'])).toBe(false);
+    });
+
+    it('returns true for ADMIN user with explicit permissions', () => {
+        const adminWithPerms = makeUser({ roles: ['ADMIN'], permissions: ['kb:manage', 'report:read'] });
+        expect(hasAllPermissions(adminWithPerms, ['kb:manage', 'report:read'])).toBe(true);
     });
 
     it('returns true when user has all specified permissions (AND)', () => {
@@ -155,5 +175,35 @@ describe('hasAnyRole', () => {
     it('returns false when roles array is undefined', () => {
         const user = makeUser({});
         expect(hasAnyRole(user, ['ADMIN'])).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// hasDepartment (Task 14)
+// ---------------------------------------------------------------------------
+describe('hasDepartment', () => {
+    const deptUser = makeUser({ roles: ['AGENT'], permissions: [], departmentIds: ['dept-hr', 'dept-it'] });
+
+    it('returns false for null user', () => {
+        expect(hasDepartment(null, ['dept-hr'])).toBe(false);
+    });
+
+    it('returns true when user is member of a listed department', () => {
+        expect(hasDepartment(deptUser, ['dept-hr'])).toBe(true);
+        expect(hasDepartment(deptUser, ['dept-finance', 'dept-it'])).toBe(true);
+    });
+
+    it('returns false when user is not a member of any listed department', () => {
+        expect(hasDepartment(deptUser, ['dept-finance'])).toBe(false);
+    });
+
+    it('returns false when user has no departmentIds', () => {
+        const noDepts = makeUser({ roles: ['NORMAL_STAFF'] });
+        expect(hasDepartment(noDepts, ['dept-hr'])).toBe(false);
+    });
+
+    it('returns false for empty departmentIds', () => {
+        const emptyDepts = makeUser({ roles: ['NORMAL_STAFF'], departmentIds: [] });
+        expect(hasDepartment(emptyDepts, ['dept-hr'])).toBe(false);
     });
 });

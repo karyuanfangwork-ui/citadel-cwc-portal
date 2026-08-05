@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 const VALID_ROLES = ['staff', 'agent', 'ceo', 'hiring_manager', 'all'];
 const VALID_COLOR_SCHEMES = ['blue', 'indigo', 'purple', 'amber', 'orange', 'green', 'emerald', 'yellow', 'red'];

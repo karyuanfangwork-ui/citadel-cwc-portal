@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { userController } from '../controllers/user.controller';
-import { authenticate, authorize, requirePermission } from '../middleware/auth.middleware';
+import { authenticate, authorize, requirePermission, requireMfa } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { updateProfileSchema, changePasswordSchema } from '../validators/user.validator';
 
@@ -44,11 +44,38 @@ router.post(
 router.get('/agents', authorize('ADMIN', 'AGENT'), userController.getAgents);
 
 /**
+ * @route   GET /api/v1/users/staff
+ * @desc    Get all active staff (any role) — for ticket reassignment
+ * @access  Private (Admin, Agent)
+ */
+router.get('/staff', authorize('ADMIN', 'AGENT'), userController.getStaff);
+
+/**
+ * @route   GET /api/v1/users/executives
+ * @desc    Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
+ *          Used by workflow modals so the routing agent can override the auto-selected approver.
+ * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_DCEO)
+ */
+router.get(
+    '/executives',
+    authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),
+    userController.getExecutives,
+);
+
+/**
  * @route   GET /api/v1/users/me
  * @desc    Get current user profile
  * @access  Private
  */
 router.get('/me', userController.getMe);
+
+/**
+ * @route   GET /api/v1/users/me/policy
+ * @desc    Get current user's policy decisions (permissions, departments, allowed actions)
+ * @access  Private
+ * Task 14: Server-authoritative policy for frontend route/action consumption.
+ */
+router.get('/me/policy', userController.getMyPolicy);
 
 /**
  * @route   PUT /api/v1/users/me
@@ -65,11 +92,54 @@ router.put('/me', validate(updateProfileSchema), userController.updateMe);
 router.put('/me/password', validate(changePasswordSchema), userController.changeMyPassword);
 
 /**
- * @route   POST /api/v1/users/:id/roles
- * @desc    Replace a user's roles (force-revokes active tokens)
- * @access  Private (Admin only)
+ * @route   PUT /api/v1/users/me/out-of-office
+ * @desc    Toggle out-of-office status for current user
+ * @access  Private
  */
-router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
+router.put('/me/out-of-office', userController.updateOutOfOffice);
+
+/**
+ * @route   PUT /api/v1/users/me/delegation
+ * @desc    Update delegation settings for current user
+ * @access  Private
+ */
+router.put('/me/delegation', userController.updateDelegation);
+
+/**
+ * @route   GET /api/v1/users/me/delegation/search
+ * @desc    Search users for delegation (typeahead)
+ * @access  Private
+ */
+router.get('/me/delegation/search', userController.searchDelegates);
+
+/**
+ * @route   GET /api/v1/users/me/delegation/incoming
+ * @desc    Get users who have delegated to current user
+ * @access  Private
+ */
+router.get('/me/delegation/incoming', userController.getIncomingDelegations);
+
+/**
+ * @route   POST /api/v1/users/roles
+ * @desc    Create a new role
+ * @access  Private (admin:settings)
+ */
+// P01 Task 5: Privileged role/permission mutations require MFA
+router.post('/roles', requirePermission('admin:settings'), requireMfa, userController.createRole);
+
+/**
+ * @route   PUT /api/v1/users/roles/:roleId
+ * @desc    Update role name/description
+ * @access  Private (admin:settings)
+ */
+router.put('/roles/:roleId', requirePermission('admin:settings'), requireMfa, userController.updateRole);
+
+/**
+ * @route   DELETE /api/v1/users/roles/:roleId
+ * @desc    Delete a role (fails if users assigned)
+ * @access  Private (admin:settings)
+ */
+router.delete('/roles/:roleId', requirePermission('admin:settings'), requireMfa, userController.deleteRole);
 
 /**
  * @route   GET /api/v1/users/roles/all
@@ -79,18 +149,46 @@ router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
 router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
 
 /**
+ * @route   PUT /api/v1/users/roles/:roleId/permissions
+ * @desc    Replace a role's permissions atomically
+ * @access  Private (admin:settings)
+ */
+router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
+
+/**
  * @route   GET /api/v1/users/permissions/all
  * @desc    List all permissions with role assignments
- * @access  Private — requirePermission enforces RBAC at the permission level
+ * @access  Private (admin:access)
  */
 router.get('/permissions/all', requirePermission('admin:access'), userController.listPermissions);
 
 /**
- * @route   PUT /api/v1/users/roles/:roleId/permissions
- * @desc    Replace a role's permissions atomically
- * @access  Private — requirePermission enforces RBAC at the permission level
+ * @route   POST /api/v1/users/permissions
+ * @desc    Create a new permission
+ * @access  Private (admin:settings)
  */
-router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
+router.post('/permissions', requirePermission('admin:settings'), userController.createPermission);
+
+/**
+ * @route   DELETE /api/v1/users/permissions/:permissionId
+ * @desc    Delete a permission
+ * @access  Private (admin:settings)
+ */
+router.delete('/permissions/:permissionId', requirePermission('admin:settings'), userController.deletePermission);
+
+/**
+ * @route   POST /api/v1/users/:id/roles
+ * @desc    Replace a user's roles (force-revokes active tokens)
+ * @access  Private (Admin only)
+ */
+router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
+
+/**
+ * @route   GET /api/v1/users/search
+ * @desc    Search users by name/email (minimal fields) — used by participant typeahead
+ * @access  Private (any authenticated user — needed so requesters can add participants)
+ */
+router.get('/search', authenticate, userController.searchUsers);
 
 /**
  * @route   GET /api/v1/users/:id
@@ -102,10 +200,11 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users (with pagination and filters)
- * @access  Private (Admin, Agent — agents need this to look up approvers e.g. CEO for IT workflow)
+ * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_DCEO — agents & executives need this to look up approvers during workflow)
  */
-router.get('/', authorize('ADMIN', 'AGENT'), userController.getAllUsers);
-router.post('/', authorize('ADMIN'), userController.createUser);
+router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'), userController.getAllUsers);
+// P01 Task 5: Privileged admin operations require MFA
+router.post('/', authorize('ADMIN'), requireMfa, userController.createUser);
 
 /**
  * @route   PUT /api/v1/users/:id
@@ -119,13 +218,13 @@ router.put('/:id', authorize('ADMIN'), userController.updateUser);
  * @desc    Delete user by ID
  * @access  Private (Admin only)
  */
-router.delete('/:id', authorize('ADMIN'), userController.deleteUser);
+router.delete('/:id', authorize('ADMIN'), requireMfa, userController.deleteUser);
 
 /**
  * @route   POST /api/v1/users/:id/reset-password
  * @desc    Reset a user's password (generates temp password, revokes sessions)
  * @access  Private (Admin only)
  */
-router.post('/:id/reset-password', authorize('ADMIN'), userController.resetUserPassword);
+router.post('/:id/reset-password', authorize('ADMIN'), requireMfa, userController.resetUserPassword);
 
 export default router;

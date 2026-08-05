@@ -24,6 +24,15 @@ export interface Asset {
   warrantyExpiry: string | null;
   status: AssetStatus;
   notes: string | null;
+  os: string | null;
+  encrypted: string | null;
+  skuFamily: string | null;
+  joinType: string | null;
+  ethernetMac: string | null;
+  wifiMac: string | null;
+  arch: string | null;
+  previousUser: string | null;
+  entity: string | null;
   sourceRequestId: string | null;
   createdById: string;
   createdAt: string;
@@ -115,6 +124,59 @@ const assetService = {
   async importAssets(rows: Record<string, string>[]) {
     const response = await api.post('/assets/import', { rows });
     return response.data.data as { imported: number; warnings: string[]; errors: string[] };
+  },
+
+  /**
+   * Upload a CSV/XLSX file for parsing and validation preview.
+   * Returns column mapping, rows with validation status, and stats.
+   */
+  async importAssetsParse(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/assets/import/parse', formData, {
+      timeout: 60000, // 60s for XLSX parse + DB validation
+      headers: { 'Content-Type': 'multipart/form-data' }, // Axios will auto-set boundary
+      transformRequest: [(data, headers) => {
+        // Let the browser set the correct Content-Type with boundary for FormData
+        delete headers['Content-Type'];
+        return data;
+      }],
+    });
+    return response.data.data as {
+      columnMapping: Array<{ header: string; dbField: string; matched: boolean }>;
+      rows: Record<string, string>[];
+      stats: {
+        totalRows: number;
+        validRows: number;
+        errorRows: number;
+        duplicateRows: number;
+        newRows: number;
+        errors: Array<{ row: string; field: string; message: string; severity: 'error' }>;
+        warnings: Array<{ row: string; field: string; message: string; severity: 'warning' }>;
+      };
+    };
+  },
+
+  /**
+   * Upload a CSV/XLSX file for parsing + auto-commit (single-step).
+   * For backward compatibility with the old flow.
+   */
+  async importAssetsParseAndCommit(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    // Use the parse endpoint first, then commit manually
+    const parseResult = await this.importAssetsParse(file);
+    return parseResult;
+  },
+
+  /**
+   * Commit validated rows from the preview step to the database.
+   */
+  async importAssetsCommit(rows: Record<string, string>[], assignUsers = true, updateExisting = false) {
+    const response = await api.post('/assets/import/commit', { rows, assignUsers, updateExisting }, {
+      timeout: 120000, // 120s for bulk DB inserts
+    });
+    return response.data.data as { imported: number; updated: number; skipped: number; warnings: string[]; errors: string[] };
   },
 
   async exportAssetsCsv(params: ListAssetsParams = {}) {

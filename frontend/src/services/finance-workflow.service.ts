@@ -6,8 +6,27 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async setFinalizedAmountAndRouteCeo(requestId: string, finalizedAmount: number, notes?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-ceo`, { finalizedAmount, notes });
+    async setFinalizedAmountAndRouteCfo(requestId: string, finalizedAmount: number, notes?: string, invoiceFiles?: File[]) {
+        if (invoiceFiles && invoiceFiles.length > 0) {
+            const formData = new FormData();
+            formData.append('finalizedAmount', String(finalizedAmount));
+            if (notes) formData.append('notes', notes);
+            for (const file of invoiceFiles) {
+                formData.append('invoices', file);
+            }
+            const response = await api.post(
+                `/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-cfo`,
+                formData,
+                { headers: { 'Content-Type': undefined } },
+            );
+            return response.data;
+        }
+        const response = await api.post(`/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-cfo`, { finalizedAmount, notes });
+        return response.data;
+    },
+
+    async routeToCfo(requestId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/route-to-cfo`, { notes });
         return response.data;
     },
 
@@ -21,10 +40,17 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async groupCeoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/group-ceo-decision`, { decision, comments });
+    async groupDceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/group-dceo-decision`, { decision, comments });
         return response.data;
     },
+
+    async reassignGroupDceoApprover(requestId: string, approverId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/reassign-group-dceo-approver`, { approverId, notes });
+        return response.data;
+    },
+
+
 
     async markPaymentComplete(requestId: string, paymentReference?: string, notes?: string) {
         const response = await api.post(`/finance-workflow/requests/${requestId}/mark-payment-complete`, { paymentReference, notes });
@@ -33,6 +59,11 @@ const financeWorkflowService = {
 
     async closeTicket(requestId: string) {
         const response = await api.post(`/finance-workflow/requests/${requestId}/close`, {});
+        return response.data;
+    },
+
+    async updateAndCloseBudget(requestId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/update-and-close-budget`, { notes });
         return response.data;
     },
 

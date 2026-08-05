@@ -1,18 +1,19 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
-import { shouldResumeOnTransition, pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 /**
  * Create a new onboarding request
  * POST /api/v1/requests/:id/onboarding/create
  */
 export const createOnboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const {
             newHireFirstName,
             newHireLastName,
@@ -64,9 +65,11 @@ export const createOnboardingRequest = async (req: Request, res: Response) => {
             },
         });
 
-        await prisma.request.update({
-            where: { id: requestId },
-            data: { status: 'ONBOARDING_SUBMITTED' },
+        await transitionHttpRequest({
+            req,
+            request,
+            toStatus: 'ONBOARDING_SUBMITTED',
+            source: 'onboarding.create',
         });
 
         res.status(201).json(onboarding);
@@ -82,7 +85,9 @@ export const createOnboardingRequest = async (req: Request, res: Response) => {
  */
 export const getOnboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
 
         const onboarding = await prisma.onboardingRequest.findUnique({
             where: { requestId },
@@ -125,7 +130,9 @@ export const getOnboardingRequest = async (req: Request, res: Response) => {
  */
 export const updateOnboardingStatus = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { overallStatus, currentPhase, ...updates } = req.body;
         const user = (req as any).user;
 
@@ -206,20 +213,13 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (finalStatus !== currentRequest.status) {
-            // SLA pause/resume for onboarding status transitions
-            const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, finalStatus);
-            if (shouldPause) {
-                await pauseSla(requestId);
-            } else if (shouldResume) {
-                await resumeSla(requestId);
-            }
-
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { 
-                    status: finalStatus as any,
-                    ...(finalStatus === 'ONBOARDING_COMPLETED' && { closedAt: new Date() })
-                },
+            const completedAt = finalStatus === 'ONBOARDING_COMPLETED' ? new Date() : undefined;
+            await transitionHttpRequest({
+                req,
+                request: currentRequest,
+                toStatus: finalStatus,
+                source: 'onboarding.update-status',
+                requestPatch: completedAt ? { closedAt: completedAt, completedAt } : undefined,
             });
 
             await prisma.requestActivity.create({
@@ -262,7 +262,9 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
 
 export const createOnboardingTask = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { taskName, taskDescription, taskCategory, assignedTo, dueDate, priority } = req.body;
         const onboarding = await prisma.onboardingRequest.findUnique({ where: { requestId } });
         if (!onboarding) return res.status(404).json({ error: 'Onboarding request not found' });
@@ -291,7 +293,9 @@ export const createOnboardingTask = async (req: Request, res: Response) => {
 
 export const getOnboardingTasks = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const onboarding = await prisma.onboardingRequest.findUnique({
             where: { requestId },
             select: { id: true },
@@ -372,7 +376,9 @@ export const deleteOnboardingTask = async (req: Request, res: Response) => {
 
 export const completeMilestone = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { milestone } = req.body;
         const milestoneField = `${milestone}Completed`;
         const onboarding = await prisma.onboardingRequest.update({
@@ -393,7 +399,9 @@ export const completeMilestone = async (req: Request, res: Response) => {
  */
 export const updateStartDate = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { startDate } = req.body;
         const user = (req as any).user;
         const userRoles = user?.roles || [];
@@ -461,9 +469,129 @@ export const updateStartDate = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * PATCH /api/v1/requests/:id/onboarding/hire-info
+ * Update new hire information fields: firstName, lastName, email, phone, jobTitle, department
+ * Only ADMIN or HR AGENT can update
+ */
+export const updateHireInfo = async (req: Request, res: Response) => {
+    try {
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
+
+        const user = (req as any).user;
+        const userRoles = user?.roles || [];
+
+        // Permission check — ADMIN or HR agent only
+        const isAdmin = userRoles.includes('ADMIN');
+        const isHRAgent = userRoles.includes('AGENT');
+        let isHR = false;
+        if (isHRAgent) {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: user?.id },
+                select: { agentTeam: true },
+            });
+            isHR = dbUser?.agentTeam?.toUpperCase() === 'HR';
+        }
+
+        if (!isAdmin && !isHR) {
+            return res.status(403).json({ error: 'Only ADMIN or HR agent can update hire information' });
+        }
+
+        const onboarding = await prisma.onboardingRequest.findUnique({ where: { requestId } });
+        if (!onboarding) {
+            return res.status(404).json({ error: 'Onboarding request not found' });
+        }
+
+        // Allowed fields and validation (department is not editable)
+        const allowedFields: Record<string, { maxLength: number; type: 'string' | 'email' }> = {
+            newHireFirstName: { maxLength: 100, type: 'string' },
+            newHireLastName: { maxLength: 100, type: 'string' },
+            newHireEmail: { maxLength: 255, type: 'email' },
+            newHirePhone: { maxLength: 20, type: 'string' },
+            jobTitle: { maxLength: 200, type: 'string' },
+        };
+
+        const updates: Record<string, any> = {};
+        const changes: string[] = [];
+
+        for (const [field, config] of Object.entries(allowedFields)) {
+            if (req.body[field] === undefined) continue;
+
+            const value = String(req.body[field]).trim();
+
+            if (value.length === 0) {
+                // Phone can be cleared; other required fields cannot
+                if (field === 'newHirePhone') {
+                    updates[field] = null;
+                    changes.push(`${field} cleared`);
+                    continue;
+                }
+                return res.status(400).json({ error: `${field} cannot be empty` });
+            }
+
+            if (value.length > config.maxLength) {
+                return res.status(400).json({ error: `${field} exceeds maximum length of ${config.maxLength}` });
+            }
+
+            if (config.type === 'email') {
+                const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRe.test(value)) {
+                    return res.status(400).json({ error: `${field} is not a valid email address` });
+                }
+            }
+
+            // Track changes for audit
+            const oldValue = String((onboarding as any)[field] ?? '');
+            if (oldValue !== value) {
+                changes.push(`${field}: "${oldValue}" → "${value}"`);
+            }
+
+            updates[field] = value;
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'No valid fields provided to update' });
+        }
+
+        const updated = await prisma.onboardingRequest.update({
+            where: { requestId },
+            data: updates,
+        });
+
+        // Audit log
+        if (changes.length > 0) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId,
+                    authorId: user?.id,
+                    authorName: user ? `${user.firstName} ${user.lastName}` : 'System',
+                    authorRole: userRoles[0] || 'SYSTEM',
+                    activityType: 'SYSTEM',
+                    message: `Hire info updated: ${changes.join('; ')}`,
+                    isSystemGenerated: true,
+                },
+            });
+
+            await auditLog(req, 'UPDATE', 'onboardingRequest', onboarding.id, {
+                fields: Object.keys(updates),
+                changes,
+            }, {});
+        }
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating hire information:', error);
+        res.status(500).json({ error: 'Failed to update hire information' });
+    }
+};
+
 export const assignBuddy = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const { buddyId } = req.body;
         const onboarding = await prisma.onboardingRequest.update({
             where: { requestId },
@@ -481,7 +609,9 @@ export const assignBuddy = async (req: Request, res: Response) => {
 
 export const getOnboardingProgress = async (req: Request, res: Response) => {
     try {
-        const { id: requestId }  = req.params as Record<string, string>;
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) return res.status(404).json({ status: 'error', message: 'Request not found' });
         const onboarding = await prisma.onboardingRequest.findUnique({
             where: { requestId },
             include: { tasks: true },

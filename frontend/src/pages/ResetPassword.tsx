@@ -66,7 +66,7 @@ const ResetPassword = () => {
         return (
             <div className="flex flex-col md:flex-row min-h-screen">
                 <div style={{
-                    background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
                     padding: 'var(--space-10) var(--space-8)',
                     display: 'flex', flexDirection: 'column', justifyContent: 'center',
                     position: 'relative', overflow: 'hidden',
@@ -112,7 +112,7 @@ const ResetPassword = () => {
         return (
             <div className="flex flex-col md:flex-row min-h-screen">
                 <div style={{
-                    background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
                     padding: 'var(--space-10) var(--space-8)',
                     display: 'flex', flexDirection: 'column', justifyContent: 'center',
                     position: 'relative', overflow: 'hidden',
@@ -157,14 +157,14 @@ const ResetPassword = () => {
     return (
         <div className="flex flex-col md:flex-row min-h-screen">
             <div style={{
-                background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c1445 100%)',
                 padding: 'var(--space-10) var(--space-8)',
                 display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                 position: 'relative', overflow: 'hidden',
             }} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 'var(--space-3)' }}>
-                        Set your<br /><span style={{ color: '#5BBFE8', fontWeight: 700 }}>new password</span>
+                        Set your<br /><span style={{ color: '#60a5fa', fontWeight: 700 }}>new password</span>
                     </h1>
                     <p style={{ fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
                         Choose a strong password that you haven't used before.

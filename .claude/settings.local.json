@@ -52,7 +52,22 @@
       "Bash(git commit -m ' *)",
       "Bash(git commit *)",
       "Bash(npx prisma *)",
-      "mcp__plugin_claude-mem_mcp-search__smart_outline"
+      "mcp__plugin_claude-mem_mcp-search__smart_outline",
+      "Bash(npx ts-node *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e 'const {PrismaClient}=require\\('\\\\''@prisma/client'\\\\''\\);const p=new PrismaClient\\(\\);p.notificationTemplate.findMany\\({where:{eventType:{startsWith:'\\\\''crm_'\\\\''}},select:{eventType:true,name:true}}\\).then\\(r=>{console.log\\(JSON.stringify\\(r,null,2\\)\\);p.$disconnect\\(\\)}\\);')",
+      "Bash(git *)",
+      "Skill(superpowers:using-git-worktrees)",
+      "Bash(npm test *)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(echo \"EXIT $?\")",
+      "Bash(grep -E \"navigate\\\\\\(/request/|navigate\\\\\\(\\\\`/request/\")",
+      "Bash(npx jest *)",
+      "Bash(node -e \"require\\('./src/credit/routes/credit.routes.ts'\\)\")",
+      "Bash(awk '/NEW_HIRING/{print NR\": \"$0}' backend/prisma/seed.ts)",
+      "Bash(npx playwright *)",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(npx vitest *)"
     ]
   }
 }

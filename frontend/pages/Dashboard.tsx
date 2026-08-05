@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import { stripHtml } from '../src/utils/format';
 import { requestService } from '../src/services/request.service';
-import { STATUS_CONFIG } from '../constants';
+import announcementService, { DashboardAnnouncement } from '../src/services/announcement.service';
+import { STATUS_CONFIG, RESOLVED_STATUSES } from '../constants';
 import { RequestStatus } from '../types';
 import { friendlyMessage } from '../src/utils/errorMessages';
 
@@ -26,22 +28,6 @@ interface Request {
   updatedAt: string;
   serviceDesk?: { name: string; code: string };
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-const RESOLVED_STATUSES = new Set<string>([
-  RequestStatus.RESOLVED,
-  RequestStatus.COMPLETED,
-  RequestStatus.REIMBURSEMENT_CLOSED,
-  RequestStatus.ONBOARDING_COMPLETED,
-  RequestStatus.OFFBOARDING_COMPLETED,
-  RequestStatus.PAYMENT_COMPLETED,
-  RequestStatus.LOA_ACCEPTED,
-  'TICKET_CLOSED_FIN',
-  'CFO_REJECTED_FIN',
-  'GROUP_CEO_REJECTED',
-  'PAYMENT_CONFIRMED_FIN',
-]);
 
 function getGreeting(firstName: string): string {
   const hour = new Date().getHours();
@@ -66,12 +52,36 @@ function formatRelativeTime(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+const CATEGORY_COLOR: Record<string, string> = {
+  HR: 'var(--color-hr-500)',
+  IT: 'var(--color-it-500)',
+  FINANCE: 'var(--color-fin-500)',
+  POLICY: '#8b5cf6',
+  MARKETING: '#f59e0b',
+  GENERAL: 'var(--color-brand-700)',
+};
+
+const PRIORITY_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  CRITICAL: { bg: '#fef2f2', color: '#dc2626', label: 'Critical' },
+  HIGH:     { bg: '#fff7ed', color: '#ea580c', label: 'High' },
+  MEDIUM:   { bg: '#eff6ff', color: '#2563eb', label: 'Medium' },
+  LOW:      { bg: '#f0fdf4', color: '#16a34a', label: 'Low' },
+};
+
+const PRIORITY_CARD: Record<string, { bg: string; border: string; titleColor: string; unread: string }> = {
+  CRITICAL: { bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', unread: '#dc2626' },
+  HIGH:     { bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', unread: '#d97706' },
+  MEDIUM:   { bg: '#eff6ff', border: '#bfdbfe', titleColor: '#1e3a8a', unread: '#2563eb' },
+  LOW:      { bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', unread: '#16a34a' },
+};
+
 // ── Desk config ────────────────────────────────────────────────────────────
 
 const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: string }> = {
   IT:      { colorBar: 'var(--color-it-500)',  iconBg: 'var(--color-it-50)',  icon: 'devices' },
   HR:      { colorBar: 'var(--color-hr-500)',  iconBg: 'var(--color-hr-50)',  icon: 'groups'  },
   FINANCE: { colorBar: 'var(--color-fin-500)', iconBg: 'var(--color-fin-50)', icon: 'payments' },
+  ESM:     { colorBar: '#4f46e5',             iconBg: '#eef2ff',            icon: 'flight_takeoff' },
 };
 
 // ── Skeleton ───────────────────────────────────────────────────────────────
@@ -79,6 +89,101 @@ const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: strin
 const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
   <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
 );
+
+interface AnnouncementBannerProps {
+  pinned: DashboardAnnouncement[];
+  latest: DashboardAnnouncement[];
+  loading: boolean;
+}
+
+const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ pinned, latest, loading }) => {
+  const items = [...pinned, ...latest].slice(0, 3);
+
+  if (loading) {
+    return (
+      <div style={{ marginBottom: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {[0, 1].map(i => (
+          <div key={i} style={{ height: 52, background: 'var(--color-border)', borderRadius: 'var(--radius-md)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 'var(--space-6)' }}>
+      {/* Card stack */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {items.map(a => {
+          const isPinned = pinned.includes(a);
+          const card = PRIORITY_CARD[a.priority] || { bg: 'var(--color-surface-subtle)', border: 'var(--color-border)', titleColor: 'var(--color-text-primary)', unread: 'var(--color-brand-700)' };
+          const pri = PRIORITY_BADGE[a.priority];
+          return (
+            <Link
+              key={a.id}
+              to={`/announcements?open=${a.id}`}
+              style={{ textDecoration: 'none' }}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: card.bg,
+                border: `1px solid ${card.border}`,
+                borderLeft: `3px solid ${a.isRead ? card.border : card.unread}`,
+                borderRadius: 'var(--radius-md)',
+                transition: 'opacity 0.15s',
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.opacity = '0.85'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
+              >
+                {isPinned && <span style={{ fontSize: 13, flexShrink: 0 }}>📌</span>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 'var(--text-sm)', fontWeight: a.isRead ? 500 : 700,
+                    color: card.titleColor,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {a.title}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                  {pri && (
+                    <span style={{
+                      fontSize: 'var(--text-xs)', fontWeight: 700,
+                      padding: '2px 8px', borderRadius: 'var(--radius-full)',
+                      background: pri.bg, color: pri.color,
+                    }}>
+                      {pri.label}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                    {a.publishedAt ? formatRelativeTime(a.publishedAt) : ''}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* View all footer */}
+      <div style={{
+        borderTop: '1px solid var(--color-border-subtle)',
+        marginTop: 'var(--space-2)',
+        paddingTop: 'var(--space-2)',
+        textAlign: 'right',
+      }}>
+        <Link to="/announcements" style={{
+          fontSize: 'var(--text-sm)', fontWeight: 700,
+          color: 'var(--color-brand-700)', textDecoration: 'none',
+        }}>
+          View all announcements →
+        </Link>
+      </div>
+    </div>
+  );
+};
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -90,27 +195,25 @@ const Dashboard = () => {
   const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [pinned, setPinned] = useState<DashboardAnnouncement[]>([]);
+  const [latestAnnouncements, setLatestAnnouncements] = useState<DashboardAnnouncement[]>([]);
 
-  const handleSearch = () => {
-    const q = searchQuery.trim();
-    if (q) {
-      navigate(`/search?q=${encodeURIComponent(q)}`);
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const [desksData, requestsData] = await Promise.all([
+        const [desksData, requestsData, dashboardData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
           requestService.getAllRequests({ limit: 50, requesterId: user?.id }),
+          announcementService.getDashboard().catch(() => ({ pinned: [], latest: [] })),
         ]);
         setServiceDesks(desksData);
         const requests: Request[] = requestsData.requests || [];
         setAllRequests(requests);
+        setPinned(dashboardData.pinned ?? []);
+        setLatestAnnouncements(dashboardData.latest ?? []);
       } catch (err: any) {
         setError(friendlyMessage(err, 'Unable to load your dashboard. Please refresh the page.'));
       } finally {
@@ -136,51 +239,19 @@ const Dashboard = () => {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
 
-      {/* ── HERO ── */}
-      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-[#2a4a7f] rounded-xl py-12 px-4 sm:px-8 relative overflow-hidden mb-6">
-        {/* decorative circles */}
-        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-
-        <div className="relative z-10">
-          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">
-            {formatDate()}
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-6">
+      {/* ── GREETING ── */}
+      <div className="flex items-baseline gap-3 mb-6 pt-2">
+        <div>
+          <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-0.5">{formatDate()}</p>
+          <h1 className="text-2xl font-black text-text-primary leading-tight">
             {greeting}{' '}
-            <span className="text-white/65 font-normal">How can<br />we help you today?</span>
+            <span className="text-text-secondary font-normal text-lg">How can we help you today?</span>
           </h1>
-
-          {/* Search */}
-          <div className="flex items-center gap-3 bg-white/12 backdrop-blur-sm border border-white/20 rounded-lg py-3 px-4 max-w-[560px] transition-colors duration-200">
-            <span className="material-symbols-outlined text-white/50 text-xl">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-              placeholder={t('dashboard.searchPlaceholder')}
-              style={{
-                flex: 1, background: 'none', border: 'none', outline: 'none',
-                color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
-              }}
-              onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
-              onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
-            />
-            <button onClick={handleSearch} className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
-              Search
-            </button>
-          </div>
-
-          {/* Quick tags */}
-          <div className="flex items-center gap-4 mt-4 flex-wrap">
-            <span className="text-xs text-white/45">Common:</span>
-            {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
-              <span key={tag} onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer hover:bg-white/20 transition-colors">{tag}</span>
-            ))}
-          </div>
         </div>
-      </section>
+      </div>
+
+      {/* ── ANNOUNCEMENT BANNER ── */}
+      <AnnouncementBanner pinned={pinned} latest={latestAnnouncements} loading={loading} />
 
       {/* ── STATS STRIP ── */}
       {loading ? (
@@ -344,13 +415,13 @@ const Dashboard = () => {
                       style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      onClick={() => navigate(`/request/${req.id}`)}
+                      onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
                     >
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
                         {req.referenceNumber}
                       </td>
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                        {req.summary}
+                        {stripHtml(req.summary)}
                       </td>
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
                         {req.serviceDesk?.name || 'N/A'}
@@ -362,7 +433,7 @@ const Dashboard = () => {
                           borderRadius: 'var(--radius-full)',
                           fontSize: 'var(--text-xs)', fontWeight: 700,
                         }}
-                          className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
+                          className={`${statusCfg?.bg || 'bg-gray-100 dark:bg-gray-700'} ${statusCfg?.color || 'text-gray-600 dark:text-gray-400'}`}
                         >
                           {statusCfg?.label || req.status}
                         </span>

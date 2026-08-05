@@ -1,19 +1,46 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient, RequestStatus } from '@prisma/client';
+import { RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
 import { s3Service } from '../services/s3.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
-import { sanitizeString, sanitizeComment } from '../utils/sanitize';
+import { sanitizeString, sanitizeComment, sanitizeRichText, stripHtml } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
 import { autoAssignRequest } from '../services/autoAssignment.service';
-import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
+import { pauseSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
+import { generateRequestRefNum } from '../services/referenceNumber.service';
+import { assertRequestAccess } from '../services/requestAccess.service';
+import { getAuthorizedAttachment, registerUpload } from '../services/attachmentAccess.service';
+import { resolveRequestCreationPolicy } from '../services/requestCreationPolicy.service';
+import { policyService } from '../security/policy.service';
+import { principalFromAuth } from '../security/resource-scope.service';
+import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
+import { resolveRequestId, UUID_RE } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 
+/** Extract a display-safe string from a custom field value, handling file objects gracefully. */
+function cfStr(val: any): string {
+    if (val === null || val === undefined || val === '') return '';
+    if (Array.isArray(val)) {
+        // Array of file objects — list filenames
+        if (val.length > 0 && val[0]?.s3Key && val[0]?.fileName) {
+            return val.map((f: any) => f.fileName).join(', ');
+        }
+        return val.join(', ');
+    }
+    if (typeof val === 'object' && val !== null) {
+        // File upload objects — return the original filename for display
+        if (val.s3Key && val.fileName) return val.fileName;
+        // Nested structures like candidateDocuments — skip
+        return '';
+    }
+    return String(val);
+}
 class RequestController {
     /**
      * Get all requests with filters and pagination
@@ -30,108 +57,50 @@ class RequestController {
             search,
             requestTypeId,
             requesterId,
+            participantId,
         }  = req.query as Record<string, string>;
 
         const pageNum = parseInt(page as string, 10);
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
-        // Build where clause
+        // Build where clause starting with soft-delete filter
         const where: any = {
             deletedAt: null,
         };
 
-        // Confidentiality gate: users without request:confidential permission
-        // cannot see confidential requests (unless they are the requester or a designated approver).
-        // ADMIN bypasses this gate entirely.
-        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
-
-        // Users can only see their own requests unless they're agents/admins
-        // Exception: CEO can see requests in hiring workflow
-        if (!hasRole(req, 'ADMIN', 'AGENT')) {
-            if (hasRole(req, 'CEO')) {
-                // CEO can see their own requests, hiring workflow requests, IT approval requests, chargeback from-entity requests, and any request where they are a designated approver
-                const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: { in: ceoHiringStatuses } },
-                    { status: 'PENDING_CEO_APPROVAL_IT' },
-                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
-                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'CTO')) {
-                // CTO can see their own requests and any IT request pending CTO approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_CTO_APPROVAL_IT' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'CFO')) {
-                // CFO can see their own requests, IT requests pending CFO approval, Finance Purchase Requisitions pending CFO approval, and Expense Reimbursement requests pending Finance Head approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_CFO_APPROVAL_IT' },
-                    { status: 'PENDING_CFO_APPROVAL_FIN' },
-                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'FINANCE_HEAD')) {
-                // FINANCE_HEAD can see their own requests and Expense Reimbursement requests pending Finance Head approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            } else if (hasRole(req, 'GROUP_CEO')) {
-                // GROUP_CEO can see their own requests and Finance Purchase Requisitions pending Group CEO approval
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { status: 'PENDING_GROUP_CEO_APPROVAL' },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            } else {
-                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback)
-                where.OR = [
-                    { requesterId: req.user!.id },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            }
+        // P02-09: Use policy service for visibility scoping instead of
+        // hardcoded ADMIN/AGENT bypasses. buildVisibleWhere produces a
+        // tenant-aware, team-scoped, ownership-based Prisma filter that
+        // respects all policy rules including department grants.
+        const principal = principalFromAuth(req.user!);
+        const visibleWhere = policyService.buildVisibleWhere(principal, 'request');
+        if (visibleWhere.AND || visibleWhere.OR) {
+            // Merge the policy visibility conditions into our where clause
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                visibleWhere,
+            ];
         }
 
-        // Apply confidentiality filter for non-ADMIN users without request:confidential permission.
-        // They can only see confidential requests where they are the requester or a designated approver.
+        // Confidentiality gate: users without request:confidential permission
+        // cannot see confidential requests unless they own, are assigned, are an
+        // approver, or are a participant. ADMIN within their tenant can see all.
+        const canSeeConfidential = principal.roles.includes('ADMIN') || principal.permissions.includes('request:confidential');
         if (!canSeeConfidential) {
-            if (where.OR) {
-                // Non-ADMIN/AGENT users already have visibility OR conditions (their own requests, etc.).
-                // We MUST preserve those visibility restrictions AND add confidentiality filtering.
-                // The confidentiality condition: show non-confidential OR (confidential + own/approver).
-                // We wrap the original OR with confidentiality by converting to AND:
-                //   AND[ original_visibility_OR, confidentiality_OR ]
-                // This ensures users only see requests within their visibility scope
-                // AND excludes confidential requests unless they own them or are an approver.
-                const visibilityOR = where.OR;
-                delete where.OR;
-                where.AND = [
-                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-                    { OR: visibilityOR },
-                    {
-                        OR: [
-                            { isConfidential: false },
-                            { requesterId: req.user!.id },
-                            { approvals: { some: { approverId: req.user!.id } } },
-                        ],
-                    },
-                ];
-            } else {
-                // ADMIN/AGENT without request:confidential — they see all non-confidential,
-                // plus confidential requests where they are requester or approver.
-                where.OR = [
+            const confFilter = {
+                OR: [
                     { isConfidential: false },
                     { requesterId: req.user!.id },
+                    { assignedToId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
-                ];
-            }
+                    { participants: { some: { userId: req.user!.id } } },
+                ],
+            };
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                confFilter,
+            ];
         }
 
         // Valid RequestStatus enum members for runtime validation
@@ -189,6 +158,14 @@ class RequestController {
             where.requesterId = requesterId as string;
         }
 
+        // Filter by participant (for "Shared with me" view)
+        if (participantId) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                { participants: { some: { userId: participantId as string } } },
+            ];
+        }
+
         if (search) {
             const searchConditions = [
                 { referenceNumber: { contains: search as string, mode: 'insensitive' } },
@@ -229,6 +206,11 @@ class RequestController {
                     },
                     serviceDesk: true,
                     requestType: true,
+                    participants: {
+                        select: {
+                            userId: true,
+                        },
+                    },
                 },
                 orderBy: {
                     createdAt: 'desc',
@@ -283,7 +265,7 @@ class RequestController {
             CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN'],
             CTO: ['PENDING_CTO_APPROVAL_IT'],
             CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
-            GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+            GROUP_DCEO: ['PENDING_GROUP_DCEO_APPROVAL'],
             VP: [],
             MANAGER: ['PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
             HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
@@ -419,7 +401,7 @@ class RequestController {
         // Fetch the requests that have matching approvals to determine workflow transitions
         const requests = await prisma.request.findMany({
             where: { id: { in: approvedRequestIds } },
-            select: { id: true, status: true, referenceNumber: true },
+            select: { id: true, status: true, referenceNumber: true, tenantId: true },
         });
 
         // Map: status → (approverType, decision) → next status
@@ -439,8 +421,8 @@ class RequestController {
             // Manager approvals
             PENDING_MANAGER_APPROVAL_FIN: { MANAGER: { approve: 'MANAGER_APPROVED_FIN', reject: 'MANAGER_REJECTED_FIN' } },
             PENDING_MANAGER_REVIEW: { MANAGER: { approve: 'MANAGER_APPROVED', reject: 'IN_REVIEW' } },
-            // Group CEO approvals
-            PENDING_GROUP_CEO_APPROVAL: { GROUP_CEO: { approve: 'GROUP_CEO_APPROVED', reject: 'GROUP_CEO_REJECTED' } },
+            // Group Deputy CEO approvals
+            PENDING_GROUP_DCEO_APPROVAL: { GROUP_DCEO: { approve: 'GROUP_DCEO_APPROVED', reject: 'GROUP_DCEO_REJECTED' } },
             // HR approvals
             LOA_PENDING_APPROVAL: { HR: { approve: 'LOA_APPROVED', reject: 'REJECTED' } },
             ONBOARDING_PENDING_HR_APPROVAL: { HR: { approve: 'ONBOARDING_PRE_ARRIVAL_SETUP', reject: 'REJECTED' } },
@@ -457,7 +439,7 @@ class RequestController {
         // Role display names for activity log
         const ROLE_DISPLAY: Record<string, string> = {
             CEO: 'CEO', CTO: 'CTO', CFO: 'CFO', VP: 'VP',
-            MANAGER: 'Manager', GROUP_CEO: 'Group CEO', HR: 'HR',
+            MANAGER: 'Manager', GROUP_DCEO: 'Group Deputy CEO', HR: 'HR',
             HIRING_MANAGER: 'Hiring Manager',
         };
 
@@ -481,6 +463,24 @@ class RequestController {
             const newStatus = action === 'approve' ? transition.approve : transition.reject;
 
             try {
+                const requestPatch: Record<string, unknown> = {};
+                if (action === 'reject' && transition.reject.includes('REJECTED')) {
+                    requestPatch.resolvedAt = new Date();
+                }
+
+                let financeAgent: { id: string; firstName: string; lastName: string } | null = null;
+                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
+                    financeAgent = await prisma.user.findFirst({
+                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (financeAgent) {
+                        requestPatch.assignedToId = financeAgent.id;
+                        requestPatch.assignedTeam = 'FINANCE';
+                    }
+                }
+
                 // Update approval record
                 await prisma.requestApproval.update({
                     where: { id: approval.id },
@@ -490,10 +490,14 @@ class RequestController {
                     },
                 });
 
-                // Update request status
-                await prisma.request.update({
-                    where: { id: request.id },
-                    data: { status: newStatus as any },
+                // Versioned status, SLA, audit, assignment, history, and outbox command
+                await transitionHttpRequest({
+                    req,
+                    request,
+                    toStatus: newStatus,
+                    source: 'request.bulk-approval',
+                    comment: comment,
+                    requestPatch,
                 });
 
                 // Create follow-up approval if this is a cascading approval
@@ -506,26 +510,6 @@ class RequestController {
                             status: 'PENDING',
                         },
                     });
-                }
-
-                // Resume SLA on approval, pause on next cascading step
-                if (action === 'approve') {
-                    await resumeSla(request.id);
-                    // If there's a cascading next step, pause SLA for next approver
-                    if (CASCADING_APPROVALS[currentStatus]) {
-                        await pauseSla(request.id);
-                    }
-                } else {
-                    // On rejection, resume SLA (was paused for approval) and set resolved
-                    await resumeSla(request.id);
-                    // For rejected statuses that end the workflow, mark resolved
-                    const rejectStatus = transition.reject;
-                    if (rejectStatus.includes('REJECTED')) {
-                        await prisma.request.update({
-                            where: { id: request.id },
-                            data: { resolvedAt: new Date() },
-                        });
-                    }
                 }
 
                 // Create activity log
@@ -541,37 +525,20 @@ class RequestController {
                     },
                 });
 
-                await auditLog(req as any, 'APPROVAL_DECISION', 'request', request.id, {
-                    decision: approvalStatus,
-                    approverType,
-                    newStatus,
-                    previousStatus: currentStatus,
-                }, { status: currentStatus });
 
-                // Reassign to Finance team when CFO approves an IT purchase (payment processing)
-                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
-                    const financeAgent = await prisma.user.findFirst({
-                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
-                        select: { id: true, firstName: true, lastName: true },
-                        orderBy: { createdAt: 'asc' },
+                // Assignment was committed in the command; emit its domain-specific activity.
+                if (financeAgent) {
+                    const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
+                    await prisma.requestActivity.create({
+                        data: {
+                            requestId: request.id,
+                            authorName: 'System',
+                            activityType: 'ASSIGNMENT',
+                            message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
+                            isSystemGenerated: true,
+                            metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                        },
                     });
-                    if (financeAgent) {
-                        const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
-                        await prisma.request.update({
-                            where: { id: request.id },
-                            data: { assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
-                        });
-                        await prisma.requestActivity.create({
-                            data: {
-                                requestId: request.id,
-                                authorName: 'System',
-                                activityType: 'ASSIGNMENT',
-                                message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
-                                isSystemGenerated: true,
-                                metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
-                            },
-                        });
-                    }
                 }
 
                 processedIds.push(request.id);
@@ -604,75 +571,123 @@ class RequestController {
             priority,
             customFields,
             isConfidential,
+            formVersion,
         } = req.body;
 
         // Sanitize highest-risk text fields before storing
         const summary = sanitizeString(rawSummary);
-        const description = rawDescription ? sanitizeComment(rawDescription) : undefined;
 
-        // Generate reference number
-        const serviceDesk = await prisma.serviceDesk.findUnique({
-            where: { id: serviceDeskId },
+        const creationPolicy = await resolveRequestCreationPolicy(principalFromAuth(req.user!), {
+            requestTypeId,
+            serviceDeskId,
+            formVersion,
+            values: (customFields || {}) as Record<string, unknown>,
+            requestedConfidentiality: isConfidential,
         });
+        const { serviceDesk, requestType } = creationPolicy;
 
-        if (!serviceDesk) {
-            throw new AppError('Service desk not found', 404);
-        }
+        // IT Support uses rich-text editor — allow safe HTML; others stay plain text
+        const description = rawDescription
+            ? (serviceDesk.code === 'IT' ? sanitizeRichText(rawDescription) : sanitizeComment(rawDescription))
+            : undefined;
 
-        // Get count for reference number
-        const count = await prisma.request.count({
-            where: { serviceDeskId },
-        });
+        // Get count for reference number — P2-11: use atomic counter
+        // OLD: const count = await prisma.request.count({ where: { serviceDeskId } });
+        //      const referenceNumber = `${serviceDesk.code}-${count + 1}`;
+        // This was not safe under concurrent requests.
+        const referenceNumber = await generateRequestRefNum(serviceDesk.code);
 
-        const referenceNumber = `${serviceDesk.code}-${count + 1}`;
-
-        // Calculate SLA due date from request type
+        // Calculate SLA due date from the server-resolved published request type.
         let slaDueAt: Date | undefined;
-        if (requestTypeId) {
-          const requestType = await prisma.requestType.findUnique({ where: { id: requestTypeId } });
-          if (requestType?.slaHours) {
+        if (creationPolicy.slaHours) {
             slaDueAt = new Date();
-            slaDueAt.setHours(slaDueAt.getHours() + requestType.slaHours);
-          }
+            slaDueAt.setHours(slaDueAt.getHours() + creationPolicy.slaHours);
         }
 
         // Detect manual onboarding/offboarding/finance submission
-        const requestType = requestTypeId
-            ? await prisma.requestType.findUnique({ where: { id: requestTypeId } })
-            : null;
         const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
+        const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
         const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
+        const isEsmTravelRequest = requestType?.code === 'CWC_TRAVEL_REQUEST';
+
+        let esmSelectedCeo: { id: string; firstName: string; lastName: string; email: string } | null = null;
+        if (isEsmTravelRequest) {
+            const ceoApproverId = String(((customFields || {}) as Record<string, any>).ceoApproverId || '').trim();
+            if (!ceoApproverId) {
+                throw new AppError('CEO Approver is required for CWC Travel Request', 400);
+            }
+
+            const ceoUser = await prisma.user.findUnique({
+                where: { id: ceoApproverId },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    executiveRole: true,
+                    isActive: true,
+                    roles: { select: { role: { select: { name: true } } } },
+                },
+            });
+
+            const selectedRoleNames = ceoUser?.roles.map((r) => r.role.name) ?? [];
+            const canApproveTravel = ceoUser?.executiveRole === 'CEO'
+                || ceoUser?.executiveRole === 'GROUP_DCEO'
+                || selectedRoleNames.includes('CEO')
+                || selectedRoleNames.includes('GROUP_DCEO');
+
+            if (!ceoUser || !ceoUser.isActive || !canApproveTravel) {
+                throw new AppError('Selected CEO approver is not an active CEO or Group DCEO. Please select a valid approver.', 400);
+            }
+
+            esmSelectedCeo = {
+                id: ceoUser.id,
+                firstName: ceoUser.firstName,
+                lastName: ceoUser.lastName,
+                email: ceoUser.email,
+            };
+        }
+
+        // Validate summary: required unless auto-generated for specific request types
+        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'REPORT_SYSTEM_PROBLEM', 'SOFTWARE_INSTALLATION', 'PURCHASE_REQUISITION', 'EMAIL_MANAGEMENT'];
+        const isAutoSummaryType = requestType?.code ? autoSummaryCodes.includes(requestType.code) : false;
+        if (!summary && !isAutoSummaryType) {
+            throw new AppError('Summary is required', 400);
+        }
+
         const initialStatus = isManualOnboarding
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
             ? 'OFFBOARDING_SUBMITTED'
-            : isPurchaseRequisition
+            : (isPurchaseRequisition || isBudgetProposal)
             ? 'FINANCE_PENDING_ACK'
             : isIntercompanyChargeback
             ? 'SUBMITTED'
             : isExpenseClaim
             ? 'PENDING_MANAGER_APPROVAL_FIN'
+            : isEsmTravelRequest
+            ? 'PENDING_CEO_APPROVAL'
             : 'SUBMITTED';
 
         // Auto-generate description from form fields
         let finalDescription = description;
         if (isManualOnboarding && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const name = cf.employeeName || 'Unknown';
-            const jobTitle = cf.jobTitle || 'Not specified';
-            const dept = cf.department || 'Not specified';
-            const email = cf.employeeEmail || 'Not provided';
+            const name = cfStr(cf.employeeName) || 'Unknown';
+            const jobTitle = cfStr(cf.jobTitle) || 'Not specified';
+            const dept = cfStr(cf.department) || 'Not specified';
+            const email = cfStr(cf.employeeEmail) || 'Not provided';
             finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Contact: ${email}.`;
         }
         if (isManualOffboarding && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const name = cf.employeeName || 'Unknown';
-            const lastDay = cf.lastDay || 'TBD';
-            const email = cf.employeeEmail || 'Not provided';
-            const reason = cf.reason || 'Not specified';
+            const name = cfStr(cf.employeeName) || 'Unknown';
+            const lastDay = cfStr(cf.lastDay) || 'TBD';
+            const email = cfStr(cf.employeeEmail) || 'Not provided';
+            const reason = cfStr(cf.reason) || 'Not specified';
             finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
         }
 
@@ -684,7 +699,6 @@ class RequestController {
             const parts: string[] = [];
             for (const [key, value] of Object.entries(cf)) {
                 if (value === null || value === undefined || value === '') continue;
-                if (typeof value === 'object' && value.s3Key) continue;
 
                 let label = key;
                 if (formConfig && Array.isArray(formConfig)) {
@@ -692,7 +706,24 @@ class RequestController {
                     if (field?.label) label = field.label;
                 }
 
-                parts.push(`${label}: ${value}`);
+                if (typeof value === 'object' && value.s3Key) continue;
+                // Skip file arrays in description
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
+                if (typeof value === 'object' && !value.s3Key) {
+                    // candidateDocuments or other nested objects — summarize instead of dumping raw
+                    if (key === 'candidates') {
+                        const candObj = value as Record<string, Record<string, any>>;
+                        const candCount = Object.keys(candObj).length;
+                        if (candCount > 0) {
+                            const totalDocs = Object.values(candObj).reduce((s, d) => s + Object.keys(d).length, 0);
+                            parts.push(`${label}: ${candCount} candidate${candCount > 1 ? 's' : ''}, ${totalDocs} document${totalDocs !== 1 ? 's' : ''}`);
+                        }
+                        continue;
+                    }
+                    continue;
+                }
+
+                parts.push(`${label}: ${cfStr(value)}`);
             }
 
             if (parts.length > 0) {
@@ -711,6 +742,7 @@ class RequestController {
             for (const [key, value] of Object.entries(cf)) {
                 if (value === null || value === undefined || value === '') continue;
                 if (typeof value === 'object' && value.s3Key) continue;
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
 
                 let label = key;
                 if (formConfig && Array.isArray(formConfig)) {
@@ -718,7 +750,7 @@ class RequestController {
                     if (field?.label) label = field.label;
                 }
 
-                parts.push(`${label}: ${value}`);
+                parts.push(`${label}: ${cfStr(value)}`);
             }
 
             if (parts.length > 0) {
@@ -742,6 +774,7 @@ class RequestController {
                 
                 // Skip file uploads in description
                 if (typeof value === 'object' && value.s3Key) continue;
+                if (Array.isArray(value) && value.length > 0 && value[0]?.s3Key) continue;
                 
                 // Find label from formConfig for dynamic field IDs
                 let label = key;
@@ -764,7 +797,7 @@ class RequestController {
                     }
                 }
                 
-                parts.push(`${label}: ${value}`);
+                parts.push(`${label}: ${cfStr(value)}`);
             }
             
             if (parts.length > 0) {
@@ -777,41 +810,225 @@ class RequestController {
         // Auto-generate description for Inter-Company Chargeback (finance)
         if (requestType?.code === 'INTERCOMPANY_CHARGEBACK' && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const fromEntity = cf.chargeFromEntity || cf.chargeFromEntity || 'Unknown entity';
-            const toEntity = cf.chargeToEntity || 'Unknown entity';
-            const amount = cf.amount ? `RM ${cf.amount}` : 'Amount TBD';
-            const costCenter = cf.costCenter || 'Not specified';
-            const desc = cf.description || 'No description provided';
+            const fromEntity = cfStr(cf.chargeFromEntity) || cfStr(cf.chargeFromEntity) || 'Unknown entity';
+            const toEntity = cfStr(cf.chargeToEntity) || 'Unknown entity';
+            const amount = cf.amount ? `RM ${cfStr(cf.amount)}` : 'Amount TBD';
+            const costCenter = cfStr(cf.costCenter) || 'Not specified';
+            const desc = cfStr(cf.description) || 'No description provided';
             finalDescription = `Inter-company chargeback from ${fromEntity} to ${toEntity}. Amount: ${amount}. Cost center: ${costCenter}. Details: ${desc}.`;
+        }
+
+        // Auto-generate description for Email Management (IT)
+        if (requestType?.code === 'EMAIL_MANAGEMENT' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const emailType = cfStr(cf.field_email_request_type || resolveByLabel('request type')) || 'Not specified';
+            const emailAddress = cfStr(cf.field_email_address || resolveByLabel('email address')) || 'Not provided';
+            const mailClient = cfStr(cf.field_mail_client || resolveByLabel('mail client')) || '';
+            const symptoms = cfStr(cf.field_email_symptoms || resolveByLabel('error') || resolveByLabel('symptoms')) || '';
+            const parts = [`Email request type: ${emailType}`, `Email address: ${emailAddress}`];
+            if (mailClient) parts.push(`Mail client: ${mailClient}`);
+            if (symptoms) parts.push(`Symptoms: ${symptoms}`);
+            finalDescription = parts.join('. ') + '.';
+        }
+
+        // Auto-generate description for Report System Problem (IT)
+        if (requestType?.code === 'REPORT_SYSTEM_PROBLEM' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const systemName = cfStr(cf.field_system_name) || 'Unspecified system';
+            const problemType = cfStr(cf.field_problem_type) || 'Unspecified';
+            const affectedUsers = cfStr(cf.field_affected_users) || '';
+            const problemDesc = cfStr(cf.field_problem_description) || 'No details provided';
+            const parts = [`System: ${systemName}`, `Problem type: ${problemType}`];
+            if (affectedUsers) parts.push(`Affected users: ${affectedUsers}`);
+            parts.push(`Details: ${problemDesc}`);
+            finalDescription = parts.join('. ') + '.';
         }
 
         // Auto-generate description for Budget Proposal (finance)
         if (requestType?.code === 'BUDGET_PROPOSAL' && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const department = cf.department || 'Unknown department';
-            const period = cf.budgetPeriod || 'Unspecified period';
-            const totalAmount = cf.totalAmount ? `RM ${cf.totalAmount}` : 'Amount TBD';
-            const breakdown = cf.breakdown || 'No breakdown provided';
-            const justification = cf.justification || 'No justification provided';
+            const department = cfStr(cf.department) || 'Unknown department';
+            const period = cfStr(cf.budgetPeriod) || 'Unspecified period';
+            const totalAmount = cf.totalAmount ? `RM ${cfStr(cf.totalAmount)}` : 'Amount TBD';
+            const breakdown = cfStr(cf.breakdown) || 'No breakdown provided';
+            const justification = cfStr(cf.justification) || 'No justification provided';
             finalDescription = `Budget proposal for ${department} - ${period}. Total requested: ${totalAmount}. Breakdown: ${breakdown}. Justification: ${justification}.`;
+        }
+
+        // Auto-generate summary for hardware and IT help requests if not provided
+        let finalSummary = summary;
+        if (!finalSummary && requestType?.code === 'NEW_HARDWARE') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveField = (...keys: string[]): any => {
+                for (const k of keys) { if (cf[k]) return cf[k]; }
+                return undefined;
+            };
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const hwName = resolveField('hardwareName') || resolveByLabel('hardware name') || resolveByLabel('device type') || '';
+            if (hwName) {
+                finalSummary = `Request new hardware: ${hwName}`;
+            }
+        }
+        if (!finalSummary && requestType?.code === 'GET_IT_HELP') {
+            // Strip HTML tags from rich-text description before building plain-text summary
+            const desc = stripHtml(rawDescription || '').trim();
+            if (desc) {
+                const firstLine = desc.split('\n')[0].trim();
+                const maxLen = 120;
+                // Reserve 14 chars for "Get IT Help: " prefix
+                const summaryMaxLen = maxLen - 14;
+                let shortSummary: string;
+                if (firstLine.length <= summaryMaxLen) {
+                    shortSummary = firstLine;
+                } else {
+                    const truncated = firstLine.substring(0, summaryMaxLen);
+                    const lastSpace = truncated.lastIndexOf(' ');
+                    shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                }
+                finalSummary = `Get IT Help: ${shortSummary}`;
+            }
+        }
+        if (!finalSummary && requestType?.code === 'REPORT_SYSTEM_PROBLEM') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const systemName = (cf.field_system_name || '').toString().trim();
+            const problemType = (cf.field_problem_type || '').toString().trim();
+            if (systemName || problemType) {
+                // Build from form fields: "System Problem: ERP - System Down / Outage"
+                const parts = [systemName, problemType].filter(Boolean);
+                const summary = parts.join(' - ');
+                finalSummary = `System Problem: ${summary}`.substring(0, 120);
+            } else {
+                // Fallback to description first line
+                const desc = stripHtml(rawDescription || '').trim();
+                if (desc) {
+                    const firstLine = desc.split('\n')[0].trim();
+                    const maxLen = 120;
+                    const summaryMaxLen = maxLen - 17;
+                    let shortSummary: string;
+                    if (firstLine.length <= summaryMaxLen) {
+                        shortSummary = firstLine;
+                    } else {
+                        const truncated = firstLine.substring(0, summaryMaxLen);
+                        const lastSpace = truncated.lastIndexOf(' ');
+                        shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                    }
+                    finalSummary = `System Problem: ${shortSummary}`;
+                }
+            }
+        }
+        if (!finalSummary && requestType?.code === 'EMAIL_MANAGEMENT') {
+            const desc = stripHtml(rawDescription || '').trim();
+            if (desc) {
+                const firstLine = desc.split('\n')[0].trim();
+                const maxLen = 120;
+                // Reserve 18 chars for "Email Management: " prefix
+                const summaryMaxLen = maxLen - 18;
+                let shortSummary: string;
+                if (firstLine.length <= summaryMaxLen) {
+                    shortSummary = firstLine;
+                } else {
+                    const truncated = firstLine.substring(0, summaryMaxLen);
+                    const lastSpace = truncated.lastIndexOf(' ');
+                    shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                }
+                finalSummary = `Email Management: ${shortSummary}`;
+            } else {
+                // Build summary from custom fields
+                const cf = (customFields || {}) as Record<string, any>;
+                const formConfig = (requestType?.formConfig || []) as any[];
+                const resolveByLabel = (labelMatch: string): any => {
+                    for (const f of formConfig) {
+                        if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                            if (cf[f.id]) return cf[f.id];
+                        }
+                    }
+                    return undefined;
+                };
+                const emailType = cf.field_email_request_type || resolveByLabel('request type') || '';
+                const emailAddress = cf.field_email_address || resolveByLabel('email address') || '';
+                if (emailType || emailAddress) {
+                    const parts = ['Email Management'];
+                    if (emailType) parts.push(emailType);
+                    if (emailAddress) parts.push(`(${emailAddress})`);
+                    finalSummary = parts.join(': ');
+                }
+            }
+        }
+        if (!finalSummary && requestType?.code === 'SOFTWARE_INSTALLATION') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const swName = cf.sw_name || resolveByLabel('software name') || resolveByLabel('software') || '';
+            if (swName) {
+                const swVersion = cf.sw_version || resolveByLabel('version') || '';
+                finalSummary = swVersion ? `Install software: ${swName} v${swVersion}` : `Install software: ${swName}`;
+            }
+        }
+        if (!finalSummary && isPurchaseRequisition) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const itemName = cf.itemName || resolveByLabel('item') || resolveByLabel('service name') || '';
+            const estimatedCost = cf.estimatedCost || resolveByLabel('estimated cost') || '';
+            if (itemName) {
+                const costStr = estimatedCost ? ` (RM${estimatedCost})` : '';
+                finalSummary = `Purchase: ${itemName}${costStr}`;
+            }
         }
 
         // Create request, hardware details, and initial activity in a single transaction
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({
                 data: {
+                    tenantId: creationPolicy.tenantId,
+                    departmentId: creationPolicy.departmentId,
                     referenceNumber,
                     requestTypeId,
                     serviceDeskId,
                     requesterId: req.user!.id,
                     requesterEmail: req.user!.email,
-                    summary,
+                    summary: finalSummary,
                     description: finalDescription,
                     priority,
                     customFields,
-                    isConfidential: isConfidential === true,
+                    isConfidential: creationPolicy.isConfidential,
                     status: initialStatus as any,
+                    assignedToId: esmSelectedCeo?.id,
                     slaDueAt,
+                    // P5-04: Snapshot form config at submission time
+                    formConfigSnapshot: creationPolicy.formConfig ?? undefined,
+                    formConfigVersion: creationPolicy.formVersion ?? undefined,
                 },
                 include: {
                     requester: {
@@ -975,6 +1192,33 @@ class RequestController {
                 },
             });
 
+            if (isEsmTravelRequest && esmSelectedCeo) {
+                await tx.requestApproval.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        approverType: 'CEO',
+                        approverId: esmSelectedCeo.id,
+                        status: 'PENDING',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        activityType: 'ASSIGNMENT',
+                        message: `Travel request submitted directly to ${esmSelectedCeo.firstName} ${esmSelectedCeo.lastName} for CEO approval`,
+                        isSystemGenerated: true,
+                        metadata: {
+                            autoAssigned: true,
+                            assignedToId: esmSelectedCeo.id,
+                            approverType: 'CEO',
+                            source: 'esm-travel-request-create',
+                        },
+                    },
+                });
+            }
+
             return createdRequest;
         });
 
@@ -998,6 +1242,35 @@ class RequestController {
         // SLA: pause immediately if request is created in an approval status (e.g. EXPENSE_CLAIM → PENDING_MANAGER_APPROVAL_FIN)
         if (isExpenseClaim) {
             await pauseSla(request.id);
+        }
+
+        if (isEsmTravelRequest && esmSelectedCeo) {
+            await pauseSla(request.id);
+            await notify({
+                userId: esmSelectedCeo.id,
+                eventType: 'APPROVAL_REQUIRED',
+                variables: { requestId: request.id, role: 'CEO' },
+                relatedRequestId: request.id,
+            });
+        }
+
+        // P5-07: Use approval policy engine for expense claims
+        // If an active ApprovalPolicy exists for this request type, create approvals from it
+        if (isExpenseClaim && requestTypeId) {
+            try {
+                const { approvalPolicyService } = await import('../services/approvalPolicy.service');
+                const policyApprovals = await approvalPolicyService.createApprovalsFromPolicy(
+                    request.id,
+                    requestTypeId,
+                    request.requesterId,
+                );
+                if (policyApprovals.length > 0) {
+                    console.log(`[P5-07] Created ${policyApprovals.length} approval(s) from policy for expense claim ${request.id}`);
+                }
+            } catch (err) {
+                // Fallback: if no policy is configured, the old hardcoded path still works
+                console.log(`[P5-07] No approval policy found for expense claim ${request.id}, falling back to entity routing`);
+            }
         }
 
         // Apply entity-based approval routing if configured for this request type
@@ -1053,20 +1326,10 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        // Notify the assigned agent (if auto-assigned, they already got REQUEST_ASSIGNED above;
-        // this covers the case where no auto-assignment happened —admins with dashboard access
-        // see new requests anyway, no need to email all of them)
-        if (!assignResult.success && request.assignedToId) {
-            await notify({
-                userId: request.assignedToId,
-                eventType: 'REQUEST_CREATED',
-                variables: {
-                    referenceNumber: request.referenceNumber,
-                    summary: request.summary,
-                },
-                relatedRequestId: request.id,
-            });
-        }
+        // NOTE: We no longer send REQUEST_CREATED to the assigned agent.
+        // The agent receives REQUEST_ASSIGNED separately (above), which is the appropriate
+        // single-recipient notification for their role. REQUEST_CREATED is dedicated
+        // to the requester only — no multi-recipient email blast.
 
         await auditLog(req, 'REQUEST_CREATED', 'request', request.id, {
             referenceNumber: request.referenceNumber,
@@ -1076,7 +1339,7 @@ class RequestController {
         });
 
         // Re-fetch request to include auto-assigned agent info in response
-        const finalRequest = assignResult.success
+        const finalRequest = assignResult.success || isEsmTravelRequest
             ? await prisma.request.findUnique({
                   where: { id: request.id },
                   include: {
@@ -1098,11 +1361,16 @@ class RequestController {
      * Get request by ID
      */
     getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        // Normalize old-format reference numbers (e.g. "IT-1" → "IT-00001")
+        const normalizedRef = idOrRef.replace(/^([A-Z]+)-(\d+)$/, (_, prefix, num) =>
+            `${prefix}-${num.padStart(5, '0')}`,
+        );
+        const lookupKey = UUID_RE.test(idOrRef) ? { id: idOrRef } : { referenceNumber: normalizedRef };
 
         const request = await prisma.request.findFirst({
             where: {
-                id,
+                ...lookupKey,
                 deletedAt: null,
             },
             include: {
@@ -1156,6 +1424,7 @@ class RequestController {
                     orderBy: {
                         createdAt: 'asc',
                     },
+                    include: { attachments: { where: { deletedAt: null } } },
                 },
                 attachments: {
                     where: {
@@ -1187,6 +1456,9 @@ class RequestController {
                         },
                     },
                 },
+                participants: {
+                    select: { userId: true },
+                },
             },
         });
 
@@ -1210,56 +1482,24 @@ class RequestController {
             }));
         }
 
-        // Check permissions
-        // Allow access if:
-        // 1. User is the requester
-        // 2. User is ADMIN or AGENT
-        // 3. User is CEO and request is in hiring workflow or IT CEO approval
-        // 4. User is CTO/CFO and request is pending their IT approval
-        // 5. User is a designated approver on this request
-        const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-        const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
-        const isCEOApprover = hasRole(req, 'CEO') && (
-            ceoHiringStatuses.includes(request.status) ||
-            request.status === 'PENDING_CEO_APPROVAL_IT' ||
-            isDesignatedApprover
-        );
-        const isCTOApprover = hasRole(req, 'CTO') && (
-            request.status === 'PENDING_CTO_APPROVAL_IT' ||
-            isDesignatedApprover
-        );
-        const isCFOApprover = hasRole(req, 'CFO') && (
-            request.status === 'PENDING_CFO_APPROVAL_IT' ||
-            request.status === 'PENDING_CFO_APPROVAL_FIN' ||
-            isDesignatedApprover
-        );
-        const isGroupCeoApprover = hasRole(req, 'GROUP_CEO') && (
-            request.status === 'PENDING_GROUP_CEO_APPROVAL' ||
-            isDesignatedApprover
-        );
-
-        if (
-            request.requesterId !== req.user!.id &&
-            !hasRole(req, 'ADMIN', 'AGENT') &&
-            !isCEOApprover &&
-            !isCTOApprover &&
-            !isCFOApprover &&
-            !isGroupCeoApprover
-        ) {
-            throw new AppError('You do not have permission to view this request', 403);
+        // Transform BigInt to string in activity attachments for JSON serialization
+        if ((request as any).activities) {
+            (request as any).activities = (request as any).activities.map((a: any) => ({
+                ...a,
+                attachments: (a.attachments || []).map((att: any) => ({
+                    ...att,
+                    fileSize: att.fileSize?.toString() ?? '0',
+                })),
+            }));
         }
 
-        // Confidentiality gate: non-ADMIN users without request:confidential
-        // cannot view confidential requests unless they are the requester or a designated approver.
-        if (
-            request.isConfidential &&
-            request.requesterId !== req.user!.id &&
-            !hasRole(req, 'ADMIN') &&
-            !(req.user?.permissions?.includes('request:confidential')) &&
-            !isDesignatedApprover
-        ) {
-            throw new AppError('This request is confidential and cannot be viewed', 403);
-        }
+        // P02-09: Use policy-based access check instead of hardcoded ADMIN/AGENT bypass.
+        // assertRequestAccess enforces tenant boundary, team scope, department grant,
+        // ownership, participant, designated approver, and executive role — returning 404
+        // for unauthorized access to avoid leaking resource existence.
+        await assertRequestAccess(req.user, request.id, {
+            requireConfidential: true,
+        });
 
         // Audit: log access to confidential requests (only for non-requesters)
         if (request.isConfidential && request.requesterId !== req.user!.id) {
@@ -1283,12 +1523,13 @@ class RequestController {
      * Update request
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
-        const { summary: rawSummary, description: rawDescription, priority, isConfidential } = req.body;
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+        const { summary: rawSummary, description: rawDescription, priority, isConfidential, customFields: rawCustomFields } = req.body;
 
         // Sanitize highest-risk text fields
         const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
-        const description = rawDescription !== undefined ? sanitizeComment(rawDescription) : undefined;
 
         const existingRequest = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1297,6 +1538,14 @@ class RequestController {
         if (!existingRequest) {
             throw new AppError('Request not found', 404);
         }
+
+        // Determine if this request belongs to IT desk for rich-text sanitization
+        const isItDesk = existingRequest.serviceDeskId
+            ? (await prisma.serviceDesk.findUnique({ where: { id: existingRequest.serviceDeskId } }))?.code === 'IT'
+            : false;
+        const description = rawDescription !== undefined
+            ? (isItDesk ? sanitizeRichText(rawDescription) : sanitizeComment(rawDescription))
+            : undefined;
 
         // Check permissions
         if (
@@ -1317,6 +1566,17 @@ class RequestController {
             isConfidentialUpdate = {};
         }
 
+        // Handle customFields update — merge with existing fields
+        let customFieldsUpdate: Record<string, any> | undefined;
+        if (rawCustomFields && typeof rawCustomFields === 'object') {
+            // Only allow AGENT or ADMIN to update customFields
+            if (!hasRole(req, 'ADMIN', 'AGENT')) {
+                throw new AppError('You do not have permission to update custom fields', 403);
+            }
+            const existingCF = (existingRequest.customFields as Record<string, any>) || {};
+            customFieldsUpdate = { ...existingCF, ...rawCustomFields };
+        }
+
         const request = await prisma.request.update({
             where: { id },
             data: {
@@ -1324,7 +1584,14 @@ class RequestController {
                 description,
                 priority,
                 ...isConfidentialUpdate,
+                ...(customFieldsUpdate ? { customFields: customFieldsUpdate } : {}),
             },
+        });
+
+        // P2-05: Audit log for request update
+        await auditLog(req, 'REQUEST_UPDATED', 'request', id, {
+            referenceNumber: request.referenceNumber,
+            updatedFields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
         });
 
         res.json({
@@ -1337,7 +1604,9 @@ class RequestController {
      * Delete request (soft delete)
      */
     deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1347,14 +1616,22 @@ class RequestController {
             throw new AppError('Request not found', 404);
         }
 
-        // Only requester or admin can delete
-        if (request.requesterId !== req.user!.id && !req.user!.roles.includes('ADMIN')) {
+        // Only requester, admin, or assigned agent can delete
+        const isRequester = request.requesterId === req.user!.id;
+        const isAdmin = req.user!.roles.includes('ADMIN');
+        const isAssignedAgent = request.assignedToId === req.user!.id;
+        if (!isRequester && !isAdmin && !isAssignedAgent) {
             throw new AppError('You do not have permission to delete this request', 403);
         }
 
         await prisma.request.update({
             where: { id },
             data: { deletedAt: new Date() },
+        });
+
+        // P2-05: Audit log for request delete
+        await auditLog(req, 'REQUEST_DELETED', 'request', id, {
+            referenceNumber: request.referenceNumber,
         });
 
         res.json({
@@ -1367,7 +1644,9 @@ class RequestController {
      * Get request activities
      */
     getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1380,6 +1659,7 @@ class RequestController {
         const activities = await prisma.requestActivity.findMany({
             where: { requestId: id },
             orderBy: { createdAt: 'asc' },
+            include: { attachments: { where: { deletedAt: null } } },
         });
 
         // Filter internal activities for non-agent/admin users
@@ -1389,9 +1669,18 @@ class RequestController {
           ? activities
           : activities.filter((a: any) => !a.isInternal);
 
+        // Transform BigInt fileSize in attachments to string for JSON serialization
+        const transformed = filteredActivities.map((a: any) => ({
+            ...a,
+            attachments: (a.attachments || []).map((att: any) => ({
+                ...att,
+                fileSize: att.fileSize?.toString() ?? '0',
+            })),
+        }));
+
         res.json({
             status: 'success',
-            data: { activities: filteredActivities },
+            data: { activities: transformed },
         });
     });
 
@@ -1399,7 +1688,9 @@ class RequestController {
      * Add activity/comment to request
      */
     addActivity = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { message: rawMessage, isInternal } = req.body;
 
         // Sanitize comment message before storing
@@ -1430,11 +1721,15 @@ class RequestController {
         });
 
         // Notify request owner about new comment
+        const commentVars = {
+            commenterName: `${user!.firstName} ${user!.lastName}`,
+            commentText: message,
+        };
         if (request.requesterId !== req.user!.id) {
             await notify({
                 userId: request.requesterId,
                 eventType: 'COMMENT_ADDED',
-                variables: { referenceNumber: request.referenceNumber },
+                variables: commentVars,
                 relatedRequestId: id,
             });
         }
@@ -1443,14 +1738,44 @@ class RequestController {
             await notify({
                 userId: request.assignedToId,
                 eventType: 'COMMENT_ADDED',
-                variables: { referenceNumber: request.referenceNumber },
+                variables: commentVars,
                 relatedRequestId: id,
             });
         }
 
+        // Auto-link any pending unlinked attachments uploaded by this user for this request
+        await prisma.requestAttachment.updateMany({
+            where: {
+                requestId: id,
+                activityId: null,
+                uploadedById: req.user!.id,
+                deletedAt: null,
+            },
+            data: {
+                activityId: activity.id,
+            },
+        });
+
+        // Fetch the activity with linked attachments included
+        const fullActivity = await prisma.requestActivity.findUnique({
+            where: { id: activity.id },
+            include: { attachments: { where: { deletedAt: null } } },
+        });
+
+        // Transform BigInt fileSize to string for JSON serialization
+        const serializedAttachments = (fullActivity!.attachments || []).map((a: any) => ({
+            ...a,
+            fileSize: a.fileSize?.toString() ?? '0',
+        }));
+
         res.status(201).json({
             status: 'success',
-            data: { activity },
+            data: {
+                activity: {
+                    ...fullActivity!,
+                    attachments: serializedAttachments,
+                },
+            },
         });
     });
 
@@ -1460,39 +1785,53 @@ class RequestController {
      * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
     uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+
+        // P2-02: Verify user has access to the parent request before allowing upload
+        await assertRequestAccess(req.user!, id);
+
         const file = req.file;
 
         if (!file) {
             throw new AppError('No file uploaded', 400);
         }
 
-        // Verify request exists
+        // Verify request exists (assertRequestAccess already confirmed this, but
+        // we keep a lightweight check to satisfy TypeScript)
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
+            select: { id: true, referenceNumber: true },
         });
         if (!request) {
             throw new AppError('Request not found', 404);
         }
 
-        const s3Key = (file as any).key;
-
-        const attachment = await prisma.requestAttachment.create({
-            data: {
-                requestId: id,
-                uploadedById: req.user!.id,
-                fileName: file.originalname,
-                fileSize: BigInt(file.size),
-                mimeType: file.mimetype,
-                storagePath: s3Key,
-                storageUrl: s3Key,
-                isScanned: false,       // stub for future ClamAV integration
-                scanResult: null,
+        const { attachment } = await registerUpload({
+            principal: principalFromAuth(req.user!),
+            requestId: id,
+            uploadedById: req.user!.id,
+            file: {
+                originalname: file.originalname,
+                mimetype: file.mimetype,
+                size: file.size,
+                buffer: file.buffer,
+                key: (file as any).key,
             },
         });
 
         // Log un-scanned file for manual review (future virus scan)
         logger.info(`[UPLOAD] Unscanned file uploaded: ${attachment.id} | ${file.originalname} | ${file.mimetype} | ${(file.size / 1024).toFixed(1)}KB | by ${req.user!.email}`);
+
+        // P2-04: Audit log for attachment upload
+        await auditLog(req, 'ATTACHMENT_UPLOAD', 'request', id, {
+            referenceNumber: request.referenceNumber,
+            attachmentId: attachment.id,
+            fileName: attachment.fileName,
+            fileSize: Number(attachment.fileSize),
+            mimeType: attachment.mimeType,
+        });
 
         res.status(201).json({
             status: 'success',
@@ -1501,8 +1840,8 @@ class RequestController {
                 fileName: attachment.fileName,
                 fileSize: Number(attachment.fileSize),
                 mimeType: attachment.mimeType,
-                storageUrl: attachment.storageUrl,
                 isScanned: attachment.isScanned,
+                scanStatus: attachment.scanStatus,
                 createdAt: attachment.createdAt,
             },
         });
@@ -1514,44 +1853,28 @@ class RequestController {
      * Sets Content-Disposition header for browser download.
      */
     downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
-        const { id, attachmentId }  = req.params as Record<string, string>;
+        const { id: idOrRef, attachmentId } = req.params as Record<string, string>;
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+        const attachmentRequest = await assertRequestAccess(req.user!, id, { action: 'download', requireConfidential: true });
+        const attachment = await getAuthorizedAttachment(principalFromAuth(req.user!), attachmentId);
+        if (attachment.requestId !== id) throw new AppError('Attachment not found', 404);
 
-        // Verify the attachment belongs to the request and is not deleted
-        const attachment = await prisma.requestAttachment.findFirst({
-            where: {
-                id: attachmentId,
-                requestId: id,
-                deletedAt: null,
-            },
-        });
-
-        if (!attachment) {
-            throw new AppError('Attachment not found', 404);
-        }
-
-        // Confidentiality gate: block unauthorized downloads on confidential requests
-        const attachmentRequest = await prisma.request.findUnique({
-            where: { id },
-            select: {
-                isConfidential: true,
-                requesterId: true,
-                referenceNumber: true,
-                approvals: { select: { approverId: true } },
-            },
-        }) as any;
-        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
-            const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
-            const isDesignatedApprover = attachmentRequest.approvals?.some((a: any) => a.approverId === req.user?.id);
-            if (!canSeeConfidential && !isDesignatedApprover) {
-                throw new AppError('Attachments for this confidential request are restricted', 403);
-            }
-            // Audit: log download by authorized non-requesters
+        // Audit: log download for confidential requests by non-requesters
+        if (attachmentRequest.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
             auditLog(req, 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD', 'request', id, {
                 referenceNumber: attachmentRequest.referenceNumber,
                 attachmentId,
                 fileName: attachment.fileName,
-            }).catch(() => {});
+            }).catch(() => {}); // fire-and-forget — must not block the download
         }
+
+        // P2-04: Audit all attachment downloads
+        await auditLog(req, 'ATTACHMENT_DOWNLOAD', 'request', id, {
+            referenceNumber: attachmentRequest.referenceNumber,
+            attachmentId,
+            fileName: attachment.fileName,
+        });
 
         // storagePath now stores the S3 object key (e.g. "cwc/uuid-ext")
         const s3Key = attachment.storagePath;
@@ -1563,22 +1886,21 @@ class RequestController {
         const isInline = req.query.inline === 'true';
 
         try {
-            const overrideParams: Record<string, string> = {
-                'response-content-type': attachment.mimeType || 'application/octet-stream',
-            };
-
+            // Set appropriate headers for the response
+            res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
             if (isInline) {
-                overrideParams['response-content-disposition'] = `inline; filename="${encodeURIComponent(attachment.fileName)}"`;
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.fileName)}"`);
             } else {
-                overrideParams['response-content-disposition'] = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
             }
 
-            // Generate a presigned URL (valid for 15 minutes)
-            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, overrideParams);
-            return res.redirect(presignedUrl);
+            // Stream the file from S3 through the backend to avoid CORS issues
+            // (direct 302 redirect to S3 presigned URL fails on cross-origin XHR/fetch)
+            const stream = await s3Service.streamObject(s3Key);
+            stream.pipe(res);
         } catch (error: any) {
-            logger.error(`[DOWNLOAD] Failed to generate presigned URL for key ${s3Key}: ${error?.message || error}`);
-            throw new AppError('Could not generate download link', 500);
+            logger.error(`[DOWNLOAD] Failed to stream file for key ${s3Key}: ${error?.message || error}`);
+            throw new AppError('Could not download file', 500);
         }
     });
 
@@ -1586,11 +1908,49 @@ class RequestController {
      * Delete attachment
      */
     deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const { id: _id, attachmentId }  = req.params as Record<string, string>;
+        const { id: idOrRef, attachmentId } = req.params as Record<string, string>;
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+
+        // P2-03: Verify user has access to the parent request before allowing delete
+        const attachmentRequest = await assertRequestAccess(req.user!, id);
+
+        // Verify the attachment belongs to this request and is not already deleted
+        const attachment = await prisma.requestAttachment.findFirst({
+            where: {
+                id: attachmentId,
+                requestId: id,
+                deletedAt: null,
+            },
+        });
+
+        if (!attachment) {
+            throw new AppError('Attachment not found', 404);
+        }
+        if (attachment.retentionStatus === 'LEGAL_HOLD' || attachment.legalHoldAt) {
+            throw new AppError('Attachment is subject to legal hold', 409);
+        }
+
+        // Only allow the uploader, the requester, the assigned agent, or an admin to delete
+        const isUploader = attachment.uploadedById === req.user?.id;
+        const isRequester = attachmentRequest.requesterId === req.user?.id;
+        const isAssignedAgent = attachmentRequest.assignedToId === req.user?.id;
+        const isAdmin = hasRole(req, 'ADMIN');
+
+        if (!isUploader && !isRequester && !isAssignedAgent && !isAdmin) {
+            throw new AppError('You do not have permission to delete this attachment', 403);
+        }
 
         await prisma.requestAttachment.update({
             where: { id: attachmentId },
-            data: { deletedAt: new Date() },
+            data: { deletedAt: new Date(), retentionStatus: 'PENDING_DELETION' },
+        });
+
+        // P2-04: Audit log for attachment delete
+        await auditLog(req, 'ATTACHMENT_DELETE', 'request', id, {
+            referenceNumber: attachmentRequest.referenceNumber,
+            attachmentId,
+            fileName: attachment.fileName,
         });
 
         res.json({
@@ -1603,7 +1963,9 @@ class RequestController {
      * Assign request to agent
      */
     assignRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { assignedToId } = req.body;
 
         const request = await prisma.request.update({
@@ -1675,13 +2037,29 @@ class RequestController {
      * Update request status
      */
     updateStatus = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
-        const { status } = req.body;
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
+        const { status, comment } = req.body;
 
         // Fetch current request to validate transition
-        const currentRequest = await prisma.request.findUnique({ where: { id } });
+        const currentRequest = await prisma.request.findUnique({
+            where: { id },
+            include: { serviceDesk: true },
+        });
         if (!currentRequest) {
             throw new AppError('Request not found', 404);
+        }
+
+        // Authorization: non-admin agents can only update requests belonging to their own service desk
+        const user = req.user!;
+        const isAdmin = user.roles?.includes('ADMIN');
+        if (!isAdmin) {
+            const userTeam = user.agentTeam?.toUpperCase() || '';
+            const requestDesk = currentRequest.serviceDesk?.code?.toUpperCase() || '';
+            if (userTeam && requestDesk && userTeam !== requestDesk) {
+                throw new AppError('You are not authorized to update requests from another service desk', 403);
+            }
         }
 
         // Validate transition
@@ -1690,17 +2068,25 @@ class RequestController {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
-        const TERMINAL_STATUSES = [
-            'RESOLVED', 'REJECTED', 'COMPLETED',
-            'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
-            'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
-        ];
-        const request = await prisma.request.update({
-            where: { id },
-            data: {
-                status: status as RequestStatus,
-                ...(TERMINAL_STATUSES.includes(status) && { closedAt: new Date() }),
+        if (['REJECTED', 'CANCELLED'].includes(status) && !String(comment || '').trim()) {
+            throw new AppError(`A reason is required to mark this request as ${status.toLowerCase()}`, 400);
+        }
+        const sanitizedComment = comment ? sanitizeComment(String(comment)) : undefined;
+
+        const isTerminalStatus = CLOSED_STATUSES.includes(status as RequestStatus);
+        await transitionHttpRequest({
+            req,
+            request: currentRequest,
+            toStatus: status,
+            source: 'request.update-status',
+            comment: sanitizedComment,
+            requestPatch: {
+                ...(isTerminalStatus && { closedAt: new Date() }),
+                ...(status === 'COMPLETED' && { completedAt: new Date() }),
             },
+        });
+        const request = await prisma.request.findFirstOrThrow({
+            where: { id, tenantId: currentRequest.tenantId },
             include: {
                 requester: {
                     select: {
@@ -1724,18 +2110,6 @@ class RequestController {
             },
         });
 
-        // Create activity
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: req.user!.id,
-                authorName: 'System',
-                activityType: 'STATUS_CHANGE',
-                message: `Status changed to ${status}`,
-                isSystemGenerated: true,
-                metadata: { newStatus: status },
-            },
-        });
 
         // Notify requester of status change
         await notify({
@@ -1748,20 +2122,25 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
-            newStatus: status,
-            referenceNumber: request.referenceNumber,
-        }, {
-            oldStatus: currentRequest.status,
+        // Notify participants of status change
+        const participantRecords = await prisma.requestParticipant.findMany({
+            where: { requestId: id },
+            select: { userId: true },
         });
+        await Promise.all(
+            participantRecords.map((p) =>
+                notify({
+                    userId: p.userId,
+                    eventType: 'STATUS_CHANGED',
+                    variables: {
+                        referenceNumber: request.referenceNumber,
+                        newStatus: status,
+                    },
+                    relatedRequestId: request.id,
+                }).catch(() => {})
+            )
+        );
 
-        // SLA pause/resume for generic status transitions
-        const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, status);
-        if (shouldPause) {
-            await pauseSla(id);
-        } else if (shouldResume) {
-            await resumeSla(id);
-        }
 
         // Auto-create RequestApproval records for PENDING_APPROVAL statuses
         // This ensures the bulkAction (Approve/Reject) endpoint can find these records
@@ -1773,7 +2152,7 @@ class RequestController {
             PENDING_CFO_APPROVAL_IT: 'CFO',
             PENDING_CFO_APPROVAL_FIN: 'CFO',
             PENDING_FINANCE_HEAD_APPROVAL: 'CFO',
-            PENDING_GROUP_CEO_APPROVAL: 'GROUP_CEO',
+            PENDING_GROUP_DCEO_APPROVAL: 'GROUP_DCEO',
             PENDING_MANAGER_APPROVAL_FIN: 'MANAGER',
             PENDING_MANAGER_REVIEW: 'MANAGER',
             LOA_PENDING_APPROVAL: 'HR',
@@ -1803,7 +2182,7 @@ class RequestController {
                     approverId = byUserRole?.id ?? null;
                 }
             } else {
-                // For non-executive roles (GROUP_CEO, VP, MANAGER, HR), find by UserRole
+                // For non-executive roles (GROUP_DCEO, VP, MANAGER, HR), find by UserRole
                 const approverUser = await prisma.user.findFirst({
                     where: {
                         isActive: true,
@@ -1934,6 +2313,59 @@ class RequestController {
             status: 'success',
             data: { request: finalRequest || request },
         });
+    });
+
+    /**
+     * Get recently used request types for the current user.
+     * Returns the top 5 request types the user has submitted most often.
+     */
+    recentServices = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const limit = Math.min(parseInt(req.query.limit as string) || 5, 20);
+
+        // Group the user's requests by requestTypeId, count them, and return top N
+        const grouped = await prisma.request.groupBy({
+            by: ['requestTypeId'],
+            where: {
+                requesterId: userId,
+                deletedAt: null,
+                requestTypeId: { not: null },
+            },
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: limit,
+        });
+
+        const typeIds = grouped.map(g => g.requestTypeId!).filter(Boolean);
+        if (typeIds.length === 0) {
+            res.json({ status: 'success', data: [] });
+            return;
+        }
+
+        const types = await prisma.requestType.findMany({
+            where: { id: { in: typeIds } },
+            select: {
+                id: true, name: true, icon: true, description: true, serviceCategoryId: true,
+                serviceCategory: { select: { serviceDesk: { select: { id: true, code: true } } } },
+            },
+        });
+
+        const typeMap = new Map(types.map(t => [t.id, t]));
+
+        const data = grouped
+            .filter(g => g.requestTypeId && typeMap.has(g.requestTypeId))
+            .map(g => {
+                const t = typeMap.get(g.requestTypeId!)!;
+                const { serviceCategory, ...rest } = t as any;
+                return {
+                    ...rest,
+                    deskId: serviceCategory?.serviceDesk?.id ?? null,
+                    deskCode: serviceCategory?.serviceDesk?.code ?? null,
+                    count: g._count.id,
+                };
+            });
+
+        res.json({ status: 'success', data });
     });
 }
 

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import xlsx from 'xlsx';
 import path from 'path';
 import {
@@ -66,8 +67,10 @@ async function main() {
   const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
   if (!normalStaffRole) throw new Error('NORMAL_STAFF role not found');
   
-  const TEMP_PASSWORD = 'abc@123';
-  const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+  // P0-2: per-user random password instead of shared hardcoded one
+  function generateRandomPassword(): string {
+    return crypto.randomBytes(12).toString('base64url').slice(0, 16);
+  }
   
   let created = 0;
   let updated = 0;
@@ -123,12 +126,16 @@ async function main() {
     
     // CREATE new user
     try {
+      // P0-2: per-user random password + mustResetPassword=true
+      const tempPassword = generateRandomPassword();
+      const hashedPassword = await bcrypt.hash(tempPassword, 12);
       const newUser = await prisma.user.create({
         data: {
           firstName,
           lastName,
           email,
           passwordHash: hashedPassword,
+          mustResetPassword: true,
           jobTitle: staff.jobTitle,
           department,
           entityId,

@@ -71,12 +71,16 @@ const defaultWorkflows = [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
       { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CEO Approved', status: 'CEO_APPROVED', icon: 'check_circle' },
+      { label: 'Group Deputy CEO Approval', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Group Deputy CEO Approved', status: 'GROUP_DCEO_APPROVED', icon: 'check_circle' },
       { label: 'Job Posted', status: 'JOB_POSTED', icon: 'radio_button_checked' },
       { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Manager Approved', status: 'MANAGER_APPROVED', icon: 'check_circle' },
       { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
       { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
-      { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
-      { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Reference Check', status: 'HR_SCREENING', icon: 'radio_button_checked' },
+      { label: 'LOA Issuance', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'LOA Approved', status: 'LOA_APPROVED', icon: 'radio_button_checked' },
       { label: 'LOA Issued', status: 'LOA_ISSUED', icon: 'radio_button_checked' },
       { label: 'LOA Accepted', status: 'LOA_ACCEPTED', icon: 'radio_button_checked' },
@@ -86,13 +90,13 @@ const defaultWorkflows = [
   {
     name: 'Finance',
     code: 'FINANCE',
-    description: 'Finance purchase requisition workflow with CFO and Group CEO approval',
+    description: 'Finance purchase requisition workflow with CFO and Group Deputy CEO approval',
     displayOrder: 5,
     steps: [
       { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle', isInitial: true },
       { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
       { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked', slaPause: true },
-      { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Group Deputy CEO', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
       { label: 'Awaiting Confirmation', status: 'AWAITING_PAYMENT_CONFIRMATION', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle', isFinal: true },
@@ -121,8 +125,12 @@ const defaultWorkflows = [
       { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Pre-Arrival', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'radio_button_checked' },
-      { label: 'Day 1', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
-      { label: 'Week 1', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
+      { label: 'Ready for Day 1', status: 'ONBOARDING_READY_FOR_DAY_1', icon: 'radio_button_checked' },
+      { label: 'Orientation', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
+      { label: 'Integration', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
+      { label: 'Month 1', status: 'ONBOARDING_MONTH_1_MILESTONE', icon: 'radio_button_checked' },
+      { label: 'Month 2', status: 'ONBOARDING_MONTH_2_MILESTONE', icon: 'radio_button_checked' },
+      { label: 'Month 3', status: 'ONBOARDING_MONTH_3_MILESTONE', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'ONBOARDING_COMPLETED', icon: 'check_circle', isFinal: true },
     ]
   },
@@ -152,6 +160,24 @@ const defaultWorkflows = [
       { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'REIMBURSEMENT_CLOSED', icon: 'check_circle', isFinal: true },
     ]
+  },
+  {
+    name: 'ESM Travel Request',
+    code: 'ESM_TRAVEL',
+    description: 'CWC Travel Request workflow with CEO approval, Group DCEO approval, Finance acknowledgement, and CFO approval',
+    displayOrder: 10,
+    steps: [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CEO Approved', status: 'CEO_APPROVED', icon: 'check_circle' },
+      { label: 'Group Deputy CEO Approval', status: 'PENDING_GROUP_DCEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Group Deputy CEO Approved', status: 'GROUP_DCEO_APPROVED', icon: 'check_circle' },
+      { label: 'Finance Acknowledgement', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
+      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CFO Approved', status: 'CFO_APPROVED_FIN', icon: 'check_circle' },
+      { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
+    ]
   }
 ];
 
@@ -168,9 +194,57 @@ export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boo
       });
 
       if (existing) {
-        // Do NOT overwrite name/description — admin may have edited them via console.
-        // Also do NOT overwrite steps — admin may have added/removed/reordered steps.
-        console.log(`⏭️  Workflow already exists: ${workflow.code} — preserving admin config`);
+        // Sync workflow steps to match seed definition
+        // Delete steps not in seed, upsert steps that exist, create new ones
+        const seedStepStatuses = workflow.steps.map(s => s.status);
+        const existingSteps = await prisma.workflowStep.findMany({
+          where: { workflowTypeId: existing.id }
+        });
+
+        // Delete steps not in seed definition
+        const extraSteps = existingSteps.filter(s => !seedStepStatuses.includes(s.status));
+        for (const step of extraSteps) {
+          await prisma.workflowStep.delete({ where: { id: step.id } });
+        }
+        if (extraSteps.length > 0) {
+          console.log(`🧹 Pruned ${extraSteps.length} extra steps from ${workflow.code}: ${extraSteps.map(s => s.status).join(', ')}`);
+        }
+
+        // Upsert each seed step
+        for (let index = 0; index < workflow.steps.length; index++) {
+          const step = workflow.steps[index];
+          const existingStep = existingSteps.find(s => s.status === step.status);
+
+          if (existingStep) {
+            // Update existing step to match seed
+            await prisma.workflowStep.update({
+              where: { id: existingStep.id },
+              data: {
+                label: step.label,
+                icon: step.icon,
+                displayOrder: index + 1,
+                isInitial: step.isInitial || false,
+                isFinal: step.isFinal || false,
+                slaPause: step.slaPause || false,
+              }
+            });
+          } else {
+            // Create missing step
+            await prisma.workflowStep.create({
+              data: {
+                workflowTypeId: existing.id,
+                label: step.label,
+                status: step.status,
+                icon: step.icon,
+                displayOrder: index + 1,
+                isInitial: step.isInitial || false,
+                isFinal: step.isFinal || false,
+                slaPause: step.slaPause || false,
+              }
+            });
+          }
+        }
+        console.log(`✅ Synced workflow steps: ${workflow.code} (${workflow.steps.length} steps)`);
       } else {
         // Create new workflow with steps
         const created = await prisma.workflowType.create({
@@ -204,7 +278,7 @@ export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boo
       'PENDING_CTO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN',
       'PENDING_FINANCE_HEAD_APPROVAL',
       'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL',
-      'PENDING_GROUP_CEO_APPROVAL',
+      'PENDING_GROUP_DCEO_APPROVAL',
       'ONBOARDING_PENDING_HR_APPROVAL',
       'LOA_PENDING_APPROVAL',
       'CHARGEBACK_FINANCE_REVIEW',
@@ -246,6 +320,7 @@ export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boo
     'INTERCOMPANY_CHARGEBACK': 'INTERCOMPANY_CHARGEBACK',
     'BUDGET_PROPOSAL': 'FINANCE',
     'EXPENSE_CLAIM': 'EXPENSE_REIMBURSEMENT',
+    'CWC_TRAVEL_REQUEST': 'ESM_TRAVEL',
   };
 
   for (const [requestTypeCode, workflowCode] of Object.entries(requestTypeWorkflowMap)) {

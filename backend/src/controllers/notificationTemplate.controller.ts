@@ -1,12 +1,11 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { asyncHandler, AppError } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { sendEmail, renderTemplate } from '../services/email.service';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
  * Canonical list of every event type used by notify() calls across the codebase.
@@ -20,26 +19,27 @@ const EVENT_TYPE_REGISTRY: {
     availableVariables: string[];
 }[] = [
     // ── General ─────────────────────────────────────────────────────
-    { eventType: 'REQUEST_CREATED',  label: 'Request Created',  category: 'General', recipientDescription: 'Requester + Assigned agent', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'categoryName', 'priority', 'userName', 'appUrl'] },
+    { eventType: 'REQUEST_CREATED',  label: 'Request Created',  category: 'General', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'categoryName', 'priority', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_ASSIGNED', label: 'Request Assigned',  category: 'General', recipientDescription: 'Assignee',          availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'assigneeName', 'userName', 'appUrl'] },
     { eventType: 'STATUS_CHANGED',   label: 'Status Changed',   category: 'General', recipientDescription: 'Requester',          availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'oldStatus', 'newStatus', 'changedBy', 'userName', 'appUrl'] },
     { eventType: 'COMMENT_ADDED',    label: 'Comment Added',    category: 'General', recipientDescription: 'Requester / Assignee', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'commenterName', 'commentText', 'userName', 'appUrl'] },
-    { eventType: 'SLA_BREACHED',     label: 'SLA Breached',     category: 'SLA',  recipientDescription: 'Agent + Managers',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'slaDeadline', 'userName', 'appUrl'] },
-    { eventType: 'SLA_ESCALATED',     label: 'SLA Escalated',     category: 'SLA',  recipientDescription: 'Escalation target roles',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'escalationHours', 'escalationLabel', 'notifyRoles', 'userName', 'appUrl'] },
+    { eventType: 'SLA_BREACHED',     label: 'SLA Breached',     category: 'SLA',  recipientDescription: 'Assigned agent (or admin if unassigned)',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'slaDeadline', 'userName', 'appUrl'] },
+    { eventType: 'SLA_ESCALATED',     label: 'SLA Escalated',     category: 'SLA',  recipientDescription: 'Escalation handler (senior-most in role)',  availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'status', 'priority', 'assigneeName', 'requesterName', 'categoryName', 'requestTypeName', 'escalationHours', 'escalationLabel', 'notifyRoles', 'userName', 'appUrl'] },
+    { eventType: 'PARTICIPANT_ADDED', label: 'Participant Added', category: 'General', recipientDescription: 'Newly added participant', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'summary', 'requesterName', 'assigneeName', 'categoryName', 'requestTypeName', 'userName', 'appUrl'] },
     { eventType: 'PASSWORD_RESET',   label: 'Password Reset',   category: 'Auth',    recipientDescription: 'Requester',          availableVariables: ['userName', 'resetUrl', 'appUrl'] },
 
     // ── IT Workflow ─────────────────────────────────────────────────
     { eventType: 'MANAGER_APPROVAL_REQUIRED', label: 'Manager Approval Required',  category: 'IT Workflow', recipientDescription: 'Manager',    availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'userName', 'appUrl'] },
     { eventType: 'MANAGER_APPROVED',          label: 'Manager Approved',           category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'MANAGER_REJECTED',          label: 'Manager Rejected',           category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'rejectionReason', 'userName', 'appUrl'] },
-    { eventType: 'VP_APPROVAL_REQUIRED',      label: 'VP Approval Required',       category: 'IT Workflow', recipientDescription: 'VP users',    availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'price', 'userName', 'appUrl'] },
+    { eventType: 'VP_APPROVAL_REQUIRED',      label: 'VP Approval Required',       category: 'IT Workflow', recipientDescription: 'VP approver',    availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'price', 'userName', 'appUrl'] },
     { eventType: 'VP_APPROVED',               label: 'VP Approved',                category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'VP_REJECTED',               label: 'VP Rejected',                category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'rejectionReason', 'comments', 'userName', 'appUrl'] },
     { eventType: 'PROCUREMENT_INITIATED',     label: 'Procurement Initiated',      category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'HARDWARE_ORDERED',          label: 'Hardware Ordered',           category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'orderNumber', 'userName', 'appUrl'] },
     { eventType: 'HARDWARE_RECEIVED',         label: 'Hardware Received',          category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'HARDWARE_DELIVERED',        label: 'Hardware Delivered',          category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
-    { eventType: 'APPROVAL_REQUIRED',         label: 'Executive Approval Required', category: 'IT Workflow', recipientDescription: 'CEO / CTO', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'approverRole', 'role', 'approvalLevel', 'userName', 'appUrl'] },
+    { eventType: 'APPROVAL_REQUIRED',         label: 'Executive Approval Required', category: 'IT Workflow', recipientDescription: 'Executive approver', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'approverRole', 'role', 'approvalLevel', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_REJECTED',          label: 'Request Rejected (Executive)', category: 'IT Workflow', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'rejectedBy', 'rejectionReason', 'comments', 'userName', 'appUrl'] },
     { eventType: 'ACTION_REQUIRED',           label: 'Action Required',            category: 'IT Workflow', recipientDescription: 'Assigned agent', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'action', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_RESOLVED',          label: 'Request Resolved',           category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
@@ -48,7 +48,7 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'FINANCE_ACKNOWLEDGED',       label: 'Finance Acknowledged',       category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'FINANCE_ROUTED_CFO',         label: 'Routed to CFO',              category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'currency', 'amount', 'userName', 'appUrl'] },
     { eventType: 'FINANCE_CFO_DECISION',       label: 'CFO Decision',               category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'decision', 'currency', 'amount', 'userName', 'appUrl'] },
-    { eventType: 'FINANCE_GROUP_CEO_DECISION', label: 'Group CEO Decision',         category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'decision', 'currency', 'amount', 'userName', 'appUrl'] },
+    { eventType: 'FINANCE_GROUP_DCEO_DECISION', label: 'Group Deputy CEO Decision',         category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'decision', 'currency', 'amount', 'userName', 'appUrl'] },
     { eventType: 'FINANCE_PAYMENT_COMPLETE',   label: 'Payment Complete',           category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'currency', 'amount', 'paymentRef', 'userName', 'appUrl'] },
     { eventType: 'FINANCE_TICKET_CLOSED',      label: 'Finance Ticket Closed',      category: 'Finance', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
 
@@ -66,6 +66,23 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'CHARGEBACK_TO_ENTITY_DECISION',   label: 'To-Entity Decision',            category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'decision', 'userName', 'appUrl'] },
     { eventType: 'CHARGEBACK_MARK_CONFIRMED',       label: 'Chargeback Confirmed',          category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'userName', 'appUrl'] },
     { eventType: 'CHARGEBACK_COMPLETED',            label: 'Chargeback Completed',          category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'userName', 'appUrl'] },
+
+    // ── CRM ─────────────────────────────────────────────────────────────────
+    { eventType: 'crm_lead_aging',         label: 'CRM Lead Aging (Owner)',       category: 'CRM', recipientDescription: 'Lead owner',           availableVariables: ['leadTitle', 'ownerName', 'daysStale', 'userName', 'appUrl'] },
+    { eventType: 'crm_lead_aging_manager', label: 'CRM Lead Aging (Manager)',     category: 'CRM', recipientDescription: 'Owner\'s manager',      availableVariables: ['leadTitle', 'ownerName', 'daysStale', 'userName', 'appUrl'] },
+    { eventType: 'crm_overdue_followup',   label: 'CRM Overdue Follow-Up',        category: 'CRM', recipientDescription: 'Lead owner',            availableVariables: ['leadTitle', 'followUpDate', 'ownerName', 'userName', 'appUrl'] },
+    { eventType: 'crm_activity_reminder',  label: 'CRM Activity Reminder',        category: 'CRM', recipientDescription: 'Activity assignee',    availableVariables: ['activitySubject', 'scheduledTime', 'userName', 'appUrl'] },
+    { eventType: 'crm_stale_deal',         label: 'CRM Stale Deal',               category: 'CRM', recipientDescription: 'Opportunity owner',    availableVariables: ['dealName', 'expectedCloseDate', 'ownerName', 'userName', 'appUrl'] },
+    { eventType: 'crm_trust_review_due',   label: 'CRM Trust Review Due',         category: 'CRM', recipientDescription: 'Trust product owner',  availableVariables: ['trustType', 'accountName', 'daysUntilReview', 'nextReviewDate', 'userName', 'appUrl'] },
+    { eventType: 'crm_lead_auto_assigned', label: 'CRM Lead Auto-Assigned',       category: 'CRM', recipientDescription: 'Newly assigned user',  availableVariables: ['leadId', 'userName', 'appUrl'] },
+
+    // ── Credit Module ──────────────────────────────────────────────────
+    { eventType: 'CREDIT_RM_ASSIGNED',        label: 'Credit RM Assigned',        category: 'Credit', recipientDescription: 'Newly assigned RM',        availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
+    { eventType: 'CREDIT_ANALYST_ASSIGNED',   label: 'Credit Analyst Assigned',   category: 'Credit', recipientDescription: 'Newly assigned Analyst',   availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
+
+    // ── Onboarding ────────────────────────────────────────────────────────
+    { eventType: 'ONBOARDING_IT_TASKS_CREATED', label: 'Onboarding IT Tasks Created', category: 'Onboarding', recipientDescription: 'Dedicated IT agent (configured in admin)', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'newHireName', 'jobTitle', 'department', 'itTaskCount', 'userName', 'appUrl'] },
+    { eventType: 'OFFBOARDING_IT_TASKS_CREATED', label: 'Offboarding IT Tasks Created', category: 'Onboarding', recipientDescription: 'Dedicated IT agent (configured in admin)', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'referenceNumber', 'employeeName', 'department', 'lastWorkingDay', 'itTaskCount', 'userName', 'appUrl'] },
 ];
 
 class NotificationTemplateController {

@@ -1,17 +1,31 @@
 /**
  * Unit tests for permission.service.ts
  *
- * Challenge: permission.service.ts creates `new Redis()` and `new PrismaClient()`
- * at module scope. We mock both ioredis and @prisma/client at the factory level.
- * The mock PrismaClient returns our controlled mock instance.
+ * Mock both the Prisma client and Redis at the module level.
+ * The Prisma mock provides a controlled user.findUnique that returns
+ * test data without hitting the database or the tenant-scope middleware.
  */
 
 // ── Mock ioredis with a shared store ────────────────────────────────────────
 const redisStore = new Map<string, string>();
 
 jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
+  const handlers: Record<string, Function[]> = {};
+  const client = {
+    on: jest.fn((event: string, handler: Function) => {
+      if (!handlers[event]) handlers[event] = [];
+      handlers[event].push(handler);
+      return client;
+    }),
+    once: jest.fn(() => client),
+    emit: jest.fn((event: string, ...args: any[]) => {
+      (handlers[event] || []).forEach((h: Function) => h(...args));
+      return client;
+    }),
+    removeListener: jest.fn(() => client),
+    removeAllListeners: jest.fn(() => client),
     get: jest.fn(async (key: string) => redisStore.get(key) ?? null),
+    set: jest.fn(async (key: string, val: string) => { redisStore.set(key, val); return 'OK'; }),
     setex: jest.fn(async (key: string, _ttl: number, val: string) => {
       redisStore.set(key, val);
       return 'OK';
@@ -20,19 +34,39 @@ jest.mock('ioredis', () => {
       keys.forEach((k) => redisStore.delete(k));
       return keys.length;
     }),
-  }));
+    keys: jest.fn(async (pattern: string) => {
+      const prefix = pattern.replace('*', '');
+      return Array.from(redisStore.keys()).filter((k) => k.startsWith(prefix));
+    }),
+    exists: jest.fn(async (key: string) => (redisStore.has(key) ? 1 : 0)),
+    incr: jest.fn(async (key: string) => {
+      const v = parseInt(redisStore.get(key) || '0', 10) + 1;
+      redisStore.set(key, String(v));
+      return v;
+    }),
+    pipeline: jest.fn(() => ({
+      setex: jest.fn().mockReturnThis(),
+      del: jest.fn().mockReturnThis(),
+      exec: jest.fn(async () => []),
+    })),
+    connect: jest.fn(async () => 'OK'),
+    disconnect: jest.fn(),
+    quit: jest.fn(async () => 'OK'),
+    ping: jest.fn(async () => 'PONG'),
+    status: 'ready',
+  };
+  return jest.fn().mockImplementation(() => client);
 });
 
-// ── Mock PrismaClient ───────────────────────────────────────────────────────
+// ── Mock Prisma at the utils/prisma level ──────────────────────────────────
 const mockUserFindUnique = jest.fn();
 
-jest.mock('@prisma/client', () => {
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => ({
-      user: { findUnique: mockUserFindUnique },
-    })),
-  };
-});
+jest.mock('../../utils/prisma', () => ({
+  __esModule: true,
+  default: {
+    user: { findUnique: mockUserFindUnique },
+  },
+}));
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn() },
@@ -62,7 +96,7 @@ describe('getUserPermissions', () => {
 
   it('queries DB and caches when Redis cache is empty', async () => {
     mockUserFindUnique.mockResolvedValue({
-      id: 'user-1',
+      id: '00000000-0000-0000-0000-000000000001',
       roles: [
         {
           role: {
@@ -73,17 +107,18 @@ describe('getUserPermissions', () => {
           },
         },
       ],
+      departmentMemberships: [],
     });
 
-    const result = await getUserPermissions('user-1');
+    const result = await getUserPermissions('00000000-0000-0000-0000-000000000001');
 
     expect(result).toContain('request:create');
     expect(result).toContain('request:read');
     expect(mockUserFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'user-1' } }),
+      expect.objectContaining({ where: { id: '00000000-0000-0000-0000-000000000001' } }),
     );
     // Should have cached the result
-    const cached = redisStore.get('rbac:perms:user-1');
+    const cached = redisStore.get('rbac:perms:00000000-0000-0000-0000-000000000001');
     expect(cached).toBeTruthy();
     expect(JSON.parse(cached!)).toContain('request:create');
   });
@@ -98,7 +133,7 @@ describe('getUserPermissions', () => {
 
   it('deduplicates permission names across multiple roles', async () => {
     mockUserFindUnique.mockResolvedValue({
-      id: 'user-2',
+      id: '00000000-0000-4000-8000-000000000002',
       roles: [
         {
           role: {
@@ -117,9 +152,10 @@ describe('getUserPermissions', () => {
           },
         },
       ],
+      departmentMemberships: [],
     });
 
-    const result = await getUserPermissions('user-2');
+    const result = await getUserPermissions('00000000-0000-4000-8000-000000000002');
 
     expect(result).toContain('request:create');
     expect(result).toContain('request:read');
@@ -129,11 +165,12 @@ describe('getUserPermissions', () => {
 
   it('returns empty array for user with no roles', async () => {
     mockUserFindUnique.mockResolvedValue({
-      id: 'user-3',
+      id: '00000000-0000-4000-8000-000000000003',
       roles: [],
+      departmentMemberships: [],
     });
 
-    const result = await getUserPermissions('user-3');
+    const result = await getUserPermissions('00000000-0000-4000-8000-000000000003');
 
     expect(result).toEqual([]);
   });

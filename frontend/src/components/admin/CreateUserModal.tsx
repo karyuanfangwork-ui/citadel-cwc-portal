@@ -17,7 +17,7 @@ interface CreateUserModalProps {
 
 const EXECUTIVE_ROLES = [
     { value: '', label: 'None' },
-    { value: 'GROUP_CEO', label: 'Group CEO' },
+    { value: 'GROUP_DCEO', label: 'Group Deputy CEO' },
     { value: 'CEO', label: 'CEO' },
     { value: 'CTO', label: 'CTO' },
     { value: 'CFO', label: 'CFO' },
@@ -92,7 +92,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, e
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Create User">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Create User">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">

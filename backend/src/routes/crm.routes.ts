@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { crmController } from '../controllers/crm.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import crmAiRoutes from './crm-ai.routes';
 import {
   createAccountSchema, updateAccountSchema,
   createContactSchema, updateContactSchema,
@@ -13,6 +14,10 @@ import {
   createTrustProductSchema, updateTrustProductSchema, updateTrustProductStatusSchema,
   upsertKycSchema,
   createBeneficiarySchema, updateBeneficiarySchema,
+  createTerritorySchema, updateTerritorySchema, addTerritoryMemberSchema,
+  createQuotaSchema, updateQuotaSchema,
+  createWorkflowSchema, updateWorkflowSchema,
+  createCustomFieldSchema, updateCustomFieldSchema,
 } from '../validators/crm.validator';
 
 const router = Router();
@@ -22,10 +27,19 @@ router.use(authenticate);
 
 // ======== DASHBOARD ========
 router.get('/dashboard', requirePermission('crm:read'), crmController.getDashboard);
+router.get('/dashboard/export', requirePermission('crm:read'), crmController.exportDashboard);
 router.get('/search', requirePermission('crm:read'), crmController.globalSearch);
+router.get('/users', requirePermission('crm:read'), crmController.listCrmUsers);
+
+// ======== CUSTOMERS (Unified) ========
+router.get('/customers', requirePermission('crm:read'), crmController.listCustomers);
+router.get('/customers/stats', requirePermission('crm:read'), crmController.getCustomerStats);
 
 // ======== TEAM PERFORMANCE ========
 router.get('/team-performance', requirePermission('crm:admin'), crmController.getTeamPerformance);
+
+// ======== MY STATS (Self-Service Rep Stats) ========
+router.get('/my-stats', requirePermission('crm:read'), crmController.getMyStats);
 
 // ======== ACCOUNTS ========
 router.get('/accounts', requirePermission('crm:read'), crmController.listAccounts);
@@ -67,9 +81,11 @@ router.patch('/pipelines/:id', requirePermission('crm:admin'), crmController.upd
 router.get('/activities', requirePermission('crm:read'), crmController.listActivities);
 router.post('/activities', requirePermission('crm:write'), validate(createActivitySchema), crmController.createActivity);
 router.patch('/activities/:id', requirePermission('crm:write'), validate(updateActivitySchema), crmController.updateActivity);
+router.post('/activities/:id/remind', requirePermission('crm:write'), crmController.remindActivity);
 router.delete('/activities/:id', requirePermission('crm:delete'), crmController.deleteActivity);
 
 // ======== NOTES ========
+router.get('/notes', requirePermission('crm:read'), crmController.listNotes);
 router.post('/notes', requirePermission('crm:write'), validate(createNoteSchema), crmController.createNote);
 router.patch('/notes/:id', requirePermission('crm:write'), validate(updateNoteSchema), crmController.updateNote);
 router.delete('/notes/:id', requirePermission('crm:write'), crmController.deleteNote);
@@ -101,5 +117,116 @@ router.get('/reports/activity-summary', requirePermission('crm:read'), crmContro
 router.get('/reports/lead-aging', requirePermission('crm:read'), crmController.getLeadAgingReport);
 router.get('/reports/win-loss', requirePermission('crm:read'), crmController.getWinLossReport);
 router.get('/reports/kyc-compliance', requirePermission('crm:read'), crmController.getKycComplianceReport);
+router.get('/reports/forecast-categories', requirePermission('crm:read'), crmController.getForecastCategoriesReport);
+router.get('/reports/forecast-accuracy', requirePermission('crm:read'), crmController.getForecastAccuracyReport);
+
+// ======== AI FEATURES ========
+router.use('/ai', crmAiRoutes);
+
+// ======== AUDIT TRAIL ========
+router.get('/audit/:entityType/:entityId', requirePermission('crm:read'), crmController.getEntityAuditTrail);
+
+// ======== IMPORT / EXPORT ========
+import multer from 'multer';
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+router.post('/import/upload', requirePermission('crm:admin'), importUpload.single('file'), crmController.uploadImportFile);
+router.get('/import/field-definitions', requirePermission('crm:read'), crmController.getFieldDefinitions);
+router.get('/import/template', requirePermission('crm:read'), crmController.downloadImportTemplate);
+router.post('/import/:id/mapping', requirePermission('crm:admin'), crmController.validateImportMapping);
+router.post('/import/:id/execute', requirePermission('crm:admin'), crmController.executeImport);
+router.get('/import/:id/status', requirePermission('crm:admin'), crmController.getImportStatus);
+router.get('/import/history', requirePermission('crm:admin'), crmController.getImportHistory);
+router.post('/export', requirePermission('crm:read'), crmController.requestExport);
+router.get('/export/:id/download', requirePermission('crm:read'), crmController.downloadExport);
+router.get('/export/history', requirePermission('crm:read'), crmController.getExportHistory);
+
+// ======== TERRITORIES ========
+router.get('/territories', requirePermission('crm:read'), crmController.listTerritories);
+router.get('/territories/lookup', requirePermission('crm:read'), crmController.lookupTerritory);
+router.get('/territories/:id', requirePermission('crm:read'), crmController.getTerritory);
+router.post('/territories', requirePermission('crm:admin'), validate(createTerritorySchema), crmController.createTerritory);
+router.put('/territories/:id', requirePermission('crm:admin'), validate(updateTerritorySchema), crmController.updateTerritory);
+router.delete('/territories/:id', requirePermission('crm:admin'), crmController.deleteTerritory);
+router.post('/territories/:id/members', requirePermission('crm:admin'), validate(addTerritoryMemberSchema), crmController.addTerritoryMember);
+router.delete('/territories/:id/members/:userId', requirePermission('crm:admin'), crmController.removeTerritoryMember);
+router.put('/territories/:id/members/:userId', requirePermission('crm:admin'), crmController.updateTerritoryMember);
+
+// ======== QUOTAS ========
+router.get('/quotas', requirePermission('crm:read'), crmController.listQuotas);
+router.get('/quotas/dashboard', requirePermission('crm:read'), crmController.getQuotaDashboard);
+router.get('/quotas/attainment', requirePermission('crm:read'), crmController.getQuotaAttainment);
+router.get('/quotas/:id', requirePermission('crm:read'), crmController.getQuota);
+router.post('/quotas', requirePermission('crm:admin'), validate(createQuotaSchema), crmController.createQuota);
+router.put('/quotas/:id', requirePermission('crm:admin'), validate(updateQuotaSchema), crmController.updateQuota);
+router.delete('/quotas/:id', requirePermission('crm:admin'), crmController.deleteQuota);
+
+// ======== DASHBOARD LAYOUT ========
+router.get('/dashboard/widgets', requirePermission('crm:read'), crmController.getWidgetRegistry);
+router.get('/dashboard/layout', requirePermission('crm:read'), crmController.getDashboardLayout);
+router.put('/dashboard/layout', requirePermission('crm:read'), crmController.saveDashboardLayout);
+router.post('/dashboard/layout/reset', requirePermission('crm:read'), crmController.resetDashboardLayout);
+
+// ======== WORKFLOW AUTOMATION ========
+router.get('/workflows', requirePermission('crm:read'), crmController.listWorkflows);
+router.get('/workflows/templates', requirePermission('crm:read'), crmController.getWorkflowTemplates);
+router.get('/workflows/executions', requirePermission('crm:admin'), crmController.getAllExecutions);
+router.post('/workflows', requirePermission('crm:admin'), validate(createWorkflowSchema), crmController.createWorkflow);
+router.get('/workflows/:id', requirePermission('crm:read'), crmController.getWorkflow);
+router.put('/workflows/:id', requirePermission('crm:admin'), validate(updateWorkflowSchema), crmController.updateWorkflow);
+router.delete('/workflows/:id', requirePermission('crm:admin'), crmController.deleteWorkflow);
+router.patch('/workflows/:id/toggle', requirePermission('crm:admin'), crmController.toggleWorkflow);
+router.get('/workflows/:id/executions', requirePermission('crm:read'), crmController.getWorkflowExecutions);
+
+// ======== ANOMALY DETECTION ========
+router.get('/anomalies', requirePermission('crm:read'), crmController.getAnomalies);
+router.get('/anomalies/config', requirePermission('crm:admin'), crmController.getAnomalyConfig);
+router.put('/anomalies/config/:id', requirePermission('crm:admin'), crmController.updateAnomalyConfig);
+router.post('/anomalies/refresh', requirePermission('crm:read'), crmController.refreshAnomalies);
+
+// ======== CUSTOM FIELDS ========
+router.get('/custom-fields', requirePermission('crm:read'), crmController.getCustomFieldDefinitions);
+router.post('/custom-fields', requirePermission('crm:admin'), validate(createCustomFieldSchema), crmController.createCustomFieldDefinition);
+router.put('/custom-fields/:id', requirePermission('crm:admin'), validate(updateCustomFieldSchema), crmController.updateCustomFieldDefinition);
+router.delete('/custom-fields/:id', requirePermission('crm:admin'), crmController.deleteCustomFieldDefinition);
+
+// ======== DUPLICATE DETECTION & MERGE ========
+router.get('/duplicates', requirePermission('crm:read'), crmController.listDuplicates);
+router.post('/duplicates/:id/merge', requirePermission('crm:write'), crmController.mergeDuplicates);
+router.post('/duplicates/:id/dismiss', requirePermission('crm:write'), crmController.dismissDuplicate);
+
+// Lead Scoring Rules (admin-only)
+router.get('/lead-scoring-rules', requirePermission('crm:admin'), crmController.listScoringRules);
+router.post('/lead-scoring-rules', requirePermission('crm:admin'), crmController.createScoringRule);
+router.put('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmController.updateScoringRule);
+router.delete('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmController.deleteScoringRule);
+router.post('/lead-scoring-rules/recompute', requirePermission('crm:admin'), crmController.recomputeScores);
+
+// Assignment Rules (admin-only)
+router.get('/assignment-rules', requirePermission('crm:admin'), crmController.listAssignmentRules);
+router.post('/assignment-rules', requirePermission('crm:admin'), crmController.createAssignmentRule);
+router.put('/assignment-rules/:id', requirePermission('crm:admin'), crmController.updateAssignmentRule);
+router.delete('/assignment-rules/:id', requirePermission('crm:admin'), crmController.deleteAssignmentRule);
+
+// Contact-Account Roles (multi-account contacts)
+router.get('/contact-account-roles', requirePermission('crm:read'), crmController.getContactAccountRoles);
+router.post('/contact-account-roles', requirePermission('crm:write'), crmController.addContactAccountRole);
+router.delete('/contact-account-roles/:id', requirePermission('crm:write'), crmController.removeContactAccountRole);
+
+// Tags
+router.get('/tags', requirePermission('crm:read'), crmController.listTags);
+router.post('/tags', requirePermission('crm:admin'), crmController.createTag);
+router.delete('/tags/:id', requirePermission('crm:admin'), crmController.deleteTag);
+
+// Tag assignments
+router.post('/tag-assignments', requirePermission('crm:write'), crmController.assignTag);
+router.delete('/tag-assignments/:id', requirePermission('crm:write'), crmController.removeTagAssignment);
+router.get('/tag-assignments', requirePermission('crm:read'), crmController.getEntityTags);
+
+// Field-level change history
+router.get('/field-changes', requirePermission('crm:read'), crmController.getFieldChanges);
+
+// ======== INDUSTRY OPTIONS (configurable) ========
+router.get('/industry-options', requirePermission('crm:read'), crmController.getIndustryOptions);
+router.put('/industry-options', requirePermission('crm:admin'), crmController.setIndustryOptions);
 
 export default router;

@@ -1,7 +1,3 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient({
-    log: ['query', 'info', 'warn', 'error'],
-});
-
-export default prisma;
+// Re-export the tenant-aware Prisma singleton from lib/prisma.ts
+// This maintains backward compatibility for all existing imports.
+export { prisma, default, PrismaClientWithTenant } from '../lib/prisma';

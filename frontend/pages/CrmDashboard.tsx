@@ -1,341 +1,585 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import crmService from '../src/services/crm.service';
+import type { DashboardStats } from '../src/services/crm.service';
+import { DashboardLayoutProvider, useDashboardLayout } from '../src/components/crm/DashboardLayoutProvider';
+import CrmKpiCard from '../src/components/crm/CrmKpiCard';
+import DateRangeDropdown, { type DatePreset } from '../src/components/crm/DateRangeDropdown';
 import { useAuth } from '../src/context/AuthContext';
-import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
+import { useDailyBriefing } from '../src/hooks/useCrmAi';
 
-const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
-const formatRelative = (d: string) => { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago`; };
+const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
+  style: 'currency',
+  currency: 'MYR',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(value);
 
-const ACTIVITY_ICONS: Record<string, string> = { CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'check_circle', FOLLOW_UP: 'update' };
-const LEAD_COLORS: Record<string, { bg: string; text: string }> = {
-  NEW: { bg: '#eff6ff', text: '#1d4ed8' }, CONTACTED: { bg: '#fef3c7', text: '#92400e' },
-  QUALIFIED: { bg: '#ecfdf5', text: '#065f46' }, UNQUALIFIED: { bg: '#fef2f2', text: '#991b1b' },
-  CONVERTED: { bg: '#f0fdf4', text: '#166534' }, LOST: { bg: '#fef2f2', text: '#991b1b' },
+const numFmt = (value: number) => new Intl.NumberFormat('en-MY').format(value);
+
+const TEAL = '#006a61';
+const TEAL_BG = '#86f2e4';
+const NAVY = '#131b2e';
+const SURFACE = '#f8f9ff';
+
+function presetToDates(preset: DatePreset): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const to = now.toISOString();
+  if (preset === '7d') return { dateFrom: new Date(now.getTime() - 7 * 86400_000).toISOString(), dateTo: to };
+  if (preset === '90d') return { dateFrom: new Date(now.getTime() - 90 * 86400_000).toISOString(), dateTo: to };
+  if (preset === 'quarter') {
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    return { dateFrom: qStart.toISOString(), dateTo: to };
+  }
+  return { dateFrom: new Date(now.getTime() - 30 * 86400_000).toISOString(), dateTo: to };
+}
+
+const PRESET_LABELS: Record<DatePreset, string> = {
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  'quarter': 'This quarter',
 };
 
-const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
-  <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
-);
+type ActivityFilter = 'all' | 'lead' | 'opportunity' | 'deal';
 
-const CrmDashboard = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [myDeals, setMyDeals] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof crmService.globalSearch>> | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+const ACTIVITY_TYPE_MAP: Record<ActivityFilter, string[]> = {
+  all: [],
+  lead: ['LEAD_CREATED', 'LEAD_UPDATED', 'LEAD_CONVERTED', 'NOTE'],
+  opportunity: ['OPPORTUNITY_CREATED', 'OPPORTUNITY_UPDATED', 'STAGE_CHANGE'],
+  deal: ['DEAL_WON', 'DEAL_LOST', 'CLOSED'],
+};
 
-  useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) {
-      setSearchResults(null);
-      setShowResults(false);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const results = await crmService.globalSearch(searchQuery);
-        setSearchResults(results);
-        setShowResults(true);
-      } catch { /* silent */ }
-      finally { setSearching(false); }
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+// --- New Sub-Components ---
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-crm-search]')) setShowResults(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => {
-    const fetch = async () => {
-      try { setLoading(true); setError(null); const data = await crmService.getDashboard(myDeals); setStats(data); }
-      catch (e: any) { setError(e.message || 'Failed to load CRM dashboard'); }
-      finally { setLoading(false); }
-    };
-    fetch();
-  }, [myDeals]);
+/** Greeting header with quick actions */
+const WelcomeHeader: React.FC<{ userName?: string; datePreset: DatePreset; setDatePreset: (p: DatePreset) => void; myDeals: boolean; setMyDeals: (v: boolean) => void; activitiesDue: number }> = ({ userName, datePreset, setDatePreset, myDeals, setMyDeals, activitiesDue }) => {
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const dateStr = now.toLocaleDateString('en-MY', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4338ca] rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
-        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-        <div className="relative z-10">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM Dashboard</div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">
-                Sales Pipeline <span className="text-white/65 font-normal">Overview</span>
-              </h1>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setMyDeals(false)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!myDeals ? 'bg-white text-indigo-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>All Deals</button>
-              <button onClick={() => setMyDeals(true)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${myDeals ? 'bg-white text-indigo-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>My Deals</button>
-            </div>
-          </div>
-          {/* Global Search */}
-          <div data-crm-search="" style={{ position: 'relative', maxWidth: 520, margin: '1.5rem auto 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 12, padding: '0.5rem 1rem', gap: '0.5rem' }}>
-              <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>search</span>
-              <input
-                type="text"
-                placeholder="Search accounts, contacts, leads, deals…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onFocus={() => searchResults && setShowResults(true)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'white', fontSize: 14 }}
-              />
-              {searching && <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, animation: 'spin 1s linear infinite' }}>progress_activity</span>}
-              {searchQuery && !searching && (
-                <button onClick={() => { setSearchQuery(''); setShowResults(false); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', lineHeight: 1 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-                </button>
-              )}
-            </div>
-
-            {/* Results dropdown */}
-            {showResults && searchResults && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, background: 'white', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
-                {searchResults.accounts.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Accounts</div>
-                    {searchResults.accounts.map(a => (
-                      <div key={a.id} onClick={() => { navigate(`/crm/accounts/${a.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6366f1' }}>business</span>
-                        <span style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{a.name}</span>
-                        {a.industry && <span style={{ fontSize: 12, color: '#9ca3af' }}>{a.industry}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.contacts.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Contacts</div>
-                    {searchResults.contacts.map(c => (
-                      <div key={c.id} onClick={() => { navigate(`/crm/contacts/${c.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#22c55e' }}>person</span>
-                        <div>
-                          <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{c.firstName} {c.lastName}</div>
-                          {c.email && <div style={{ fontSize: 12, color: '#9ca3af' }}>{c.email}</div>}
-                        </div>
-                        {c.account && <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 'auto' }}>{c.account.name}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.leads.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Leads</div>
-                    {searchResults.leads.map(l => (
-                      <div key={l.id} onClick={() => { navigate(`/crm/leads/${l.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>leaderboard</span>
-                        <span style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{l.title}</span>
-                        {l.companyName && <span style={{ fontSize: 12, color: '#9ca3af' }}>{l.companyName}</span>}
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f1f5f9', color: '#64748b', marginLeft: 'auto', fontWeight: 600 }}>{l.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.opportunities.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Deals</div>
-                    {searchResults.opportunities.map(o => (
-                      <div key={o.id} onClick={() => { navigate(`/crm/opportunities/${o.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#8b5cf6' }}>monetization_on</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{o.name}</div>
-                          {o.account && <div style={{ fontSize: 12, color: '#9ca3af' }}>{o.account.name}</div>}
-                        </div>
-                        {o.stage && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: `${o.stage.color}20`, color: o.stage.color }}>{o.stage.name}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.accounts.length === 0 && searchResults.contacts.length === 0 && searchResults.leads.length === 0 && searchResults.opportunities.length === 0 && (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
-                    No results found for "{searchQuery}"
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Quick nav */}
-          <div className="flex items-center gap-3 mt-5 flex-wrap">
-            {[
-              { icon: 'business', label: 'Accounts', to: '/crm/accounts' },
-              { icon: 'person', label: 'Contacts', to: '/crm/contacts' },
-              { icon: 'lightbulb', label: 'Leads', to: '/crm/leads' },
-              { icon: 'view_kanban', label: 'Pipeline', to: '/crm/pipeline' },
-              { icon: 'groups', label: 'Team', to: '/crm/team' },
-            ].map(btn => (
-              <Link key={btn.to} to={btn.to} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white/90 text-xs font-bold rounded-full py-1.5 px-3 transition-colors" style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-sm">{btn.icon}</span>
-                {btn.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
-          <p className="font-bold">Error loading CRM dashboard</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      )}
-
-      {/* Today's Priorities */}
-      {!error && (
-        <div className="mb-6">
-          <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">Today's Priorities</h2>
-          <div className="grid grid-cols-3 gap-4">
-            {loading ? [0,1,2].map(i => (
-              <div key={i} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4">
-                <SkeletonBox w="40px" h="40px" /><div><SkeletonBox w="36px" h="24px" /><div className="mt-1"><SkeletonBox w="80px" h="10px" /></div></div>
-              </div>
-            )) : stats && [
-              { label: 'Follow-ups Due Today', value: stats.followUpDueToday ?? 0, icon: '📋', bg: '#fffbeb', color: '#b45309', link: '/crm/leads?filter=followup' },
-              { label: 'Stale Leads', value: stats.staleLeads ?? 0, icon: '⚠️', bg: '#fff1f2', color: '#be123c', link: '/crm/leads?filter=stale' },
-              { label: 'Overdue Deals', value: stats.overdueDeals ?? 0, icon: '🔔', bg: '#fef2f2', color: '#dc2626', link: '/crm/opportunities?filter=overdue' },
-            ].map(p => (
-              <div
-                key={p.label}
-                onClick={() => navigate(p.link)}
-                className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xl" style={{ background: p.bg }}>
-                  {p.icon}
-                </div>
-                <div>
-                  <div className="text-2xl font-black leading-none" style={{ color: p.color }}>{p.value}</div>
-                  <div className="text-xs font-semibold mt-0.5 text-text-secondary">{p.label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        {loading ? [0,1,2,3].map(i => (
-          <div key={i} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4">
-            <SkeletonBox w="44px" h="44px" /><div><SkeletonBox w="48px" h="28px" /><div className="mt-1"><SkeletonBox w="80px" h="12px" /></div></div>
-          </div>
-        )) : stats && [
-          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: '#eff6ff', color: '#1d4ed8' },
-          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
-          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
-          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: '#f0fdf4', color: '#166534' },
-        ].map(s => (
-          <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
-              <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
-            </div>
-            <div>
-              <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
-            </div>
-          </div>
-        ))}
+    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <h2 className="text-[24px] font-semibold text-[#0b1c30] tracking-tight">
+          {greeting}, {userName ?? 'Sales Rep'} 👋
+        </h2>
+        <p className="text-[13px] text-[#45464d] mt-1">
+          {dateStr} • <span className="font-semibold" style={{ color: TEAL }}>You have {activitiesDue} activities due today.</span>
+        </p>
       </div>
-
-      {/* Won/Lost Summary */}
-      {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-emerald-600">emoji_events</span>
-              <span className="font-bold text-text-primary">Won Deals</span>
-            </div>
-            <div className="text-3xl font-black text-emerald-600">{formatCurrency(Number(stats.wonDeals.value))}</div>
-            <div className="text-sm text-text-secondary mt-1">{stats.wonDeals.count} deals closed</div>
-          </div>
-          <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-red-500">trending_down</span>
-              <span className="font-bold text-text-primary">Lost Deals</span>
-            </div>
-            <div className="text-3xl font-black text-red-500">{formatCurrency(Number(stats.lostDeals.value))}</div>
-            <div className="text-sm text-text-secondary mt-1">{stats.lostDeals.count} deals lost</div>
-          </div>
-        </div>
-      )}
-
-      {/* Lead Status Breakdown */}
-      {stats && stats.leadsByStatus.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6 shadow-sm mb-6">
-          <h2 className="text-lg font-extrabold text-text-primary mb-4">Leads by Status</h2>
-          <div className="flex flex-wrap gap-3">
-            {stats.leadsByStatus.map(ls => {
-              const c = LEAD_COLORS[ls.status] || { bg: '#f3f4f6', text: '#374151' };
-              return (
-                <div key={ls.status} className="flex items-center gap-2 rounded-full px-4 py-2" style={{ background: c.bg }}>
-                  <span className="text-2xl font-black" style={{ color: c.text }}>{ls._count}</span>
-                  <span className="text-xs font-bold" style={{ color: c.text }}>{ls.status.replace(/_/g, ' ')}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Activity */}
-      <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-extrabold text-text-primary">Recent Activity</h2>
-          <Link to="/crm/accounts" className="text-sm font-bold text-brand-700" style={{ textDecoration: 'none' }}>View all →</Link>
-        </div>
-        {loading ? (
-          <div className="p-5 space-y-4">{[0,1,2,3,4].map(i => <div key={i} className="flex gap-3"><SkeletonBox w="36px" h="36px" /><div className="flex-1"><SkeletonBox w="60%" h="14px" /><div className="mt-2"><SkeletonBox w="40%" h="10px" /></div></div></div>)}</div>
-        ) : stats && stats.recentActivities.length === 0 ? (
-          <div className="p-12 text-center text-text-secondary">
-            <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">event_note</span>
-            <p className="font-bold">No recent activities</p>
-            <p className="text-sm mt-1">Start logging calls, emails, and meetings</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {stats?.recentActivities.map((act: CrmActivity) => (
-              <div key={act.id} className="flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => act.accountId && navigate(`/crm/accounts/${act.accountId}`)}>
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-indigo-600 text-lg">{ACTIVITY_ICONS[act.activityType] || 'note'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-text-primary truncate">{act.subject}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {act.user && <span className="text-xs text-text-secondary">{act.user.firstName} {act.user.lastName}</span>}
-                    {act.account && <><span className="text-text-tertiary">·</span><span className="text-xs text-brand-700 font-medium">{act.account.name}</span></>}
-                  </div>
-                </div>
-                <span className="text-xs text-text-tertiary whitespace-nowrap">{formatRelative(act.createdAt)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <DateRangeDropdown value={datePreset} onChange={setDatePreset} />
+        <Link
+          to="/crm/leads?action=create"
+          className="flex items-center gap-2 px-4 py-2 border border-[#e2e8f0] rounded-lg text-[13px] font-semibold text-[#0b1c30] hover:bg-[#eff4ff] transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">person_add</span>
+          New Lead
+        </Link>
+        <Link
+          to="/crm/opportunities?action=create"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold text-white hover:opacity-90 transition-all shadow-sm"
+          style={{ background: TEAL }}
+        >
+          <span className="material-symbols-outlined text-[18px]">add_chart</span>
+          New Opportunity
+        </Link>
+        <label className="flex items-center gap-2 text-[13px] text-[#45464d] cursor-pointer select-none bg-white border border-[#e2e8f0] rounded-full px-4 py-1.5">
+          <input type="checkbox" checked={myDeals} onChange={(e) => setMyDeals(e.target.checked)} className="rounded border-[#e2e8f0] accent-[#006a61]" />
+          My deals only
+        </label>
       </div>
     </div>
   );
 };
+
+/** Hot Leads list — top 5 leads by score */
+const HotLeadsSection: React.FC<{ leads: DashboardStats['hotLeads'] }> = ({ leads }) => {
+  if (!leads.length) return null;
+  const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  return (
+    <section className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#e2e8f0] flex items-center justify-between">
+        <h3 className="text-[18px] font-semibold text-[#0b1c30] flex items-center gap-2">
+          <span className="material-symbols-outlined" style={{ color: TEAL, fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
+          Hot Leads (Priority 1)
+        </h3>
+        <Link to="/crm/leads?sort=score" className="text-[13px] font-semibold hover:underline" style={{ color: TEAL }}>View All</Link>
+      </div>
+      <div className="divide-y divide-[#e2e8f0]">
+        {leads.map((lead) => (
+          <div key={lead.id} className="px-6 py-3 flex items-center justify-between hover:bg-[#f8f9ff] transition-colors group">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-[14px] shrink-0" style={{ background: TEAL_BG + '33', color: TEAL }}>
+                {lead.contactName ? initials(lead.contactName) : initials(lead.title)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold text-[#0b1c30] truncate">{lead.contactName ?? lead.title}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  {lead.source && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#f0faf9] text-[#006a61] border border-[#86f2e4]">{lead.source}</span>
+                  )}
+                  {lead.tags.map((tag) => (
+                    <span key={tag} className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#dce9ff] text-[#3f465c]">{tag}</span>
+                  ))}
+                  {lead.estimatedValue != null && (
+                    <span className="text-[11px] font-medium text-[#0b1c30]">{fmt(lead.estimatedValue)}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Lead Score</p>
+                <p className="text-[18px] font-semibold" style={{ color: lead.score >= 80 ? TEAL : lead.score >= 50 ? '#3f465c' : '#ba1a1a' }}>{lead.score}</p>
+              </div>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Link
+                  to={`/crm/leads/${lead.id}`}
+                  className="px-3 py-1 text-[13px] font-semibold text-white rounded-lg hover:opacity-90 transition-all"
+                  style={{ background: NAVY }}
+                >
+                  Open
+                </Link>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+/** Today's Follow-Ups */
+const FollowUpsWidget: React.FC<{ items: DashboardStats['upcomingFollowUps'] }> = ({ items }) => {
+  const urgency = (followUpDate: string): { label: string; color: string } => {
+    const diff = new Date(followUpDate).getTime() - Date.now();
+    const hours = diff / (1000 * 60 * 60);
+    if (hours <= 2) return { label: 'High Priority', color: '#ba1a1a' };
+    if (hours <= 8) return { label: 'Standard', color: TEAL };
+    return { label: 'Medium', color: '#45464d' };
+  };
+
+  const sorted = [...items].sort((a, b) =>
+    new Date(a.followUpDate).getTime() - new Date(b.followUpDate).getTime()
+  );
+
+  return (
+    <section className="bg-white border border-[#e2e8f0] rounded-xl flex flex-col h-[400px]">
+      <div className="px-6 py-4 border-b border-[#e2e8f0]">
+        <h3 className="text-[18px] font-semibold text-[#0b1c30]">Today's Follow-Ups</h3>
+      </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="divide-y divide-[#e2e8f0]">
+          {sorted.length === 0 && (
+            <p className="text-[13px] text-[#45464d] opacity-60 text-center py-8">No follow-ups today</p>
+          )}
+          {sorted.map((fu) => {
+            const { label, color } = urgency(fu.followUpDate);
+            return (
+              <div key={fu.id} className="px-6 py-3 flex items-start gap-4">
+                <div className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold text-[#0b1c30] truncate">{fu.title}</p>
+                  {fu.followUpNote && <p className="text-[11px] text-[#45464d] mt-0.5 truncate">{fu.followUpNote}</p>}
+                  <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-[#45464d] uppercase">
+                    <span>{new Date(fu.followUpDate).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}</span>
+                    <span style={{ color }}>{label}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/** My Tasks widget — overdue + in-progress grouped */
+const MyTasksWidget: React.FC<{ tasks: DashboardStats['tasks'] }> = ({ tasks }) => (
+  <section className="bg-white border border-[#e2e8f0] rounded-xl flex flex-col h-[400px]">
+    <div className="px-6 py-4 border-b border-[#e2e8f0] flex items-center justify-between">
+      <h3 className="text-[18px] font-semibold text-[#0b1c30]">My Tasks</h3>
+      <span className="bg-[#e5eeff] px-2 py-0.5 rounded text-[10px] font-bold text-[#45464d]">{tasks.overdueCount + tasks.inProgressCount} Active</span>
+    </div>
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
+      {tasks.overdue.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold tracking-wider uppercase text-[#45464d]">Status: Overdue ({tasks.overdueCount})</p>
+          {tasks.overdue.map((t) => (
+            <div key={t.id} className="p-3 bg-[#ffdad6]/20 border border-[#ba1a1a]/10 rounded-lg flex items-center justify-between">
+              <span className="text-[13px] font-medium text-[#93000a]">{t.subject}</span>
+              <span className="text-[10px] font-bold text-[#ba1a1a]">{t.scheduledAt ? 'PAST DUE' : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tasks.inProgress.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold tracking-wider uppercase text-[#45464d]">In Progress ({tasks.inProgressCount})</p>
+          {tasks.inProgress.map((t) => (
+            <div key={t.id} className="p-3 bg-[#f8f9ff] border border-[#e2e8f0] rounded-lg flex items-center justify-between">
+              <span className="text-[13px] font-medium text-[#0b1c30]">{t.subject}</span>
+              <span className="material-symbols-outlined text-[#45464d] text-[18px]">more_vert</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tasks.overdue.length === 0 && tasks.inProgress.length === 0 && (
+        <p className="text-[13px] text-[#45464d] opacity-60 text-center py-8">No tasks</p>
+      )}
+    </div>
+  </section>
+);
+
+/** Opportunity Pipeline — horizontal stages with counts and values */
+const PipelineWidget: React.FC<{ stages: DashboardStats['opportunitiesByStage'] }> = ({ stages }) => {
+  const activeStages = stages.filter(s => !s.isWonStage && !s.isLostStage).sort((a, b) => a.displayOrder - b.displayOrder);
+  const totalValue = activeStages.reduce((s, st) => s + st._sum.value, 0);
+  const stageColors = ['#86f2e4', '#6bd8cb', '#3fc4ad', TEAL]; // gradient from light to dark teal
+
+  return (
+    <section className="bg-white border border-[#e2e8f0] rounded-xl p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-[18px] font-semibold text-[#0b1c30]">Opportunity Pipeline</h3>
+        <div className="text-right">
+          <p className="text-[10px] font-bold tracking-wider uppercase text-[#45464d] opacity-70">Total Volume</p>
+          <p className="text-[16px] font-bold text-[#0b1c30]">{fmt(totalValue)}</p>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {activeStages.map((stage, idx) => {
+          const pos = idx % stageColors.length;
+          const color = stageColors[pos];
+          const textColor = pos >= stageColors.length - 1 ? '#fff' : TEAL;
+          return (
+            <div key={stage.stageId} className="flex-1 h-20 rounded flex flex-col items-center justify-center border-b-4" style={{ background: color + (pos < 2 ? '4D' : pos === 2 ? '80' : 'CC'), borderBottomColor: TEAL, opacity: Math.min(1, 0.3 + pos * 0.2) }}>
+              <p className="text-[10px] font-bold" style={{ color: textColor }}>{stage.name}</p>
+              <p className="text-[13px] font-semibold" style={{ color: textColor, fontFamily: "'JetBrains Mono', monospace" }}>{stage._count} ({fmt(stage._sum.value).replace('MYR', '').trim()})</p>
+            </div>
+          );
+        })}
+        {activeStages.length === 0 && (
+          <p className="text-[13px] text-[#45464d] opacity-60 text-center w-full">No active pipeline stages</p>
+        )}
+      </div>
+    </section>
+  );
+};
+
+/** Calendar / Upcoming Meetings */
+const CalendarWidget: React.FC<{ meetingsToday: DashboardStats['meetingsToday'] }> = ({ meetingsToday }) => {
+  const { count, nextMeeting } = meetingsToday;
+  return (
+    <section className="bg-white border border-[#e2e8f0] rounded-xl p-6">
+      <h3 className="text-[18px] font-semibold text-[#0b1c30] mb-4">Calendar</h3>
+      <div className="space-y-4">
+        {count === 0 && !nextMeeting && (
+          <p className="text-[13px] text-[#45464d] opacity-60 text-center py-4">No meetings today</p>
+        )}
+        {nextMeeting && (
+          <div className="flex gap-4">
+            <div className="w-12 text-center shrink-0">
+              <p className="font-bold" style={{ color: TEAL }}>{new Date(nextMeeting.scheduledAt).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}</p>
+              <p className="text-[10px] text-[#45464d] font-bold uppercase">{new Intl.DateTimeFormat('en-MY', { hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(new Date(nextMeeting.scheduledAt)).find(p => p.type === 'dayPeriod')?.value?.toUpperCase() ?? ''}</p>
+            </div>
+            <div className="flex-1 p-3 bg-[#f8f9ff] rounded-lg border-l-4" style={{ borderColor: TEAL }}>
+              <p className="text-[13px] font-bold text-[#0b1c30]">{nextMeeting.subject}</p>
+              {nextMeeting.accountName && (
+                <p className="text-[11px] text-[#45464d] flex items-center gap-1 mt-0.5">
+                  <span className="material-symbols-outlined text-[14px]">location_on</span>
+                  {nextMeeting.accountName}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        {count > 1 && (
+          <p className="text-[11px] text-[#45464d] text-center">{count} meetings today</p>
+        )}
+      </div>
+    </section>
+  );
+};
+
+/** Recent Activity timeline */
+const RecentActivityWidget: React.FC<{ activities: DashboardStats['recentActivities']; filter: ActivityFilter; setFilter: (f: ActivityFilter) => void }> = ({ activities, filter, setFilter }) => {
+  const iconMap: Record<string, string> = {
+    CALL: 'call', EMAIL: 'mail', MEETING: 'event', NOTE: 'edit_note',
+    TASK: 'task_alt', FOLLOW_UP: 'follow_the_signs', WHATSAPP: 'chat',
+    SITE_VISIT: 'location_on', LEAD_CREATED: 'person_add', OPPORTUNITY_CREATED: 'add_chart',
+  };
+  const colorMap: Record<string, string> = {
+    CALL: TEAL, EMAIL: '#3B82F6', MEETING: TEAL, NOTE: '#45464d',
+    TASK: '#3f465c', FOLLOW_UP: TEAL, SITE_VISIT: '#006a61',
+    LEAD_CREATED: TEAL, OPPORTUNITY_CREATED: TEAL,
+  };
+
+  return (
+    <section className="bg-white border border-[#e2e8f0] rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[18px] font-semibold text-[#0b1c30]">Recent Activity</h3>
+        <div className="flex gap-1">
+          {(['all', 'lead', 'opportunity', 'deal'] as ActivityFilter[]).map((f) => {
+            const labels: Record<ActivityFilter, string> = { all: 'All', lead: 'Leads', opportunity: 'Opps', deal: 'Deals' };
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors ${
+                  filter === f
+                    ? 'text-white'
+                    : 'text-[#45464d] hover:bg-[#f0f4ff]'
+                }`}
+                style={filter === f ? { background: TEAL } : {}}
+              >
+                {labels[f]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-[1px] before:bg-[#e2e8f0]">
+        {activities.length === 0 && (
+          <p className="text-[13px] text-[#45464d] opacity-60 text-center py-4">No recent activities</p>
+        )}
+        {activities.map((a) => {
+          const icon = iconMap[a.activityType] ?? 'history';
+          const bg = colorMap[a.activityType] ?? TEAL;
+          return (
+            <div key={a.id} className="relative flex gap-4 pl-8">
+              <div className="absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white" style={{ background: bg + '1A' }}>
+                <span className="material-symbols-outlined text-[14px]" style={{ color: bg }}>{icon}</span>
+              </div>
+              <div>
+                <p className="text-[13px]"><span className="font-bold text-[#0b1c30]">{a.subject ?? a.activityType}</span></p>
+                {a.description && <p className="text-[11px] text-[#45464d] mt-0.5 line-clamp-1">{a.description}</p>}
+                <p className="text-[10px] text-[#45464d] opacity-60 mt-0.5">{new Date(a.createdAt).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+/** AI Sales Assistant widget */
+const AiSalesAssistantWidget: React.FC<{ briefing: any; loading: boolean; error: string | null; onRefresh: () => void }> = ({ briefing, loading, error, onRefresh }) => (
+  <section className="relative overflow-hidden rounded-xl p-6 text-white" style={{ background: NAVY }}>
+    <div className="absolute top-0 right-0 p-4 opacity-10">
+      <span className="material-symbols-outlined text-[80px]">auto_awesome</span>
+    </div>
+    <div className="relative z-10">
+      <h3 className="text-[18px] font-semibold flex items-center gap-2 mb-4">
+        <span className="material-symbols-outlined">bolt</span>
+        AI Sales Assistant
+      </h3>
+      <div className="space-y-4">
+        {briefing?.topPriority && (
+          <div className="bg-white/10 p-3 rounded-lg border border-white/20">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6bd8cb]">Next Best Action</p>
+            <p className="text-[13px] mt-1">{briefing.topPriority}</p>
+          </div>
+        )}
+        {briefing?.bullets?.length > 0 && (
+          <div className="bg-white/10 p-3 rounded-lg border border-white/20 opacity-80">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6bd8cb]">Insight</p>
+            <p className="text-[13px] mt-1">{briefing.bullets[0]}</p>
+          </div>
+        )}
+        {loading && (
+          <div className="bg-white/10 p-3 rounded-lg border border-white/20 animate-pulse">
+            <p className="text-[13px]">Generating insights...</p>
+          </div>
+        )}
+        {error && !loading && (
+          <div className="bg-white/10 p-3 rounded-lg border border-white/20">
+            <p className="text-[13px] text-[#ffdad6]">Unable to load AI insights</p>
+            <button onClick={onRefresh} className="text-[11px] underline mt-1">Retry</button>
+          </div>
+        )}
+        {!briefing && !loading && !error && (
+          <div className="bg-white/10 p-3 rounded-lg border border-white/20">
+            <p className="text-[13px] opacity-60">No AI insights available</p>
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+);
+
+// --- Main Dashboard ---
+
+const DashboardInner: React.FC = () => {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [myDeals, setMyDeals] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>('30d');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
+  const { briefing, loading: briefingLoading, error: briefingError, fetch: fetchBriefing } = useDailyBriefing();
+  const { layout } = useDashboardLayout();
+  const { user } = useAuth();
+  const userName = user ? `${user.firstName} ${user.lastName}`.trim() : undefined;
+
+  const isVisible = (widgetId: string): boolean => {
+    const entry = layout.find(w => w.widgetId === widgetId);
+    return entry ? entry.visible : true;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const { dateFrom, dateTo } = presetToDates(datePreset);
+    crmService.getDashboard(myDeals, dateFrom, dateTo)
+      .then((data) => { if (!cancelled) setStats(data); })
+      .catch((err: any) => { if (!cancelled) setError(err.message ?? 'Failed to load dashboard'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [myDeals, datePreset]);
+
+  const didAutoLoad = React.useRef(false);
+  useEffect(() => {
+    if (!didAutoLoad.current) { didAutoLoad.current = true; fetchBriefing(); }
+  }, [fetchBriefing]);
+
+  if (error) {
+    return (
+      <div className="p-6 text-center text-[#ba1a1a]">
+        <span className="material-symbols-outlined text-4xl block mb-2">error_outline</span>
+        {error}
+      </div>
+    );
+  }
+
+  const delta = stats?.delta ?? { leadsDelta: 0, oppsDelta: 0, wonDelta: 0, lostDelta: 0, pipelineDelta: 0, winRateDelta: 0 };
+
+  const filteredActivities = (stats?.recentActivities ?? [])
+    .filter(a => activityFilter === 'all' || ACTIVITY_TYPE_MAP[activityFilter].some(t => a.activityType?.includes(t)))
+    .slice(0, 5);
+
+  const activitiesDueToday = (stats?.followUpDueToday ?? 0) + (stats?.tasks?.overdueCount ?? 0);
+
+  return (
+    <div className="min-h-full p-6 space-y-4 max-w-[1440px] mx-auto" style={{ background: SURFACE }}>
+      {/* Welcome Header */}
+      <WelcomeHeader
+        userName={userName}
+        datePreset={datePreset}
+        setDatePreset={setDatePreset}
+        myDeals={myDeals}
+        setMyDeals={setMyDeals}
+        activitiesDue={activitiesDueToday}
+      />
+
+      {/* KPI Strip */}
+      {isVisible('kpi_cards') && (
+        <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <CrmKpiCard
+            label="My Leads"
+            value={loading ? '—' : numFmt(stats?.totalActiveLeads ?? 0)}
+            icon="person_add"
+            trend={delta.leadsDelta > 0 ? 'up' : delta.leadsDelta < 0 ? 'down' : 'flat'}
+            trendPercent={delta.leadsDelta}
+            trendPositive={delta.leadsDelta >= 0}
+          />
+          <CrmKpiCard
+            label="Follow Ups"
+            value={loading ? '—' : numFmt(stats?.followUpDueToday ?? 0)}
+            icon="schedule"
+            trendLabel={stats?.followUpDueToday ? 'Urgent' : undefined}
+            trendPositive={false}
+          />
+          <CrmKpiCard
+            label="Open Opps"
+            value={loading ? '—' : numFmt(stats?.totalOpenOpps ?? 0)}
+            icon="pending_actions"
+            trend={delta.oppsDelta > 0 ? 'up' : delta.oppsDelta < 0 ? 'down' : 'flat'}
+            trendPercent={delta.oppsDelta}
+            trendPositive={delta.oppsDelta >= 0}
+          />
+          <CrmKpiCard
+            label="Overdue"
+            value={loading ? '—' : numFmt(stats?.overdueDeals ?? 0)}
+            icon="priority_high"
+            trendPositive={false}
+            highlight
+          />
+          <CrmKpiCard
+            label="Meetings Today"
+            value={loading ? '—' : numFmt(stats?.meetingsToday?.count ?? 0)}
+            icon="event"
+            subtitle={stats?.meetingsToday?.nextMeeting ? `Next at ${new Date(stats.meetingsToday.nextMeeting.scheduledAt).toLocaleTimeString('en-MY', { hour: 'numeric', minute: '2-digit' })}` : undefined}
+          />
+          <CrmKpiCard
+            label="Monthly Conv."
+            value={loading ? '—' : numFmt(stats?.monthlyConversions?.count ?? 0)}
+            icon="emoji_events"
+            trend={stats?.monthlyConversions?.percentage ? 'up' : 'flat'}
+            trendLabel={stats?.monthlyConversions ? `${stats.monthlyConversions.percentage}% Target` : undefined}
+            trendPositive={true}
+            highlight
+          />
+        </section>
+      )}
+
+      {/* Main Grid: Left 8 cols, Right 4 cols */}
+      <div className="grid grid-cols-12 gap-4 items-start">
+        {/* Left Column */}
+        <div className="col-span-12 lg:col-span-8 space-y-4">
+          {/* Hot Leads */}
+          {isVisible('hot_leads') && !loading && stats?.hotLeads && (
+            <HotLeadsSection leads={stats.hotLeads} />
+          )}
+
+          {/* Follow-ups + Tasks side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isVisible('upcoming_activities') && (
+              <FollowUpsWidget items={stats?.upcomingFollowUps ?? []} />
+            )}
+            {isVisible('my_tasks') && (
+              <MyTasksWidget tasks={stats?.tasks ?? { overdue: [], inProgress: [], overdueCount: 0, inProgressCount: 0 }} />
+            )}
+          </div>
+
+          {/* Pipeline */}
+          {isVisible('opportunity_funnel') && (
+            <PipelineWidget stages={stats?.opportunitiesByStage ?? []} />
+          )}
+        </div>
+
+        {/* Right Column */}
+        <div className="col-span-12 lg:col-span-4 space-y-4">
+          {/* AI Sales Assistant */}
+          {isVisible('ai_briefing') && (
+            <AiSalesAssistantWidget briefing={briefing} loading={briefingLoading} error={briefingError} onRefresh={fetchBriefing} />
+          )}
+
+          {/* Calendar */}
+          {isVisible('calendar') && (
+            <CalendarWidget meetingsToday={stats?.meetingsToday ?? { count: 0, nextMeeting: null }} />
+          )}
+
+          {/* Recent Activity */}
+          {isVisible('recent_activities') && (
+            <RecentActivityWidget activities={filteredActivities} filter={activityFilter} setFilter={setActivityFilter} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CrmDashboard: React.FC = () => (
+  <DashboardLayoutProvider>
+    <DashboardInner />
+  </DashboardLayoutProvider>
+);
 
 export default CrmDashboard;

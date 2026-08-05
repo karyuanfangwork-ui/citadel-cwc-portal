@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient, RequestStatus } from '@prisma/client';
+import { RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { transitionHttpRequest } from '../utils/httpRequestTransition';
 async function logActivity(requestId: string, message: string, authorId?: string) {
     await prisma.requestActivity.create({
         data: {
@@ -22,7 +22,11 @@ async function logActivity(requestId: string, message: string, authorId?: string
 /** POST /chargeback-workflow/requests/:id/submit — Submit chargeback to From Entity approver */
 export const submitChargeback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({ where: { id } });
@@ -48,12 +52,12 @@ export const submitChargeback = async (req: Request, res: Response) => {
             }
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: RequestStatus.PENDING_FROM_ENTITY_APPROVAL,
-                ...(fromEntityApproverId ? { assignedToId: fromEntityApproverId } : {}),
-            },
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.PENDING_FROM_ENTITY_APPROVAL,
+            source: 'chargeback.submit',
+            requestPatch: fromEntityApproverId ? { assignedToId: fromEntityApproverId } : undefined,
         });
 
         // Create a pending approval record so the approver can see it in their queue
@@ -69,8 +73,6 @@ export const submitChargeback = async (req: Request, res: Response) => {
             });
         }
 
-        // Pause SLA — request entered PENDING_FROM_ENTITY_APPROVAL
-        await pauseSla(id);
 
         await logActivity(id, 'Chargeback submitted — routed to From Entity approver' + (fromEntityCode ? ` (${fromEntityCode})` : ''), userId);
         await auditLog(req as any, 'CHARGEBACK_SUBMIT', 'request', id, {
@@ -98,7 +100,11 @@ export const submitChargeback = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/from-entity-decision */
 export const fromEntityDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
         const userRoles: string[] = (req as any).user?.roles || [];
@@ -118,8 +124,8 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        // Only the designated From Entity approver (or admin override) can make this decision
-        if (!userRoles.includes('ADMIN')) {
+        // Only the designated From Entity approver (or admin/GROUP_DCEO override) can make this decision
+        if (!userRoles.includes('ADMIN') && !userRoles.includes('GROUP_DCEO')) {
             const pendingApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'FROM_ENTITY', status: 'PENDING' },
             });
@@ -148,10 +154,13 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             }
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: newStatus,
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'chargeback.from-entity-decision',
+            comment: comments,
+            requestPatch: {
                 ...(toEntityApproverId ? { assignedToId: toEntityApproverId } : {}),
                 ...(decision === 'REJECTED' ? { assignedToId: null } : {}),
             },
@@ -182,13 +191,6 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             data: { status: decision, comments: comments || null },
         });
 
-        // Resume SLA — leaving PENDING_FROM_ENTITY_APPROVAL
-        await resumeSla(id);
-
-        // If approved, pause SLA again — entering PENDING_TO_ENTITY_APPROVAL
-        if (decision === 'APPROVED') {
-            await pauseSla(id);
-        }
 
         const verb = decision === 'APPROVED' ? 'approved — routed to To Entity approver' : 'rejected';
         await logActivity(id, `From Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);
@@ -216,7 +218,11 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/to-entity-decision */
 export const toEntityDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
         const userRoles: string[] = (req as any).user?.roles || [];
@@ -236,8 +242,8 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        // Only the designated To Entity approver (or admin override) can make this decision
-        if (!userRoles.includes('ADMIN')) {
+        // Only the designated To Entity approver (or admin/GROUP_DCEO override) can make this decision
+        if (!userRoles.includes('ADMIN') && !userRoles.includes('GROUP_DCEO')) {
             const pendingApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'TO_ENTITY', status: 'PENDING' },
             });
@@ -251,13 +257,35 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             ? RequestStatus.CHARGEBACK_FINANCE_REVIEW
             : RequestStatus.TO_ENTITY_REJECTED;
 
-        // When approved, unassign (finance team will pick it up); when rejected, clear assignment
-        const updated = await prisma.request.update({
-            where: { id },
-            data: {
-                status: newStatus,
-                assignedToId: decision === 'REJECTED' ? null : undefined,
-            },
+        // When approved, reassign back to a Finance agent; when rejected, clear assignment
+        const updateData: Record<string, any> = {};
+        if (decision === 'APPROVED') {
+            // Reassign to a Finance agent so they can see it in their queue
+            const financeAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'FINANCE',
+                    isActive: true,
+                    roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+                },
+                select: { id: true, firstName: true, lastName: true },
+                orderBy: { createdAt: 'asc' },
+            });
+            if (financeAgent) {
+                updateData.assignedToId = financeAgent.id;
+                updateData.assignedTeam = 'FINANCE';
+            }
+        } else {
+            updateData.assignedToId = null;
+            updateData.assignedTeam = null;
+        }
+
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: newStatus,
+            source: 'chargeback.to-entity-decision',
+            comment: comments,
+            requestPatch: updateData,
         });
 
         // Update the existing PENDING approval record to reflect the decision
@@ -266,8 +294,6 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             data: { status: decision, comments: comments || null },
         });
 
-        // Resume SLA — leaving PENDING_TO_ENTITY_APPROVAL
-        await resumeSla(id);
 
         const verb = decision === 'APPROVED' ? 'approved — routed to Finance team for review' : 'rejected';
         await logActivity(id, `To Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);
@@ -285,6 +311,32 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             relatedRequestId: id,
         });
 
+        // If approved and reassigned, log the auto-assignment
+        if (decision === 'APPROVED' && updateData.assignedToId) {
+            const financeAgent = await prisma.user.findUnique({
+                where: { id: updateData.assignedToId as string },
+                select: { firstName: true, lastName: true },
+            });
+            if (financeAgent) {
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorName: 'System',
+                        activityType: 'ASSIGNMENT',
+                        message: `Auto-reassigned to ${financeAgent.firstName} ${financeAgent.lastName} (FINANCE team) — To Entity approved, finance review`,
+                        isSystemGenerated: true,
+                        metadata: { autoAssigned: true, assignedToId: updateData.assignedToId, assignedTeam: 'FINANCE' },
+                    },
+                });
+                await notify({
+                    userId: updateData.assignedToId as string,
+                    eventType: 'CHARGEBACK_PENDING_FROM_ENTITY',
+                    variables: { requestId: id },
+                    relatedRequestId: id,
+                });
+            }
+        }
+
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
         console.error('toEntityDecision error:', error);
@@ -295,7 +347,11 @@ export const toEntityDecision = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/mark-confirmed */
 export const markConfirmed = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -305,9 +361,12 @@ export const markConfirmed = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION },
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION,
+            source: 'chargeback.mark-confirmed',
+            comment: notes,
         });
 
         await logActivity(id, `Finance agent confirmed chargeback${notes ? ': ' + notes : ''}`, userId);
@@ -333,7 +392,11 @@ export const markConfirmed = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/complete */
 export const completeChargeback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({ where: { id } });
@@ -342,9 +405,13 @@ export const completeChargeback = async (req: Request, res: Response) => {
             return;
         }
 
-        const updated = await prisma.request.update({
-            where: { id },
-            data: { status: RequestStatus.CHARGEBACK_COMPLETED, resolvedAt: new Date() },
+        const completedAt = new Date();
+        const updated = await transitionHttpRequest({
+            req,
+            request,
+            toStatus: RequestStatus.CHARGEBACK_COMPLETED,
+            source: 'chargeback.complete',
+            requestPatch: { resolvedAt: completedAt, completedAt },
         });
 
         await logActivity(id, 'Inter-company chargeback completed', userId);

@@ -1,12 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { hasRole } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
-import { pauseSla, resumeSla } from '../services/sla-pause.service';
-import path from 'path';
-import { uploadSingleFile } from '../middleware/upload.middleware';
-import { logger } from '../utils/logger';
+import { transitionRequest } from '../services/requestTransition.service';
+import { reassignToTeam } from '../services/reassign.service';
+import { registerUpload } from '../services/attachmentAccess.service';
 
 /** Infer an IT asset category from the hardware name/description. */
 function inferCategoryFromName(name: string): string {
@@ -22,62 +20,42 @@ function inferCategoryFromName(name: string): string {
   return 'LAPTOP';
 }
 
-const prisma = new PrismaClient();
-
+import prisma from '../utils/prisma';
+import { resolveRequestId } from '../utils/resolve';
+import { principalFromAuth } from '../security/resource-scope.service';
 /**
- * Reassign a request to the first active agent on the specified team.
- * Creates an activity record and notifies the new assignee.
+ * Helper: extract common transition options from an Express request.
+ * Reduces boilerplate in each handler.
  */
-async function reassignToTeam(requestId: string, referenceNumber: string, team: string): Promise<void> {
-  const agent = await prisma.user.findFirst({
-    where: {
-      agentTeam: team,
-      isActive: true,
-      roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; skipAutoAssignment?: boolean; metadata?: Record<string, unknown>; source?: string; requestPatch?: Record<string, unknown> }) {
+  const user = (req as any).user;
+  const userRoles: string[] = user?.roles || [];
+  return {
+    userId: user?.id || 'system',
+    userName: user?.firstName || user?.email || 'System',
+    userRole: userRoles[0] || undefined,
+    metadata: { userRoles, ...overrides?.metadata },
+    skipNotifications: overrides?.skipNotifications ?? true,
+    skipAutoAssignment: overrides?.skipAutoAssignment ?? true,
+    skipSlaPause: true, // Controllers manage SLA pause/resume explicitly where needed
+    comment: overrides?.comment,
+    source: overrides?.source || 'it-workflow',
+    requestPatch: overrides?.requestPatch,
+    actor: {
+      userId: user?.id || 'system',
+      roles: userRoles,
+      executiveRole: user?.executiveRole ?? null,
     },
-    select: { id: true, firstName: true, lastName: true },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  if (!agent) {
-    logger.warn(`[IT-Workflow] No active ${team} agent found for reassignment of ${referenceNumber}`);
-    return;
-  }
-
-  const agentName = `${agent.firstName} ${agent.lastName}`;
-
-  await prisma.request.update({
-    where: { id: requestId },
-    data: { assignedToId: agent.id, assignedTeam: team },
-  });
-
-  await prisma.requestActivity.create({
-    data: {
-      requestId,
-      authorName: 'System',
-      activityType: 'ASSIGNMENT',
-      message: `Auto-reassigned to ${agentName} (${team} team) — workflow transition`,
-      isSystemGenerated: true,
-      metadata: { autoAssigned: true, assignedToId: agent.id, assignedTeam: team },
-    },
-  });
-
-  await notify({
-    userId: agent.id,
-    eventType: 'REQUEST_ASSIGNED',
-    variables: { referenceNumber, assignedToName: agentName },
-    relatedRequestId: requestId,
-  });
-
-  logger.info(`[IT-Workflow] Request ${referenceNumber} reassigned to ${agentName} (${team})`);
+  };
 }
-
-// Shared S3-backed multer — invoice upload
-export const uploadInvoice = { single: (field: string) => uploadSingleFile(field) };
 
 export async function markProcurement(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+    const id = await resolveRequestId(idOrRef);
+    if (!id) {
+      return res.status(404).json({ status: 'error', message: 'Request not found' });
+    }
     const { orderNumber, vendor, estimatedDelivery } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -85,20 +63,12 @@ export async function markProcurement(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Only assigned person or admin can perform procurement actions
-    const userId = (req as any).user?.id;
-    const userRoles: string[] = (req as any).user?.roles || [];
-    const isAdmin = userRoles.includes('ADMIN');
-    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
-    }
-
+    // Transition: SUBMITTED → PROCUREMENT_IN_PROGRESS (guards check assignment + IT desk)
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
-
-    await prisma.request.update({
-      where: { id },
-      data: {
-        status: 'PROCUREMENT_IN_PROGRESS',
+    await transitionRequest(id, 'PROCUREMENT_IN_PROGRESS', transitionOpts(req, {
+      comment: `Procurement initiated. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}`,
+      source: 'it-workflow/procurement',
+      requestPatch: {
         customFields: {
           ...existingCustomFields,
           procurement: {
@@ -109,39 +79,29 @@ export async function markProcurement(req: Request, res: Response) {
           },
         },
       },
-    });
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Procurement initiated. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}`,
-        authorName: 'System',
-        isSystemGenerated: true,
-        metadata: { orderNumber, vendor, estimatedDelivery },
-      },
-    });
+    }));
 
     if (request.requesterId) {
       await notify({ userId: request.requesterId, eventType: 'PROCUREMENT_INITIATED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
-    await auditLog(req as any, 'IT_PROCUREMENT', 'request', String(id), {
-      status: 'PROCUREMENT_IN_PROGRESS',
-      previousStatus: request.status,
-      orderNumber: orderNumber || null,
-      vendor: vendor || null,
-    }, { status: request.status });
     return res.json({ success: true, message: 'Request marked as procurement in progress' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markProcurement error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
 export async function markFulfilled(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+    const id = await resolveRequestId(idOrRef);
+    if (!id) {
+      return res.status(404).json({ status: 'error', message: 'Request not found' });
+    }
     const { notes } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -149,54 +109,29 @@ export async function markFulfilled(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Only assigned person or admin can perform procurement actions
-    const userId = (req as any).user?.id;
-    const userRoles: string[] = (req as any).user?.roles || [];
-    const isAdmin = userRoles.includes('ADMIN');
-    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
-    }
+    // Transition: SOFTWARE_PROVISIONED → RESOLVED (guards check assignment)
+    await transitionRequest(id, 'RESOLVED', transitionOpts(req, {
+      comment: notes || 'Request closed and resolved',
+      source: 'it-workflow/fulfilled',
+    }));
 
-    if (request.status !== 'SOFTWARE_PROVISIONED') {
-      return res.status(400).json({ error: 'Request must be in SOFTWARE_PROVISIONED status to close' });
-    }
-
-    await prisma.request.update({
-      where: { id },
-      data: {
-        status: 'RESOLVED',
-        resolvedAt: new Date(),
-      },
-    });
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: notes ? `Request closed and resolved: ${notes}` : 'Request has been closed and resolved',
-        authorName: 'System',
-        isSystemGenerated: true,
-      },
-    });
-
-    if (request.requesterId) {
-      await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
-    }
-
-    await auditLog(req as any, 'IT_FULFILLED', 'request', String(id), {
-      status: 'RESOLVED',
-      previousStatus: 'SOFTWARE_PROVISIONED',
-    }, { status: 'SOFTWARE_PROVISIONED' });
     return res.json({ success: true, message: 'Request closed and resolved' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markFulfilled error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
 export async function markHardwareOrdered(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+    const id = await resolveRequestId(idOrRef);
+    if (!id) {
+      return res.status(404).json({ status: 'error', message: 'Request not found' });
+    }
     const { orderNumber, vendor, trackingNumber } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -207,31 +142,16 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Only assigned person or admin can perform procurement actions
-    const userId = (req as any).user?.id;
-    const userRoles: string[] = (req as any).user?.roles || [];
-    const isAdmin = userRoles.includes('ADMIN');
-    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
-    }
-
-    if (request.serviceDesk!.code !== 'IT') {
-      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
-    }
-
-    if (request.status !== 'PROCUREMENT_IN_PROGRESS') {
-      return res.status(400).json({ error: 'Request must be in PROCUREMENT_IN_PROGRESS status' });
-    }
+    // Transition: PROCUREMENT_IN_PROGRESS → HARDWARE_ORDERED (guards check assignment + IT desk)
+    await transitionRequest(id, 'HARDWARE_ORDERED', transitionOpts(req, {
+      comment: `Hardware ordered. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}${trackingNumber ? `, Tracking: ${trackingNumber}` : ''}`,
+      source: 'it-workflow/hardware-ordered',
+    }));
 
     const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
     if (!hardwareReq) {
       return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
-
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'HARDWARE_ORDERED' },
-    });
 
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
@@ -243,38 +163,28 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       },
     });
 
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Hardware ordered. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}${trackingNumber ? `, Tracking: ${trackingNumber}` : ''}`,
-        authorName: 'System',
-        isSystemGenerated: true,
-        metadata: { orderNumber, vendor, trackingNumber },
-      },
-    });
-
     if (request.requesterId) {
       await notify({ userId: request.requesterId, eventType: 'HARDWARE_ORDERED', variables: { requestId: String(id), orderNumber: orderNumber || '' }, relatedRequestId: String(id) });
     }
 
-    await auditLog(req as any, 'IT_HARDWARE_ORDERED', 'request', String(id), {
-      status: 'HARDWARE_ORDERED',
-      previousStatus: 'PROCUREMENT_IN_PROGRESS',
-      orderNumber: orderNumber || null,
-      vendor: vendor || null,
-    }, { status: 'PROCUREMENT_IN_PROGRESS' });
     return res.json({ success: true, message: 'Hardware marked as ordered' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markHardwareOrdered error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
-    const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = false } = req.body;
+    const idOrRef = String(req.params.id);
+    const id = await resolveRequestId(idOrRef);
+    if (!id) {
+      return res.status(404).json({ status: 'error', message: 'Request not found' });
+    }
+    const { notes, assetTag, serialNumber, registerAsAsset = false } = req.body;
 
     const request = await prisma.request.findUnique({
       where: { id },
@@ -284,21 +194,11 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Only assigned person or admin can perform procurement actions
-    const userId = (req as any).user?.id;
-    const userRoles: string[] = (req as any).user?.roles || [];
-    const isAdmin = userRoles.includes('ADMIN');
-    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
-    }
-
-    if (request.serviceDesk!.code !== 'IT') {
-      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
-    }
-
-    if (request.status !== 'HARDWARE_ORDERED') {
-      return res.status(400).json({ error: 'Request must be in HARDWARE_ORDERED status' });
-    }
+    // Transition: HARDWARE_ORDERED → HARDWARE_RECEIVED (guards check assignment + IT desk)
+    await transitionRequest(id, 'HARDWARE_RECEIVED', transitionOpts(req, {
+      comment: [notes, assetTag ? `Asset tag: ${assetTag}` : null].filter(Boolean).join('. '),
+      source: 'it-workflow/hardware-received',
+    }));
 
     const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
     if (!hardwareReq) {
@@ -337,11 +237,6 @@ export async function markHardwareReceived(req: Request, res: Response) {
       }
     }
 
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'HARDWARE_RECEIVED' },
-    });
-
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
       data: {
@@ -352,42 +247,27 @@ export async function markHardwareReceived(req: Request, res: Response) {
       },
     });
 
-    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null, serialNumber ? `Serial: ${serialNumber}` : null, assetId ? 'Registered in asset registry' : null].filter(Boolean).join('. ');
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Hardware received${noteMsg ? ': ' + noteMsg : ''}`,
-        authorName: 'System',
-        isSystemGenerated: true,
-        metadata: { receivedDate, notes, assetTag, serialNumber, assetId },
-      },
-    });
-
-    if (request.requesterId) {
-      await notify({ userId: request.requesterId, eventType: 'HARDWARE_RECEIVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
-    }
     if (request.assignedToId && request.assignedToId !== request.requesterId) {
       await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: String(id), action: 'hardware_provision' }, relatedRequestId: String(id) });
     }
 
-    await auditLog(req as any, 'IT_HARDWARE_RECEIVED', 'request', String(id), {
-      status: 'HARDWARE_RECEIVED',
-      previousStatus: 'HARDWARE_ORDERED',
-      assetTag: assetTag || null, serialNumber: serialNumber || null, assetId,
-    }, { status: 'HARDWARE_ORDERED' });
-
     return res.json({ success: true, message: 'Hardware marked as received', assetId });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markHardwareReceived error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
 export async function markSoftwareProvisioned(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+    const id = await resolveRequestId(idOrRef);
+    if (!id) {
+      return res.status(404).json({ status: 'error', message: 'Request not found' });
+    }
     const { provisioningNotes, softwareInstalled } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -398,66 +278,32 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // Only assigned person or admin can perform procurement actions
-    const userId = (req as any).user?.id;
-    const userRoles: string[] = (req as any).user?.roles || [];
-    const isAdmin = userRoles.includes('ADMIN');
-    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
-      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
-    }
-
-    if (request.serviceDesk!.code !== 'IT') {
-      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
-    }
-
-    if (request.status !== 'HARDWARE_RECEIVED') {
-      return res.status(400).json({ error: 'Request must be in HARDWARE_RECEIVED status' });
-    }
+    // Transition: HARDWARE_RECEIVED → SOFTWARE_PROVISIONED (guards check assignment + IT desk)
+    await transitionRequest(id, 'SOFTWARE_PROVISIONED', transitionOpts(req, {
+      comment: ['Software provisioned', softwareInstalled ? `Software installed: ${softwareInstalled}` : null, provisioningNotes].filter(Boolean).join('. '),
+      source: 'it-workflow/software-provisioned',
+    }));
 
     const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
     if (!hardwareReq) {
       return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'SOFTWARE_PROVISIONED' },
-    });
-
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
       data: { procurementStatus: 'PROVISIONED' },
-    });
-
-    const msg = [
-      'Software provisioned',
-      softwareInstalled ? `Software installed: ${softwareInstalled}` : null,
-      provisioningNotes,
-    ].filter(Boolean).join('. ');
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: msg,
-        authorName: 'System',
-        isSystemGenerated: true,
-        metadata: { provisioningNotes, softwareInstalled },
-      },
     });
 
     if (request.requesterId) {
       await notify({ userId: request.requesterId, eventType: 'HARDWARE_DELIVERED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
-    await auditLog(req as any, 'IT_SOFTWARE_PROVISIONED', 'request', String(id), {
-      status: 'SOFTWARE_PROVISIONED',
-      previousStatus: 'HARDWARE_RECEIVED',
-      softwareInstalled: softwareInstalled || null,
-    }, { status: 'HARDWARE_RECEIVED' });
     return res.json({ success: true, message: 'Software provisioned' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markSoftwareProvisioned error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -465,64 +311,98 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
 export const acknowledgeRequest = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { ceoId, notes } = req.body;
+    const { notes, ceoId } = req.body as { notes?: string; ceoId?: string };
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!ceoId || !uuidRegex.test(ceoId)) {
-      return res.status(400).json({ error: 'Invalid ceoId: must be a valid UUID' });
-    }
 
     const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (!request.serviceDesk || request.serviceDesk.code !== 'IT') return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     if (request.status !== 'SUBMITTED') return res.status(400).json({ error: 'Request must be in SUBMITTED status' });
 
-    const ceoUser = await prisma.user.findUnique({
-      where: { id: ceoId },
-      include: { roles: { include: { role: true } } },
-    });
-    if (!ceoUser) return res.status(404).json({ error: 'CEO user not found' });
-    const hasCeoRole = (ceoUser as any).roles.some((r: any) => r.role?.name === 'CEO');
-    if (!hasCeoRole) return res.status(400).json({ error: 'Selected user does not have CEO role' });
+    // Resolve the CEO: prefer agent's manual pick, fall back to auto-route.
+    let ceoUser: { id: string; firstName: string; lastName: string } | null = null;
+    let approverSource: 'manual' | 'auto' = 'auto';
 
-    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT' } });
+    const ceoWhere = {
+      isActive: true,
+      OR: [
+        { executiveRole: 'CEO' as const },
+        { roles: { some: { role: { name: 'CEO' } } } },
+      ],
+    };
+
+    if (ceoId) {
+      ceoUser = await prisma.user.findFirst({
+        where: { id: ceoId, ...ceoWhere },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (!ceoUser) {
+        return res.status(400).json({ error: `No active CEO user found with id "${ceoId}". Pick a valid CEO or omit the field to auto-route.` });
+      }
+      approverSource = 'manual';
+    } else {
+      ceoUser = await prisma.user.findFirst({
+        where: ceoWhere,
+        select: { id: true, firstName: true, lastName: true },
+      });
+    }
+
+    if (!ceoUser) {
+      return res.status(400).json({ error: 'No active CEO user found in the system. Please create a CEO user first.' });
+    }
+
+    // Transition: SUBMITTED → ACKNOWLEDGED_IT → PENDING_CEO_APPROVAL_IT
+    // Two-step transition required because the workflow map doesn't have a direct
+    // SUBMITTED → PENDING_CEO_APPROVAL_IT edge. We skip auto-assignment because
+    // we set assignedToId explicitly to the CEO below.
+    await transitionRequest(id, 'ACKNOWLEDGED_IT', {
+      ...transitionOpts(req, {
+        comment: 'Request acknowledged by IT agent',
+        source: 'it-workflow/acknowledge',
+      }),
+      skipAutoAssignment: true,
+    });
+
+    await transitionRequest(id, 'PENDING_CEO_APPROVAL_IT', {
+      ...transitionOpts(req, {
+        comment: notes || undefined,
+        source: 'it-workflow/acknowledge',
+        requestPatch: { assignedToId: ceoUser.id },
+      }),
+      skipAutoAssignment: true,
+    });
+
+    // Pause SLA during approval
+    const { pauseSla } = await import('../services/sla-pause.service');
     await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
         requestId: id,
         approverType: 'CEO',
-        approverId: ceoId,
+        approverId: ceoUser.id,
         status: 'PENDING',
         comments: notes || null,
       },
     });
 
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Request acknowledged. Routed to CEO for approval${notes ? ': ' + notes : ''}`,
-        authorName: currentUser.firstName || 'Agent',
-        authorRole: 'AGENT',
-        isSystemGenerated: true,
-      },
-    });
-
-    await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
+    await notify({ userId: ceoUser.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
 
     await auditLog(req as any, 'IT_ACKNOWLEDGE_ROUTE_CEO', 'request', String(id), {
       status: 'PENDING_CEO_APPROVAL_IT',
       previousStatus: request.status,
-      ceoId,
+      ceoId: ceoUser.id,
+      approverSource,
       notes: notes || null,
     }, { status: request.status });
-    return res.json({ success: true, message: 'Request acknowledged and routed to CEO' });
-  } catch (error) {
+    return res.json({ success: true, message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName})${approverSource === 'manual' ? ' [manual selection]' : ''}` });
+  } catch (error: any) {
     console.error('acknowledgeRequest error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -530,35 +410,72 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 export const ceoDecision = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { decision, comments, ctoId } = req.body;
+    const { decision, comments, ctoId } = req.body as { decision: string; comments?: string; ctoId?: string };
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
     if (!['APPROVED', 'REJECTED'].includes(decision)) return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
-    if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
+
+    // Track CTO approver source for audit log (declared in function scope so the
+    // audit log after the if/else block can reference it)
+    let ctoApproverSource: 'manual' | 'auto' = 'auto';
 
     if (decision === 'APPROVED') {
-      // Validate ctoId — must be a UUID belonging to a CTO-role user
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!ctoId || !uuidRegex.test(ctoId)) {
-        return res.status(400).json({ error: 'Invalid ctoId: must be a valid UUID' });
+      // Resolve the CTO: prefer CEO's manual pick, fall back to auto-route.
+      let ctoUser: { id: string; firstName: string; lastName: string } | null = null;
+
+      const ctoWhere = {
+        isActive: true,
+        OR: [
+          { executiveRole: 'CTO' as const },
+          { roles: { some: { role: { name: 'CTO' } } } },
+        ],
+      };
+
+      if (ctoId) {
+        ctoUser = await prisma.user.findFirst({
+          where: { id: ctoId, ...ctoWhere },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        if (!ctoUser) {
+          return res.status(400).json({ error: `No active CTO user found with id "${ctoId}". Pick a valid CTO or omit the field to auto-route.` });
+        }
+        ctoApproverSource = 'manual';
+      } else {
+        ctoUser = await prisma.user.findFirst({
+          where: ctoWhere,
+          select: { id: true, firstName: true, lastName: true },
+        });
       }
-      const ctoUser = await prisma.user.findUnique({
-        where: { id: ctoId },
-        include: { roles: { include: { role: true } } },
-      });
-      if (!ctoUser || !ctoUser.roles.some((r: any) => r.role?.name === 'CTO')) {
-        return res.status(400).json({ error: 'Specified ctoId does not belong to a CTO user' });
+      if (!ctoUser) {
+        return res.status(400).json({ error: 'No active CTO user found in the system. Please create a CTO user first.' });
       }
 
-      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
-      await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
-      await pauseSla(id);
+      // Step 1: PENDING_CEO_APPROVAL_IT → CEO_APPROVED_IT (guard checks CEO role)
+      await transitionRequest(id, 'CEO_APPROVED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || undefined,
+          source: 'it-workflow/ceo-approve',
+        }),
+        skipAutoAssignment: true,
+      });
+
+      // Step 2: CEO_APPROVED_IT → PENDING_CTO_APPROVAL_IT (with SLA pause, assign to CTO)
+      await transitionRequest(id, 'PENDING_CTO_APPROVAL_IT', {
+        ...transitionOpts(req, {
+          source: 'it-workflow/ceo-approve',
+          requestPatch: { assignedToId: ctoUser.id },
+        }),
+        skipAutoAssignment: true,
+      });
+
+      const { pauseSla, resumeSla } = await import('../services/sla-pause.service');
+      await resumeSla(id); // resume from CEO approval pause
+      await pauseSla(id);  // pause for CTO approval
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CEO', status: 'PENDING' },
@@ -566,45 +483,35 @@ export const ceoDecision = async (req: Request, res: Response) => {
       });
 
       await prisma.requestApproval.create({
-        data: { requestId: id, approverType: 'CTO', approverId: ctoId, status: 'PENDING', comments: null },
+        data: { requestId: id, approverType: 'CTO', approverId: ctoUser.id, status: 'PENDING', comments: null },
       });
 
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'APPROVAL',
-          message: `CEO approved the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CEO',
-          authorRole: 'CEO',
-          isSystemGenerated: false,
-        },
-      });
-
-      await notify({ userId: ctoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
+      await notify({ userId: ctoUser.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
-      await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
+      // CEO Rejection: two-step — PENDING_CEO_APPROVAL_IT → CEO_REJECTED_IT → REJECTED
+      await transitionRequest(id, 'CEO_REJECTED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || 'CEO rejected the request',
+          source: 'it-workflow/ceo-reject',
+        }),
+      });
+
+      await transitionRequest(id, 'REJECTED', {
+        ...transitionOpts(req, {
+          comment: comments || undefined,
+          source: 'it-workflow/ceo-reject',
+        }),
+      });
+
+      const { resumeSla } = await import('../services/sla-pause.service');
       await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
+
+      await reassignToTeam(id, request.referenceNumber, 'IT', 'IT-Workflow');
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CEO', status: 'PENDING' },
         data: { status: 'REJECTED', comments: comments || null },
       });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'REJECTION',
-          message: `CEO rejected the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CEO',
-          authorRole: 'CEO',
-          isSystemGenerated: false,
-        },
-      });
-
-      if (request.requesterId) {
-        await notify({ userId: request.requesterId, eventType: 'REQUEST_REJECTED', variables: { requestId: id, rejectedBy: 'CEO', comments: comments || '' }, relatedRequestId: id });
-      }
     }
 
     await auditLog(req as any, 'IT_CEO_DECISION', 'request', String(id), {
@@ -612,10 +519,14 @@ export const ceoDecision = async (req: Request, res: Response) => {
       approverType: 'CEO',
       previousStatus: 'PENDING_CEO_APPROVAL_IT',
       comments: comments || null,
+      ...(decision === 'APPROVED' ? { approverSource: ctoApproverSource } : {}),
     }, { status: 'PENDING_CEO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CEO` });
-  } catch (error) {
+  } catch (error: any) {
     console.error('ceoDecision error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -632,57 +543,58 @@ export const ctoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CTO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CTO approval' });
-    if (!hasRole(req, 'CTO')) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
-      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
+      // Step 1: PENDING_CTO_APPROVAL_IT → CTO_APPROVED_IT (guard checks CTO role)
+      await transitionRequest(id, 'CTO_APPROVED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || undefined,
+          source: 'it-workflow/cto-approve',
+        }),
+      });
+
+      // Step 2: CTO_APPROVED_IT → PENDING_INVOICE_IT (with SLA resume + pause)
+      await transitionRequest(id, 'PENDING_INVOICE_IT', {
+        ...transitionOpts(req, {
+          source: 'it-workflow/cto-approve',
+        }),
+      });
+
+      const { pauseSla, resumeSla } = await import('../services/sla-pause.service');
       await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
       await pauseSla(id);
+
+      await reassignToTeam(id, request.referenceNumber, 'IT');
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
         data: { status: 'APPROVED', comments: comments || null, approverId: currentUser.id },
       });
 
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'APPROVAL',
-          message: `CTO approved the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CTO',
-          authorRole: 'CTO',
-          isSystemGenerated: false,
-        },
-      });
-
-      // Notify the currently assigned agent (reassignToTeam below will reassign & send REQUEST_ASSIGNED)
-      if (request.assignedToId) {
-        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
-      }
-      // Notify requester that CTO approved
       if (request.requesterId) {
         await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PENDING_INVOICE_IT', changedBy: 'CTO' }, relatedRequestId: id });
       }
     } else {
-      await prisma.request.update({ where: { id }, data: { status: 'CTO_REJECTED_IT' } });
+      // CTO Rejection: two-step — PENDING_CTO_APPROVAL_IT → CTO_REJECTED_IT → REJECTED
+      await transitionRequest(id, 'CTO_REJECTED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || 'CTO rejected the request',
+          source: 'it-workflow/cto-reject',
+        }),
+      });
+
+      await transitionRequest(id, 'REJECTED', {
+        ...transitionOpts(req, {
+          source: 'it-workflow/cto-reject',
+        }),
+      });
+
+      const { resumeSla } = await import('../services/sla-pause.service');
       await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
         data: { status: 'REJECTED', comments: comments || null, approverId: currentUser.id },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'REJECTION',
-          message: `CTO rejected the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CTO',
-          authorRole: 'CTO',
-          isSystemGenerated: false,
-        },
       });
 
       if (request.requesterId) {
@@ -697,8 +609,11 @@ export const ctoDecision = async (req: Request, res: Response) => {
       comments: comments || null,
     }, { status: 'PENDING_CTO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CTO` });
-  } catch (error) {
+  } catch (error: any) {
     console.error('ctoDecision error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -708,12 +623,12 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const { cfoId, notes } = req.body;
     const currentUser = (req as any).user;
-    const file = (req as any).file as Express.Multer.File | undefined;
+    const files = (req as any).files as Express.Multer.File[] | undefined;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!file) {
-      return res.status(400).json({ error: 'Invoice file is required' });
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'At least one invoice file is required' });
     }
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -737,7 +652,15 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Selected user does not have CFO role' });
     }
 
-    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CFO_APPROVAL_IT' } });
+    // Transition: PENDING_INVOICE_IT → PENDING_CFO_APPROVAL_IT
+    await transitionRequest(id, 'PENDING_CFO_APPROVAL_IT', {
+      ...transitionOpts(req, {
+        comment: notes || undefined,
+        source: 'it-workflow/route-cfo',
+      }),
+    });
+
+    const { pauseSla, resumeSla } = await import('../services/sla-pause.service');
     await resumeSla(id);
     await pauseSla(id);
 
@@ -751,29 +674,36 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       },
     });
 
-    await prisma.requestAttachment.create({
-      data: {
-        requestId: id,
-        uploadedById: currentUser.id,
-        fileName: file.originalname,
-        fileSize: BigInt(file.size),
-        mimeType: file.mimetype,
-        fileType: path.extname(file.originalname).replace('.', ''),
-        storagePath: (file as any).key,
-        storageUrl: (file as any).key,
-      },
-    });
-
-    await prisma.requestActivity.create({
+    // Create a system activity and link invoice attachments
+    const fileCount = files.length;
+    const invoiceLabel = fileCount === 1 ? 'Invoice uploaded' : `${fileCount} invoices uploaded`;
+    const activity = await prisma.requestActivity.create({
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Invoice uploaded and routed to CFO for approval${notes ? ': ' + notes : ''}`,
+        message: `${invoiceLabel} and routed to CFO for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
+        authorId: currentUser.id,
       },
     });
+
+    for (const file of files) {
+      await registerUpload({
+        principal: principalFromAuth(currentUser),
+        requestId: id,
+        uploadedById: currentUser.id,
+        activityId: activity.id,
+        file: {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          buffer: file.buffer,
+          key: (file as any).key,
+        },
+      });
+    }
 
     await notify({
       userId: cfoId,
@@ -787,9 +717,12 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       previousStatus: request.status,
       cfoId,
     }, { status: request.status });
-    return res.json({ success: true, message: 'Invoice uploaded and request routed to CFO for approval' });
-  } catch (error) {
+    return res.json({ success: true, message: `${invoiceLabel} and request routed to CFO for approval` });
+  } catch (error: any) {
     console.error('routeToCfoApproval error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -806,59 +739,60 @@ export const cfoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CFO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CFO approval' });
-    if (!hasRole(req, 'CFO')) return res.status(403).json({ error: 'Only the CFO can make this decision' });
 
     if (decision === 'APPROVED') {
-      await prisma.request.update({ where: { id }, data: { status: 'CFO_APPROVED_IT' } });
+      // Step 1: PENDING_CFO_APPROVAL_IT → CFO_APPROVED_IT (guard checks CFO role)
+      await transitionRequest(id, 'CFO_APPROVED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || undefined,
+          source: 'it-workflow/cfo-approve',
+        }),
+      });
+
+      // Step 2: CFO_APPROVED_IT → PAYMENT_PROCESSING_IT
+      await transitionRequest(id, 'PAYMENT_PROCESSING_IT', {
+        ...transitionOpts(req, {
+          source: 'it-workflow/cfo-approve',
+        }),
+      });
+
+      const { resumeSla } = await import('../services/sla-pause.service');
       await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_PROCESSING_IT' } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
         data: { status: 'APPROVED', comments: comments || null, approverId: currentUser.id },
       });
 
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'APPROVAL',
-          message: `CFO approved the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CFO',
-          authorRole: 'CFO',
-          isSystemGenerated: false,
-        },
-      });
-
-      // Notify the currently assigned agent (reassignToTeam below will reassign to FINANCE & send REQUEST_ASSIGNED)
       if (request.assignedToId) {
         await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
       }
-      // Notify requester that CFO approved
       if (request.requesterId) {
         await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PAYMENT_PROCESSING_IT', changedBy: 'CFO' }, relatedRequestId: id });
       }
 
-      // Reassign to Finance agent for payment processing
       await reassignToTeam(id, request.referenceNumber, 'FINANCE');
     } else {
-      await prisma.request.update({ where: { id }, data: { status: 'CFO_REJECTED_IT' } });
+      // CFO Rejection: two-step — PENDING_CFO_APPROVAL_IT → CFO_REJECTED_IT → REJECTED
+      await transitionRequest(id, 'CFO_REJECTED_IT', {
+        ...transitionOpts(req, {
+          comment: comments || 'CFO rejected the request',
+          source: 'it-workflow/cfo-reject',
+        }),
+      });
+
+      await transitionRequest(id, 'REJECTED', {
+        ...transitionOpts(req, {
+          source: 'it-workflow/cfo-reject',
+        }),
+      });
+
+      const { resumeSla } = await import('../services/sla-pause.service');
       await resumeSla(id);
-      await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
         data: { status: 'REJECTED', comments: comments || null, approverId: currentUser.id },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'REJECTION',
-          message: `CFO rejected the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'CFO',
-          authorRole: 'CFO',
-          isSystemGenerated: false,
-        },
       });
 
       if (request.requesterId) {
@@ -873,8 +807,11 @@ export const cfoDecision = async (req: Request, res: Response) => {
       comments: comments || null,
     }, { status: 'PENDING_CFO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CFO` });
-  } catch (error) {
+  } catch (error: any) {
     console.error('cfoDecision error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -907,47 +844,36 @@ export const markPaymentDone = async (req: Request, res: Response) => {
     const workflowCode = request.requestType?.workflow?.code || '';
     const isHardwareProcurement = workflowCode === 'IT_HARDWARE_PROCUREMENT';
 
-    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
+    // Step 1: PAYMENT_PROCESSING_IT → PAYMENT_DONE_IT
+    await transitionRequest(id, 'PAYMENT_DONE_IT', {
+      ...transitionOpts(req, {
+        comment: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}`,
+        source: 'it-workflow/payment-done',
+      }),
+    });
 
-    // Hardware procurement: after payment, go to procurement phase (order → receive → provision → resolve)
-    // Software procurement: after payment, go straight to delivery → resolve
+    // Step 2: PAYMENT_DONE_IT → PROCUREMENT_IN_PROGRESS (hardware) or PENDING_DELIVERY_IT (software)
     const nextStatus = isHardwareProcurement ? 'PROCUREMENT_IN_PROGRESS' : 'PENDING_DELIVERY_IT';
-    const nextAction = isHardwareProcurement ? 'procurement' : 'delivery';
-
-    await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_DONE_IT' } });
-    await prisma.request.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-        customFields: {
-          ...existingCustomFields,
-          payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
+    const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
+    await transitionRequest(id, nextStatus, {
+      ...transitionOpts(req, {
+        source: 'it-workflow/payment-done',
+        requestPatch: {
+          customFields: {
+            ...existingCustomFields,
+            payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
+          },
         },
-      },
+      }),
     });
 
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}${isHardwareProcurement ? '. Proceeding to procurement phase.' : ''}`,
-        authorName: currentUser.firstName || 'Finance Agent',
-        authorRole: 'AGENT',
-        isSystemGenerated: true,
-        metadata: { paymentReference, amount, paymentDate, notes },
-      },
-    });
-
-    // Notify the currently assigned agent (reassignToTeam below will reassign to IT & send REQUEST_ASSIGNED)
     if (request.assignedToId) {
-      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
+      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${isHardwareProcurement ? 'procurement' : 'delivery'}` }, relatedRequestId: id });
     }
-    // Notify requester payment is done
     if (request.requesterId) {
       await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: nextStatus, changedBy: 'Finance' }, relatedRequestId: id });
     }
 
-    // Reassign back to IT agent for procurement/delivery phase
     await reassignToTeam(id, request.referenceNumber, 'IT');
 
     await auditLog(req as any, 'IT_PAYMENT_DONE', 'request', String(id), {
@@ -958,8 +884,11 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       paymentDate,
     }, { status: 'PAYMENT_PROCESSING_IT' });
     return res.json({ success: true, message: `Payment marked as done, request routed to ${isHardwareProcurement ? 'procurement phase' : 'pending delivery'}` });
-  } catch (error) {
+  } catch (error: any) {
     console.error('markPaymentDone error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -976,20 +905,12 @@ export const completeDelivery = async (req: Request, res: Response) => {
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_DELIVERY_IT') return res.status(400).json({ error: 'Request must be in PENDING_DELIVERY_IT status' });
 
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'RESOLVED', resolvedAt: new Date() },
-    });
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: notes ? `Hardware delivered and request resolved: ${notes}` : 'Hardware delivered. Request resolved.',
-        authorName: currentUser.firstName || 'IT Agent',
-        authorRole: 'AGENT',
-        isSystemGenerated: true,
-      },
+    // Transition: PENDING_DELIVERY_IT → RESOLVED
+    await transitionRequest(id, 'RESOLVED', {
+      ...transitionOpts(req, {
+        comment: notes || 'Hardware delivered. Request resolved.',
+        source: 'it-workflow/delivery-complete',
+      }),
     });
 
     if (request.requesterId) {
@@ -1001,8 +922,11 @@ export const completeDelivery = async (req: Request, res: Response) => {
       previousStatus: 'PENDING_DELIVERY_IT',
     }, { status: 'PENDING_DELIVERY_IT' });
     return res.json({ success: true, message: 'Delivery completed and request resolved' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('completeDelivery error:', error);
+    if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
+      return res.status(403).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

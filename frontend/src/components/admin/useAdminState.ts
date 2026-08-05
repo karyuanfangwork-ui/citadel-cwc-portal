@@ -105,6 +105,7 @@ export interface UseAdminStateReturn {
     editingService: any | null;
     selectedType: any;
     formBuilderOpen: boolean;
+    catalogDetailOpen: boolean; // P5-03
     editingTypeName: { id: string; name: string; description: string; workflowTypeId?: string } | null;
     editTypeForm: { name: string; description: string; workflowTypeId: string; slaHours: string };
     savingTypeName: boolean;
@@ -114,8 +115,12 @@ export interface UseAdminStateReturn {
     // Users
     users: any[];
     userPagination: UserPagination;
+    userStats: { total: number; active: number; disabled: number; agents: number };
     userSearch: string;
     userRoleFilter: string;
+    userStatusFilter: '' | 'active' | 'disabled';
+    confirmDisableUser: any | null;
+    setConfirmDisableUser: (user: any | null) => void;
     availableRoles: { id: string; name: string; description: string }[];
     usersLoading: boolean;
     roleModalUser: any;
@@ -173,6 +178,7 @@ export interface UseAdminStateReturn {
     handleReactivateService: (typeId: string) => void;
     openEditServiceModal: (type: any) => void;
     openFormBuilder: (type: any) => void;
+    openCatalogDetail: (type: any) => void; // P5-03
     handleSaveFormConfig: (fields: any[]) => Promise<void>;
     openEditTypeName: (type: any) => void;
     handleSaveTypeName: () => Promise<void>;
@@ -185,7 +191,9 @@ export interface UseAdminStateReturn {
     handleReactivateDesk: (deskId: string) => void;
 
     // User Handlers
-    fetchUsers: (page?: number, search?: string, roleFilter?: string) => Promise<void>;
+    fetchUsers: (page?: number, search?: string, roleFilter?: string, statusFilter?: '' | 'active' | 'disabled') => Promise<void>;
+    fetchUserStats: () => Promise<void>;
+    setUserStatusFilter: (v: '' | 'active' | 'disabled') => void;
     fetchRoles: () => Promise<void>;
     handleToggleUserStatus: (user: any) => Promise<void>;
     handleEditUser: (data: any) => Promise<void>;
@@ -241,6 +249,7 @@ export interface UseAdminStateReturn {
     setEditTypeForm: (form: { name: string; description: string; workflowTypeId: string; slaHours: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
     setFormBuilderOpen: (open: boolean) => void;
+    setCatalogDetailOpen: (open: boolean) => void; // P5-03
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,6 +313,7 @@ export function useAdminState(): UseAdminStateReturn {
     const [editingService, setEditingService] = useState<any | null>(null);
     const [selectedType, setSelectedType] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
+    const [catalogDetailOpen, setCatalogDetailOpen] = useState(false); // P5-03
     const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string; workflowTypeId?: string } | null>(null);
     const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '', workflowTypeId: '', slaHours: '' });
     const [savingTypeName, setSavingTypeName] = useState(false);
@@ -313,8 +323,11 @@ export function useAdminState(): UseAdminStateReturn {
     // ── Users State ────────────────────────────────────────────────────────
     const [users, setUsers] = useState<any[]>([]);
     const [userPagination, setUserPagination] = useState<UserPagination>({ page: 1, limit: 15, total: 0, totalPages: 1 });
+    const [userStats, setUserStats] = useState({ total: 0, active: 0, disabled: 0, agents: 0 });
     const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
+    const [userStatusFilter, setUserStatusFilter] = useState<'' | 'active' | 'disabled'>('');
+    const [confirmDisableUser, setConfirmDisableUser] = useState<any | null>(null);
     const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; description: string }[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [roleModalUser, setRoleModalUser] = useState<any | null>(null);
@@ -441,10 +454,11 @@ export function useAdminState(): UseAdminStateReturn {
         }
     }, []);
 
-    const fetchUsers = useCallback(async (page = 1, search = '', roleFilter = '') => {
+    const fetchUsers = useCallback(async (page = 1, search = '', roleFilter = '', statusFilter: '' | 'active' | 'disabled' = '') => {
         setUsersLoading(true);
         try {
-            const result = await adminService.listUsers({ page, limit: 15, search: search || undefined, role: roleFilter || undefined });
+            const isActive = statusFilter === 'active' ? true : statusFilter === 'disabled' ? false : undefined;
+            const result = await adminService.listUsers({ page, limit: 15, search: search || undefined, role: roleFilter || undefined, isActive });
             setUsers(result.users);
             setUserPagination(result.pagination);
             setUserSearch(search);
@@ -456,6 +470,25 @@ export function useAdminState(): UseAdminStateReturn {
             setUsersLoading(false);
         }
     }, [showToast]);
+
+    const fetchUserStats = useCallback(async () => {
+        try {
+            const [allRes, activeRes, disabledRes, agentRes] = await Promise.all([
+                adminService.listUsers({ page: 1, limit: 1 }),
+                adminService.listUsers({ page: 1, limit: 1, isActive: true }),
+                adminService.listUsers({ page: 1, limit: 1, isActive: false }),
+                adminService.listUsers({ page: 1, limit: 1, role: 'AGENT' }),
+            ]);
+            setUserStats({
+                total: allRes.pagination.total,
+                active: activeRes.pagination.total,
+                disabled: disabledRes.pagination.total,
+                agents: agentRes.pagination.total,
+            });
+        } catch {
+            // stats are non-critical, silently ignore
+        }
+    }, []);
 
     const fetchRoles = useCallback(async () => {
         try {
@@ -631,7 +664,6 @@ export function useAdminState(): UseAdminStateReturn {
             if (editingDesk) {
                 await serviceDeskService.updateServiceDesk(editingDesk.id, {
                     name: deskFormData.name,
-                    code: deskFormData.code,
                     description: deskFormData.description,
                     isActive: deskFormData.isActive,
                     autoAssignTeam: deskFormData.autoAssignTeam,
@@ -808,6 +840,11 @@ export function useAdminState(): UseAdminStateReturn {
         setFormBuilderOpen(true);
     }, []);
 
+    const openCatalogDetail = useCallback((type: any) => { // P5-03
+        setSelectedType(type);
+        setCatalogDetailOpen(true);
+    }, []);
+
     const handleSaveFormConfig = useCallback(async (fields: any[]) => {
         if (!selectedType) return;
         try {
@@ -861,12 +898,13 @@ export function useAdminState(): UseAdminStateReturn {
         try {
             await adminService.updateUser(user.id, { isActive: !user.isActive });
             fetchUsers(userPagination.page);
+            fetchUserStats();
             showToast('success', `Account ${!user.isActive ? 'enabled' : 'disabled'}.`);
         } catch (err) {
             console.error('Error toggling user status:', err);
             showToast('error', 'Failed to update account status.');
         }
-    }, [userPagination.page, fetchUsers, showToast]);
+    }, [userPagination.page, fetchUsers, fetchUserStats, showToast]);
 
     const handleEditUser = useCallback(async (data: any) => {
         if (!editingUser) return;
@@ -876,7 +914,11 @@ export function useAdminState(): UseAdminStateReturn {
     }, [editingUser, userPagination.page, fetchUsers, showToast]);
 
     const handleSaveRoles = useCallback(async () => {
-        if (!roleModalUser || roleModalSelected.length === 0) return;
+        if (!roleModalUser) return;
+        if (roleModalSelected.length === 0) {
+            showToast('error', 'A user must have at least one role.');
+            return;
+        }
         const isSelf = user?.id === roleModalUser.id;
         try {
             await adminService.assignUserRoles(roleModalUser.id, roleModalSelected);
@@ -1025,11 +1067,12 @@ export function useAdminState(): UseAdminStateReturn {
             fetchOffboardingTemplates();
         } else if (activeTab === 'users' || activeTab === 'entities') {
             fetchUsers(1, '', '');
+            fetchUserStats();
             fetchRoles();
         } else if (activeTab === 'workflow-config') {
             fetchWorkflowConfig();
         }
-    }, [activeTab, fetchTemplates, fetchOffboardingTemplates, fetchUsers, fetchRoles, fetchWorkflowConfig]);
+    }, [activeTab, fetchTemplates, fetchOffboardingTemplates, fetchUsers, fetchUserStats, fetchRoles, fetchWorkflowConfig]);
 
     // ───────────────────────────────────────────────────────────────────────
     // Return Interface
@@ -1066,6 +1109,7 @@ export function useAdminState(): UseAdminStateReturn {
         editingService,
         selectedType,
         formBuilderOpen,
+        catalogDetailOpen,
         editingTypeName,
         editTypeForm,
         savingTypeName,
@@ -1075,8 +1119,12 @@ export function useAdminState(): UseAdminStateReturn {
         // Users
         users,
         userPagination,
+        userStats,
         userSearch,
         userRoleFilter,
+        userStatusFilter,
+        confirmDisableUser,
+        setConfirmDisableUser,
         availableRoles,
         usersLoading,
         roleModalUser,
@@ -1134,6 +1182,7 @@ export function useAdminState(): UseAdminStateReturn {
         handleReactivateService,
         openEditServiceModal,
         openFormBuilder,
+        openCatalogDetail,
         handleSaveFormConfig,
         openEditTypeName,
         handleSaveTypeName,
@@ -1146,7 +1195,9 @@ export function useAdminState(): UseAdminStateReturn {
         handleReactivateDesk,
 
         fetchUsers,
+        fetchUserStats,
         fetchRoles,
+        setUserStatusFilter,
         handleToggleUserStatus,
         handleEditUser,
         handleSaveRoles,
@@ -1193,5 +1244,6 @@ export function useAdminState(): UseAdminStateReturn {
         setEditTypeForm,
         setEditingTypeName,
         setFormBuilderOpen,
+        setCatalogDetailOpen,
     };
 }

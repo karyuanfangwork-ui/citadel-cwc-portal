@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
     SEED_NOTIFICATION_TEMPLATES,
+    SEED_NOTIFICATION_TEMPLATE_FIXES,
     SEED_STATUS_DEFINITIONS,
     SEED_WORKFLOW_TRANSITIONS,
     SEED_BANNER_CONFIGS,
@@ -12,8 +12,11 @@ import {
     SEED_PRODUCTION_USERS,
 } from './seed-admin-config';
 import { seedWorkflows } from './seed-workflows';
+import { seedCreditRuleConfig } from './seeds/creditRuleConfig.seed';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // Safety flag: Set RETAIN_ADMIN_CONFIG=true to preserve all admin console settings
 // Only re-seeds account management (users, roles, permissions)
@@ -25,11 +28,48 @@ async function main() {
         console.log('⚠️  RETAIN_ADMIN_CONFIG enabled - preserving admin console settings');
     }
 
+    // Seed default tenant (must run OUTSIDE tenant context since the tenant
+    // row itself doesn't yet exist for the extension to validate against)
+    const defaultTenant = await prisma.tenant.upsert({
+        where: { slug: 'citadel' },
+        update: {},
+        create: {
+            id: DEFAULT_TENANT_ID,
+            name: 'Citadel Group',
+            slug: 'citadel',
+            plan: 'ENTERPRISE',
+            isActive: true,
+        },
+    });
+    console.log('✅ Default tenant created:', defaultTenant.id);
+
+    // Canonical departments are the source of department scope for desks,
+    // requests, attachments, policy decisions, and department memberships.
+    const departmentDefinitions = [
+        { code: 'IT', name: 'IT Support', description: 'Technical support and infrastructure' },
+        { code: 'HR', name: 'Group HR', description: 'Human resources services' },
+        { code: 'FINANCE', name: 'Group Finance', description: 'Finance services and expense management' },
+        { code: 'ESM', name: 'Executive Services', description: 'Executive service management' },
+    ] as const;
+    const departments = new Map<string, { id: string }>();
+    for (const definition of departmentDefinitions) {
+        const department = await prisma.department.upsert({
+            where: { tenantId_code: { tenantId: defaultTenant.id, code: definition.code } },
+            update: RETAIN_ADMIN_CONFIG ? {} : { name: definition.name, description: definition.description, isActive: true },
+            create: { tenantId: defaultTenant.id, ...definition, isActive: true },
+        });
+        departments.set(definition.code, department);
+    }
+
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'IT' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'IT' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'IT' } },
+        update: RETAIN_ADMIN_CONFIG
+            ? { departmentId: departments.get('IT')!.id }
+            : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', departmentId: departments.get('IT')!.id, autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
+            tenantId: defaultTenant.id,
+            departmentId: departments.get('IT')!.id,
             name: 'IT Support',
             code: 'IT',
             description: 'Technical support for hardware, software, and infrastructure',
@@ -40,10 +80,14 @@ async function main() {
     });
 
     const hrDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'HR' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'HR' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'HR' } },
+        update: RETAIN_ADMIN_CONFIG
+            ? { departmentId: departments.get('HR')!.id }
+            : { name: 'Group HR', description: 'Human resources support for employees', departmentId: departments.get('HR')!.id, autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
-            name: 'HR Services',
+            tenantId: defaultTenant.id,
+            departmentId: departments.get('HR')!.id,
+            name: 'Group HR',
             code: 'HR',
             description: 'Human resources support for employees',
             isActive: true,
@@ -53,9 +97,13 @@ async function main() {
     });
 
     const financeDesk = await prisma.serviceDesk.upsert({
-        where: { code: 'FINANCE' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'FINANCE' },
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'FINANCE' } },
+        update: RETAIN_ADMIN_CONFIG
+            ? { departmentId: departments.get('FINANCE')!.id }
+            : { name: 'Group Finance', description: 'Financial services and expense management', departmentId: departments.get('FINANCE')!.id, autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
+            tenantId: defaultTenant.id,
+            departmentId: departments.get('FINANCE')!.id,
             name: 'Group Finance',
             code: 'FINANCE',
             description: 'Financial services and expense management',
@@ -141,11 +189,11 @@ async function main() {
     });
 
     await prisma.role.upsert({
-        where: { name: 'GROUP_CEO' },
+        where: { name: 'GROUP_DCEO' },
         update: {},
         create: {
-            name: 'GROUP_CEO',
-            description: 'Group Chief Executive Officer with highest approval authority',
+            name: 'GROUP_DCEO',
+            description: 'Group Deputy Chief Executive Officer with highest approval authority',
         },
     });
 
@@ -173,6 +221,28 @@ async function main() {
         create: { name: 'SALES_REP', description: 'CRM Sales Representative — can manage own accounts, leads, and deals' }
     });
 
+    // Credit module roles
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_RM' },
+        update: {},
+        create: { name: 'CREDIT_RM', description: 'Credit Relationship Manager — manages borrower relationships and applications' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_ANALYST' },
+        update: {},
+        create: { name: 'CREDIT_ANALYST', description: 'Credit Analyst — performs financial spreading, scoring, and analysis' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_MANAGER' },
+        update: {},
+        create: { name: 'CREDIT_MANAGER', description: 'Credit Manager — approves applications within authority, manages team' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_ADMIN' },
+        update: {},
+        create: { name: 'CREDIT_ADMIN', description: 'Credit Administrator — full credit module configuration and management' }
+    });
+
     console.log('✅ Roles created');
 
     console.log('📋 Creating permission list...');
@@ -184,6 +254,7 @@ async function main() {
         { name: 'request:approve', resource: 'request', action: 'approve', description: 'Approve requests' },
         { name: 'request:assign', resource: 'request', action: 'assign', description: 'Assign requests to agents' },
         { name: 'request:confidential', resource: 'request', action: 'confidential', description: 'View confidential requests' },
+        { name: 'request:export', resource: 'request', action: 'export', description: 'Export requests as PDF or Excel' },
         { name: 'user:manage', resource: 'user', action: 'manage', description: 'Manage users' },
         { name: 'admin:access', resource: 'admin', action: 'access', description: 'Access admin panel' },
         { name: 'admin:settings', resource: 'admin', action: 'settings', description: 'Modify system settings' },
@@ -201,6 +272,22 @@ async function main() {
         { name: 'crm:write', resource: 'crm', action: 'write', description: 'Create and edit CRM records' },
         { name: 'crm:delete', resource: 'crm', action: 'delete', description: 'Delete CRM records' },
         { name: 'crm:admin', resource: 'crm', action: 'admin', description: 'Manage CRM pipelines and system settings' },
+        { name: 'crm:read:team', resource: 'crm', action: 'read:team', description: 'View CRM records owned by self, direct/indirect reports, and territory peers' },
+        // Announcement permissions
+        { name: 'announcement:read', resource: 'announcement', action: 'read', description: 'View announcements' },
+        { name: 'announcement:write', resource: 'announcement', action: 'write', description: 'Create and edit announcements' },
+        { name: 'announcement:admin', resource: 'announcement', action: 'admin', description: 'Delete and manage announcements' },
+        // Credit module permissions (8 core — 9 deprecated removed)
+        { name: 'credit:read', resource: 'credit', action: 'read', description: 'View credit module data' },
+        { name: 'credit:write', resource: 'credit', action: 'write', description: 'Create and edit credit data' },
+        { name: 'credit:approve', resource: 'credit', action: 'approve', description: 'Approve or reject credit applications' },
+        { name: 'credit:create', resource: 'credit', action: 'create', description: 'Create new credit applications — restricted to RM and ADMIN (maker role only)' },
+        { name: 'credit:admin', resource: 'credit', action: 'admin', description: 'Configure credit module settings' },
+        { name: 'credit:disburse', resource: 'credit', action: 'disburse', description: 'Disburse approved credit facilities (SOD: separated from admin)' },
+        { name: 'credit:compliance', resource: 'credit', action: 'compliance', description: 'Access credit compliance and AML functions' },
+        { name: 'credit:str_view', resource: 'credit', action: 'str_view', description: 'View STR records (compliance only — tipping-off risk)' },
+        { name: 'credit:str_manage', resource: 'credit', action: 'str_manage', description: 'Create, update, file STR records (compliance officer)' },
+        { name: 'credit:export', resource: 'credit', action: 'export', description: 'Export credit data with reason capture' },
     ];
 
     for (const perm of permissions) {
@@ -236,23 +323,27 @@ async function main() {
     // ADMIN gets everything
     const adminPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign', 'request:confidential',
+        'request:assign', 'request:confidential', 'request:export',
         'user:manage',
         'admin:access', 'admin:settings',
         'report:read',
-        'kb:manage',
         'notification:manage',
         'workflow:manage',
         'banner:manage',
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
-        'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
+        'crm:read', 'crm:write', 'crm:delete', 'crm:admin', 'crm:read:team',
+        'announcement:read', 'announcement:write', 'announcement:admin',
+        'credit:read', 'credit:write', 'credit:approve', 'credit:create',
+        'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:export',
+        'credit:str_view', 'credit:str_manage',
     ];
 
-    // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
+    // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
     // Note: asset permissions are NOT on AGENT — they are on IT_AGENT only
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign',
+        'request:approve', 'request:assign', 'request:confidential', 'request:export',
+        'announcement:read',
     ];
 
     // IT_AGENT gets asset management permissions (in addition to AGENT's request perms)
@@ -263,12 +354,15 @@ async function main() {
     // NORMAL_STAFF and USER can create and read their own requests
     const staffPerms = [
         'request:create', 'request:read',
+        'announcement:read',
     ];
 
     // Executive approvers get request:read + request:approve
+    // CTO also has admin:access (admin console viewer)
     const executivePerms = [
-        'request:read', 'request:approve',
+        'request:read', 'request:approve', 'announcement:read',
     ];
+    const ctoPerms = [...executivePerms, 'admin:access'];
 
     // HIRING_MANAGER gets request:create, request:read + approve
     const hiringManagerPerms = [
@@ -281,14 +375,18 @@ async function main() {
         IT_AGENT: itAgentPerms,
         NORMAL_STAFF: staffPerms,
         CEO: executivePerms,
-        CTO: executivePerms,
+        CTO: ctoPerms,
         CFO: executivePerms,
         CMO: executivePerms,
-        GROUP_CEO: executivePerms,
+        GROUP_DCEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
-        SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
+        SALES_MANAGER: ['crm:read', 'crm:read:team', 'crm:write', 'crm:delete'],
         SALES_REP: ['crm:read', 'crm:write'],
+        CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:export', 'credit:disburse'],
+        CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:export'],
+        CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:export'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:compliance', 'credit:export', 'credit:str_view', 'credit:str_manage'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
@@ -322,25 +420,210 @@ async function main() {
 
     console.log('✅ Role permissions assigned');
 
-    // Cleanup: Remove stale asset permissions from AGENT role
-    // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
-    const staleAgentAssetPerms = ['asset:read', 'asset:write'];
-    let cleanedUp = 0;
-    for (const permName of staleAgentAssetPerms) {
-        const permId = permMap.get(permName);
-        const agentRoleId = roleMap.get('AGENT');
-        if (permId && agentRoleId) {
-            const deleted = await prisma.rolePermission.deleteMany({
-                where: { roleId: agentRoleId, permissionId: permId },
+    // ── One-time migration cleanups ────────────────────────────────
+    // These delete stale permission assignments, migrate deprecated roles,
+    // and prune obsolete rows. They are idempotent (safe to re-run) but
+    // should NOT run on production when RETAIN_ADMIN_CONFIG is enabled,
+    // because admins may have intentionally overridden role/permission
+    // assignments via the admin console.
+    if (!RETAIN_ADMIN_CONFIG) {
+        // Phase 1 remediation: SALES_MANAGER no longer holds crm:admin (replaced by crm:read:team)
+        const smRoleId = roleMap.get('SALES_MANAGER');
+        const adminPermId = permMap.get('crm:admin');
+        if (smRoleId && adminPermId) {
+            await prisma.rolePermission.deleteMany({
+                where: { roleId: smRoleId, permissionId: adminPermId },
             });
-            if (deleted.count > 0) {
-                console.log(`  🧹 Removed stale ${permName} from AGENT role`);
-                cleanedUp += deleted.count;
+            console.log('  ✅ SALES_MANAGER: removed legacy crm:admin (now uses crm:read:team)');
+        }
+
+        // Cleanup: Remove stale asset permissions from AGENT role
+        // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
+        const staleAgentAssetPerms = ['asset:read', 'asset:write'];
+        let cleanedUp = 0;
+        for (const permName of staleAgentAssetPerms) {
+            const permId = permMap.get(permName);
+            const agentRoleId = roleMap.get('AGENT');
+            if (permId && agentRoleId) {
+                const deleted = await prisma.rolePermission.deleteMany({
+                    where: { roleId: agentRoleId, permissionId: permId },
+                });
+                if (deleted.count > 0) {
+                    console.log(`  🧹 Removed stale ${permName} from AGENT role`);
+                    cleanedUp += deleted.count;
+                }
             }
         }
-    }
-    if (cleanedUp > 0) {
-        console.log(`✅ Cleaned up ${cleanedUp} stale permission(s) from AGENT role`);
+
+        // Cleanup: Remove stale permissions from ADMIN role
+        // (ADMIN no longer has request:approve or kb:manage per updated permission matrix)
+        const staleAdminPerms: Record<string, string[]> = {
+            ADMIN: ['request:approve', 'kb:manage'],
+        };
+        for (const [roleName, permNames] of Object.entries(staleAdminPerms)) {
+            const roleId = roleMap.get(roleName);
+            if (!roleId) continue;
+            for (const permName of permNames) {
+                const permId = permMap.get(permName);
+                if (permId) {
+                    const deleted = await prisma.rolePermission.deleteMany({
+                        where: { roleId, permissionId: permId },
+                    });
+                    if (deleted.count > 0) {
+                        console.log(`  🧹 Removed stale ${permName} from ${roleName} role`);
+                        cleanedUp += deleted.count;
+                    }
+                }
+            }
+        }
+
+        // §2.6 — Cleanup: Remove credit:create from roles that should NOT originate applications.
+        // Only ADMIN, CREDIT_ADMIN, and CREDIT_RM should have credit:create.
+        // Other credit roles (ANALYST, MANAGER, SENIOR, COMMITTEE, OPS) are checkers/processors
+        // and must not create applications per SOD (maker-checker) policy.
+        const creditCreateAllowedRoles = new Set(['ADMIN', 'CREDIT_ADMIN', 'CREDIT_RM']);
+        const creditCreatePermId = permMap.get('credit:create');
+        if (creditCreatePermId) {
+            const allRoleEntries = await prisma.rolePermission.findMany({
+                where: { permissionId: creditCreatePermId },
+                include: { role: { select: { name: true } } },
+            });
+            for (const rp of allRoleEntries) {
+                if (!creditCreateAllowedRoles.has(rp.role.name)) {
+                    const deleted = await prisma.rolePermission.deleteMany({
+                        where: { roleId: rp.roleId, permissionId: creditCreatePermId },
+                    });
+                    if (deleted.count > 0) {
+                        console.log(`  🧹 Removed credit:create from ${rp.role.name} role (SOD: not an originator)`);
+                        cleanedUp += deleted.count;
+                    }
+                }
+            }
+        }
+        if (cleanedUp > 0) {
+            console.log(`✅ Cleaned up ${cleanedUp} stale permission(s)`);
+        }
+
+        // §3.1 — Cleanup: Remove deprecated permissions from all roles
+        // These 9 permissions were never enforced on backend routes and are now consolidated
+        // into the 8 core permissions (read, write, create, approve, admin, disburse, compliance, export)
+        const deprecatedPerms = [
+            'credit:delete', 'credit:committee', 'credit:score', 'credit:spread',
+            'credit:analyze', 'credit:risk', 'credit:override', 'credit:monitor', 'credit:document',
+        ];
+        let deprecatedRemoved = 0;
+        for (const permName of deprecatedPerms) {
+            const permId = permMap.get(permName);
+            if (permId) {
+                const deleted = await prisma.permission.deleteMany({
+                    where: { name: permName },
+                });
+                if (deleted.count > 0) {
+                    console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
+                    deprecatedRemoved += deleted.count;
+                }
+            }
+        }
+        if (deprecatedRemoved > 0) {
+            console.log(`✅ Deleted ${deprecatedRemoved} deprecated permission row(s) from Permission table`);
+            // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
+            const updatedPerms = await prisma.permission.findMany();
+            for (const p of updatedPerms) {
+                permMap.set(p.name, p.id);
+            }
+        }
+
+        // §3.2 — Cleanup: Migrate CREDIT_SENIOR and CREDIT_COMMITTEE users to CREDIT_MANAGER
+        const mergedRoles = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+        const managerRole = await prisma.role.findUnique({ where: { name: 'CREDIT_MANAGER' } });
+        if (managerRole) {
+            for (const oldRoleName of mergedRoles) {
+                const oldRole = await prisma.role.findUnique({ where: { name: oldRoleName } });
+                if (!oldRole) continue;
+                const userRoles = await prisma.userRole.findMany({ where: { roleId: oldRole.id } });
+                for (const ur of userRoles) {
+                    const existing = await prisma.userRole.findUnique({
+                        where: { userId_roleId: { userId: ur.userId, roleId: managerRole.id } },
+                    });
+                    if (!existing) {
+                        await prisma.userRole.create({
+                            data: { userId: ur.userId, roleId: managerRole.id },
+                        });
+                    }
+                }
+                // Remove old role's permission assignments, then remove old UserRole rows
+                await prisma.rolePermission.deleteMany({ where: { roleId: oldRole.id } });
+                const deletedUserRoles = await prisma.userRole.deleteMany({ where: { roleId: oldRole.id } });
+                console.log(`  🔄 Migrated ${userRoles.length} users from ${oldRoleName} to CREDIT_MANAGER (removed ${deletedUserRoles.count} stale UserRole rows)`);
+            }
+        }
+
+        // §3.3 — Cleanup: Migrate CREDIT_OPS users to CREDIT_RM (disburse moves to RM)
+        const opsRole = await prisma.role.findUnique({ where: { name: 'CREDIT_OPS' } });
+        if (opsRole) {
+            const rmRole = await prisma.role.findUnique({ where: { name: 'CREDIT_RM' } });
+            if (rmRole) {
+                const opsUserRoles = await prisma.userRole.findMany({ where: { roleId: opsRole.id } });
+                for (const ur of opsUserRoles) {
+                    const existing = await prisma.userRole.findUnique({
+                        where: { userId_roleId: { userId: ur.userId, roleId: rmRole.id } },
+                    });
+                    if (!existing) {
+                        await prisma.userRole.create({
+                            data: { userId: ur.userId, roleId: rmRole.id },
+                        });
+                    }
+                }
+                await prisma.rolePermission.deleteMany({ where: { roleId: opsRole.id } });
+                const deletedOpsUserRoles = await prisma.userRole.deleteMany({ where: { roleId: opsRole.id } });
+                console.log(`  🔄 Migrated ${opsUserRoles.length} CREDIT_OPS users to CREDIT_RM (removed ${deletedOpsUserRoles.count} stale UserRole rows)`);
+            }
+        }
+
+        // §3.4 — Cleanup: Delete deprecated permission rows from Permission table
+        // These 9 permissions were never enforced on backend routes and are now fully removed
+        let permsDeleted = 0;
+        for (const permName of deprecatedPerms) {
+            const deleted = await prisma.permission.deleteMany({
+                where: { name: permName },
+            });
+            if (deleted.count > 0) {
+                console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
+                permsDeleted += deleted.count;
+            }
+        }
+        if (permsDeleted > 0) {
+            console.log(`✅ Deleted ${permsDeleted} deprecated permission row(s) from Permission table`);
+            // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
+            const updatedPerms = await prisma.permission.findMany();
+            for (const p of updatedPerms) {
+                permMap.set(p.name, p.id);
+            }
+        }
+
+        // §3.5 — Cleanup: Delete deprecated role rows from Role table
+        // Users have been migrated; permissions have been removed; safe to delete the role rows entirely
+        const deprecatedRoleNames = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE', 'CREDIT_OPS'];
+        let rolesDeleted = 0;
+        for (const roleName of deprecatedRoleNames) {
+            const deleted = await prisma.role.deleteMany({
+                where: { name: roleName },
+            });
+            if (deleted.count > 0) {
+                console.log(`  🗑️  Deleted deprecated role: ${roleName}`);
+                rolesDeleted += deleted.count;
+            }
+        }
+        if (rolesDeleted > 0) {
+            console.log(`✅ Deleted ${rolesDeleted} deprecated role(s) from Role table`);
+            // Rebuild roleMap after deletions
+            const updatedRoles = await prisma.role.findMany();
+            for (const r of updatedRoles) {
+                roleMap.set(r.name, r.id);
+            }
+        }
+    } else {
+        console.log('⏭️  Skipping one-time migration cleanups (RETAIN_ADMIN_CONFIG enabled)');
     }
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
@@ -360,11 +643,12 @@ async function main() {
     // Will be populated after entity seeding (entities need approver users to exist first)
 
     // --- System accounts ---
-    const hashedPassword = await bcrypt.hash('abc@123', 10);
+    const hashedPassword = await bcrypt.hash('abc@123', 12);  // P0-6: salt rounds 12
     const adminUser = await prisma.user.upsert({
         where: { email: 'admin@test.local' },
         update: { jobTitle: 'Administrator', department: 'IT' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'admin@test.local',
             passwordHash: hashedPassword,
             firstName: 'Fang',
@@ -374,13 +658,14 @@ async function main() {
             isActive: true,
         },
     });
-    await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id]);
+    // Admin role assignment deferred — SALES_REP role not yet declared; see below after sales roles
     console.log('✅ Admin user created (email: admin@test.local, password: abc@123)');
 
     const ceoUser = await prisma.user.upsert({
         where: { email: 'ceo@test.local' },
         update: { jobTitle: 'Chief Executive Officer', department: 'Executive', executiveRole: 'CEO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'ceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Emily',
@@ -398,6 +683,7 @@ async function main() {
         where: { email: 'cto@test.local' },
         update: { jobTitle: 'Chief Technology Officer', department: 'IT', executiveRole: 'CTO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'cto@test.local',
             passwordHash: hashedPassword,
             firstName: 'Raymond',
@@ -415,6 +701,7 @@ async function main() {
         where: { email: 'cfo@test.local' },
         update: { jobTitle: 'Chief Finance Officer', department: 'Finance', executiveRole: 'CFO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'cfo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Saravanan',
@@ -428,26 +715,27 @@ async function main() {
     await assignRoles(cfoUser.id, [cfoRole.id]);
     console.log('✅ CFO user created (email: cfo@test.local, password: abc@123)');
 
-    const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
-    const groupCeoUser = await prisma.user.upsert({
+    const groupDceoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_DCEO' } });
+    const groupDceoUser = await prisma.user.upsert({
         where: { email: 'groupceo@test.local' },
-        update: { jobTitle: 'Chairman & Group Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_CEO' },
+        update: { jobTitle: 'Group Deputy Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_DCEO' },
         create: {
+            tenantId: defaultTenant.id,
             email: 'groupceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Alain',
             lastName: 'Boey',
             department: 'Executive',
-            jobTitle: 'Chairman & Group Chief Executive Officer',
-            executiveRole: 'GROUP_CEO',
+            jobTitle: 'Group Deputy Chief Executive Officer',
+            executiveRole: 'GROUP_DCEO',
             isActive: true,
         },
     });
-    await assignRoles(groupCeoUser.id, [groupCeoRole.id]);
-    console.log('✅ Group CEO user created (email: groupceo@test.local, password: abc@123)');
+    await assignRoles(groupDceoUser.id, [groupDceoRole.id]);
+    console.log('✅ Group Deputy CEO user created (email: groupceo@test.local, password: abc@123)');
 
     // --- Agent accounts ---
-    const agentPassword = await bcrypt.hash('abc@123', 10);
+    const agentPassword = await bcrypt.hash('abc@123', 12);  // P0-6
 
     const agentAccounts = [
         { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE', entityCode: 'CG' },
@@ -461,6 +749,7 @@ async function main() {
             where: { email: acc.email },
             update: RETAIN_ADMIN_CONFIG ? {} : { agentTeam: acc.agentTeam, jobTitle: acc.jobTitle, department: acc.department },
             create: {
+            tenantId: defaultTenant.id,
                 email: acc.email,
                 passwordHash: agentPassword,
                 firstName: acc.firstName,
@@ -476,7 +765,7 @@ async function main() {
     console.log('✅ Agent accounts created (password: abc@123)');
 
     // --- Regular test users ---
-    const testPassword = await bcrypt.hash('abc@123', 10);
+    const testPassword = await bcrypt.hash('abc@123', 12);  // P0-6
     const testUsers = [
         { email: 'john.doe@test.local',   firstName: 'John', lastName: 'Doe',   department: 'Engineering', jobTitle: 'Software Engineer' },
         { email: 'jane.smith@test.local', firstName: 'Jane', lastName: 'Smith', department: 'Marketing',   jobTitle: 'Marketing Manager' },
@@ -486,20 +775,28 @@ async function main() {
         const u = await prisma.user.upsert({
             where: { email: userData.email },
             update: {},
-            create: { ...userData, passwordHash: testPassword, isActive: true },
+            create: { ...userData, tenantId: DEFAULT_TENANT_ID, passwordHash: testPassword, isActive: true },
         });
         await assignRoles(u.id, [normalStaffRole.id]);
     }
     console.log('✅ Test users created with NORMAL_STAFF role (password: abc@123)');
 
+    // --- john.doe also gets HIRING_MANAGER role ---
+    const johnDoeUser = await prisma.user.findUniqueOrThrow({ where: { email: 'john.doe@test.local' } });
+    await assignRoles(johnDoeUser.id, [normalStaffRole.id, hiringManagerRole.id]);
+
     // --- Sales team test accounts ---
     const salesManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_MANAGER' } });
     const salesRepRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_REP' } });
+
+    // --- Deferred admin role assignment (SALES_REP declared here) ---
+    await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id, salesRepRole.id]);
 
     const salesManagerUser = await prisma.user.upsert({
         where: { email: 'salesmanager@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'salesmanager@test.local',
             passwordHash: testPassword,
             firstName: 'Ahmad',
@@ -516,6 +813,7 @@ async function main() {
         where: { email: 'salesrep@test.local' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'salesrep@test.local',
             passwordHash: testPassword,
             firstName: 'Nurul',
@@ -533,8 +831,9 @@ async function main() {
         where: { email: 'user@helpdesk.com' },
         update: {},
         create: {
+            tenantId: defaultTenant.id,
             email: 'user@helpdesk.com',
-            passwordHash: await bcrypt.hash('abc@123', 10),
+            passwordHash: await bcrypt.hash('abc@123', 12),  // P0-6
             firstName: 'Regular',
             lastName: 'User',
             department: 'General',
@@ -544,6 +843,66 @@ async function main() {
     });
     await assignRoles(legacyUser.id, [normalStaffRole.id]);
     console.log('✅ Legacy user account created (email: user@helpdesk.com, password: abc@123)');
+
+    // --- Credit module test accounts ---
+    const creditRmRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_RM' } });
+    const creditAnalystRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_ANALYST' } });
+    const creditManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_MANAGER' } });
+
+    const creditManagerUser = await prisma.user.upsert({
+        where: { email: 'credit.manager@test.local' },
+        update: {},
+        create: {
+            tenantId: defaultTenant.id,
+            email: 'credit.manager@test.local',
+            passwordHash: testPassword,
+            firstName: 'Sarah',
+            lastName: 'Tan',
+            department: 'Credit',
+            jobTitle: 'Credit Manager',
+            isActive: true,
+        },
+    });
+    await assignRoles(creditManagerUser.id, [creditManagerRole.id, normalStaffRole.id]);
+    console.log('✅ Credit Manager user created (email: credit.manager@test.local, password: abc@123)');
+
+    const creditAnalystUser = await prisma.user.upsert({
+        where: { email: 'credit.analyst@test.local' },
+        update: {},
+        create: {
+            tenantId: defaultTenant.id,
+            email: 'credit.analyst@test.local',
+            passwordHash: testPassword,
+            firstName: 'Rajesh',
+            lastName: 'Kumar',
+            department: 'Credit',
+            jobTitle: 'Credit Analyst',
+            isActive: true,
+        },
+    });
+    await assignRoles(creditAnalystUser.id, [creditAnalystRole.id, normalStaffRole.id]);
+    console.log('✅ Credit Analyst user created (email: credit.analyst@test.local, password: abc@123)');
+
+    const creditSeniorUser = await prisma.user.upsert({
+        where: { email: 'credit.senior@test.local' },
+        update: {},
+        create: {
+            tenantId: defaultTenant.id,
+            email: 'credit.senior@test.local',
+            passwordHash: testPassword,
+            firstName: 'Lim',
+            lastName: 'Wei',
+            department: 'Credit',
+            jobTitle: 'Senior Credit Officer',
+            isActive: true,
+        },
+    });
+    await assignRoles(creditSeniorUser.id, [creditManagerRole.id, normalStaffRole.id]);
+    console.log('✅ Credit Senior user created (email: credit.senior@test.local, password: abc@123) — assigned CREDIT_MANAGER role');
+
+    // john.doe also gets CREDIT_RM role (existing user, add role only)
+    await assignRoles(johnDoeUser.id, [creditRmRole.id]);
+    console.log('✅ John Doe assigned CREDIT_RM role');
 
     // ── Entities ─────────────────────────────────────────────────────────────
     console.log('Seeding entities...');
@@ -571,6 +930,7 @@ async function main() {
             where: { code: es.code },
             update: {}, // Do NOT overwrite admin-configured fields on re-seed
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: es.name,
                 code: es.code,
                 description: es.description,
@@ -616,7 +976,7 @@ async function main() {
     // IMPORTANT: This runs BEFORE entity config so approver users exist for assignment.
     if (SEED_PRODUCTION_USERS.length > 0) {
         console.log('👥 Creating production staff accounts...');
-        const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 10);
+        const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 12);  // P0-6
         let prodCreated = 0;
         let prodUpdated = 0;
 
@@ -647,10 +1007,12 @@ async function main() {
                 // Create new user
                 await prisma.user.create({
                     data: {
+                        tenantId: defaultTenant.id,
                         email: pu.email,
                         firstName: pu.firstName,
                         lastName: pu.lastName,
                         passwordHash: PROD_PASSWORD,
+                        mustResetPassword: true,  // P0-2: force password change on first login
                         department: pu.department || null,
                         jobTitle: pu.jobTitle || null,
                         executiveRole: (pu.executiveRole as any) || null,
@@ -731,8 +1093,14 @@ async function main() {
                     name: category.name
                 }
             },
-            update: {},
+            update: {
+                description: category.description,
+                icon: category.icon,
+                colorClass: category.colorClass,
+                displayOrder: category.displayOrder,
+            },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: category.name,
                 description: category.description,
                 icon: category.icon,
@@ -749,13 +1117,32 @@ async function main() {
             formConfig = [
                 { id: 'hardwareName', label: 'Hardware Name', type: 'text', required: true },
                 { id: 'estimatedPrice', label: 'Estimated Price  ', type: 'currency', required: false },
-                { id: 'productUrl', label: 'Product URL', type: 'text', required: false },
                 { id: 'businessJustification', label: 'Business Justification', type: 'textarea', required: true },
             ];
         } else if (category.requestTypeCode === 'SOFTWARE_INSTALLATION') {
             formConfig = [
                 { id: 'sw_name', label: 'Software Name', type: 'text', required: true },
                 { id: 'sw_version', label: 'Version Number', type: 'text', required: false }
+            ];
+        } else if (category.requestTypeCode === 'GET_IT_HELP') {
+            formConfig = [
+                { id: 'field_1778721877330', label: 'Attachment', type: 'file', required: false },
+            ];
+        } else if (category.requestTypeCode === 'EMAIL_MANAGEMENT') {
+            formConfig = [
+                { id: 'field_email_request_type', label: 'Request Type', type: 'select', required: true, options: ['New email account', 'Email configuration', 'Email troubleshooting', 'Distribution list / shared mailbox', 'Email forwarding / rules'] },
+                { id: 'field_email_address', label: 'Email Address', type: 'text', required: true },
+                { id: 'field_mail_client', label: 'Mail Client', type: 'select', required: false, options: ['Outlook Desktop', 'Outlook Web', 'Apple Mail', 'Mobile App', 'Other'] },
+                { id: 'field_email_symptoms', label: 'Error / Symptoms', type: 'textarea', required: true },
+                { id: 'field_email_attachment', label: 'Attachment', type: 'file', required: false },
+            ];
+        } else if (category.requestTypeCode === 'REPORT_SYSTEM_PROBLEM') {
+            formConfig = [
+                { id: 'field_system_name', label: 'System / Application Name', type: 'text', required: true },
+                { id: 'field_problem_type', label: 'Problem Type', type: 'select', required: true, options: ['System Down / Outage', 'Slow Performance', 'Error / Bug', 'Access Issue', 'Data Issue', 'Other'] },
+                { id: 'field_affected_users', label: 'Affected Users', type: 'select', required: false, options: ['Just me', 'My team / department', 'Multiple departments', 'Entire company'] },
+                { id: 'field_problem_description', label: 'Describe the Problem', type: 'textarea', required: true },
+                { id: 'field_error_screenshot', label: 'Error Screenshot / Attachment', type: 'file', required: false },
             ];
         }
 
@@ -769,16 +1156,22 @@ async function main() {
         }) : null;
 
         if (existingByCode) {
-            // Only backfill structural fields — never overwrite admin-editable fields
-            // (name, description, formConfig, slaHours, requiresApproval, isActive)
-            // so Admin UI edits are preserved across re-seeds
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: {
-                    serviceCategory: { connect: { id: cat.id } },
-                    // Only backfill code if missing
-                    ...(existingByCode.code ? {} : { code: category.requestTypeCode }),
-                }
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: cat.id } }, ...(existingByCode.code ? {} : { code: category.requestTypeCode }) }
+                    : {
+                        serviceCategory: { connect: { id: cat.id } },
+                        ...(existingByCode.code ? {} : { code: category.requestTypeCode }),
+                        name: category.requestTypeName,
+                        description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
+                        formConfig,
+                        slaHours: category.slaHours || null,
+                        lifecycleStatus: 'PUBLISHED',
+                        ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
+                    },
             });
         } else if (existingLegacy) {
             // Backfill code onto legacy record without touching admin-editable fields
@@ -791,6 +1184,7 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: cat.id } },
                     code: category.requestTypeCode,
                     name: category.requestTypeName,
@@ -798,6 +1192,7 @@ async function main() {
                     icon: category.icon,
                     formConfig,
                     isActive: true,
+                    lifecycleStatus: 'PUBLISHED',
                     ...(category.slaHours ? { slaHours: category.slaHours } : {}),
                     ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
@@ -826,11 +1221,13 @@ async function main() {
             requestTypeName: 'New Hiring Request', requestTypeCode: 'NEW_HIRING', workflowType: 'HR_RECRUITMENT',
             formConfig: [
                 { id: 'position', label: 'Job Title', type: 'text', required: true },
-                { id: 'department', label: 'Department', type: 'text', required: true },
-                { id: 'headcount', label: 'Role Category', type: 'select', required: true, options: ['Junior Executive', 'Senior Executive', 'Head of Department', 'C-Level'] },
+                { id: 'department', label: 'Department', type: 'entity', required: true },
+                { id: 'headcount', label: 'Role Category', type: 'select', required: true, options: ['Junior Executive', 'Senior Executive', 'Head of Department', 'C-Level', 'Manager'] },
+                { id: 'employmentType', label: 'Employment Type', type: 'select', required: true, options: ['Permanent', 'Temporary', 'Contract'] },
                 { id: 'field_1776667989723', label: 'Proposed Salary', type: 'currency', required: false },
                 { id: 'field_1776668042538', label: 'Attach Org Chart', type: 'file', required: false },
                 { id: 'field_1776668064979', label: 'Attach Job Description', type: 'file', required: false },
+                { id: 'candidates', label: 'Candidate Documents', type: 'candidateDocuments', required: false, documentTypes: ['Resume', 'Certificates', 'Transcripts'], maxCandidates: 5 },
             ],
             requiredRole: 'HIRING_MANAGER', slaHours: 48,
         },
@@ -854,8 +1251,7 @@ async function main() {
             formConfig: [
                 { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
                 { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
-                { id: 'lastDay', label: 'Last Working Day', type: 'text', required: true },
-                { id: 'reason', label: 'Reason for Departure', type: 'text', required: false },
+                { id: 'lastDay', label: 'Last Working Day', type: 'date', required: true },
             ],
             requiredRole: null, slaHours: 48,
         },
@@ -869,8 +1265,14 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {},
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+            },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: cat.name,
                 description: cat.description,
                 icon: cat.icon,
@@ -881,7 +1283,7 @@ async function main() {
             },
         });
 
-        // Upsert by code — only create if missing, never overwrite admin-editable fields
+        // Upsert by code — sync all fields when RETAIN_ADMIN_CONFIG=false
         const existingByCode = await prisma.requestType.findFirst({
             where: { code: cat.requestTypeCode }
         });
@@ -890,10 +1292,20 @@ async function main() {
             : null;
 
         if (existingByCode) {
-            // Backfill structural fields only — never overwrite admin-editable fields
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } } },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        slaHours: cat.slaHours,
+                        requiredRole: cat.requiredRole,
+                    },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching admin-editable fields
@@ -904,6 +1316,7 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
@@ -925,21 +1338,23 @@ async function main() {
             name: 'Purchase Requisition', description: 'Submit a request to purchase goods or services',
             icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
             requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION', workflowType: 'FINANCE',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
-                { id: 'itemName', label: 'Item / Service Name', type: 'text', required: true },
-                { id: 'quantity', label: 'Quantity', type: 'number', required: true },
+                { id: 'itemName', label: 'Type Of Purchase', type: 'select', required: true, options: ['IT Hardware / Equipment', 'Marketing & Advertising Services', 'Office Supplies', 'Miscellaneous'] },
+                { id: 'field_1778810317886', label: 'Request under which Business Unit', type: 'entity', required: true },
                 { id: 'estimatedCost', label: 'Estimated Cost (RM)', type: 'currency', required: true },
-                { id: 'vendor', label: 'Preferred Vendor', type: 'text', required: false },
                 { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+                { id: 'field_1778810278691', label: 'Quotation/Files/Docs', type: 'file', required: true },
             ],
         },
         {
             name: 'Inter-Company Chargeback', description: 'Request a chargeback between internal company entities',
             icon: 'swap_horiz', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
-            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'FINANCE',
+            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'INTERCOMPANY_CHARGEBACK',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
-                { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'text', required: true },
-                { id: 'chargeToEntity', label: 'Charge To Entity', type: 'text', required: true },
+                { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'entity', required: true },
+                { id: 'chargeToEntity', label: 'Charge To Entity', type: 'entity', required: true },
                 { id: 'amount', label: 'Amount (RM)', type: 'currency', required: true },
                 { id: 'costCenter', label: 'Cost Center', type: 'text', required: false },
                 { id: 'description', label: 'Description / Reason', type: 'textarea', required: true },
@@ -949,6 +1364,7 @@ async function main() {
             name: 'Submit Budget Proposal', description: 'Submit a budget proposal for approval',
             icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3,
             requestTypeName: 'Submit Budget Proposal', requestTypeCode: 'BUDGET_PROPOSAL', workflowType: 'FINANCE',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
                 { id: 'department', label: 'Department', type: 'text', required: true },
                 { id: 'budgetPeriod', label: 'Budget Period (e.g. Q1 2026)', type: 'text', required: true },
@@ -962,7 +1378,8 @@ async function main() {
             description: 'Submit a business expense claim for reimbursement',
             icon: 'receipt_long', colorClass: 'bg-rose-50 text-rose-600', displayOrder: 4,
             requestTypeName: 'Expense Claim', requestTypeCode: 'EXPENSE_CLAIM', workflowType: 'EXPENSE_REIMBURSEMENT',
-            isActive: false,  // Disabled by admin — enable when ready to launch
+            requiresApproval: true, slaHours: 72,
+            categoryIsActive: false,  // Disabled — enable when ready to launch
             formConfig: [
                 { id: 'expenseCategory', label: 'Expense Category', type: 'text', required: true },
                 { id: 'expenseDate', label: 'Date of Expense', type: 'text', required: true },
@@ -981,15 +1398,22 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {},
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
             create: {
+                tenantId: DEFAULT_TENANT_ID,
                 name: cat.name,
                 description: cat.description,
                 icon: cat.icon,
                 colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
                 serviceDeskId: financeDesk.id,
-                isActive: cat.isActive ?? true,
+                isActive: (cat as any).categoryIsActive ?? true,
             },
         });
 
@@ -1001,10 +1425,20 @@ async function main() {
             : null;
 
         if (existingByCode) {
-            // Backfill structural fields only — never overwrite admin-editable fields
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } } },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        slaHours: (cat as any).slaHours ?? 72,
+                        requiresApproval: (cat as any).requiresApproval ?? false,
+                    },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching admin-editable fields
@@ -1015,12 +1449,14 @@ async function main() {
         } else {
             await prisma.requestType.create({
                 data: {
+                    tenantId: DEFAULT_TENANT_ID,
                     serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
                     description: cat.description,
-                    slaHours: 72,
+                    slaHours: (cat as any).slaHours ?? 72,
                     isActive: true,
+                    requiresApproval: (cat as any).requiresApproval ?? false,
                     formConfig: cat.formConfig,
                 },
             });
@@ -1029,9 +1465,127 @@ async function main() {
 
     console.log('✅ Finance categories created');
 
+    // ── ESM (Executive Service Management) ──────────────────────────────────
+    const esmDesk = await prisma.serviceDesk.upsert({
+        where: { tenantId_code: { tenantId: defaultTenant.id, code: 'ESM' } },
+        update: RETAIN_ADMIN_CONFIG
+            ? { departmentId: departments.get('ESM')!.id }
+            : { name: 'Executive Services', description: 'Executive service requests including travel, bookings, and executive-level approvals', departmentId: departments.get('ESM')!.id, autoAssignTeam: 'NONE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
+        create: {
+            tenantId: DEFAULT_TENANT_ID,
+            departmentId: departments.get('ESM')!.id,
+            name: 'Executive Services',
+            code: 'ESM',
+            description: 'Executive service requests including travel, bookings, and executive-level approvals',
+            isActive: true,
+            autoAssignTeam: 'NONE',
+            assignmentStrategy: 'ROUND_ROBIN',
+        },
+    });
+
+    const esmCategoriesData = [
+        {
+            name: 'Travel Request', description: 'Submit a CWC travel request for executive approval',
+            icon: 'flight', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
+            requestTypeName: 'CWC Travel Request', requestTypeCode: 'CWC_TRAVEL_REQUEST', workflowType: 'ESM_TRAVEL',
+            requiresApproval: true, slaHours: 168, // 7 days SLA for travel requests
+            formConfig: [
+                { id: 'totalAmount', label: 'Total Estimated Cost (RM)', type: 'currency', required: true },
+                { id: 'perDiem', label: 'Per Diem (RM)', type: 'currency', required: true },
+                { id: 'hotelAccommodation', label: 'Hotel Accommodation Amount (RM)', type: 'currency', required: true },
+                { id: 'flightBooking', label: 'Flight Booking Amount (RM)', type: 'currency', required: true },
+                { id: 'travelDestination', label: 'Destination', type: 'text', required: true },
+                { id: 'businessReason', label: 'Business Reason', type: 'textarea', required: true },
+                { id: 'expectedOutcome', label: 'Expected Outcome', type: 'textarea', required: true },
+                { id: 'departureDate', label: 'Departure Date', type: 'date', required: true },
+                { id: 'returnDate', label: 'Return Date', type: 'date', required: false },
+                { id: 'numberOfTravelers', label: 'Number of Travelers', type: 'number', required: true },
+                { id: 'ceoApproverId', label: 'CEO Approver', type: 'ceo-select', required: true },
+                { id: 'attachments', label: 'Supporting Documents (quotes, itineraries)', type: 'file', required: false },
+            ],
+        },
+    ];
+
+    for (const cat of esmCategoriesData) {
+        const category = await prisma.serviceCategory.upsert({
+            where: {
+                serviceDeskId_name: {
+                    serviceDeskId: esmDesk.id,
+                    name: cat.name
+                }
+            },
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
+            create: {
+                tenantId: DEFAULT_TENANT_ID,
+                name: cat.name,
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                serviceDeskId: esmDesk.id,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
+        });
+
+        const existingByCode = await prisma.requestType.findFirst({
+            where: { code: cat.requestTypeCode }
+        });
+
+        if (existingByCode) {
+            await prisma.requestType.update({
+                where: { id: existingByCode.id },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        slaHours: (cat as any).slaHours ?? 168,
+                        requiresApproval: (cat as any).requiresApproval ?? false,
+                        lifecycleStatus: 'PUBLISHED',
+                    },
+            });
+        } else {
+            await prisma.requestType.create({
+                data: {
+                    tenantId: DEFAULT_TENANT_ID,
+                    serviceCategory: { connect: { id: category.id } },
+                    code: cat.requestTypeCode,
+                    name: cat.requestTypeName,
+                    description: cat.description,
+                    slaHours: (cat as any).slaHours ?? 168,
+                    isActive: true,
+                    requiresApproval: (cat as any).requiresApproval ?? false,
+                    lifecycleStatus: 'PUBLISHED',
+                    formConfig: cat.formConfig,
+                },
+            });
+        }
+    }
+
+    console.log('✅ ESM categories created');
+
+    // ── Seed GROUP_DCEO threshold default ──
+    await prisma.systemSetting.upsert({
+        where: { key: 'esm_group_dceo_threshold' },
+        update: RETAIN_ADMIN_CONFIG ? {} : { value: '50000' },
+        create: { key: 'esm_group_dceo_threshold', tenantId: DEFAULT_TENANT_ID, value: '50000' },
+    });
+    console.log('✅ ESM Group DCEO threshold seeded (default: 50000)');
+
     // ── Workflow Types & Steps (from seed-workflows) ──
     // Must run AFTER request types are created so linking works
     await seedWorkflows(prisma, RETAIN_ADMIN_CONFIG);
+
+    // Seed credit rule config fallback rows
+    await seedCreditRuleConfig(prisma);
 
     // Create Notification Templates (from seed-admin-config)
     if (RETAIN_ADMIN_CONFIG) {
@@ -1044,11 +1598,38 @@ async function main() {
             await prisma.notificationTemplate.upsert({
                 where: { name: template.name },
                 update: {},
-                create: template,
+                create: { ...template, tenantId: DEFAULT_TENANT_ID },
             });
         }
 
         console.log('✅ Notification templates created');
+    }
+
+    // ── Apply notification template bug-fix patches ──────────────
+    // These apply targeted patches (e.g. adding a missing "View Request" link)
+    // to specific fields only, without overwriting admin customizations to other
+    // fields. However, even targeted patches can conflict with admin edits in
+    // production, so we gate them behind RETAIN_ADMIN_CONFIG=false (i.e. only
+    // auto-apply on dev/staging). On production (RETAIN_ADMIN_CONFIG=true),
+    // template fixes should be applied via a separate migration or manually.
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping notification template fixes (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        let fixedCount = 0;
+        for (const fix of SEED_NOTIFICATION_TEMPLATE_FIXES) {
+            const existing = await prisma.notificationTemplate.findUnique({
+                where: { name: fix.name },
+            });
+            if (!existing) continue;
+            await prisma.notificationTemplate.update({
+                where: { id: existing.id },
+                data: fix.patch,
+            });
+            fixedCount++;
+        }
+        if (fixedCount > 0) {
+            console.log(`✅ Notification template fixes applied (${fixedCount} template(s) patched)`);
+        }
     }
 
     // Seed onboarding task templates (from seed-admin-config, per-record upsert for idempotency)
@@ -1070,6 +1651,13 @@ async function main() {
                     },
                 });
             }
+        }
+        // Prune onboarding templates not in seed
+        const seedOnbNames = SEED_ONBOARDING_TEMPLATES.map(t => t.taskName);
+        const extraOnb = await prisma.onboardingTaskTemplate.findMany({ where: { taskName: { notIn: seedOnbNames } } });
+        if (extraOnb.length > 0) {
+            await prisma.onboardingTaskTemplate.deleteMany({ where: { taskName: { notIn: seedOnbNames } } });
+            console.log(`🧹 Pruned ${extraOnb.length} extra onboarding task templates: ${extraOnb.map(t => t.taskName).join(', ')}`);
         }
         console.log(`✅ Seeded ${SEED_ONBOARDING_TEMPLATES.length} onboarding task templates`);
     }
@@ -1093,6 +1681,13 @@ async function main() {
                     },
                 });
             }
+        }
+        // Prune offboarding templates not in seed
+        const seedOffNames = SEED_OFFBOARDING_TEMPLATES.map(t => t.taskName);
+        const extraOff = await prisma.offboardingTaskTemplate.findMany({ where: { taskName: { notIn: seedOffNames } } });
+        if (extraOff.length > 0) {
+            await prisma.offboardingTaskTemplate.deleteMany({ where: { taskName: { notIn: seedOffNames } } });
+            console.log(`🧹 Pruned ${extraOff.length} extra offboarding task templates: ${extraOff.map(t => t.taskName).join(', ')}`);
         }
         console.log(`✅ Seeded ${SEED_OFFBOARDING_TEMPLATES.length} offboarding task templates`);
     }
@@ -1159,6 +1754,16 @@ async function main() {
                 },
             });
         }
+        // Prune workflow transitions not in seed
+        const seedTransKeys = SEED_WORKFLOW_TRANSITIONS.map(t => `${t.fromStatus}→${t.toStatus}`);
+        const allTrans = await prisma.workflowTransition.findMany();
+        const extraTransKeys = allTrans.filter(t => !seedTransKeys.includes(`${t.fromStatus}→${t.toStatus}`));
+        if (extraTransKeys.length > 0) {
+            for (const et of extraTransKeys) {
+                await prisma.workflowTransition.delete({ where: { id: et.id } });
+            }
+            console.log(`🧹 Pruned ${extraTransKeys.length} extra workflow transitions: ${extraTransKeys.map(t => `${t.fromStatus}→${t.toStatus}`).join(', ')}`);
+        }
         console.log(`✅ Seeded ${SEED_WORKFLOW_TRANSITIONS.length} workflow transitions`);
     }
 
@@ -1179,6 +1784,7 @@ async function main() {
             if (!existing) {
                 await prisma.escalationRule.create({
                     data: {
+                        tenantId: DEFAULT_TENANT_ID,
                         requestTypeId: requestType.id,
                         triggerHoursAfterBreach: rule.triggerHoursAfterBreach,
                         notifyRoles: rule.notifyRoles,
@@ -1208,6 +1814,7 @@ async function main() {
                 where: { referenceNumber: 'HR-CONF-001' },
                 update: {},
                 create: {
+                    tenantId: DEFAULT_TENANT_ID,
                     referenceNumber: 'HR-CONF-001',
                     summary: 'Confidential HR inquiry about workplace harassment report',
                     description: 'This is a confidential HR request regarding a sensitive workplace matter. Access should be restricted to the requester, designated approvers, and authorized personnel only.',
@@ -1223,6 +1830,7 @@ async function main() {
                 where: { referenceNumber: 'HR-CONF-002' },
                 update: {},
                 create: {
+                    tenantId: DEFAULT_TENANT_ID,
                     referenceNumber: 'HR-CONF-002',
                     summary: 'Confidential disciplinary action review',
                     description: 'This is a confidential request related to a disciplinary proceeding. Only the requester and authorized HR personnel should have access.',
@@ -1298,7 +1906,7 @@ async function main() {
             serviceDeskId: hrDesk.id,
             title: 'Leave of Absence (LOA) Policy and Application',
             slug: 'leave-of-absence-policy-and-application',
-            content: `## Leave of Absence Guide\n\nEmployees may apply for various types of leave through the HR Services portal.\n\n### Leave Types\n\n| Type | Entitlement | Approval |\n|------|-------------|----------|\n| Annual Leave | 14 days/year | Manager |\n| Medical Leave | 14 days/year | Manager + MC |\n| Emergency Leave | As needed | Manager |\n| Unpaid Leave | Case-by-case | Manager + HR |\n\n### How to Apply\n\n1. Navigate to **HR Services** → **Leave Management**\n2. Select the leave type\n3. Fill in the dates and reason\n4. Upload supporting documents (e.g., medical certificate)\n5. Submit for manager approval\n\n### Important Notes\n\n- Annual leave must be applied **at least 3 days in advance**\n- Medical leave requires a valid MC submitted within **24 hours**\n- Leave balance can be checked on your HR dashboard\n- Unconsumed annual leave may be carried forward (max 5 days) to the next year`,
+            content: `## Leave of Absence Guide\n\nEmployees may apply for various types of leave through the Group HR portal.\n\n### Leave Types\n\n| Type | Entitlement | Approval |\n|------|-------------|----------|\n| Annual Leave | 14 days/year | Manager |\n| Medical Leave | 14 days/year | Manager + MC |\n| Emergency Leave | As needed | Manager |\n| Unpaid Leave | Case-by-case | Manager + HR |\n\n### How to Apply\n\n1. Navigate to **Group HR** → **Leave Management**\n2. Select the leave type\n3. Fill in the dates and reason\n4. Upload supporting documents (e.g., medical certificate)\n5. Submit for manager approval\n\n### Important Notes\n\n- Annual leave must be applied **at least 3 days in advance**\n- Medical leave requires a valid MC submitted within **24 hours**\n- Leave balance can be checked on your HR dashboard\n- Unconsumed annual leave may be carried forward (max 5 days) to the next year`,
             excerpt: 'Understand leave types, entitlements, and how to apply through the HR portal.',
             category: 'Leave Management',
             tags: ['leave', 'loa', 'vacation', 'hr', 'policy'],
@@ -1310,7 +1918,7 @@ async function main() {
             serviceDeskId: hrDesk.id,
             title: 'Employee Benefits Overview',
             slug: 'employee-benefits-overview',
-            content: `## Benefits Package\n\nCitadel Group offers a comprehensive benefits package for all permanent employees.\n\n### Medical & Insurance\n\n- **Group Hospitalization**: Full coverage under company panel hospitals\n- **Outpatient**: RM 500/year reimbursement for non-panel visits\n- **Dental**: RM 300/year for basic dental procedures\n\n### Allowances\n\n- **Transport**: RM 200/month for eligible roles\n- **Meal**: RM 15/day for overtime beyond 7:30 PM\n- **Communication**: RM 50/month mobile allowance\n\n### Professional Development\n\n- **Training Budget**: RM 3,000/year per employee\n- **Certification Fee**: One professional certification per year (full reimbursement)\n- **Conference Attendance**: Subject to manager approval\n\n### How to Claim\n\nSubmit a request through **HR Services** → **Benefits & Claims** with supporting receipts. Claims are processed within 5 business days.`,
+            content: `## Benefits Package\n\nCitadel Group offers a comprehensive benefits package for all permanent employees.\n\n### Medical & Insurance\n\n- **Group Hospitalization**: Full coverage under company panel hospitals\n- **Outpatient**: RM 500/year reimbursement for non-panel visits\n- **Dental**: RM 300/year for basic dental procedures\n\n### Allowances\n\n- **Transport**: RM 200/month for eligible roles\n- **Meal**: RM 15/day for overtime beyond 7:30 PM\n- **Communication**: RM 50/month mobile allowance\n\n### Professional Development\n\n- **Training Budget**: RM 3,000/year per employee\n- **Certification Fee**: One professional certification per year (full reimbursement)\n- **Conference Attendance**: Subject to manager approval\n\n### How to Claim\n\nSubmit a request through **Group HR** → **Benefits & Claims** with supporting receipts. Claims are processed within 5 business days.`,
             excerpt: 'Overview of medical, insurance, allowances, and professional development benefits.',
             category: 'Benefits & Compensation',
             tags: ['benefits', 'insurance', 'allowance', 'medical', 'hr'],
@@ -1360,7 +1968,7 @@ async function main() {
             serviceDeskId: hrDesk.id,
             title: 'Understanding Your Payslip',
             slug: 'understanding-your-payslip',
-            content: `## Payslip Guide\n\nYour monthly payslip is available in the HR Self-Service portal by the 25th of each month.\n\n### Accessing Your Payslip\n\n1. Log in to the **HR Services** portal\n2. Navigate to **My Profile → Payslips**\n3. Select the month you want to view\n4. Download as PDF for your records\n\n### Payslip Breakdown\n\n| Section | Description |\n|---|---|\n| Basic Salary | Your fixed monthly salary |\n| Allowances | Transport, meal, communication, and role-specific allowances |\n| Overtime | Calculated at 1.5x hourly rate for approved OT |\n| EPF (Employee) | 11% of gross salary contributed by you |\n| EPF (Employer) | 13% of gross salary contributed by Citadel |\n| SOCSO | Social security contribution (varies by salary band) |\n| EIS | Employment Insurance System deduction |\n| PCB / Income Tax | Monthly tax deduction based on your tax bracket |\n| **Net Pay** | **Amount deposited into your bank account** |\n\n### Salary Payment Schedule\n\n- Salaries are credited on the **last working day** of each month\n- Overtime and claims approved before the 15th are included in the same month's payslip\n- Disputes must be raised within **3 months** of the pay date\n\n### Payslip Queries\n\nSubmit a request via **HR Services → Payroll & Compensation** with your query and the relevant payslip month attached.`,
+            content: `## Payslip Guide\n\nYour monthly payslip is available in the HR Self-Service portal by the 25th of each month.\n\n### Accessing Your Payslip\n\n1. Log in to the **Group HR** portal\n2. Navigate to **My Profile → Payslips**\n3. Select the month you want to view\n4. Download as PDF for your records\n\n### Payslip Breakdown\n\n| Section | Description |\n|---|---|\n| Basic Salary | Your fixed monthly salary |\n| Allowances | Transport, meal, communication, and role-specific allowances |\n| Overtime | Calculated at 1.5x hourly rate for approved OT |\n| EPF (Employee) | 11% of gross salary contributed by you |\n| EPF (Employer) | 13% of gross salary contributed by Citadel |\n| SOCSO | Social security contribution (varies by salary band) |\n| EIS | Employment Insurance System deduction |\n| PCB / Income Tax | Monthly tax deduction based on your tax bracket |\n| **Net Pay** | **Amount deposited into your bank account** |\n\n### Salary Payment Schedule\n\n- Salaries are credited on the **last working day** of each month\n- Overtime and claims approved before the 15th are included in the same month's payslip\n- Disputes must be raised within **3 months** of the pay date\n\n### Payslip Queries\n\nSubmit a request via **Group HR → Payroll & Compensation** with your query and the relevant payslip month attached.`,
             excerpt: 'How to read and understand your monthly payslip including deductions and contributions.',
             category: 'Payroll & Compensation',
             tags: ['payslip', 'salary', 'epf', 'pcb', 'payroll', 'hr'],
@@ -1384,7 +1992,7 @@ async function main() {
             serviceDeskId: hrDesk.id,
             title: 'Work From Home (WFH) Policy',
             slug: 'work-from-home-policy',
-            content: `## Remote Work Policy\n\nCitadel Group supports flexible working arrangements for eligible roles.\n\n### Eligibility\n\n- Permanent employees who have completed their **probation period**\n- Roles that do not require a physical presence (confirmed by your department head)\n- Employees with a satisfactory or above performance rating\n\n### WFH Entitlement\n\n- Up to **2 days per week** for eligible employees\n- WFH days cannot be on **Mondays or Fridays** without prior manager approval\n- Department heads may restrict WFH during peak periods or project deadlines\n\n### How to Apply\n\n1. Discuss with your manager and agree on a recurring WFH schedule\n2. Submit a **WFH arrangement request** via **HR Services → Flexible Work**\n3. HR will issue a formal confirmation within 3 business days\n\n### WFH Requirements\n\n- Must be reachable during core hours **(9:00 AM – 5:00 PM)**\n- Must have a stable internet connection (minimum 10 Mbps)\n- Must be connected to the **company VPN** when accessing internal systems\n- Must attend all scheduled meetings (video on for calls with clients or leadership)\n\n### Equipment\n\n- Employees are responsible for their own WFH setup\n- IT can loan a portable monitor or peripherals — submit an IT request under **Hardware & Devices**\n- Company-issued laptops must be used for all work activities`,
+            content: `## Remote Work Policy\n\nCitadel Group supports flexible working arrangements for eligible roles.\n\n### Eligibility\n\n- Permanent employees who have completed their **probation period**\n- Roles that do not require a physical presence (confirmed by your department head)\n- Employees with a satisfactory or above performance rating\n\n### WFH Entitlement\n\n- Up to **2 days per week** for eligible employees\n- WFH days cannot be on **Mondays or Fridays** without prior manager approval\n- Department heads may restrict WFH during peak periods or project deadlines\n\n### How to Apply\n\n1. Discuss with your manager and agree on a recurring WFH schedule\n2. Submit a **WFH arrangement request** via **Group HR → Flexible Work**\n3. HR will issue a formal confirmation within 3 business days\n\n### WFH Requirements\n\n- Must be reachable during core hours **(9:00 AM – 5:00 PM)**\n- Must have a stable internet connection (minimum 10 Mbps)\n- Must be connected to the **company VPN** when accessing internal systems\n- Must attend all scheduled meetings (video on for calls with clients or leadership)\n\n### Equipment\n\n- Employees are responsible for their own WFH setup\n- IT can loan a portable monitor or peripherals — submit an IT request under **Hardware & Devices**\n- Company-issued laptops must be used for all work activities`,
             excerpt: 'Eligibility, entitlement, and requirements for the company Work From Home arrangement.',
             category: 'Workplace Policies',
             tags: ['wfh', 'remote work', 'flexible', 'policy', 'hr'],
@@ -1434,7 +2042,7 @@ async function main() {
             serviceDeskId: financeDesk.id,
             title: 'Purchase Requisition Guide',
             slug: 'purchase-requisition-guide',
-            content: `## Purchase Requisition (PR) Process\n\nAll departmental purchases must go through the formal requisition workflow.\n\n### When to Submit a PR\n\n- Office equipment and furniture\n- Software subscriptions and licenses\n- Consulting and professional services\n- Any purchase exceeding RM 500\n\n### PR Workflow\n\n1. **Submit Request** via Group Finance → Purchase Requisition\n2. **Finance Acknowledgement** — Finance verifies budget allocation\n3. **Finance Processing** — PO created and sent to vendor\n4. **CFO Approval** — Required for purchases above RM 10,000\n5. **Group CEO Approval** — Required for purchases above RM 50,000\n6. **Payment** — Processed after goods/services received\n\n### Required Information\n\n- Item description and specifications\n- Quantity and estimated unit cost\n- Preferred vendor (if any)\n- Budget code / cost center\n- Expected delivery date\n- Business justification\n\n### Turnaround Time\n\n- Under RM 10,000: 5–7 business days\n- RM 10,000–50,000: 10–15 business days\n- Above RM 50,000: 15–20 business days`,
+            content: `## Purchase Requisition (PR) Process\n\nAll departmental purchases must go through the formal requisition workflow.\n\n### When to Submit a PR\n\n- Office equipment and furniture\n- Software subscriptions and licenses\n- Consulting and professional services\n- Any purchase exceeding RM 500\n\n### PR Workflow\n\n1. **Submit Request** via Group Finance → Purchase Requisition\n2. **Finance Acknowledgement** — Finance verifies budget allocation\n3. **Finance Processing** — PO created and sent to vendor\n4. **CFO Approval** — Required for purchases above RM 10,000\n5. **Group Deputy CEO Approval** — Required for purchases above RM 50,000\n6. **Payment** — Processed after goods/services received\n\n### Required Information\n\n- Item description and specifications\n- Quantity and estimated unit cost\n- Preferred vendor (if any)\n- Budget code / cost center\n- Expected delivery date\n- Business justification\n\n### Turnaround Time\n\n- Under RM 10,000: 5–7 business days\n- RM 10,000–50,000: 10–15 business days\n- Above RM 50,000: 15–20 business days`,
             excerpt: 'Complete guide for submitting and tracking purchase requisitions through approval workflow.',
             category: 'Procurement',
             tags: ['purchase', 'requisition', 'procurement', 'finance', 'approval'],
@@ -1448,20 +2056,21 @@ async function main() {
         await prisma.knowledgeBaseArticle.upsert({
             where: { slug: article.slug },
             update: {},
-            create: article,
+            create: { ...article, tenantId: DEFAULT_TENANT_ID },
         });
     }
     console.log(`✅ Seeded ${kbArticles.length} knowledge base articles`);
 
-    // ── CRM: Default Sales Pipeline ────────────────────────────────────────
+    // ── CRM: Unified Sales Pipeline ────────────────────────────────────────
     console.log('📊 Seeding CRM default pipeline...');
     const defaultPipeline = await prisma.crmPipeline.upsert({
         where: { id: '00000000-0000-0000-0000-000000000001' },
         update: {},
         create: {
             id: '00000000-0000-0000-0000-000000000001',
-            name: 'Default Sales Pipeline',
-            description: 'Standard sales pipeline for tracking deals from prospecting to close',
+            tenantId: DEFAULT_TENANT_ID,
+            name: 'Sales Pipeline',
+            description: 'Unified sales pipeline for tracking deals from prospecting to close',
             isDefault: true,
             isActive: true,
         },
@@ -1488,42 +2097,132 @@ async function main() {
     }
     console.log('✅ CRM default pipeline seeded');
 
-    // ── CRM: Cash Trust Pipeline ─────────────────────────────────────────────
-    console.log('📊 Seeding CRM Cash Trust pipeline...');
-    const cashTrustPipeline = await prisma.crmPipeline.upsert({
-        where: { id: '00000000-0000-0000-0000-000000000002' },
-        update: {},
-        create: {
-            id: '00000000-0000-0000-0000-000000000002',
-            name: 'Cash Trust Pipeline',
-            description: 'Pipeline for Malaysian unit trust / amanah saham sales — tracks client from initial contact through KYC, subscription, and allotment',
-            isDefault: false,
-            isActive: true,
+    // Sprint 6 — Credit demo data
+    try {
+        const { seedCreditDemo } = await import('./creditDemoSeed');
+        await seedCreditDemo(adminUser.id, adminUser.id);
+    } catch (e: any) {
+        console.warn('⚠️  Credit demo seed skipped:', e.message || e);
+    }
+
+    // ── AI Prompt Versions (governance registry for AI advisory features) ──
+    const AI_PROMPT_VERSIONS = [
+        {
+            feature: 'A4_RISK_NARRATIVE',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a senior credit analyst. Draft a concise risk narrative for the credit memo based on the provided application data. Return JSON: { "narrative": "string", "keyRisks": ["string"], "keyStrengths": ["string"], "citedFields": ["string"] }',
+            model: 'gpt-4o',
+            params: { max_tokens: 1200, temperature: 0.3 },
         },
-    });
-
-    const cashTrustStages = [
-        { name: 'Prospect',       displayOrder: 0, probability: 10,  color: '#6366f1', isWonStage: false, isLostStage: false },
-        { name: 'KYC / eKYC',    displayOrder: 1, probability: 25,  color: '#3b82f6', isWonStage: false, isLostStage: false },
-        { name: 'AML Check',      displayOrder: 2, probability: 40,  color: '#0ea5e9', isWonStage: false, isLostStage: false },
-        { name: 'Subscription',   displayOrder: 3, probability: 60,  color: '#f59e0b', isWonStage: false, isLostStage: false },
-        { name: 'Allotment',      displayOrder: 4, probability: 80,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
-        { name: 'Settlement',     displayOrder: 5, probability: 95,  color: '#10b981', isWonStage: false, isLostStage: false },
-        { name: 'Closed Won',     displayOrder: 6, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
-        { name: 'Closed Lost',    displayOrder: 7, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
-    ];
-
-    for (const stage of cashTrustStages) {
-        const existing = await prisma.crmPipelineStage.findFirst({
-            where: { pipelineId: cashTrustPipeline.id, displayOrder: stage.displayOrder },
+        {
+            feature: 'A5_RED_FLAG',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit risk specialist. Analyse the financial ratios and flag anomalies. Return JSON: { "flags": [{ "severity": "HIGH|MEDIUM|LOW", "title": "string", "evidence": "string", "rationale": "string" }], "overallRisk": "HIGH|MEDIUM|LOW" }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 800, temperature: 0.1 },
+        },
+        {
+            feature: 'A13_COMPLIANCE',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit compliance officer. Review the application checklist data and identify soft compliance concerns not caught by deterministic rules. Return JSON: { "concerns": [{ "severity": "HIGH|MEDIUM|LOW", "field": "string", "issue": "string", "recommendation": "string" }] }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 600, temperature: 0.1 },
+        },
+        {
+            feature: 'A15_EXCEPTION',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit policy officer. Identify policy exceptions in this application and explain each in plain language. Return JSON: { "exceptions": [{ "policyRef": "string", "description": "string", "severity": "HIGH|MEDIUM|LOW", "recommendation": "string" }] }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 600, temperature: 0.1 },
+        },
+    ] as const;
+    for (const pv of AI_PROMPT_VERSIONS) {
+        await prisma.aiPromptVersion.upsert({
+            where: { feature_version: { feature: pv.feature, version: pv.version } },
+            update: {},
+            create: {
+                feature: pv.feature,
+                version: pv.version,
+                promptHash: pv.promptHash,
+                template: pv.template,
+                model: pv.model,
+                params: pv.params as any,
+                active: true,
+            },
         });
-        if (!existing) {
-            await prisma.crmPipelineStage.create({
-                data: { ...stage, pipelineId: cashTrustPipeline.id },
+    }
+    console.log('✅ AI prompt versions seeded');
+
+    // ── Feature Flags (always ensure they exist so credit module isn't locked out after a re-seed) ──
+    const featureFlags = [
+        { key: 'credit:module',      description: 'Master toggle for the Credit Assessment Module', enabled: true, category: 'credit' },
+        { key: 'credit:borrowers',   description: 'Borrower profile management',                    enabled: true, category: 'credit' },
+        { key: 'credit:applications', description: 'Credit application intake and workflow',         enabled: true, category: 'credit' },
+        { key: 'credit:spreading',    description: 'Financial statement spreading (manual)',          enabled: true, category: 'credit' },
+        { key: 'credit:scoring',     description: 'Credit scoring and risk grading',                enabled: true, category: 'credit' },
+        { key: 'credit:committee',   description: 'Committee workflow',                              enabled: true, category: 'credit' },
+        { key: 'credit:collateral',  description: 'Collateral and guarantee management',            enabled: true, category: 'credit' },
+        { key: 'credit:conditions',  description: 'Conditions precedent/subsequent tracking',       enabled: true, category: 'credit' },
+        { key: 'credit:monitoring',  description: 'Post-disbursement monitoring and EWS',           enabled: true, category: 'credit' },
+        { key: 'credit:dashboards',  description: 'Credit operational dashboards',                   enabled: true, category: 'credit' },
+        { key: 'credit:ai',          description: 'AI advisory features (v2 - deferred)',            enabled: true, category: 'credit' },
+    ];
+    for (const flag of featureFlags) {
+        const existing = await prisma.featureFlag.findFirst({
+            where: { key: flag.key, tenantId: DEFAULT_TENANT_ID },
+        });
+        if (existing) {
+            await prisma.featureFlag.update({
+                where: { id: existing.id },
+                data: { description: flag.description, category: flag.category, enabled: flag.enabled },
+            });
+        } else {
+            await prisma.featureFlag.create({
+                data: { ...flag, tenantId: DEFAULT_TENANT_ID },
             });
         }
     }
-    console.log('✅ CRM Cash Trust pipeline seeded');
+    console.log('✅ Feature flags seeded');
+
+    // ── FX Rates ───────────────────────────────────────────────────────
+    const fxRates = [
+        { currency: 'MYR', rateToBase: 1,        effectiveDate: new Date('2026-01-01') },
+        { currency: 'USD', rateToBase: 4.72,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'SGD', rateToBase: 3.50,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'GBP', rateToBase: 5.89,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'EUR', rateToBase: 5.02,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'JPY', rateToBase: 0.0314,   effectiveDate: new Date('2026-01-01') },
+        { currency: 'CNY', rateToBase: 0.649,    effectiveDate: new Date('2026-01-01') },
+    ];
+    for (const rate of fxRates) {
+        await prisma.creditFxRate.upsert({
+            where: { currency_effectiveDate: { currency: rate.currency, effectiveDate: rate.effectiveDate } },
+            update: { rateToBase: rate.rateToBase },
+            create: rate,
+        });
+    }
+    console.log('✅ FX rates seeded');
+
+    // P1-4 — Seed collateral haircut configs
+    const haircutConfigs = [
+        { securityCategory: 'PROPERTY', haircutPercent: 0.30, minValuationAgeMonths: 12 },
+        { securityCategory: 'VEHICLE', haircutPercent: 0.40, minValuationAgeMonths: 6 },
+        { securityCategory: 'FD', haircutPercent: 0.05, minValuationAgeMonths: 3 },
+        { securityCategory: 'SECURITIES', haircutPercent: 0.50, minValuationAgeMonths: 3 },
+        { securityCategory: 'OTHER', haircutPercent: 0.50, minValuationAgeMonths: 6 },
+    ];
+    for (const hc of haircutConfigs) {
+        await prisma.collateralHaircutConfig.upsert({
+            where: { securityCategory_isActive: { securityCategory: hc.securityCategory, isActive: true } },
+            update: { haircutPercent: hc.haircutPercent, minValuationAgeMonths: hc.minValuationAgeMonths },
+            create: hc,
+        });
+    }
+    console.log('✅ Collateral haircut configs seeded');
 
     console.log('🎉 Database seeding completed!');
 }

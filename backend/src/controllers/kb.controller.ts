@@ -1,9 +1,11 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { policyService } from '../security/policy.service';
+import { principalFromAuth } from '../security/resource-scope.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
+import { sanitizeKBContent, sanitizeString } from '../utils/sanitize';
 
 class KBController {
     getAllArticles = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -13,10 +15,22 @@ class KBController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
+        // P02-11: Scope KB articles to principal's department visibility
+        const principal = principalFromAuth(req.user!);
+        const kbVisible = policyService.buildVisibleWhere(principal, 'kb_article');
+
         const where: any = {
             isPublished: true,
             deletedAt: null,
         };
+
+        // Merge policy visibility conditions
+        if (kbVisible.AND || kbVisible.OR) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                kbVisible,
+            ];
+        }
 
         if (serviceDeskId) {
             where.serviceDeskId = serviceDeskId;
@@ -27,10 +41,15 @@ class KBController {
         }
 
         if (search) {
-            where.OR = [
+            const searchConditions = [
                 { title: { contains: search as string, mode: 'insensitive' } },
                 { content: { contains: search as string, mode: 'insensitive' } },
             ];
+            if (where.AND) {
+                where.AND = [...(Array.isArray(where.AND) ? where.AND : [where.AND]), { OR: searchConditions }];
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         const [articles, total] = await Promise.all([
@@ -126,12 +145,13 @@ class KBController {
     createArticle = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { title, slug, content, excerpt, serviceDeskId, category, tags } = req.body;
 
+        // P1-12: Sanitize KB content server-side before persistence
         const article = await prisma.knowledgeBaseArticle.create({
             data: {
-                title,
+                title: sanitizeString(title),
                 slug,
-                content,
-                excerpt,
+                content: sanitizeKBContent(content),
+                excerpt: excerpt ? sanitizeString(excerpt) : undefined,
                 serviceDeskId,
                 category,
                 tags,
@@ -149,9 +169,18 @@ class KBController {
         const id = String(req.params.id);
         const { title, slug, content, excerpt, category, tags } = req.body;
 
+        // P1-12: Sanitize KB content server-side before persistence
+        const data: Record<string, unknown> = {};
+        if (title !== undefined) data.title = sanitizeString(title);
+        if (slug !== undefined) data.slug = slug;
+        if (content !== undefined) data.content = sanitizeKBContent(content);
+        if (excerpt !== undefined) data.excerpt = excerpt ? sanitizeString(excerpt) : null;
+        if (category !== undefined) data.category = category;
+        if (tags !== undefined) data.tags = tags;
+
         const article = await prisma.knowledgeBaseArticle.update({
             where: { id },
-            data: { title, slug, content, excerpt, category, tags },
+            data,
         });
 
         res.json({

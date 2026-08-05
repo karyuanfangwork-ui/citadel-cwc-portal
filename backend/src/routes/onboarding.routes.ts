@@ -12,6 +12,7 @@ import {
     assignBuddy,
     getOnboardingProgress,
     updateStartDate,
+    updateHireInfo,
 } from '../controllers/onboarding.controller';
 
 const router = Router();
@@ -24,6 +25,7 @@ router.post('/requests/:id/onboarding/create', createOnboardingRequest);
 router.get('/requests/:id/onboarding', getOnboardingRequest);
 router.put('/requests/:id/onboarding/update-status', updateOnboardingStatus);
 router.patch('/requests/:id/onboarding/start-date', updateStartDate);
+router.patch('/requests/:id/onboarding/hire-info', updateHireInfo);
 router.get('/requests/:id/onboarding/progress', getOnboardingProgress);
 
 // Onboarding task routes

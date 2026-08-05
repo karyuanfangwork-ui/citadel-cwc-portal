@@ -61,7 +61,7 @@ const RouteToCEOHRModal: React.FC<RouteToCEOHRModalProps> = ({ requestId, onSucc
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
           <div className="flex items-center gap-3 p-5 border-b border-gray-100">
             <div className="size-9 rounded-lg bg-purple-100 flex items-center justify-center">

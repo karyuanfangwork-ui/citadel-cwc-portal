@@ -1,6 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { autoAssignRequest } from './autoAssignment.service';
+import { notifyMultiple } from './notification.service';
+import { logger } from '../utils/logger';
+import { generateRequestRefNum } from './referenceNumber.service';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 /**
  * Create onboarding request from completed hiring workflow
@@ -63,15 +66,8 @@ export const createOnboardingFromHiring = async (request: any) => {
             where: { name: { contains: 'Onboard', mode: 'insensitive' } },
         });
 
-        // Generate next HR-N reference number
-        const lastHrRequest = await prisma.request.findFirst({
-            where: { referenceNumber: { startsWith: 'HR-' } },
-            orderBy: { createdAt: 'desc' },
-        });
-        const nextNum = lastHrRequest
-            ? parseInt(lastHrRequest.referenceNumber.split('-')[1], 10) + 1
-            : 1;
-        const referenceNumber = `HR-${nextNum}`;
+        // Generate next HR-N reference number — P2-11: use atomic counter
+        const referenceNumber = await generateRequestRefNum('HR');
 
         // Create a separate onboarding ticket linked back to the hiring request
         const onboardingTicket = await prisma.request.create({
@@ -127,6 +123,21 @@ export const createOnboardingFromHiring = async (request: any) => {
             },
         });
 
+        // Auto-assign the onboarding ticket to an HR agent (same flow as normal request creation)
+        const assignResult = await autoAssignRequest(onboardingTicket.id);
+        if (assignResult.success && assignResult.assignedToId) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: onboardingTicket.id,
+                    authorName: 'System',
+                    authorRole: 'SYSTEM',
+                    activityType: 'SYSTEM',
+                    message: `Auto-assigned to ${assignResult.agentName} via ${assignResult.strategy} assignment.`,
+                    isSystemGenerated: true,
+                },
+            });
+        }
+
         return { onboarding, onboardingTicket };
     } catch (error) {
         console.error('❌ Error creating onboarding from hiring:', error);
@@ -136,7 +147,10 @@ export const createOnboardingFromHiring = async (request: any) => {
 };
 
 /**
- * Create default onboarding tasks from DB templates
+ * Create default onboarding tasks from DB templates.
+ * When IT-category tasks are created, notifies all active IT team agents so
+ * they are aware of pending IT onboarding work without having to manually
+ * check the ticket.
  */
 export const createDefaultOnboardingTasks = async (onboardingId: string, startDate: Date) => {
     const templates = await prisma.onboardingTaskTemplate.findMany({
@@ -161,6 +175,63 @@ export const createDefaultOnboardingTasks = async (onboardingId: string, startDa
     });
 
     console.log(`✅ Created ${templates.length} onboarding tasks from templates`);
+
+    // ── Notify the dedicated IT agent if any IT-category tasks were created ──
+    const hasItTasks = templates.some(t => t.taskCategory.toUpperCase() === 'IT');
+    if (!hasItTasks) return;
+
+    // Resolve the onboarding request + parent ticket for notification context
+    const onboarding = await prisma.onboardingRequest.findUnique({
+        where: { id: onboardingId },
+        select: {
+            requestId: true,
+            newHireFirstName: true,
+            newHireLastName: true,
+            jobTitle: true,
+            department: true,
+        },
+    });
+    if (!onboarding) return;
+
+    // Read the dedicated IT agent from system settings
+    const itAgentSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'onboarding_it_agent_user_id' },
+    });
+
+    if (!itAgentSetting || !itAgentSetting.value) {
+        logger.warn('[Onboarding] No dedicated IT agent configured (system setting "onboarding_it_agent_user_id" not set) — skipping IT task notification');
+        return;
+    }
+
+    const itAgentId = itAgentSetting.value;
+
+    // Verify the agent still exists and is active
+    const itAgent = await prisma.user.findUnique({
+        where: { id: itAgentId },
+        select: { id: true, isActive: true },
+    });
+
+    if (!itAgent || !itAgent.isActive) {
+        logger.warn(`[Onboarding] Configured IT agent ${itAgentId} not found or inactive — skipping IT task notification`);
+        return;
+    }
+
+    const newHireName = `${onboarding.newHireFirstName} ${onboarding.newHireLastName}`;
+    const itTaskCount = templates.filter(t => t.taskCategory.toUpperCase() === 'IT').length;
+
+    await notifyMultiple(
+        [itAgentId],
+        'ONBOARDING_IT_TASKS_CREATED',
+        {
+            newHireName,
+            jobTitle: onboarding.jobTitle,
+            department: onboarding.department,
+            itTaskCount: String(itTaskCount),
+        },
+        onboarding.requestId,
+    );
+
+    logger.info(`[Onboarding] Notified dedicated IT agent ${itAgentId} about ${itTaskCount} IT task(s) for ${newHireName}`);
 };
 
 /**

@@ -1,10 +1,9 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { asyncHandler } from '../middleware/error.middleware';
+import { asyncHandler, AppError } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { addClient, removeClient } from '../utils/sseClients';
 
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 class NotificationController {
     getNotifications = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -16,13 +15,13 @@ class NotificationController {
 
         const [notifications, total] = await Promise.all([
             prisma.notification.findMany({
-                where: { userId: req.user!.id },
+                where: { userId: req.user!.id, channel: 'IN_APP' },
                 skip,
                 take: limitNum,
                 orderBy: { createdAt: 'desc' },
             }),
             prisma.notification.count({
-                where: { userId: req.user!.id },
+                where: { userId: req.user!.id, channel: 'IN_APP' },
             }),
         ]);
 
@@ -44,6 +43,7 @@ class NotificationController {
         const count = await prisma.notification.count({
             where: {
                 userId: req.user!.id,
+                channel: 'IN_APP',
                 readAt: null,
             },
         });
@@ -54,8 +54,51 @@ class NotificationController {
         });
     });
 
+    getNotificationsAfter = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { cursor, limit = '50' } = req.query;
+        const limitNum = Math.min(parseInt(limit as string, 10) || 50, 100);
+
+        let cursorCreatedAt: Date | null = null;
+        if (cursor) {
+            const cursorNotification = await prisma.notification.findFirst({
+                where: {
+                    id: String(cursor),
+                    userId: req.user!.id,
+                    channel: 'IN_APP',
+                },
+                select: { createdAt: true },
+            });
+            cursorCreatedAt = cursorNotification?.createdAt ?? null;
+        }
+
+        const notifications = await prisma.notification.findMany({
+            where: {
+                userId: req.user!.id,
+                channel: 'IN_APP',
+                ...(cursorCreatedAt ? { createdAt: { gt: cursorCreatedAt } } : {}),
+            },
+            orderBy: { createdAt: 'asc' },
+            take: limitNum,
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                notifications,
+                cursor: notifications.at(-1)?.id ?? (cursor ? String(cursor) : null),
+            },
+        });
+    });
+
+    // P01-17: Verify ownership before marking as read
     markAsRead = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
+
+        // Verify the notification belongs to the requesting user
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user!.id) {
+            throw new AppError('Notification not found or access denied', 404);
+        }
 
         const notification = await prisma.notification.update({
             where: { id },
@@ -72,6 +115,7 @@ class NotificationController {
         await prisma.notification.updateMany({
             where: {
                 userId: req.user!.id,
+                channel: 'IN_APP',
                 readAt: null,
             },
             data: { readAt: new Date() },
@@ -83,8 +127,15 @@ class NotificationController {
         });
     });
 
+    // P01-18: Verify ownership before deleting
     deleteNotification = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
+
+        // Verify the notification belongs to the requesting user
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user!.id) {
+            throw new AppError('Notification not found or access denied', 404);
+        }
 
         await prisma.notification.delete({
             where: { id },

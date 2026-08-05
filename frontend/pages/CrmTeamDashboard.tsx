@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-import { Navigate } from 'react-router-dom';
-import crmService, { TeamPerformance } from '../src/services/crm.service';
+import { Navigate, useNavigate } from 'react-router-dom';
+import crmService, { TeamPerformance, CrmUser, CrmLead } from '../src/services/crm.service';
+import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -21,9 +22,33 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 
 const CrmTeamDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<TeamPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<{
+    headline: string; atRiskDeals: string[]; repActivityGaps: string[]; recommendations: string[];
+  } | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+
+  // ── Reassignment state ──
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [agentLeads, setAgentLeads] = useState<CrmLead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null); // lead id being reassigned
+  const [toast, setToast] = useState<string | null>(null);
+
+  const loadBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const data = await crmService.getManagerBriefing();
+      setBriefing(data);
+      setBriefingOpen(true);
+    } catch { /* fail silently */ }
+    finally { setBriefingLoading(false); }
+  };
 
   // Permission guard — crm:admin only
   if (!hasPermission(user, 'crm:admin')) {
@@ -46,6 +71,46 @@ const CrmTeamDashboard = () => {
     fetch();
   }, []);
 
+  // Load CRM users for reassignment dropdown
+  useEffect(() => {
+    crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
+  }, []);
+
+  // Expand agent row to show their leads
+  const expandAgent = async (agentId: string) => {
+    if (expandedAgent === agentId) {
+      setExpandedAgent(null);
+      setAgentLeads([]);
+      return;
+    }
+    setExpandedAgent(agentId);
+    setLeadsLoading(true);
+    try {
+      const res = await crmService.listLeads({ ownerId: agentId, limit: 50 });
+      setAgentLeads(res.leads);
+    } catch { setAgentLeads([]); }
+    finally { setLeadsLoading(false); }
+  };
+
+  const handleReassign = async (leadId: string, newOwnerId: string) => {
+    setReassigning(leadId);
+    try {
+      await crmService.updateLead(leadId, { ownerId: newOwnerId });
+      const newUser = crmUsers.find(u => u.id === newOwnerId);
+      setToast(`Lead reassigned to ${newUser?.firstName} ${newUser?.lastName}`);
+      // Refresh leads list for this agent
+      setAgentLeads(prev => prev.filter(l => l.id !== leadId));
+      // Refresh team performance
+      const data = await crmService.getTeamPerformance();
+      setAgents(data.agents);
+    } catch {
+      setToast('Reassignment failed');
+    } finally {
+      setReassigning(null);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   // Aggregated totals
   const totalLeads = agents.reduce((s, a) => s + a.leads, 0);
   const totalPipelineValue = agents.reduce((s, a) => s + a.pipelineValue, 0);
@@ -53,13 +118,14 @@ const CrmTeamDashboard = () => {
   const totalWonValue = agents.reduce((s, a) => s + a.wonThisMonth.value, 0);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4338ca] rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
+      <section className="bg-gradient-to-br from-brand-950 via-brand-800 to-brand-700 rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
         <div className="relative z-10">
-          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM Dashboard</div>
+          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM › <span className="text-white/90">Dashboard</span></div>
           <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">
             Team Performance <span className="text-white/65 font-normal">Overview</span>
           </h1>
@@ -68,11 +134,64 @@ const CrmTeamDashboard = () => {
       </section>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        <div className="bg-danger/10 border border-danger text-danger p-4 rounded-lg mb-6">
           <p className="font-bold">Error loading team performance</p>
           <p className="text-sm mt-1">{error}</p>
         </div>
       )}
+
+      {/* Manager AI Briefing */}
+      <div className="bg-surface border border-border rounded-xl shadow-sm mb-6 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-brand-600">auto_awesome</span>
+            <span className="font-extrabold text-text-primary">AI Pipeline Briefing</span>
+            {briefing && (
+              <span className="text-xs text-text-secondary ml-2 truncate max-w-xs hidden sm:inline">
+                {briefing.headline}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={briefingOpen ? () => setBriefingOpen(false) : briefing ? () => setBriefingOpen(true) : loadBriefing}
+            disabled={briefingLoading}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          >
+            <span className="material-symbols-outlined text-base">
+              {briefingLoading ? 'hourglass_empty' : briefingOpen ? 'expand_less' : 'expand_more'}
+            </span>
+            {briefingLoading ? 'Loading…' : briefingOpen ? 'Collapse' : briefing ? 'Show' : 'Generate'}
+          </button>
+        </div>
+
+        {briefingOpen && briefing && (
+          <div className="px-5 pb-5 border-t border-border pt-4 grid sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs font-bold text-danger uppercase tracking-wide mb-2">At-Risk Deals</p>
+              {briefing.atRiskDeals.length === 0
+                ? <p className="text-sm text-text-secondary">None — pipeline looks healthy</p>
+                : briefing.atRiskDeals.map((d, i) => (
+                  <p key={i} className="text-sm text-text-primary mb-1">• {d}</p>
+                ))}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-warning uppercase tracking-wide mb-2">Activity Gaps</p>
+              {briefing.repActivityGaps.length === 0
+                ? <p className="text-sm text-text-secondary">All reps active this week</p>
+                : briefing.repActivityGaps.map((r, i) => (
+                  <p key={i} className="text-sm text-text-primary mb-1">• {r}</p>
+                ))}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-success uppercase tracking-wide mb-2">Recommendations</p>
+              {briefing.recommendations.map((r, i) => (
+                <p key={i} className="text-sm text-text-primary mb-1">• {r}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
@@ -90,9 +209,9 @@ const CrmTeamDashboard = () => {
           ))
         ) : (
           [
-            { label: 'Total Leads', value: totalLeads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
-            { label: 'Pipeline Value', value: formatCurrency(totalPipelineValue), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
-            { label: 'Won This Month', value: `${totalWonCount} · ${formatCurrency(totalWonValue)}`, icon: 'emoji_events', bg: '#f0fdf4', color: '#166534' },
+            { label: 'Total Leads', value: totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
+            { label: 'Pipeline Value', value: formatCurrency(totalPipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+            { label: 'Won This Month', value: `${totalWonCount} · ${formatCurrency(totalWonValue)}`, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
           ].map((s) => (
             <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
               <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
@@ -117,6 +236,14 @@ const CrmTeamDashboard = () => {
           <h2 className="text-lg font-extrabold text-text-primary">Agent Performance</h2>
         </div>
 
+        {/* Toast */}
+        {toast && (
+          <div className="mx-5 mt-4 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">check_circle</span>
+            {toast}
+          </div>
+        )}
+
         {loading ? (
           <div className="p-5 space-y-4">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -132,65 +259,153 @@ const CrmTeamDashboard = () => {
             ))}
           </div>
         ) : agents.length === 0 ? (
-          <div className="p-12 text-center text-text-secondary">
-            <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">groups</span>
-            <p className="font-bold">No agents found</p>
-            <p className="text-sm mt-1">Team performance data will appear here once agents are assigned</p>
-          </div>
+          <EmptyState icon="groups" title="No team members" description="Add team members to manage your CRM team." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-gray-50">
+                <tr className="border-b border-border bg-surface-muted">
                   <th className="text-left font-bold text-text-secondary px-5 py-3">Agent</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Leads</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Open Deals</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Pipeline Value</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Won This Month</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Stale Leads</th>
+                  <th className="text-center font-bold text-text-secondary px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {agents.map((agent) => (
-                  <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
+                  <React.Fragment key={agent.id}>
+                  <tr className="hover:bg-surface-muted transition-colors">
                     {/* Agent */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         {agent.avatarUrl ? (
                           <img src={agent.avatarUrl} alt={agent.name} className="w-9 h-9 rounded-full object-cover" />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-bold text-indigo-700">{agent.name.charAt(0).toUpperCase()}</span>
+                          <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-bold text-brand-700">{agent.name.charAt(0).toUpperCase()}</span>
                           </div>
                         )}
                         <div className="min-w-0">
-                          <div className="font-semibold text-text-primary truncate">{agent.name}</div>
+                          <div className="font-semibold text-text-primary truncate cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/leads?ownerId=${agent.id}`)}>{agent.name}</div>
                           <div className="text-xs text-text-secondary truncate">{agent.email}</div>
                         </div>
                       </div>
                     </td>
                     {/* Leads */}
-                    <td className="text-right px-5 py-4 font-semibold text-text-primary">{agent.leads}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-text-primary cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/leads?ownerId=${agent.id}`)} title="View agent's leads">{agent.leads}</td>
                     {/* Open Deals */}
-                    <td className="text-right px-5 py-4 font-semibold text-text-primary">{agent.openDeals}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-text-primary cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/opportunities?ownerId=${agent.id}`)} title="View agent's deals">{agent.openDeals}</td>
                     {/* Pipeline Value */}
-                    <td className="text-right px-5 py-4 font-semibold text-emerald-700">{formatCurrency(agent.pipelineValue)}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-success">{formatCurrency(agent.pipelineValue)}</td>
                     {/* Won This Month */}
                     <td className="text-right px-5 py-4">
                       <div className="font-semibold text-text-primary">{agent.wonThisMonth.count} deals</div>
-                      <div className="text-xs text-emerald-600">{formatCurrency(agent.wonThisMonth.value)}</div>
+                      <div className="text-xs text-success">{formatCurrency(agent.wonThisMonth.value)}</div>
                     </td>
                     {/* Stale Leads */}
                     <td className="text-right px-5 py-4">
                       <span
+                        onClick={() => agent.staleLeads > 0 && navigate(`/crm/leads?ownerId=${agent.id}`)}
                         className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${
-                          agent.staleLeads > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                          agent.staleLeads > 0 ? 'bg-danger/10 text-danger cursor-pointer hover:bg-danger/20 transition-colors' : 'bg-surface-muted text-text-tertiary'
                         }`}
+                        title={agent.staleLeads > 0 ? "View agent's stale leads" : undefined}
                       >
                         {agent.staleLeads}
                       </span>
                     </td>
+                    {/* Actions */}
+                    <td className="text-center px-5 py-4">
+                      <button
+                        onClick={() => expandAgent(agent.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          expandedAgent === agent.id
+                            ? 'bg-brand-600 text-white'
+                            : agent.leads > 0
+                              ? 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                              : 'bg-surface-muted text-text-tertiary cursor-not-allowed'
+                        }`}
+                        disabled={agent.leads === 0}
+                        style={{ border: 'none', cursor: agent.leads === 0 ? 'not-allowed' : 'pointer' }}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {expandedAgent === agent.id ? 'expand_less' : 'swap_horiz'}
+                        </span>
+                        {expandedAgent === agent.id ? 'Close' : 'Reassign'}
+                      </button>
+                    </td>
                   </tr>
+                  {/* Expanded: Agent Leads for Reassignment */}
+                  {expandedAgent === agent.id && (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-0">
+                        <div className="border border-border rounded-lg my-3 overflow-hidden">
+                          <div className="bg-surface-muted px-4 py-2 text-xs font-bold text-text-secondary uppercase tracking-wide">
+                            {agent.name}&apos;s Leads ({agentLeads.length})
+                          </div>
+                          {leadsLoading ? (
+                            <div className="p-4 text-center text-sm text-text-secondary">Loading leads…</div>
+                          ) : agentLeads.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-text-secondary">No leads to reassign.</div>
+                          ) : (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-border bg-surface text-text-secondary text-xs uppercase">
+                                  <th className="text-left px-4 py-2">Lead</th>
+                                  <th className="text-left px-4 py-2">Status</th>
+                                  <th className="text-right px-4 py-2">Est. Value</th>
+                                  <th className="text-center px-4 py-2">Reassign To</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {agentLeads.map(lead => (
+                                  <tr key={lead.id} className="hover:bg-surface-muted transition-colors">
+                                    <td className="px-4 py-2.5">
+                                      <a href={`/crm/leads/${lead.id}`} className="text-brand-600 hover:underline font-semibold">{lead.title}</a>
+                                      {lead.companyName && <div className="text-xs text-text-secondary">{lead.companyName}</div>}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                        lead.status === 'NEW' ? 'bg-brand-50 text-brand-700'
+                                        : lead.status === 'CONTACTED' ? 'bg-amber-50 text-amber-700'
+                                        : lead.status === 'QUALIFIED' ? 'bg-green-50 text-green-700'
+                                        : 'bg-surface-muted text-text-secondary'
+                                      }`}>{lead.status}</span>
+                                    </td>
+                                    <td className="text-right px-4 py-2.5 text-text-primary">
+                                      {lead.estimatedValue ? formatCurrency(lead.estimatedValue) : '—'}
+                                    </td>
+                                    <td className="text-center px-4 py-2.5">
+                                      <select
+                                        className="rounded-lg border border-border bg-bg-surface px-2.5 py-1 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[140px]"
+                                        defaultValue=""
+                                        disabled={reassigning === lead.id}
+                                        onChange={e => { if (e.target.value) handleReassign(lead.id, e.target.value); }}
+                                      >
+                                        <option value="" disabled>Select new owner…</option>
+                                        {crmUsers
+                                          .filter(u => u.id !== agent.id)
+                                          .map(u => (
+                                            <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                                          ))}
+                                      </select>
+                                      {reassigning === lead.id && (
+                                        <span className="material-symbols-outlined text-sm animate-spin ml-1 text-brand-600">progress_activity</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -198,6 +413,7 @@ const CrmTeamDashboard = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 
