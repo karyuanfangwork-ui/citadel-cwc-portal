@@ -36,3 +36,42 @@ describe('WorkflowList', () => {
     await waitFor(() => expect(service.createDraft).toHaveBeenCalledWith('wt-1'));
   });
 });
+
+const procurement = { id: 'wt-2', code: 'IT_PROCUREMENT', name: 'IT Procurement', requestTypes: [{ id: 'rt-9', name: 'Purchase Requisition' }], activeVersion: { id: 'v-9', version: 1, status: 'ACTIVE' as const, publishedAt: null }, draftVersion: null };
+
+describe('WorkflowList search', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service.listWorkflows.mockResolvedValue({ workflows: [workflow, procurement] });
+  });
+
+  const search = () => screen.getByRole('searchbox', { name: 'Search workflows or request types' });
+
+  it('filters by request type name', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><WorkflowList /></MemoryRouter>);
+    expect(await screen.findByText('IT Simple')).toBeInTheDocument();
+    await user.type(search(), 'purchase');
+    expect(screen.getByText('IT Procurement')).toBeInTheDocument();
+    expect(screen.queryByText('IT Simple')).not.toBeInTheDocument();
+  });
+
+  it('filters by workflow code', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><WorkflowList /></MemoryRouter>);
+    await user.type(await screen.findByRole('searchbox', { name: 'Search workflows or request types' }), 'IT_SIMPLE');
+    expect(screen.getByText('IT Simple')).toBeInTheDocument();
+    expect(screen.queryByText('IT Procurement')).not.toBeInTheDocument();
+  });
+
+  it('offers a distinct empty state that clears the query', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><WorkflowList /></MemoryRouter>);
+    await user.type(await screen.findByRole('searchbox', { name: 'Search workflows or request types' }), 'nothing matches this');
+    expect(screen.getByText('No workflows match "nothing matches this"')).toBeInTheDocument();
+    expect(screen.queryByText('No active workflows')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByText('IT Simple')).toBeInTheDocument();
+    expect(search()).toHaveValue('');
+  });
+});

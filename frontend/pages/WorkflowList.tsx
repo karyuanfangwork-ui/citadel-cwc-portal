@@ -11,6 +11,7 @@ export default function WorkflowList() {
   const [selected, setSelected] = useState<WorkflowSummary | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const createDraft = async () => {
     if (!selected || creating) return;
@@ -27,14 +28,21 @@ export default function WorkflowList() {
     }
   };
 
+  const trimmedQuery = query.trim().toLowerCase();
+  const matches = (value: string) => value.toLowerCase().includes(trimmedQuery);
+  const visible = trimmedQuery
+    ? workflows.filter((workflow) => matches(workflow.code) || matches(workflow.name) || workflow.requestTypes.some((requestType) => matches(requestType.name)))
+    : workflows;
+
   return (
     <section className="min-h-[calc(100vh-8rem)] bg-[#f7f9fc] px-6 py-8" data-testid="workflow-list-page">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-start justify-between gap-4"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0052cc]">Administration</p><h1 className="text-3xl font-black tracking-tight text-[#101418]">Workflow Designer</h1><p className="mt-2 max-w-2xl text-sm text-[#44546f]">Create and manage versioned workflows without editing compiled runtime rules directly.</p></div><Link className="text-sm font-semibold text-[#0052cc] hover:underline" to="/admin/settings?tab=workflow-config">Open legacy Workflow Config</Link></div>
+        <div className="mb-8 flex items-start justify-between gap-4"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0052cc]">Administration</p><h1 className="text-3xl font-black tracking-tight text-[#101418]">Workflow Designer</h1><p className="mt-2 max-w-2xl text-sm text-[#44546f]">Create and manage versioned workflows without editing compiled runtime rules directly.</p></div><div className="w-full max-w-xs"><label className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-[#8993a4]" htmlFor="workflow-search">Search</label><input aria-label="Search workflows or request types" className="w-full rounded-lg border border-[#b9c8de] px-3 py-2 text-sm text-[#101418] placeholder:text-[#8993a4] focus:border-[#0052cc] focus:outline-none" id="workflow-search" onChange={(event) => setQuery(event.target.value)} placeholder="Search workflows or request types" type="search" value={query} /></div><Link className="text-sm font-semibold text-[#0052cc] hover:underline" to="/admin/settings?tab=workflow-config">Open legacy Workflow Config</Link></div>
         {loading && <div className="rounded-2xl border border-[#dbe3ef] bg-white p-10 text-center text-sm text-[#44546f]" role="status">Loading workflows…</div>}
         {!loading && error && <div className="rounded-2xl border border-[#f2b8b5] bg-white p-8 text-center"><p className="font-semibold text-[#b42318]" role="alert">{error}</p><button className="mt-4 rounded-lg bg-[#0052cc] px-4 py-2 text-sm font-semibold text-white" onClick={() => void reload()}>Retry</button></div>}
         {!loading && !error && workflows.length === 0 && <div className="rounded-2xl border border-dashed border-[#c9d4e5] bg-white p-10 text-center"><h2 className="text-lg font-bold text-[#101418]">No active workflows</h2><p className="mt-2 text-sm text-[#44546f]">There are no workflow types available for administration.</p></div>}
-        {!loading && !error && workflows.length > 0 && <div className="grid gap-5 lg:grid-cols-2">{workflows.map((workflow) => <WorkflowListCard key={workflow.id} workflow={workflow} onCreateDraft={(item) => { setSelected(item); setCreateError(null); }} />)}</div>}
+        {!loading && !error && workflows.length > 0 && visible.length === 0 && <div className="rounded-2xl border border-dashed border-[#c9d4e5] bg-white p-10 text-center"><h2 className="text-lg font-bold text-[#101418]">No workflows match "{query.trim()}"</h2><p className="mt-2 text-sm text-[#44546f]">Try a workflow name, its code, or a request type it governs.</p><button className="mt-4 rounded-lg bg-[#0052cc] px-4 py-2 text-sm font-semibold text-white" onClick={() => setQuery('')}>Clear search</button></div>}
+        {!loading && !error && visible.length > 0 && <div className="grid gap-5 lg:grid-cols-2">{visible.map((workflow) => <WorkflowListCard key={workflow.id} workflow={workflow} onCreateDraft={(item) => { setSelected(item); setCreateError(null); }} />)}</div>}
       </div>
       {selected && <CreateDraftDialog workflow={selected} busy={creating} error={createError} onClose={() => { if (!creating) setSelected(null); }} onConfirm={() => void createDraft()} />}
     </section>
