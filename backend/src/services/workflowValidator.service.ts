@@ -8,6 +8,8 @@
  */
 
 import { Finding, GraphNode, ValidationResult, WorkflowGraph } from './workflowGraph.types';
+import { config } from '../config';
+import { loadOccupancy } from './statusRemap.service';
 import prisma from '../utils/prisma';
 
 const label = (node: GraphNode): string => node.statusCode ?? node.id;
@@ -215,27 +217,24 @@ export function validateStructure(graph: WorkflowGraph): ValidationResult {
 export interface ValidateGraphInput {
   workflowTypeId: string;
   graph: WorkflowGraph;
+  /** removed status code → surviving status code. Applied at publish. */
+  statusRemap?: Record<string, string>;
 }
 
 /**
  * Checks that publishing this graph would not strand a request that is already
  * in flight. Re-run inside the publish transaction, because occupancy counts
  * move between an admin looking at the canvas and clicking Publish.
+ *
+ * A stranded status with a valid entry in `statusRemap` is not blocking — the
+ * publish will move those requests. The mapping itself is validated here too.
  */
 export async function validateLiveData(input: ValidateGraphInput, client: any = prisma): Promise<Finding[]> {
   const { workflowTypeId, graph } = input;
+  const remap = input.statusRemap ?? {};
 
-  const requestTypes = await client.requestType.findMany({
-    where: { workflowTypeId },
-    select: { id: true },
-  });
-  if (requestTypes.length === 0) return [];
-
-  const occupancy = await client.request.groupBy({
-    by: ['status'],
-    where: { requestTypeId: { in: requestTypes.map((rt: { id: string }) => rt.id) } },
-    _count: { _all: true },
-  });
+  const occupancy = await loadOccupancy(workflowTypeId, client);
+  if (occupancy.size === 0) return [];
 
   const findings: Finding[] = [];
   const nodesByStatus = new Map(
@@ -248,15 +247,43 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
       .map((edge) => edge.fromNodeId),
   );
 
-  for (const row of occupancy) {
-    const count = row._count._all;
-    if (count === 0) continue;
+  // Validate the mapping itself before trusting it to clear occupancy findings.
+  const usableTargets = new Set<string>();
+  for (const [from, to] of Object.entries(remap)) {
+    if (from === to) {
+      findings.push({ code: 'REMAP_SELF', message: `Cannot map ${from} onto itself` });
+      continue;
+    }
+    const target = nodesByStatus.get(to);
+    if (!target) {
+      findings.push({
+        code: 'REMAP_TARGET_MISSING',
+        message: `Remap target ${to} is not a status in this version`,
+      });
+      continue;
+    }
+    if (!target.isFinal && !hasOutgoing.has(target.id)) {
+      findings.push({
+        code: 'REMAP_TARGET_NO_EXIT',
+        nodeId: target.id,
+        message: `Remap target ${to} has no outgoing transitions — requests moved there would be stranded again`,
+      });
+      continue;
+    }
+    usableTargets.add(from);
+  }
 
-    const node = nodesByStatus.get(row.status);
+  let remappedTotal = 0;
+  for (const [status, count] of occupancy) {
+    const node = nodesByStatus.get(status);
     if (!node) {
+      if (usableTargets.has(status)) {
+        remappedTotal += count;
+        continue;
+      }
       findings.push({
         code: 'STATUS_IN_USE_REMOVED',
-        message: `${count} request${count === 1 ? ' is' : 's are'} currently in ${row.status} — it cannot be removed from this workflow`,
+        message: `${count} request${count === 1 ? ' is' : 's are'} currently in ${status} — it cannot be removed from this workflow`,
       });
       continue;
     }
@@ -265,9 +292,17 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
       findings.push({
         code: 'OCCUPIED_STATUS_NO_EXIT',
         nodeId: node.id,
-        message: `${count} request${count === 1 ? ' is' : 's are'} in ${row.status}, which would have no available transitions`,
+        message: `${count} request${count === 1 ? ' is' : 's are'} in ${status}, which would have no available transitions`,
       });
     }
+  }
+
+  const cap = config.workflow.remapMaxRequests;
+  if (remappedTotal > cap) {
+    findings.push({
+      code: 'REMAP_VOLUME_EXCEEDED',
+      message: `This remap would move ${remappedTotal} requests, above the limit of ${cap} — move some out of these statuses manually first`,
+    });
   }
 
   return findings;

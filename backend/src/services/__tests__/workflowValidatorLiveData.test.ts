@@ -1,8 +1,14 @@
 const mockPrisma = {
   requestType: { findMany: jest.fn() },
   request: { groupBy: jest.fn() },
+  workflowVersion: { findFirst: jest.fn() },
 };
 jest.mock('../../utils/prisma', () => ({ __esModule: true, default: mockPrisma }));
+
+const mockLoadOccupancy = jest.fn();
+jest.mock('../statusRemap.service', () => ({
+  loadOccupancy: (...args: unknown[]) => mockLoadOccupancy(...args),
+}));
 
 import { validateGraph, validateLiveData } from '../workflowValidator.service';
 import { GraphNode, WorkflowGraph } from '../workflowGraph.types';
@@ -54,22 +60,22 @@ const graph = (): WorkflowGraph => ({
 
 const input = { workflowTypeId: 'wf1', graph: graph() };
 
+const occupy = (entries: [string, number][]) =>
+  new Map(entries.map(([status, count]) => [status, count]));
+
 describe('validateLiveData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPrisma.requestType.findMany.mockResolvedValue([{ id: 'rt1' }, { id: 'rt2' }]);
+    mockLoadOccupancy.mockResolvedValue(new Map());
   });
 
   it('reports nothing when every occupied status survives with an exit', async () => {
-    mockPrisma.request.groupBy.mockResolvedValue([
-      { status: 'NEW', _count: { _all: 4 } },
-      { status: 'IN_PROGRESS', _count: { _all: 2 } },
-    ]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['NEW', 4], ['IN_PROGRESS', 2]]));
     await expect(validateLiveData({ workflowTypeId: 'wf1', graph: graph() })).resolves.toEqual([]);
   });
 
   it('blocks removing a status that requests currently occupy', async () => {
-    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'PENDING_CFO', _count: { _all: 12 } }]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['PENDING_CFO', 12]]));
     const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: graph() });
     const finding = findings.find((f) => f.code === 'STATUS_IN_USE_REMOVED');
     expect(finding).toBeDefined();
@@ -80,7 +86,7 @@ describe('validateLiveData', () => {
   it('blocks leaving an occupied status with no outgoing transitions', async () => {
     const stranded = graph();
     stranded.edges = stranded.edges.filter((e) => e.fromNodeId !== 'IN_PROGRESS');
-    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'IN_PROGRESS', _count: { _all: 8 } }]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['IN_PROGRESS', 8]]));
     const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: stranded });
     const finding = findings.find((f) => f.code === 'OCCUPIED_STATUS_NO_EXIT');
     expect(finding).toBeDefined();
@@ -94,50 +100,119 @@ describe('validateLiveData', () => {
       dangling.edges[0],
       { ...dangling.edges[1], toNodeId: 'MISSING' },
     ];
-    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'IN_PROGRESS', _count: { _all: 8 } }]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['IN_PROGRESS', 8]]));
     const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: dangling });
     expect(findings.map((finding) => finding.code)).toContain('OCCUPIED_STATUS_NO_EXIT');
   });
 
   it('allows an occupied final status to have no outgoing transitions', async () => {
-    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'CLOSED', _count: { _all: 99 } }]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['CLOSED', 99]]));
     const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: graph() });
     expect(findings).toEqual([]);
   });
 
-  it('scopes the request query to the request types bound to this workflow', async () => {
-    mockPrisma.request.groupBy.mockResolvedValue([]);
-    await validateLiveData({ workflowTypeId: 'wf1', graph: graph() });
-    expect(mockPrisma.requestType.findMany).toHaveBeenCalledWith({
-      where: { workflowTypeId: 'wf1' },
-      select: { id: true },
-    });
-    expect(mockPrisma.request.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        by: ['status'],
-        where: { requestTypeId: { in: ['rt1', 'rt2'] } },
-      }),
-    );
+  it('returns empty when there is no occupancy', async () => {
+    mockLoadOccupancy.mockResolvedValue(new Map());
+    await expect(validateLiveData(input)).resolves.toEqual([]);
+  });
+});
+
+describe('validateLiveData with a status remap', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockLoadOccupancy.mockResolvedValue(new Map());
   });
 
-  it('skips the request query entirely when no request type is bound', async () => {
-    mockPrisma.requestType.findMany.mockResolvedValue([]);
-    await expect(validateLiveData(input)).resolves.toEqual([]);
-    expect(mockPrisma.request.groupBy).not.toHaveBeenCalled();
+  const occupyStatus = (status: string, count: number) =>
+    mockLoadOccupancy.mockResolvedValue(occupy([[status, count]]));
+
+  it('clears STATUS_IN_USE_REMOVED when the status is mapped to a survivor', async () => {
+    occupyStatus('LEGACY', 2);
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { LEGACY: 'IN_PROGRESS' },
+    });
+    expect(findings.map((f) => f.code)).not.toContain('STATUS_IN_USE_REMOVED');
+  });
+
+  it('still blocks a stranded status that has no mapping', async () => {
+    mockLoadOccupancy.mockResolvedValue(occupy([['LEGACY', 1], ['ANCIENT', 1]]));
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { LEGACY: 'IN_PROGRESS' },
+    });
+    const stranded = findings.filter((f) => f.code === 'STATUS_IN_USE_REMOVED');
+    expect(stranded).toHaveLength(1);
+    expect(stranded[0].message).toContain('ANCIENT');
+  });
+
+  it('blocks a mapping whose target is not in the draft', async () => {
+    occupyStatus('LEGACY', 1);
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { LEGACY: 'NOT_A_STATUS' },
+    });
+    expect(findings.map((f) => f.code)).toContain('REMAP_TARGET_MISSING');
+  });
+
+  it('blocks a mapping onto a non-final target with no outgoing edges', async () => {
+    occupyStatus('LEGACY', 1);
+    const withDeadEnd = graph();
+    withDeadEnd.nodes.push({
+      id: 'PARKED',
+      type: 'STATUS',
+      statusCode: 'PARKED',
+      positionX: 0,
+      positionY: 0,
+      isInitial: false,
+      isFinal: false,
+      slaPause: false,
+      icon: 'radio_button_checked',
+    });
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: withDeadEnd,
+      statusRemap: { LEGACY: 'PARKED' },
+    });
+    expect(findings.map((f) => f.code)).toContain('REMAP_TARGET_NO_EXIT');
+  });
+
+  it('blocks a mapping of a status onto itself', async () => {
+    occupyStatus('IN_PROGRESS', 1);
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { IN_PROGRESS: 'IN_PROGRESS' },
+    });
+    expect(findings.map((f) => f.code)).toContain('REMAP_SELF');
+  });
+
+  it('blocks when the remap would move more requests than the cap allows', async () => {
+    occupyStatus('LEGACY', 5000);
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      statusRemap: { LEGACY: 'IN_PROGRESS' },
+    });
+    const capped = findings.find((f) => f.code === 'REMAP_VOLUME_EXCEEDED');
+    expect(capped).toBeDefined();
+    expect(capped!.message).toContain('5000');
   });
 });
 
 describe('validateGraph', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPrisma.requestType.findMany.mockResolvedValue([{ id: 'rt1' }]);
-    mockPrisma.request.groupBy.mockResolvedValue([]);
+    mockLoadOccupancy.mockResolvedValue(new Map());
   });
 
   it('merges structural and live-data findings into one blocking list', async () => {
     const broken = graph();
     broken.nodes[0].isInitial = false;
-    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'GONE', _count: { _all: 3 } }]);
+    mockLoadOccupancy.mockResolvedValue(occupy([['GONE', 3]]));
 
     const result = await validateGraph({ workflowTypeId: 'wf1', graph: broken });
     const codes = result.blocking.map((f) => f.code);
