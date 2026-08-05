@@ -9,7 +9,8 @@ import { randomUUID } from 'crypto';
 import prisma from '../utils/prisma';
 import { compileVersionInTransaction, loadGraph } from './workflowCompiler.service';
 import { validateGraph } from './workflowValidator.service';
-import { ValidationResult, WorkflowGraph } from './workflowGraph.types';
+import { applyStatusRemap, planStatusRemap } from './statusRemap.service';
+import { RemapPlan, ValidationResult, WorkflowGraph } from './workflowGraph.types';
 import { AppError } from '../middleware/error.middleware';
 
 export async function listVersions(workflowTypeId: string) {
@@ -98,13 +99,14 @@ export async function createDraft(workflowTypeId: string): Promise<{ id: string;
 
 export async function getVersionDetail(
   versionId: string,
-): Promise<{ version: unknown; graph: WorkflowGraph; validation: ValidationResult }> {
+): Promise<{ version: unknown; graph: WorkflowGraph; validation: ValidationResult; remapPlan: RemapPlan }> {
   const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
   if (!version) throw new Error(`Workflow version ${versionId} not found`);
 
   const { workflowTypeId, graph } = await loadGraph(versionId);
   const validation = await validateGraph({ workflowTypeId, graph });
-  return { version, graph, validation };
+  const remapPlan = await planStatusRemap({ workflowTypeId, draftGraph: graph });
+  return { version, graph, validation, remapPlan };
 }
 
 function describeBlocking(validation: ValidationResult): string {
@@ -114,7 +116,8 @@ function describeBlocking(validation: ValidationResult): string {
 export async function publishVersion(
   versionId: string,
   userId: string,
-): Promise<{ version: number; transitionCount: number; stepCount: number }> {
+  statusRemap: Record<string, string> = {},
+): Promise<{ version: number; transitionCount: number; stepCount: number; movedCount: number }> {
   return prisma.$transaction(async (tx: any) => {
     const version = await tx.workflowVersion.findUnique({ where: { id: versionId } });
     if (!version) throw new AppError(`Workflow version ${versionId} not found`, 404);
@@ -122,8 +125,18 @@ export async function publishVersion(
     if (version.status !== 'DRAFT') throw new AppError('Only a draft version can be published', 409);
 
     const loaded = await loadGraph(versionId, tx);
-    const validation = await validateGraph(loaded, tx);
+    const validation = await validateGraph({ ...loaded, statusRemap }, tx);
     if (validation.blocking.length > 0) throw new AppError(`Cannot publish: ${describeBlocking(validation)}`, 422);
+
+    // Move stranded requests before the swap, so no request is ever observed
+    // sitting in a status the newly-active version does not define.
+    const { movedCount } = Object.keys(statusRemap).length
+      ? await applyStatusRemap(tx, {
+          workflowTypeId: version.workflowTypeId,
+          remap: statusRemap,
+          actorId: userId,
+        })
+      : { movedCount: 0 };
 
     await tx.workflowVersion.updateMany({
       where: { workflowTypeId: version.workflowTypeId, status: 'ACTIVE' },
@@ -134,7 +147,7 @@ export async function publishVersion(
       data: { status: 'ACTIVE', publishedAt: new Date(), publishedById: userId },
     });
     const compiled = await compileVersionInTransaction(tx, versionId);
-    return { version: version.version, ...compiled };
+    return { version: version.version, ...compiled, movedCount };
   });
 }
 

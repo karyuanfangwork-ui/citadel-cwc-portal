@@ -5,6 +5,11 @@ const mockTx = {
   },
   workflowNode: { createMany: jest.fn() },
   workflowEdge: { createMany: jest.fn() },
+  requestType: { findMany: jest.fn() },
+  request: { findMany: jest.fn(), updateMany: jest.fn() },
+  user: { findUnique: jest.fn() },
+  workflowHistory: { createMany: jest.fn() },
+  requestActivity: { createMany: jest.fn() },
 };
 const mockPrisma = {
   workflowVersion: {
@@ -32,9 +37,17 @@ jest.mock('../workflowCompiler.service', () => ({
   loadGraph: (...args: unknown[]) => mockLoadGraph(...args),
 }));
 
+const mockPlanStatusRemap = jest.fn();
+const mockApplyStatusRemap = jest.fn();
+jest.mock('../statusRemap.service', () => ({
+  planStatusRemap: (...args: unknown[]) => mockPlanStatusRemap(...args),
+  applyStatusRemap: (...args: unknown[]) => mockApplyStatusRemap(...args),
+}));
+
 import {
   createDraft,
   discardDraft,
+  getVersionDetail,
   publishVersion,
   rollbackToVersion,
 } from '../workflowVersion.service';
@@ -143,7 +156,7 @@ describe('publishVersion', () => {
   it('compiles after activating, and returns the compile counts', async () => {
     const result = await publishVersion('v4', 'u1');
     expect(mockCompileVersionInTransaction).toHaveBeenCalledWith(mockTx, 'v4');
-    expect(result).toEqual({ version: 4, transitionCount: 2, stepCount: 3 });
+    expect(result).toEqual({ version: 4, transitionCount: 2, stepCount: 3, movedCount: 0 });
   });
 
   it('propagates compiler failure through the publish transaction', async () => {
@@ -217,5 +230,69 @@ describe('discardDraft', () => {
     mockPrisma.workflowVersion.findUnique.mockResolvedValue({ id: 'v3', status: 'ACTIVE' });
     await expect(discardDraft('v3')).rejects.toThrow('Only a draft');
     expect(mockPrisma.workflowVersion.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('publishVersion with a status remap', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockTx.workflowVersion.findUnique.mockResolvedValue({ id: 'v4', version: 4, status: 'DRAFT', workflowTypeId: 'wf1' });
+    mockLoadGraph.mockResolvedValue({ workflowTypeId: 'wf1', graph: emptyGraph });
+    mockValidateGraph.mockResolvedValue({ blocking: [], warnings: [] });
+    mockCompileVersionInTransaction.mockResolvedValue({ transitionCount: 2, stepCount: 3 });
+    mockApplyStatusRemap.mockResolvedValue({ movedCount: 2 });
+  });
+
+  it('passes the mapping to the validator so mapped statuses stop blocking', async () => {
+    await publishVersion('v4', 'u1', { LEGACY: 'IN_PROGRESS' });
+    expect(mockValidateGraph).toHaveBeenCalledWith(
+      expect.objectContaining({ statusRemap: { LEGACY: 'IN_PROGRESS' } }),
+      mockTx,
+    );
+  });
+
+  it('applies the remap and reports how many requests moved', async () => {
+    const result = await publishVersion('v4', 'u1', { LEGACY: 'IN_PROGRESS' });
+    expect(mockApplyStatusRemap).toHaveBeenCalledWith(mockTx, {
+      workflowTypeId: 'wf1',
+      remap: { LEGACY: 'IN_PROGRESS' },
+      actorId: 'u1',
+    });
+    expect(result).toEqual({ version: 4, transitionCount: 2, stepCount: 3, movedCount: 2 });
+  });
+
+  it('applies the remap before archiving the outgoing active version', async () => {
+    const order: string[] = [];
+    mockApplyStatusRemap.mockImplementation(async () => { order.push('remap'); return { movedCount: 1 }; });
+    mockTx.workflowVersion.updateMany.mockImplementation(async () => { order.push('archive'); return { count: 1 }; });
+    await publishVersion('v4', 'u1', { LEGACY: 'IN_PROGRESS' });
+    expect(order).toEqual(['remap', 'archive']);
+  });
+
+  it('does not touch the remap service when no mapping is supplied', async () => {
+    await publishVersion('v4', 'u1');
+    expect(mockApplyStatusRemap).not.toHaveBeenCalled();
+  });
+
+  it('refuses to publish and skips the remap when validation still blocks', async () => {
+    mockValidateGraph.mockResolvedValue({ blocking: [{ code: 'REMAP_TARGET_MISSING', message: 'bad target' }], warnings: [] });
+    await expect(publishVersion('v4', 'u1', { LEGACY: 'NOPE' })).rejects.toThrow('bad target');
+    expect(mockApplyStatusRemap).not.toHaveBeenCalled();
+  });
+});
+
+describe('getVersionDetail', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.workflowVersion.findUnique.mockResolvedValue({ id: 'v4', version: 4, status: 'DRAFT' });
+    mockLoadGraph.mockResolvedValue({ workflowTypeId: 'wf1', graph: emptyGraph });
+    mockValidateGraph.mockResolvedValue({ blocking: [], warnings: [] });
+  });
+
+  it('includes the remap plan so the UI can offer targets before publishing', async () => {
+    const plan = { entries: [{ statusCode: 'LEGACY', requestCount: 1, suggestedTarget: 'IN_PROGRESS', suggestionReason: 'v3 allows LEGACY → IN_PROGRESS', allowedTargets: ['IN_PROGRESS'], sourcePausesSla: false }], totalRequests: 1 };
+    mockPlanStatusRemap.mockResolvedValue(plan);
+    const detail = await getVersionDetail('v4');
+    expect(detail.remapPlan).toEqual(plan);
   });
 });
