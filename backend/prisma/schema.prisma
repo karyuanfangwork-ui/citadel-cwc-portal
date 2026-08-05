@@ -268,6 +268,7 @@ model User {
   memoVersionsLocked            CreditMemoVersion[]           @relation("MemoLockedBy")
   memoVersionsGenerated         CreditMemoVersion[]           @relation("MemoGeneratedBy")
   NotificationDelivery          NotificationDelivery[]
+  publishedWorkflowVersions      WorkflowVersion[]              @relation("WorkflowVersionPublisher")
 
   @@index([tenantId])
   @@index([tenantId, agentTeam]) // P2-08: composite for role-based queries
@@ -865,6 +866,7 @@ model WorkflowType {
 
   // Relations
   steps        WorkflowStep[]
+  versions     WorkflowVersion[]
   requestTypes RequestType[]
 
   @@map("workflow_types")
@@ -889,6 +891,95 @@ model WorkflowStep {
   @@unique([workflowTypeId, status])
   @@index([workflowTypeId])
   @@map("workflow_steps")
+}
+
+enum WorkflowVersionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// Only STATUS today. Future BPMN-lite node types (APPROVAL, TIMER,
+// PARALLEL_GATE, NOTIFICATION, WEBHOOK, SCRIPT) extend this enum without
+// changing the table shape — see the spec's deferred-scope section.
+enum WorkflowNodeType {
+  STATUS
+}
+
+// Authoring source of truth for a WorkflowType's status graph. Publishing a
+// version compiles it into WorkflowTransition + WorkflowStep rows, which is
+// what the runtime actually enforces.
+model WorkflowVersion {
+  id             String                @id @default(uuid()) @db.Uuid
+  workflowTypeId String                @map("workflow_type_id") @db.Uuid
+  version        Int
+  status         WorkflowVersionStatus @default(DRAFT)
+  notes          String?               @db.Text
+  publishedAt    DateTime?             @map("published_at") @db.Timestamp(6)
+  publishedById  String?               @map("published_by_id") @db.Uuid
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  workflowType WorkflowType    @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
+  publishedBy  User?           @relation("WorkflowVersionPublisher", fields: [publishedById], references: [id])
+  nodes        WorkflowNode[]
+  edges        WorkflowEdge[]
+
+  @@unique([workflowTypeId, version])
+  @@index([workflowTypeId, status])
+  @@map("workflow_versions")
+}
+
+model WorkflowNode {
+  id                String           @id @default(uuid()) @db.Uuid
+  workflowVersionId String           @map("workflow_version_id") @db.Uuid
+  type              WorkflowNodeType @default(STATUS)
+  // → RequestStatusDefinition.code. Required when type = STATUS.
+  statusCode        String?          @map("status_code") @db.VarChar(100)
+  // NULL means "never laid out" — the designer auto-layouts on open and
+  // persists coordinates on first save. Distinct from a node deliberately
+  // placed at the origin.
+  positionX         Float?           @map("position_x")
+  positionY         Float?           @map("position_y")
+  isInitial         Boolean          @default(false) @map("is_initial")
+  isFinal           Boolean          @default(false) @map("is_final")
+  slaPause          Boolean          @default(false) @map("sla_pause")
+  icon              String           @default("radio_button_checked") @db.VarChar(50)
+  config            Json?            @db.JsonB
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  version       WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  outgoingEdges WorkflowEdge[]  @relation("EdgeFromNode")
+  incomingEdges WorkflowEdge[]  @relation("EdgeToNode")
+
+  @@unique([workflowVersionId, statusCode])
+  @@index([workflowVersionId])
+  @@map("workflow_nodes")
+}
+
+model WorkflowEdge {
+  id                String   @id @default(uuid()) @db.Uuid
+  workflowVersionId String   @map("workflow_version_id") @db.Uuid
+  fromNodeId        String   @map("from_node_id") @db.Uuid
+  toNodeId          String   @map("to_node_id") @db.Uuid
+  transitionLabel   String?  @map("transition_label") @db.VarChar(50)
+  requiresComment   Boolean  @default(false) @map("requires_comment")
+  autoAssignRole    String?  @map("auto_assign_role") @db.VarChar(50)
+  autoAssignUserId  String?  @map("auto_assign_user_id") @db.Uuid
+  allowedRoles          String[] @default([]) @map("allowed_roles")
+  allowedExecutiveRoles String[] @default([]) @map("allowed_executive_roles")
+  config            Json?    @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  version  WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  fromNode WorkflowNode    @relation("EdgeFromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode   WorkflowNode    @relation("EdgeToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowVersionId, fromNodeId, toNodeId])
+  @@index([workflowVersionId])
+  @@map("workflow_edges")
 }
 
 // P04 Task 15: Immutable workflow history for transactional command boundary
