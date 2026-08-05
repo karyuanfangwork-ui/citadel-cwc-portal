@@ -131,3 +131,87 @@ export async function planStatusRemap(
     totalRequests: entries.reduce((sum, entry) => sum + entry.requestCount, 0),
   };
 }
+
+const REMAP_SOURCE = 'workflow_version_publish_remap';
+
+export interface ApplyStatusRemapInput {
+  workflowTypeId: string;
+  /** removed status code → surviving status code. */
+  remap: Record<string, string>;
+  actorId: string;
+}
+
+/**
+ * Moves every request sitting in a removed status onto its mapped target.
+ * Must be called with a transaction client from inside publishVersion, so the
+ * move and the version swap succeed or fail together.
+ *
+ * SLA columns are deliberately untouched: a remap is an administrative
+ * relabelling, not a transition, and silently resuming or rewriting a clock
+ * would distort breach reporting.
+ */
+export async function applyStatusRemap(
+  tx: any,
+  input: ApplyStatusRemapInput,
+): Promise<{ movedCount: number }> {
+  const { workflowTypeId, remap, actorId } = input;
+  const pairs = Object.entries(remap);
+  if (pairs.length === 0) return { movedCount: 0 };
+
+  const requestTypeIds = await loadRequestTypeIds(workflowTypeId, tx);
+  if (requestTypeIds.length === 0) return { movedCount: 0 };
+
+  const actor = await tx.user.findUnique({
+    where: { id: actorId },
+    select: { firstName: true, lastName: true },
+  });
+  const authorName = actor ? `${actor.firstName ?? ''} ${actor.lastName ?? ''}`.trim() || 'System' : 'System';
+
+  let movedCount = 0;
+  for (const [fromStatus, toStatus] of pairs) {
+    const affected = await tx.request.findMany({
+      where: { requestTypeId: { in: requestTypeIds }, status: fromStatus },
+      select: { id: true, tenantId: true, departmentId: true, version: true },
+    });
+    if (affected.length === 0) continue;
+
+    await tx.request.updateMany({
+      where: { id: { in: affected.map((r: { id: string }) => r.id) } },
+      data: { status: toStatus, version: { increment: 1 } },
+    });
+
+    await tx.workflowHistory.createMany({
+      data: affected.map((r: { id: string; tenantId: string; departmentId: string | null; version: number }) => ({
+        tenantId: r.tenantId,
+        departmentId: r.departmentId,
+        requestId: r.id,
+        fromStatus,
+        toStatus,
+        actorId,
+        actorName: authorName,
+        source: REMAP_SOURCE,
+        comment: null,
+        metadata: {},
+        requestVersion: r.version + 1,
+        idempotencyKey: null,
+      })),
+    });
+
+    await tx.requestActivity.createMany({
+      data: affected.map((r: { id: string; version: number }) => ({
+        requestId: r.id,
+        authorId: actorId,
+        authorName,
+        authorRole: null,
+        activityType: 'STATUS_CHANGE',
+        message: `Status changed from ${fromStatus} to ${toStatus} — ${fromStatus} was removed when a new workflow version was published`,
+        isSystemGenerated: false,
+        metadata: { fromStatus, toStatus, source: REMAP_SOURCE, version: r.version + 1 },
+      })),
+    });
+
+    movedCount += affected.length;
+  }
+
+  return { movedCount };
+}

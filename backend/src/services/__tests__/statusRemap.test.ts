@@ -10,7 +10,7 @@ jest.mock('../workflowCompiler.service', () => ({
   loadGraph: (...args: unknown[]) => mockLoadGraph(...args),
 }));
 
-import { planStatusRemap } from '../statusRemap.service';
+import { applyStatusRemap, planStatusRemap } from '../statusRemap.service';
 import { GraphEdge, GraphNode, WorkflowGraph } from '../workflowGraph.types';
 
 const node = (id: string, over: Partial<GraphNode> = {}): GraphNode => ({
@@ -88,7 +88,6 @@ describe('planStatusRemap', () => {
 
   it('walks past a removed successor to the next surviving status', async () => {
     setup({ REVIEW: 1 });
-    // ACTION is also removed, so REVIEW must reach PROGRESS at depth 2.
     const draftGraph: WorkflowGraph = { nodes: [node('NEW'), node('PROGRESS'), node('DONE')], edges: [] };
     const plan = await planStatusRemap({ workflowTypeId: 'wf1', draftGraph });
     expect(plan.entries[0].suggestedTarget).toBe('PROGRESS');
@@ -96,7 +95,6 @@ describe('planStatusRemap', () => {
 
   it('suggests nothing when no surviving status is reachable', async () => {
     setup({ PROGRESS: 1 });
-    // Only NEW survives, and PROGRESS cannot reach it.
     const draftGraph: WorkflowGraph = { nodes: [node('NEW')], edges: [] };
     const plan = await planStatusRemap({ workflowTypeId: 'wf1', draftGraph });
     expect(plan.entries[0].suggestedTarget).toBeNull();
@@ -138,5 +136,97 @@ describe('planStatusRemap', () => {
     const plan = await planStatusRemap({ workflowTypeId: 'wf1', draftGraph });
     expect(plan.entries[0].suggestedTarget).toBeNull();
     expect(plan.entries[0].allowedTargets).toEqual(['PROGRESS']);
+  });
+});
+
+describe('applyStatusRemap', () => {
+  const mockTx = {
+    requestType: { findMany: jest.fn() },
+    request: { findMany: jest.fn(), updateMany: jest.fn() },
+    user: { findUnique: jest.fn() },
+    workflowHistory: { createMany: jest.fn() },
+    requestActivity: { createMany: jest.fn() },
+  };
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockTx.requestType.findMany.mockResolvedValue([{ id: 'rt1' }]);
+    mockTx.user.findUnique.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
+    mockTx.request.findMany.mockResolvedValue([
+      { id: 'req1', tenantId: 'ten1', departmentId: 'dep1', version: 4 },
+    ]);
+  });
+
+  it('does nothing when the mapping is empty', async () => {
+    const result = await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: {}, actorId: 'u1' });
+    expect(result).toEqual({ movedCount: 0 });
+    expect(mockTx.request.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('moves requests and bumps the optimistic-concurrency version', async () => {
+    const result = await applyStatusRemap(mockTx, {
+      workflowTypeId: 'wf1',
+      remap: { LEGACY: 'IN_PROGRESS' },
+      actorId: 'u1',
+    });
+    expect(result).toEqual({ movedCount: 1 });
+    expect(mockTx.request.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['req1'] } },
+      data: { status: 'IN_PROGRESS', version: { increment: 1 } },
+    });
+  });
+
+  it('never writes SLA columns', async () => {
+    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
+    const written = mockTx.request.updateMany.mock.calls[0][0].data;
+    expect(written).not.toHaveProperty('slaPausedAt');
+    expect(written).not.toHaveProperty('slaDueAt');
+    expect(written).not.toHaveProperty('slaPauseDurationMs');
+  });
+
+  it('writes a workflow history row with the post-increment version and the actor name', async () => {
+    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
+    expect(mockTx.workflowHistory.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          tenantId: 'ten1',
+          departmentId: 'dep1',
+          requestId: 'req1',
+          fromStatus: 'LEGACY',
+          toStatus: 'IN_PROGRESS',
+          actorId: 'u1',
+          actorName: 'Ada Lovelace',
+          source: 'workflow_version_publish_remap',
+          comment: null,
+          metadata: {},
+          requestVersion: 5,
+          idempotencyKey: null,
+        },
+      ],
+    });
+  });
+
+  it('writes a status-change activity so the move shows on the request timeline', async () => {
+    await applyStatusRemap(mockTx, { workflowTypeId: 'wf1', remap: { LEGACY: 'IN_PROGRESS' }, actorId: 'u1' });
+    const [{ data }] = mockTx.requestActivity.createMany.mock.calls[0];
+    expect(data[0]).toMatchObject({
+      requestId: 'req1',
+      authorId: 'u1',
+      authorName: 'Ada Lovelace',
+      activityType: 'STATUS_CHANGE',
+      isSystemGenerated: false,
+    });
+    expect(data[0].message).toContain('LEGACY');
+    expect(data[0].message).toContain('IN_PROGRESS');
+  });
+
+  it('skips a mapped status that turns out to hold nothing', async () => {
+    mockTx.request.findMany.mockResolvedValue([]);
+    const result = await applyStatusRemap(mockTx, {
+      workflowTypeId: 'wf1',
+      remap: { LEGACY: 'IN_PROGRESS' },
+      actorId: 'u1',
+    });
+    expect(result).toEqual({ movedCount: 0 });
+    expect(mockTx.workflowHistory.createMany).not.toHaveBeenCalled();
   });
 });
