@@ -97,6 +97,11 @@ records from-status, to-status, actor, and the reason
 
 SLA columns (`slaPausedAt`, `slaDueAt`, `slaPauseDurationMs`) are not written.
 
+`request.version` **is** incremented. It is the optimistic-concurrency counter
+that every other status change bumps, and leaving it stale would let an
+in-flight edit overwrite the remap. The history row's `requestVersion` is the
+post-increment value.
+
 ### Validator changes: `workflowValidator.service.ts`
 
 `ValidateGraphInput` gains an optional field:
