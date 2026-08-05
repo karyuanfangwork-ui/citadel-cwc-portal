@@ -25,7 +25,7 @@ model Tenant {
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
 
   users               User[]
-  departments        Department[] // P02-07: department-scoped RBAC
+  departments         Department[] // P02-07: department-scoped RBAC
   platformAuditEvents PlatformAuditEvent[]
 
   @@map("tenants")
@@ -268,7 +268,7 @@ model User {
   memoVersionsLocked            CreditMemoVersion[]           @relation("MemoLockedBy")
   memoVersionsGenerated         CreditMemoVersion[]           @relation("MemoGeneratedBy")
   NotificationDelivery          NotificationDelivery[]
-  publishedWorkflowVersions      WorkflowVersion[]              @relation("WorkflowVersionPublisher")
+  publishedWorkflowVersions     WorkflowVersion[]             @relation("WorkflowVersionPublisher")
 
   @@index([tenantId])
   @@index([tenantId, agentTeam]) // P2-08: composite for role-based queries
@@ -345,11 +345,11 @@ model Department {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  memberships  DepartmentMembership[]
-  serviceDesks ServiceDesk[]
-  requests     Request[]
-  attachments  RequestAttachment[]
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships         DepartmentMembership[]
+  serviceDesks        ServiceDesk[]
+  requests            Request[]
+  attachments         RequestAttachment[]
   platformAuditEvents PlatformAuditEvent[]
 
   @@unique([tenantId, code])
@@ -920,8 +920,8 @@ model WorkflowVersion {
   createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  workflowType WorkflowType    @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
-  publishedBy  User?           @relation("WorkflowVersionPublisher", fields: [publishedById], references: [id])
+  workflowType WorkflowType   @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
+  publishedBy  User?          @relation("WorkflowVersionPublisher", fields: [publishedById], references: [id])
   nodes        WorkflowNode[]
   edges        WorkflowEdge[]
 
@@ -936,6 +936,8 @@ model WorkflowNode {
   type              WorkflowNodeType @default(STATUS)
   // → RequestStatusDefinition.code. Required when type = STATUS.
   statusCode        String?          @map("status_code") @db.VarChar(100)
+  label             String?          @db.VarChar(200)
+  displayOrder      Int?             @map("display_order")
   // NULL means "never laid out" — the designer auto-layouts on open and
   // persists coordinates on first save. Distinct from a node deliberately
   // placed at the origin.
@@ -954,30 +956,32 @@ model WorkflowNode {
   incomingEdges WorkflowEdge[]  @relation("EdgeToNode")
 
   @@unique([workflowVersionId, statusCode])
+  @@unique([id, workflowVersionId])
   @@index([workflowVersionId])
   @@map("workflow_nodes")
 }
 
 model WorkflowEdge {
-  id                String   @id @default(uuid()) @db.Uuid
-  workflowVersionId String   @map("workflow_version_id") @db.Uuid
-  fromNodeId        String   @map("from_node_id") @db.Uuid
-  toNodeId          String   @map("to_node_id") @db.Uuid
-  transitionLabel   String?  @map("transition_label") @db.VarChar(50)
-  requiresComment   Boolean  @default(false) @map("requires_comment")
-  autoAssignRole    String?  @map("auto_assign_role") @db.VarChar(50)
-  autoAssignUserId  String?  @map("auto_assign_user_id") @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
+  workflowVersionId     String   @map("workflow_version_id") @db.Uuid
+  fromNodeId            String   @map("from_node_id") @db.Uuid
+  toNodeId              String   @map("to_node_id") @db.Uuid
+  transitionLabel       String?  @map("transition_label") @db.VarChar(50)
+  requiresComment       Boolean  @default(false) @map("requires_comment")
+  autoAssignRole        String?  @map("auto_assign_role") @db.VarChar(50)
+  autoAssignUserId      String?  @map("auto_assign_user_id") @db.Uuid
   allowedRoles          String[] @default([]) @map("allowed_roles")
   allowedExecutiveRoles String[] @default([]) @map("allowed_executive_roles")
-  config            Json?    @db.JsonB
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  config                Json?    @db.JsonB
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   version  WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
-  fromNode WorkflowNode    @relation("EdgeFromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
-  toNode   WorkflowNode    @relation("EdgeToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromNode WorkflowNode    @relation("EdgeFromNode", fields: [fromNodeId, workflowVersionId], references: [id, workflowVersionId], onDelete: Cascade)
+  toNode   WorkflowNode    @relation("EdgeToNode", fields: [toNodeId, workflowVersionId], references: [id, workflowVersionId], onDelete: Cascade)
 
   @@unique([workflowVersionId, fromNodeId, toNodeId])
+  @@unique([id, workflowVersionId])
   @@index([workflowVersionId])
   @@map("workflow_edges")
 }
@@ -1040,23 +1044,23 @@ enum OutboxEventStatus {
 }
 
 model OutboxEvent {
-  id               String           @id @default(uuid()) @db.Uuid
-  tenantId         String           @map("tenant_id") @db.Uuid
-  departmentId     String?          @map("department_id") @db.Uuid
-  eventType        String           @map("event_type") @db.VarChar(100)
-  aggregateId      String           @map("aggregate_id") @db.Uuid
-  aggregateVersion Int              @map("aggregate_version")
-  payload          Json             @db.JsonB
-  published        Boolean          @default(false) @map("published")
-  publishedAt      DateTime?        @map("published_at") @db.Timestamp(6)
+  id               String            @id @default(uuid()) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  departmentId     String?           @map("department_id") @db.Uuid
+  eventType        String            @map("event_type") @db.VarChar(100)
+  aggregateId      String            @map("aggregate_id") @db.Uuid
+  aggregateVersion Int               @map("aggregate_version")
+  payload          Json              @db.JsonB
+  published        Boolean           @default(false) @map("published")
+  publishedAt      DateTime?         @map("published_at") @db.Timestamp(6)
   status           OutboxEventStatus @default(PENDING) @map("status")
-  attempts         Int              @default(0) @map("attempts")
-  maxAttempts      Int              @default(5) @map("max_attempts")
-  nextAttemptAt    DateTime?        @map("next_attempt_at") @db.Timestamp(6)
-  lastError        String?          @map("last_error") @db.Text
-  claimedAt        DateTime?        @map("claimed_at") @db.Timestamp(6)
-  claimedBy        String?          @map("claimed_by") @db.VarChar(100)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  attempts         Int               @default(0) @map("attempts")
+  maxAttempts      Int               @default(5) @map("max_attempts")
+  nextAttemptAt    DateTime?         @map("next_attempt_at") @db.Timestamp(6)
+  lastError        String?           @map("last_error") @db.Text
+  claimedAt        DateTime?         @map("claimed_at") @db.Timestamp(6)
+  claimedBy        String?           @map("claimed_by") @db.VarChar(100)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
 
   @@unique([tenantId, eventType, aggregateId, aggregateVersion])
   @@index([published, createdAt])
@@ -1879,9 +1883,9 @@ model PlatformAuditEvent {
   actorId    String? @map("actor_id") @db.Uuid
   actorEmail String? @map("actor_email") @db.VarChar(255)
 
-  action       String  @db.VarChar(100)
-  resourceType String  @map("resource_type") @db.VarChar(100)
-  resourceId   String? @map("resource_id") @db.Uuid
+  action        String  @db.VarChar(100)
+  resourceType  String  @map("resource_type") @db.VarChar(100)
+  resourceId    String? @map("resource_id") @db.Uuid
   correlationId String? @map("correlation_id") @db.VarChar(100)
 
   oldValueHash String? @map("old_value_hash") @db.VarChar(64)
@@ -1895,6 +1899,7 @@ model PlatformAuditEvent {
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   department Department? @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
+
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, resourceType, resourceId, createdAt])
   @@index([actorId, createdAt(sort: Desc)])
@@ -2265,15 +2270,15 @@ model RequestStatusDefinition {
 // The VALID_TRANSITIONS map in workflowTransitions.ts is the SEED reference;
 // this table is the runtime source of truth.
 model WorkflowTransition {
-  id               String   @id @default(uuid()) @db.Uuid
-  fromStatus       String   @map("from_status") @db.VarChar(100)
-  toStatus         String   @map("to_status") @db.VarChar(100)
-  transitionLabel  String?  @map("transition_label") @db.VarChar(50)
+  id                    String   @id @default(uuid()) @db.Uuid
+  fromStatus            String   @map("from_status") @db.VarChar(100)
+  toStatus              String   @map("to_status") @db.VarChar(100)
+  transitionLabel       String?  @map("transition_label") @db.VarChar(50)
   // Label values: APPROVE | REJECT | SUBMIT | ADVANCE | RETURN | ESCALATE | CLOSE
-  requiresComment  Boolean  @default(false) @map("requires_comment")
+  requiresComment       Boolean  @default(false) @map("requires_comment")
   // Hint: optional role or userId to auto-assign after this transition
-  autoAssignRole   String?  @map("auto_assign_role") @db.VarChar(50)
-  autoAssignUserId String?  @map("auto_assign_user_id") @db.Uuid
+  autoAssignRole        String?  @map("auto_assign_role") @db.VarChar(50)
+  autoAssignUserId      String?  @map("auto_assign_user_id") @db.Uuid
   // Scoping: NULL means "applies to all". Most-specific-first resolution:
   // (tenantId, workflowTypeId) beats (tenantId, NULL) beats (NULL, NULL).
   tenantId              String?  @map("tenant_id") @db.Uuid
@@ -2281,9 +2286,9 @@ model WorkflowTransition {
   // Authorization: empty arrays mean "no restriction" (any authenticated user).
   allowedRoles          String[] @default([]) @map("allowed_roles")
   allowedExecutiveRoles String[] @default([]) @map("allowed_executive_roles")
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Each (tenantId, workflowTypeId, fromStatus, toStatus) pair is unique
   @@unique([tenantId, workflowTypeId, fromStatus, toStatus])

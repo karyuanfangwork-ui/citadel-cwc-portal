@@ -3,6 +3,56 @@ import { OperationControl } from './operation-control.types';
 /** Task 10 controls that were absent from the earlier bounded route batches. */
 export const remainingOperationControls: OperationControl[] = [
   {
+    method: 'GET', path: '/', owner: 'Workflow', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'workflow:read', validation: 'none',
+    responseSchema: 'WorkflowTypeDto[]', rateTier: 'read', auditEvent: 'workflow.list', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/:workflowTypeId/versions', owner: 'Workflow', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'workflow:read', validation: 'pathParams',
+    responseSchema: 'WorkflowVersionDto[]', rateTier: 'read', auditEvent: 'workflow.versions.list', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/:workflowTypeId/versions', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:create', validation: 'pathParams',
+    responseSchema: 'WorkflowVersionDto', rateTier: 'write', auditEvent: 'workflow.version.create', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/versions/:versionId', owner: 'Workflow', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'workflow:read', validation: 'pathParams',
+    responseSchema: 'WorkflowVersionDto', rateTier: 'read', auditEvent: 'workflow.version.get', auditFindingIds: [],
+  },
+  {
+    method: 'PATCH', path: '/versions/:versionId/nodes', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:update', validation: 'pathParams',
+    responseSchema: 'WorkflowGraphDto', rateTier: 'write', auditEvent: 'workflow.nodes.update', auditFindingIds: [],
+  },
+  {
+    method: 'PATCH', path: '/versions/:versionId/edges', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:update', validation: 'pathParams',
+    responseSchema: 'WorkflowGraphDto', rateTier: 'write', auditEvent: 'workflow.edges.update', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/versions/:versionId/validate', owner: 'Workflow', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'workflow:validate', validation: 'pathParams',
+    responseSchema: 'WorkflowValidationDto', rateTier: 'read', auditEvent: 'workflow.version.validate', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/versions/:versionId/publish', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:publish', validation: 'pathParams',
+    responseSchema: 'WorkflowVersionDto', rateTier: 'write', auditEvent: 'workflow.version.publish', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/versions/:versionId/rollback', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:rollback', validation: 'pathParams',
+    responseSchema: 'WorkflowVersionDto', rateTier: 'write', auditEvent: 'workflow.version.rollback', auditFindingIds: [],
+  },
+  {
+    method: 'DELETE', path: '/versions/:versionId', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:delete', validation: 'pathParams',
+    responseSchema: 'NoContentDto', rateTier: 'sensitive', auditEvent: 'workflow.version.delete', auditFindingIds: [],
+  },
+  {
     method: 'DELETE',
     path: '/admin/offboarding-templates/:id',
     owner: 'HR Services',

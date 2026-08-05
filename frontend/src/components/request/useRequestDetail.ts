@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { requestService } from '../../services/request.service';
+import { requestService, type AvailableTransition } from '../../services/request.service';
 import approvalService, { type Candidate as CandidateType, type CandidateResume as CandidateResumeType } from '../../services/approval.service';
 import interviewService from '../../services/interview.service';
 import screeningService from '../../services/screening.service';
@@ -156,6 +156,7 @@ export interface Request {
 interface UseRequestDetailReturn {
     id: string | undefined;
     request: Request | null;
+    availableTransitions: AvailableTransition[];
     setRequest: React.Dispatch<React.SetStateAction<Request | null>>;
     activities: Activity[];
     setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
@@ -239,6 +240,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     const toast = useToast();
 
     const [request, setRequest] = useState<Request | null>(null);
+    const [availableTransitions, setAvailableTransitions] = useState<AvailableTransition[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [resumes, setResumes] = useState<CandidateResume[]>([]);
     const [candidates, setCandidates] = useState<CandidateType[]>([]);
@@ -275,11 +277,13 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         try {
             setLoading(true);
             setError(null);
-            const [requestData, activitiesData] = await Promise.all([
+            const [requestData, activitiesData, transitions] = await Promise.all([
                 requestService.getRequestById(id),
                 requestService.getRequestActivities(id),
+                requestService.getAvailableTransitions(id).catch(() => []),
             ]);
             setRequest(requestData);
+            setAvailableTransitions(transitions);
             setActivities(activitiesData);
             if (requestData.candidateResumes) setResumes(requestData.candidateResumes);
             if (id) await fetchWorkflowDetails(id, requestData.status);
@@ -732,7 +736,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     }, [id, fetchRequestData]);
 
     return {
-        id, request, setRequest, activities, setActivities, resumes, candidates, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
+        id, request, availableTransitions, setRequest, activities, setActivities, resumes, candidates, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
         rejectionComment, setRejectionComment,

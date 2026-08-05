@@ -1,11 +1,13 @@
 const mockPrisma = {
   workflowVersion: { findUnique: jest.fn() },
-  workflowNode: { upsert: jest.fn(), deleteMany: jest.fn() },
-  workflowEdge: { upsert: jest.fn(), deleteMany: jest.fn() },
+  workflowNode: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
+  workflowEdge: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
+  $transaction: jest.fn(),
 };
+mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma));
 jest.mock('../../utils/prisma', () => ({ __esModule: true, default: mockPrisma }));
 
-import { deleteEdges, deleteNodes, upsertEdges, upsertNodes } from '../workflowGraph.service';
+import { deleteEdges, deleteNodes, updateNodes, upsertEdges, upsertNodes } from '../workflowGraph.service';
 
 const nodeInput = {
   id: 'n1',
@@ -62,12 +64,14 @@ describe('upsertNodes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.workflowVersion.findUnique.mockResolvedValue({ id: 'v1', status: 'DRAFT' });
+    mockPrisma.workflowNode.findMany.mockResolvedValue([]);
+    mockPrisma.workflowEdge.findMany.mockResolvedValue([]);
   });
 
   it('upserts each node scoped to the version', async () => {
     await upsertNodes('v1', [nodeInput]);
     expect(mockPrisma.workflowNode.upsert).toHaveBeenCalledWith({
-      where: { id: 'n1' },
+      where: { id_workflowVersionId: { id: 'n1', workflowVersionId: 'v1' } },
       create: expect.objectContaining({
         id: 'n1',
         workflowVersionId: 'v1',
@@ -88,18 +92,41 @@ describe('upsertNodes', () => {
     await upsertNodes('v1', [nodeInput, { ...nodeInput, id: 'n2', statusCode: 'CLOSED' }]);
     expect(mockPrisma.workflowNode.upsert).toHaveBeenCalledTimes(2);
   });
+
+  it('rejects a node id owned by another version', async () => {
+    mockPrisma.workflowNode.findMany.mockResolvedValue([{ id: 'n1', workflowVersionId: 'v2' }]);
+    await expect(upsertNodes('v1', [nodeInput])).rejects.toMatchObject({ statusCode: 409 });
+    expect(mockPrisma.workflowNode.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate node ids before writing', async () => {
+    await expect(upsertNodes('v1', [nodeInput, nodeInput])).rejects.toMatchObject({ statusCode: 422 });
+    expect(mockPrisma.workflowNode.upsert).not.toHaveBeenCalled();
+  });
+
+  it('keeps node batch deletion behind the transaction boundary', async () => {
+    mockPrisma.workflowNode.upsert.mockRejectedValueOnce(new Error('write failed'));
+    await expect(updateNodes('v1', [nodeInput], ['n2'])).rejects.toThrow('write failed');
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.workflowNode.deleteMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('upsertEdges', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.workflowVersion.findUnique.mockResolvedValue({ id: 'v1', status: 'DRAFT' });
+    mockPrisma.workflowNode.findMany.mockResolvedValue([
+      { id: 'n1', workflowVersionId: 'v1' },
+      { id: 'n2', workflowVersionId: 'v1' },
+    ]);
+    mockPrisma.workflowEdge.findMany.mockResolvedValue([]);
   });
 
   it('upserts each edge scoped to the version', async () => {
     await upsertEdges('v1', [edgeInput]);
     expect(mockPrisma.workflowEdge.upsert).toHaveBeenCalledWith({
-      where: { id: 'e1' },
+      where: { id_workflowVersionId: { id: 'e1', workflowVersionId: 'v1' } },
       create: expect.objectContaining({ id: 'e1', workflowVersionId: 'v1', fromNodeId: 'n1' }),
       update: expect.objectContaining({ transitionLabel: 'SUBMIT', allowedRoles: ['AGENT'] }),
     });
@@ -109,6 +136,15 @@ describe('upsertEdges', () => {
     await expect(
       upsertEdges('v1', [{ ...edgeInput, toNodeId: 'n1' }]),
     ).rejects.toThrow('cannot transition to itself');
+  });
+
+  it('rejects an edge that references a node from another version', async () => {
+    mockPrisma.workflowNode.findMany.mockResolvedValue([
+      { id: 'n1', workflowVersionId: 'v1' },
+      { id: 'n2', workflowVersionId: 'v2' },
+    ]);
+    await expect(upsertEdges('v1', [edgeInput])).rejects.toMatchObject({ statusCode: 409 });
+    expect(mockPrisma.workflowEdge.upsert).not.toHaveBeenCalled();
   });
 });
 

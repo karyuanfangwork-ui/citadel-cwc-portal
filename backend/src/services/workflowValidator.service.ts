@@ -32,7 +32,49 @@ export function validateStructure(graph: WorkflowGraph): ValidationResult {
   const blocking: Finding[] = [];
   const warnings: Finding[] = [];
 
-  const nodesById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const nodesById = new Map<string, GraphNode>();
+  const statusCodes = new Map<string, GraphNode>();
+  for (const node of graph.nodes) {
+    if (nodesById.has(node.id)) {
+      blocking.push({
+        code: 'DUPLICATE_NODE_ID',
+        nodeId: node.id,
+        message: `Node id ${node.id} appears more than once`,
+      });
+    } else {
+      nodesById.set(node.id, node);
+    }
+
+    if (node.type !== 'STATUS' || !node.statusCode?.trim()) {
+      blocking.push({
+        code: 'INVALID_STATUS_NODE',
+        nodeId: node.id,
+        message: `Status node ${node.id} must have a non-empty status code`,
+      });
+    } else if (statusCodes.has(node.statusCode)) {
+      blocking.push({
+        code: 'DUPLICATE_STATUS_CODE',
+        nodeId: node.id,
+        message: `Status code ${node.statusCode} appears more than once`,
+      });
+    } else {
+      statusCodes.set(node.statusCode, node);
+    }
+  }
+
+  const edgeKeys = new Set<string>();
+  for (const edge of graph.edges) {
+    const key = `${edge.fromNodeId}->${edge.toNodeId}`;
+    if (edgeKeys.has(edge.id) || edgeKeys.has(key)) {
+      blocking.push({
+        code: 'DUPLICATE_EDGE',
+        edgeId: edge.id,
+        message: `Transition ${edge.id} is duplicated`,
+      });
+    }
+    edgeKeys.add(edge.id);
+    edgeKeys.add(key);
+  }
 
   // Dangling edges first: every later rule assumes endpoints resolve.
   const validEdges = [];
@@ -180,18 +222,18 @@ export interface ValidateGraphInput {
  * in flight. Re-run inside the publish transaction, because occupancy counts
  * move between an admin looking at the canvas and clicking Publish.
  */
-export async function validateLiveData(input: ValidateGraphInput): Promise<Finding[]> {
+export async function validateLiveData(input: ValidateGraphInput, client: any = prisma): Promise<Finding[]> {
   const { workflowTypeId, graph } = input;
 
-  const requestTypes = await prisma.requestType.findMany({
+  const requestTypes = await client.requestType.findMany({
     where: { workflowTypeId },
     select: { id: true },
   });
   if (requestTypes.length === 0) return [];
 
-  const occupancy = await prisma.request.groupBy({
+  const occupancy = await client.request.groupBy({
     by: ['status'],
-    where: { requestTypeId: { in: requestTypes.map((rt) => rt.id) } },
+    where: { requestTypeId: { in: requestTypes.map((rt: { id: string }) => rt.id) } },
     _count: { _all: true },
   });
 
@@ -199,7 +241,12 @@ export async function validateLiveData(input: ValidateGraphInput): Promise<Findi
   const nodesByStatus = new Map(
     graph.nodes.filter((n) => n.statusCode !== null).map((n) => [n.statusCode as string, n]),
   );
-  const hasOutgoing = new Set(graph.edges.map((e) => e.fromNodeId));
+  const nodeIds = new Set(graph.nodes.map((node) => node.id));
+  const hasOutgoing = new Set(
+    graph.edges
+      .filter((edge) => nodeIds.has(edge.fromNodeId) && nodeIds.has(edge.toNodeId))
+      .map((edge) => edge.fromNodeId),
+  );
 
   for (const row of occupancy) {
     const count = row._count._all;
@@ -227,9 +274,9 @@ export async function validateLiveData(input: ValidateGraphInput): Promise<Findi
 }
 
 /** Structural + live-data validation. The publish gate and the API both use this. */
-export async function validateGraph(input: ValidateGraphInput): Promise<ValidationResult> {
+export async function validateGraph(input: ValidateGraphInput, client: any = prisma): Promise<ValidationResult> {
   const structural = validateStructure(input.graph);
-  const live = await validateLiveData(input);
+  const live = await validateLiveData(input, client);
   return {
     blocking: [...structural.blocking, ...live],
     warnings: structural.warnings,

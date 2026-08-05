@@ -24,6 +24,16 @@ interface CreateRequestData {
     isConfidential?: boolean;
 }
 
+export interface AvailableTransition {
+    id: string;
+    fromStatus: string;
+    toStatus: string;
+    transitionLabel: string | null;
+    requiresComment: boolean;
+    allowedRoles: string[];
+    allowedExecutiveRoles: string[];
+}
+
 export interface RequestParticipant {
     id: string;
     userId: string;
@@ -63,6 +73,11 @@ export const requestService = {
     async getRequestById(id: string) {
         const response = await apiClient.get(`/requests/${id}`);
         return response.data.data.request;
+    },
+
+    async getAvailableTransitions(id: string): Promise<AvailableTransition[]> {
+        const response = await apiClient.get(`/requests/${id}/available-transitions`);
+        return response.data.data.transitions;
     },
 
     async createRequest(data: CreateRequestData) {

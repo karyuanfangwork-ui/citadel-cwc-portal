@@ -11,6 +11,8 @@ import CfoDecisionFinModal from './CfoDecisionFinModal';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
+import GenericTransitionModal from './GenericTransitionModal';
+import type { AvailableTransition } from '../../services/request.service';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -27,6 +29,7 @@ interface DecisionPanelProps {
   approvals?: { id: string; approverId: string; approverType: string; status: string }[];
   requestTypeName?: string;
   requestTypeCode?: string;
+  workflowCode?: string;
   serviceDeskCode: string;
   serviceDeskName?: string;
   referenceNumber?: string;
@@ -52,6 +55,8 @@ interface DecisionPanelProps {
   onAssign?: () => void;
   onResolveRequest?: () => void;
   onCancelRequest?: () => void;
+  availableTransitions?: AvailableTransition[];
+  onWorkflowTransition?: (toStatus: string, comment?: string) => Promise<void>;
   onRouteToManager?: () => void;
   onManagerDecision?: () => void;
   onLOAApproval?: () => void;
@@ -198,6 +203,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   approvals = [],
   requestTypeName = '',
   requestTypeCode = '',
+  workflowCode = '',
   serviceDeskCode,
   serviceDeskName,
   requiresApproval = true,
@@ -224,10 +230,13 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   onCompleteOffboarding,
   onResolveRequest,
   onCancelRequest,
+  availableTransitions = [],
+  onWorkflowTransition,
   onUploadResume,
   offboardingPreConditionsMet = true,
 }) => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [activeTransition, setActiveTransition] = useState<AvailableTransition | null>(null);
   const [directLoading, setDirectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -257,6 +266,19 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     agentTeam ?? '',
     assignedTeam ?? '',
   );
+
+  const representedTargets = new Set(
+    actions.flatMap((action) => {
+      if (action.type === 'START_IT_REVIEW') return ['IN_REVIEW'];
+      if (action.type === 'MARK_IN_PROGRESS') return ['IN_PROGRESS'];
+      if (action.type === 'RESOLVE_IT') return ['RESOLVED'];
+      return [];
+    }),
+  );
+  const genericTransitions = workflowCode === 'IT_SIMPLE'
+    ? availableTransitions.filter((transition) => !representedTargets.has(transition.toStatus))
+    : [];
+  const humanizeStatus = (value: string) => value.toLowerCase().split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 
   const handleDirectAction = useCallback(
     async (action: WorkflowActionType) => {
@@ -381,7 +403,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     onActionComplete();
   }, [onActionComplete]);
 
-  if (actions.length === 0) {
+  if (actions.length === 0 && genericTransitions.length === 0) {
     return null;
   }
 
@@ -459,6 +481,33 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
             </button>
           );
         })}
+
+        {genericTransitions.map((transition) => (
+          <button
+            key={`workflow-transition-${transition.id}`}
+            type="button"
+            onClick={() => setActiveTransition(transition)}
+            className="w-full text-left border rounded-xl p-4 transition-colors group bg-blue-50 border-blue-100 hover:bg-blue-100/70"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-9 rounded-lg flex items-center justify-center shrink-0 bg-blue-100">
+                <span className="material-symbols-outlined text-[20px] text-blue-600">swap_horiz</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold leading-snug text-[#1e40af]">
+                  {transition.transitionLabel || `Move to ${humanizeStatus(transition.toStatus)}`}
+                </p>
+                <p className="text-xs mt-1 leading-relaxed text-blue-500">
+                  Move this request to {humanizeStatus(transition.toStatus)}
+                  {transition.requiresComment ? ' (comment required)' : ''}
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-blue-400 group-hover:text-blue-600 shrink-0" style={{ fontSize: '20px' }}>
+                chevron_right
+              </span>
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* Error banner */}
@@ -476,6 +525,18 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
           </button>
         </div>
       )}
+
+      <GenericTransitionModal
+        open={!!activeTransition}
+        transition={activeTransition}
+        onClose={() => setActiveTransition(null)}
+        onSubmit={async (comment) => {
+          if (!activeTransition || !onWorkflowTransition) return;
+          await onWorkflowTransition(activeTransition.toStatus, comment);
+          setActiveTransition(null);
+          onActionComplete();
+        }}
+      />
 
       {/* Dedicated CEO decision modal (handles IT CTO selector + HR approval routing) */}
       {(activeModal === 'CEO_DECISION_IT' || activeModal === 'CEO_DECISION_HR') && serviceDeskName && (

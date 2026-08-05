@@ -88,6 +88,17 @@ describe('validateLiveData', () => {
     expect(finding!.nodeId).toBe('IN_PROGRESS');
   });
 
+  it('treats an edge to a missing node as no exit for occupied status validation', async () => {
+    const dangling = graph();
+    dangling.edges = [
+      dangling.edges[0],
+      { ...dangling.edges[1], toNodeId: 'MISSING' },
+    ];
+    mockPrisma.request.groupBy.mockResolvedValue([{ status: 'IN_PROGRESS', _count: { _all: 8 } }]);
+    const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: dangling });
+    expect(findings.map((finding) => finding.code)).toContain('OCCUPIED_STATUS_NO_EXIT');
+  });
+
   it('allows an occupied final status to have no outgoing transitions', async () => {
     mockPrisma.request.groupBy.mockResolvedValue([{ status: 'CLOSED', _count: { _all: 99 } }]);
     const findings = await validateLiveData({ workflowTypeId: 'wf1', graph: graph() });

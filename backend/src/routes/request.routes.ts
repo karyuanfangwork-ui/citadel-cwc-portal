@@ -47,6 +47,13 @@ router.get('/pending-approvals', requirePermission('request:approve'), requestCo
 router.post('/bulk-action', requirePermission('request:approve'), requestController.bulkAction);
 
 /**
+ * @route   GET /api/v1/requests/:id/available-transitions
+ * @desc    Get active workflow transitions available to the current actor
+ * @access  Private — authorizeResource ensures request access
+ */
+router.get('/:id/available-transitions', authorizeResource(loadRequestScopeFromParam('id'), 'read'), requestController.getAvailableTransitions);
+
+/**
  * @route   GET /api/v1/requests/recent-services
  * @desc    Get recently used request types for current user
  * @access  Private

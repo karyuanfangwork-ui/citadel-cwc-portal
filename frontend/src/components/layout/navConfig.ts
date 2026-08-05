@@ -37,6 +37,7 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   { to: '/reports',             label: 'Reports',              icon: 'assessment', group: 'admin', show: hasPermission(user, 'report:read') },
   { to: '/insights',            label: 'Insights',             icon: 'insights',   group: 'admin', show: hasPermission(user, 'report:read') },
   { to: '/admin/settings',      label: 'Admin Settings',       icon: 'settings',   group: 'admin', show: hasPermission(user, 'admin:access') },
+  { to: '/admin/workflows',     label: 'Workflow Designer',     icon: 'account_tree', group: 'admin', show: hasPermission(user, 'admin:access') },
   { to: '/admin/audit',         label: 'Audit Trail',          icon: 'history',    group: 'admin', show: hasPermission(user, 'admin:access') },
   { to: '/admin/announcements', label: 'Manage Announcements', icon: 'campaign',   group: 'admin', show: hasPermission(user, 'announcement:write') },
 ];

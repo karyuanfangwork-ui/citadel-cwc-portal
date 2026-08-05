@@ -37,6 +37,7 @@ export async function canActorTransition(
   const scopes = [
     { tenantId, workflowTypeId },
     { tenantId, workflowTypeId: null },
+    { tenantId: null, workflowTypeId },
     { tenantId: null, workflowTypeId: null },
   ];
 

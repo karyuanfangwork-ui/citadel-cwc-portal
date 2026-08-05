@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService, WorkflowTransition, WorkflowTransitionInput } from '../../services/admin.service';
 import apiClient from '../../services/api';
+import workflowVersionService from '../../services/workflow-version.service';
 
 const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'CMO', 'GROUP_DCEO'];
 const LABEL_OPTIONS = ['APPROVE', 'REJECT', 'SUBMIT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE'];
@@ -27,6 +28,7 @@ export const WorkflowTransitionTab: React.FC = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedFrom, setExpandedFrom] = useState<string | null>(null);
   const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string; email: string }[]>([]);
+  const [versionedWorkflowIds, setVersionedWorkflowIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetchAll();
@@ -35,12 +37,14 @@ export const WorkflowTransitionTab: React.FC = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [t, s] = await Promise.all([
+      const [t, s, versioned] = await Promise.all([
         adminService.listWorkflowTransitions(),
         adminService.listWorkflowStatuses(),
+        workflowVersionService.listWorkflows().catch(() => ({ workflows: [] })),
       ]);
       setTransitions(t);
       setStatuses(s);
+      setVersionedWorkflowIds(versioned.workflows.filter((workflow) => workflow.activeVersion || workflow.draftVersion).map((workflow) => workflow.id));
       // Fetch active agents/admins for autoAssignUserId dropdown
       try {
         const uRes = await apiClient.get('/users', { params: { role: 'AGENT,ADMIN', limit: 200 } });
@@ -110,6 +114,7 @@ export const WorkflowTransitionTab: React.FC = () => {
     acc[t.fromStatus].push(t);
     return acc;
   }, {});
+  const isVersionScoped = (transition: WorkflowTransition) => Boolean(transition.workflowTypeId && versionedWorkflowIds.includes(transition.workflowTypeId));
 
   return (
     <div>
@@ -131,6 +136,13 @@ export const WorkflowTransitionTab: React.FC = () => {
       {/* Error */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+      )}
+
+      {versionedWorkflowIds.length > 0 && (
+        <div className="mb-4 rounded-xl border border-[#b9c8de] bg-[#e8f0fe] p-4 text-sm text-[#334a70]">
+          Versioned workflows are now authored in Workflow Designer. Scoped compiled rules below are read-only; global fallback transitions remain editable.
+          <a className="ml-2 font-bold text-[#0052cc] underline" href="/admin/workflows">Open Workflow Designer</a>
+        </div>
       )}
 
       {/* Form Modal */}
@@ -321,15 +333,17 @@ export const WorkflowTransitionTab: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEdit(t)}
-                            className="p-2 text-[#0052cc] hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit"
+                            disabled={isVersionScoped(t)}
+                            className="p-2 text-[#0052cc] hover:bg-blue-50 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                            title={isVersionScoped(t) ? 'Managed by Workflow Designer' : 'Edit'}
                           >
                             <span className="material-symbols-outlined text-lg">edit</span>
                           </button>
                           <button
                             onClick={() => setDeleteId(t.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
+                            disabled={isVersionScoped(t)}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                            title={isVersionScoped(t) ? 'Managed by Workflow Designer' : 'Delete'}
                           >
                             <span className="material-symbols-outlined text-lg">delete</span>
                           </button>

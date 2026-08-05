@@ -17,12 +17,21 @@ import {
   reverseCompile,
   ProjectedTransition,
 } from '../src/services/workflowCompiler.service';
-import { validateStructure } from '../src/services/workflowValidator.service';
+import { validateGraph } from '../src/services/workflowValidator.service';
 
 const SHADOW = process.argv.includes('--shadow');
 
-async function liveTransitions(workflowTypeId: string): Promise<ProjectedTransition[]> {
-  const rows = await prisma.workflowTransition.findMany({
+async function liveTransitions(workflowTypeId: string, client: any = prisma): Promise<ProjectedTransition[]> {
+  const rows: Array<{
+    fromStatus: string;
+    toStatus: string;
+    transitionLabel: string | null;
+    requiresComment: boolean;
+    autoAssignRole: string | null;
+    autoAssignUserId: string | null;
+    allowedRoles: string[];
+    allowedExecutiveRoles: string[];
+  }> = await client.workflowTransition.findMany({
     where: { workflowTypeId, isActive: true },
   });
   return rows.map((t) => ({
@@ -54,7 +63,7 @@ async function main() {
     const diff = diffProjection(transitions, live);
     const faults = diff.missing.length + diff.extra.length + diff.changed.length;
 
-    const validation = validateStructure(graph);
+    const validation = await validateGraph({ workflowTypeId: wt.id, graph });
     if (validation.blocking.length > 0) invalid++;
 
     console.log(
@@ -73,7 +82,7 @@ async function main() {
     }
 
     if (SHADOW) continue;
-    if (faults > 0) {
+    if (faults > 0 || validation.blocking.length > 0) {
       console.log(`   SKIPPED write — resolve discrepancies first`);
       continue;
     }
@@ -86,7 +95,25 @@ async function main() {
       continue;
     }
 
-    await prisma.$transaction(async (tx: any) => {
+    const wrote = await prisma.$transaction(async (tx: any) => {
+      const candidate = await reverseCompile(wt.id, tx);
+      const revalidated = await validateGraph({ workflowTypeId: wt.id, graph: candidate }, tx);
+      const { transitions: candidateTransitions } = projectGraph(candidate, wt.id);
+      const candidateDiff = diffProjection(candidateTransitions, await liveTransitions(wt.id, tx));
+      if (
+        revalidated.blocking.length > 0 ||
+        candidateDiff.missing.length > 0 ||
+        candidateDiff.extra.length > 0 ||
+        candidateDiff.changed.length > 0
+      ) {
+        throw new Error(`Backfill candidate changed during transaction for ${wt.code}`);
+      }
+
+      const existingInTransaction = await tx.workflowVersion.findFirst({
+        where: { workflowTypeId: wt.id, version: 1 },
+      });
+      if (existingInTransaction) return false;
+
       const version = await tx.workflowVersion.create({
         data: {
           workflowTypeId: wt.id,
@@ -97,11 +124,13 @@ async function main() {
         },
       });
       await tx.workflowNode.createMany({
-        data: graph.nodes.map((n) => ({
+        data: candidate.nodes.map((n) => ({
           id: n.id,
           workflowVersionId: version.id,
           type: 'STATUS',
           statusCode: n.statusCode,
+          label: n.label ?? n.statusCode,
+          displayOrder: n.displayOrder ?? null,
           positionX: null,
           positionY: null,
           isInitial: n.isInitial,
@@ -111,7 +140,7 @@ async function main() {
         })),
       });
       await tx.workflowEdge.createMany({
-        data: graph.edges.map((e) => ({
+        data: candidate.edges.map((e) => ({
           id: e.id,
           workflowVersionId: version.id,
           fromNodeId: e.fromNodeId,
@@ -124,17 +153,19 @@ async function main() {
           allowedExecutiveRoles: e.allowedExecutiveRoles,
         })),
       });
+      return true;
     });
-    console.log(`   wrote version 1`);
+    if (wrote) console.log(`   wrote version 1`);
+    else console.log(`   version 1 appeared during transaction — skipped`);
   }
 
   console.log(`\ntotal discrepancies: ${discrepancies}`);
   console.log(`workflows failing validation: ${invalid}`);
-  if (SHADOW && discrepancies === 0) {
+  if (SHADOW && discrepancies === 0 && invalid === 0) {
     console.log('\nGATE PASSED — compiler reproduces live rows exactly.');
   }
-  if (SHADOW && discrepancies > 0) {
-    console.log('\nGATE FAILED — do not proceed to Phase 2 until this is zero.');
+  if (discrepancies > 0 || invalid > 0) {
+    console.log('\nGATE FAILED — do not proceed to Phase 2 until discrepancies and blocking validation findings are zero.');
     process.exitCode = 1;
   }
 }

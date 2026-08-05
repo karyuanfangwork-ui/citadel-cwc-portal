@@ -8,6 +8,10 @@ export interface GraphNode {
   id: string;
   type: 'STATUS';
   statusCode: string | null;
+  /** Preserved WorkflowStep label; falls back to statusCode for legacy rows. */
+  label?: string | null;
+  /** Preserved WorkflowStep order; compiler assigns graph order when absent. */
+  displayOrder?: number | null;
   positionX: number | null;
   positionY: number | null;
   isInitial: boolean;
@@ -42,6 +46,10 @@ export type FindingCode =
   | 'FINAL_HAS_OUTGOING'
   | 'ORPHAN_NODE'
   | 'DANGLING_EDGE'
+  | 'DUPLICATE_NODE_ID'
+  | 'DUPLICATE_STATUS_CODE'
+  | 'INVALID_STATUS_NODE'
+  | 'DUPLICATE_EDGE'
   | 'STATUS_IN_USE_REMOVED'
   | 'OCCUPIED_STATUS_NO_EXIT'
   | 'OPEN_EDGE'

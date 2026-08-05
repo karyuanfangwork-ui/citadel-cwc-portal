@@ -7,9 +7,10 @@
 import { randomUUID } from 'crypto';
 
 import prisma from '../utils/prisma';
-import { compileVersion, loadGraph } from './workflowCompiler.service';
+import { compileVersionInTransaction, loadGraph } from './workflowCompiler.service';
 import { validateGraph } from './workflowValidator.service';
 import { ValidationResult, WorkflowGraph } from './workflowGraph.types';
+import { AppError } from '../middleware/error.middleware';
 
 export async function listVersions(workflowTypeId: string) {
   return prisma.workflowVersion.findMany({
@@ -20,29 +21,27 @@ export async function listVersions(workflowTypeId: string) {
 }
 
 export async function createDraft(workflowTypeId: string): Promise<{ id: string; version: number }> {
-  const openDraft = await prisma.workflowVersion.findFirst({
-    where: { workflowTypeId, status: 'DRAFT' },
-  });
-  if (openDraft) {
-    throw new Error('This workflow already has an open draft — edit or discard it first');
-  }
+  try {
+    return await prisma.$transaction(async (tx: any) => {
+    const openDraft = await tx.workflowVersion.findFirst({
+      where: { workflowTypeId, status: 'DRAFT' },
+    });
+    if (openDraft) {
+      throw new AppError('This workflow already has an open draft — edit or discard it first', 409);
+    }
 
-  const highest = await prisma.workflowVersion.aggregate({
-    where: { workflowTypeId },
-    _max: { version: true },
-  });
-  const nextVersion = (highest._max.version ?? 0) + 1;
+    const highest = await tx.workflowVersion.aggregate({
+      where: { workflowTypeId },
+      _max: { version: true },
+    });
+    const nextVersion = (highest._max.version ?? 0) + 1;
+    const active = await tx.workflowVersion.findFirst({
+      where: { workflowTypeId, status: 'ACTIVE' },
+    });
+    const graph: WorkflowGraph = active
+      ? (await loadGraph(active.id, tx)).graph
+      : { nodes: [], edges: [] };
 
-  const active = await prisma.workflowVersion.findFirst({
-    where: { workflowTypeId, status: 'ACTIVE' },
-  });
-
-  let graph: WorkflowGraph = { nodes: [], edges: [] };
-  if (active) {
-    graph = (await loadGraph(active.id)).graph;
-  }
-
-  return prisma.$transaction(async (tx: any) => {
     const draft = await tx.workflowVersion.create({
       data: { workflowTypeId, version: nextVersion, status: 'DRAFT' },
     });
@@ -59,6 +58,8 @@ export async function createDraft(workflowTypeId: string): Promise<{ id: string;
             workflowVersionId: draft.id,
             type: 'STATUS',
             statusCode: n.statusCode,
+            label: n.label ?? n.statusCode,
+            displayOrder: n.displayOrder ?? null,
             positionX: n.positionX,
             positionY: n.positionY,
             isInitial: n.isInitial,
@@ -85,8 +86,14 @@ export async function createDraft(workflowTypeId: string): Promise<{ id: string;
       });
     }
 
-    return { id: draft.id, version: draft.version };
-  });
+      return { id: draft.id, version: draft.version };
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      throw new AppError('This workflow already has an open draft — edit or discard it first', 409);
+    }
+    throw error;
+  }
 }
 
 export async function getVersionDetail(
@@ -108,68 +115,59 @@ export async function publishVersion(
   versionId: string,
   userId: string,
 ): Promise<{ version: number; transitionCount: number; stepCount: number }> {
-  const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
-  if (!version) throw new Error(`Workflow version ${versionId} not found`);
-  if (version.status === 'ACTIVE') throw new Error('This version is already active');
+  return prisma.$transaction(async (tx: any) => {
+    const version = await tx.workflowVersion.findUnique({ where: { id: versionId } });
+    if (!version) throw new AppError(`Workflow version ${versionId} not found`, 404);
+    if (version.status === 'ACTIVE') throw new AppError('This version is already active', 409);
+    if (version.status !== 'DRAFT') throw new AppError('Only a draft version can be published', 409);
 
-  const { workflowTypeId, graph } = await loadGraph(versionId);
-  const validation = await validateGraph({ workflowTypeId, graph });
-  if (validation.blocking.length > 0) {
-    throw new Error(`Cannot publish: ${describeBlocking(validation)}`);
-  }
+    const loaded = await loadGraph(versionId, tx);
+    const validation = await validateGraph(loaded, tx);
+    if (validation.blocking.length > 0) throw new AppError(`Cannot publish: ${describeBlocking(validation)}`, 422);
 
-  await prisma.$transaction(async (tx: any) => {
     await tx.workflowVersion.updateMany({
-      where: { workflowTypeId, status: 'ACTIVE' },
+      where: { workflowTypeId: version.workflowTypeId, status: 'ACTIVE' },
       data: { status: 'ARCHIVED' },
     });
     await tx.workflowVersion.update({
       where: { id: versionId },
       data: { status: 'ACTIVE', publishedAt: new Date(), publishedById: userId },
     });
+    const compiled = await compileVersionInTransaction(tx, versionId);
+    return { version: version.version, ...compiled };
   });
-
-  const compiled = await compileVersion(versionId);
-  return { version: version.version, ...compiled };
 }
 
 export async function rollbackToVersion(
   versionId: string,
   userId: string,
 ): Promise<{ version: number }> {
-  const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
-  if (!version) throw new Error(`Workflow version ${versionId} not found`);
-  if (version.status !== 'ARCHIVED') {
-    throw new Error('Only an archived version can be rolled back to');
-  }
+  return prisma.$transaction(async (tx: any) => {
+    const version = await tx.workflowVersion.findUnique({ where: { id: versionId } });
+    if (!version) throw new AppError(`Workflow version ${versionId} not found`, 404);
+    if (version.status !== 'ARCHIVED') throw new AppError('Only an archived version can be rolled back to', 409);
 
-  // Re-validate: live request positions have moved since this version was last
-  // active, so a graph that was safe then may strand requests now.
-  const { workflowTypeId, graph } = await loadGraph(versionId);
-  const validation = await validateGraph({ workflowTypeId, graph });
-  if (validation.blocking.length > 0) {
-    throw new Error(`Cannot roll back: ${describeBlocking(validation)}`);
-  }
+    const loaded = await loadGraph(versionId, tx);
+    const validation = await validateGraph(loaded, tx);
+    if (validation.blocking.length > 0) throw new AppError(`Cannot roll back: ${describeBlocking(validation)}`, 422);
 
-  await prisma.$transaction(async (tx: any) => {
     await tx.workflowVersion.updateMany({
-      where: { workflowTypeId, status: 'ACTIVE' },
+      where: { workflowTypeId: version.workflowTypeId, status: 'ACTIVE' },
       data: { status: 'ARCHIVED' },
     });
     await tx.workflowVersion.update({
       where: { id: versionId },
       data: { status: 'ACTIVE', publishedAt: new Date(), publishedById: userId },
     });
+    await compileVersionInTransaction(tx, versionId);
+    return { version: version.version };
   });
-
-  await compileVersion(versionId);
-  return { version: version.version };
 }
 
 export async function discardDraft(versionId: string): Promise<void> {
   const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
-  if (!version) throw new Error(`Workflow version ${versionId} not found`);
-  if (version.status !== 'DRAFT') throw new Error('Only a draft can be discarded');
+  if (!version) throw new AppError(`Workflow version ${versionId} not found`, 404);
+  if (version.status !== 'DRAFT') throw new AppError('Only a draft can be discarded', 409);
 
   // Nodes and edges cascade.
   await prisma.workflowVersion.delete({ where: { id: versionId } });

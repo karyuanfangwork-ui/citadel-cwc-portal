@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-const defaultWorkflows = [
+export const defaultWorkflows = [
   {
     name: 'IT Simple',
     code: 'IT_SIMPLE',

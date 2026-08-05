@@ -8,6 +8,7 @@ import DecisionPanel from './DecisionPanel';
 import ApprovalChain from './ApprovalChain';
 import SLAIndicator from './SLAIndicator';
 import ParticipantsSection from './ParticipantsSection';
+import type { AvailableTransition } from '../../services/request.service';
 
 interface ApprovalEntry {
   id: string;
@@ -43,6 +44,7 @@ interface WorkflowCockpitProps {
     serviceDeskCode: string;
     requestTypeName?: string;
     requestTypeCode?: string;
+    workflowCode?: string;
     requesterId?: string;
     requesterName?: string;
     requiresApproval?: boolean;
@@ -96,6 +98,8 @@ interface WorkflowCockpitProps {
   onCompleteOffboarding?: () => void;
   onResolveRequest?: () => void;
   onCancelRequest?: () => void;
+  availableTransitions?: AvailableTransition[];
+  onWorkflowTransition?: (toStatus: string, comment?: string) => Promise<void>;
 
   /** Offboarding pre-conditions state for gating the Advance button in DecisionPanel */
   offboardingPreConditionsMet?: boolean;
@@ -136,6 +140,8 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onCompleteOffboarding,
   onResolveRequest,
   onCancelRequest,
+  availableTransitions = [],
+  onWorkflowTransition,
   offboardingPreConditionsMet = true,
   onUploadResume,
   canExportPdf,
@@ -193,6 +199,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               approvals={approvals}
               requestTypeName={request.requestTypeName}
               requestTypeCode={request.requestTypeCode}
+              workflowCode={request.workflowCode}
               serviceDeskCode={request.serviceDeskCode}
               serviceDeskName={request.serviceDeskName}
               referenceNumber={request.referenceNumber}
@@ -225,6 +232,8 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               onCompleteOffboarding={onCompleteOffboarding}
               onResolveRequest={onResolveRequest}
               onCancelRequest={onCancelRequest}
+              availableTransitions={availableTransitions}
+              onWorkflowTransition={onWorkflowTransition}
               offboardingPreConditionsMet={offboardingPreConditionsMet}
               onUploadResume={onUploadResume}
             />
@@ -332,6 +341,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   approvals={approvals}
                   requestTypeName={request.requestTypeName}
                   requestTypeCode={request.requestTypeCode}
+              workflowCode={request.workflowCode}
                   serviceDeskCode={request.serviceDeskCode}
                   serviceDeskName={request.serviceDeskName}
                   referenceNumber={request.referenceNumber}
@@ -364,6 +374,8 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   onCompleteOffboarding={onCompleteOffboarding}
                   onResolveRequest={onResolveRequest}
               onCancelRequest={onCancelRequest}
+              availableTransitions={availableTransitions}
+              onWorkflowTransition={onWorkflowTransition}
                   offboardingPreConditionsMet={offboardingPreConditionsMet}
                   onUploadResume={onUploadResume}
                 />

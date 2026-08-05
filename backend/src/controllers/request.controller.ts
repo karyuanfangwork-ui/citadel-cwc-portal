@@ -22,6 +22,7 @@ import { CLOSED_STATUSES } from '../constants/requestStatuses';
 import prisma from '../utils/prisma';
 import { resolveRequestId, UUID_RE } from '../utils/resolve';
 import { transitionHttpRequest } from '../utils/httpRequestTransition';
+import { getAvailableTransitionsForRequest } from '../services/availableTransitions.service';
 
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {
@@ -1354,6 +1355,33 @@ class RequestController {
         res.status(201).json({
             status: 'success',
             data: { request: finalRequest },
+        });
+    });
+
+    /**
+     * Get active workflow transitions available to the authenticated actor.
+     */
+    getAvailableTransitions = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = await resolveRequestId(String(req.params.id));
+        if (!id) throw new AppError('Request not found', 404);
+
+        const request = await prisma.request.findFirst({
+            where: { id, deletedAt: null },
+            select: { id: true },
+        });
+        if (!request) throw new AppError('Request not found', 404);
+
+        await assertRequestAccess(req.user, request.id, { requireConfidential: true });
+
+        const transitions = await getAvailableTransitionsForRequest(request.id, {
+            userId: req.user!.id,
+            roles: req.user!.roles ?? [],
+            executiveRole: (req.user as any).executiveRole ?? null,
+        });
+
+        res.json({
+            status: 'success',
+            data: { transitions },
         });
     });
 

@@ -6,6 +6,7 @@
  */
 
 import prisma from '../utils/prisma';
+import { AppError } from '../middleware/error.middleware';
 
 export interface NodeInput {
   id: string;
@@ -16,6 +17,8 @@ export interface NodeInput {
   isFinal: boolean;
   slaPause: boolean;
   icon: string;
+  label?: string | null;
+  displayOrder?: number | null;
 }
 
 export interface EdgeInput {
@@ -30,16 +33,23 @@ export interface EdgeInput {
   allowedExecutiveRoles: string[];
 }
 
-async function assertDraft(versionId: string): Promise<void> {
-  const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
-  if (!version) throw new Error(`Workflow version ${versionId} not found`);
-  if (version.status !== 'DRAFT') {
-    throw new Error('Only a draft version can be edited — create a new draft to make changes');
-  }
+async function assertDraft(versionId: string, client: any = prisma): Promise<void> {
+  const version = await client.workflowVersion.findUnique({ where: { id: versionId } });
+  if (!version) throw new AppError(`Workflow version ${versionId} not found`, 404);
+  if (version.status !== 'DRAFT') throw new AppError('Only a draft version can be edited — create a new draft to make changes', 409);
 }
 
-export async function upsertNodes(versionId: string, nodes: NodeInput[]): Promise<void> {
-  await assertDraft(versionId);
+export async function upsertNodes(versionId: string, nodes: NodeInput[], client: any = prisma): Promise<void> {
+  await assertDraft(versionId, client);
+
+  const ids = nodes.map((node) => node.id);
+  if (new Set(ids).size !== ids.length) throw new AppError('Duplicate node ids in graph update', 422);
+  const existing = await client.workflowNode.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, workflowVersionId: true },
+  });
+  const foreign = existing.find((node: { id: string; workflowVersionId: string }) => node.workflowVersionId !== versionId);
+  if (foreign) throw new AppError(`Node ${foreign.id} belongs to another workflow version`, 409);
 
   for (const node of nodes) {
     const shared = {
@@ -50,9 +60,11 @@ export async function upsertNodes(versionId: string, nodes: NodeInput[]): Promis
       isFinal: node.isFinal,
       slaPause: node.slaPause,
       icon: node.icon,
+      label: node.label ?? node.statusCode,
+      displayOrder: node.displayOrder ?? null,
     };
-    await prisma.workflowNode.upsert({
-      where: { id: node.id },
+    await client.workflowNode.upsert({
+      where: { id_workflowVersionId: { id: node.id, workflowVersionId: versionId } },
       create: { id: node.id, workflowVersionId: versionId, type: 'STATUS', ...shared },
       // workflowVersionId is deliberately absent: an update must never move a
       // node between versions.
@@ -61,24 +73,45 @@ export async function upsertNodes(versionId: string, nodes: NodeInput[]): Promis
   }
 }
 
-export async function deleteNodes(versionId: string, nodeIds: string[]): Promise<void> {
-  await assertDraft(versionId);
+export async function deleteNodes(versionId: string, nodeIds: string[], client: any = prisma): Promise<void> {
+  await assertDraft(versionId, client);
   if (nodeIds.length === 0) return;
 
   // Edges cascade from the node foreign keys.
-  await prisma.workflowNode.deleteMany({
+  await client.workflowNode.deleteMany({
     where: { id: { in: nodeIds }, workflowVersionId: versionId },
   });
 }
 
-export async function upsertEdges(versionId: string, edges: EdgeInput[]): Promise<void> {
-  await assertDraft(versionId);
+export async function upsertEdges(versionId: string, edges: EdgeInput[], client: any = prisma): Promise<void> {
+  await assertDraft(versionId, client);
+
+  const ids = edges.map((edge) => edge.id);
+  if (new Set(ids).size !== ids.length) throw new AppError('Duplicate edge ids in graph update', 422);
+  const existing = await client.workflowEdge.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, workflowVersionId: true },
+  });
+  const foreign = existing.find((edge: { id: string; workflowVersionId: string }) => edge.workflowVersionId !== versionId);
+  if (foreign) throw new AppError(`Edge ${foreign.id} belongs to another workflow version`, 409);
+  const endpointIds = [...new Set(edges.flatMap((edge) => [edge.fromNodeId, edge.toNodeId]))];
+  const nodes = await client.workflowNode.findMany({
+    where: { id: { in: endpointIds } },
+    select: { id: true, workflowVersionId: true },
+  });
+  const nodeById = new Map<string, { id: string; workflowVersionId: string }>(
+    nodes.map((node: { id: string; workflowVersionId: string }) => [node.id, node]),
+  );
+  for (const edge of edges) {
+    if (edge.fromNodeId === edge.toNodeId) throw new AppError('A status cannot transition to itself', 422);
+    for (const nodeId of [edge.fromNodeId, edge.toNodeId]) {
+      const node = nodeById.get(nodeId);
+      if (!node) throw new AppError(`Edge ${edge.id} references missing node ${nodeId}`, 422);
+      if (node.workflowVersionId !== versionId) throw new AppError(`Edge ${edge.id} references a node from another workflow version`, 409);
+    }
+  }
 
   for (const edge of edges) {
-    if (edge.fromNodeId === edge.toNodeId) {
-      throw new Error('A status cannot transition to itself');
-    }
-
     const shared = {
       fromNodeId: edge.fromNodeId,
       toNodeId: edge.toNodeId,
@@ -89,19 +122,33 @@ export async function upsertEdges(versionId: string, edges: EdgeInput[]): Promis
       allowedRoles: edge.allowedRoles,
       allowedExecutiveRoles: edge.allowedExecutiveRoles,
     };
-    await prisma.workflowEdge.upsert({
-      where: { id: edge.id },
+    await client.workflowEdge.upsert({
+      where: { id_workflowVersionId: { id: edge.id, workflowVersionId: versionId } },
       create: { id: edge.id, workflowVersionId: versionId, ...shared },
       update: shared,
     });
   }
 }
 
-export async function deleteEdges(versionId: string, edgeIds: string[]): Promise<void> {
-  await assertDraft(versionId);
+export async function deleteEdges(versionId: string, edgeIds: string[], client: any = prisma): Promise<void> {
+  await assertDraft(versionId, client);
   if (edgeIds.length === 0) return;
 
-  await prisma.workflowEdge.deleteMany({
+  await client.workflowEdge.deleteMany({
     where: { id: { in: edgeIds }, workflowVersionId: versionId },
+  });
+}
+
+export async function updateNodes(versionId: string, nodes: NodeInput[], remove: string[]): Promise<void> {
+  await prisma.$transaction(async (tx: any) => {
+    await upsertNodes(versionId, nodes, tx);
+    await deleteNodes(versionId, remove, tx);
+  });
+}
+
+export async function updateEdges(versionId: string, edges: EdgeInput[], remove: string[]): Promise<void> {
+  await prisma.$transaction(async (tx: any) => {
+    await upsertEdges(versionId, edges, tx);
+    await deleteEdges(versionId, remove, tx);
   });
 }

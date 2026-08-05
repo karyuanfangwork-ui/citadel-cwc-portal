@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // Mirrors the VALID_TRANSITIONS map in src/utils/workflowTransitions.ts.
 // ---------------------------------------------------------------------------
 
-interface TransitionDef {
+export interface TransitionDef {
   fromStatus: string;
   toStatus: string;
   transitionLabel: string;
@@ -244,6 +244,21 @@ const ALL_TRANSITIONS: TransitionDef[] = [
   ...ESM_TRAVEL,
 ];
 
+/** Canonical workflow-scoped transition definitions used by bootstrap tooling. */
+export const CANONICAL_WORKFLOW_TRANSITIONS: Record<string, TransitionDef[]> = {
+  IT_SIMPLE,
+  IT_PROCUREMENT,
+  IT_HARDWARE_PROCUREMENT: IT_HARDWARE,
+  HR_GENERAL: IT_SIMPLE,
+  HR_RECRUITMENT,
+  FINANCE,
+  INTERCOMPANY_CHARGEBACK: CHARGEBACK,
+  ONBOARDING,
+  OFFBOARDING,
+  EXPENSE_REIMBURSEMENT,
+  ESM_TRAVEL,
+};
+
 async function main() {
   console.log('🏗️  Seeding ESM workflow transitions...');
 
@@ -299,11 +314,13 @@ async function main() {
   console.log('✅ ESM workflow transitions seeded');
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Seed failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error('❌ Seed failed:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

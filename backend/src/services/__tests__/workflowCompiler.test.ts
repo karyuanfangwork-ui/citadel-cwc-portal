@@ -1,4 +1,5 @@
 const mockTx = {
+  workflowVersion: { findUnique: jest.fn() },
   workflowTransition: { deleteMany: jest.fn(), createMany: jest.fn() },
   workflowStep: { deleteMany: jest.fn(), createMany: jest.fn() },
 };
@@ -97,6 +98,19 @@ describe('projectGraph', () => {
     });
   });
 
+  it('preserves authored labels and display order when projecting steps', () => {
+    const authored = graph();
+    authored.nodes[0].label = 'Submitted by requester';
+    authored.nodes[0].displayOrder = 7;
+    authored.nodes[1].label = 'Agent review';
+    authored.nodes[1].displayOrder = 8;
+    authored.nodes[2].label = 'Closed';
+    authored.nodes[2].displayOrder = 9;
+    const { steps } = projectGraph(authored, 'wf1');
+    expect(steps.map((step) => step.label)).toEqual(['Submitted by requester', 'Agent review', 'Closed']);
+    expect(steps.map((step) => step.displayOrder)).toEqual([7, 8, 9]);
+  });
+
   it('orders steps by graph distance so a branching graph still reads sensibly', () => {
     const branching: WorkflowGraph = {
       nodes: [
@@ -144,14 +158,16 @@ describe('compileVersion', () => {
 
   it('replaces only this workflow\'s transitions, leaving global rows untouched', async () => {
     mockPrisma.workflowVersion.findUnique.mockResolvedValue(dbVersion);
+    mockTx.workflowVersion.findUnique.mockResolvedValue(dbVersion);
     await compileVersion('v1');
     expect(mockTx.workflowTransition.deleteMany).toHaveBeenCalledWith({
-      where: { workflowTypeId: 'wf1' },
+      where: { workflowTypeId: 'wf1', tenantId: null },
     });
   });
 
   it('writes the projected transitions and steps', async () => {
     mockPrisma.workflowVersion.findUnique.mockResolvedValue(dbVersion);
+    mockTx.workflowVersion.findUnique.mockResolvedValue(dbVersion);
     const result = await compileVersion('v1');
     expect(mockTx.workflowTransition.createMany).toHaveBeenCalledWith({
       data: [
@@ -164,13 +180,15 @@ describe('compileVersion', () => {
 
   it('runs delete and create inside a single transaction', async () => {
     mockPrisma.workflowVersion.findUnique.mockResolvedValue(dbVersion);
+    mockTx.workflowVersion.findUnique.mockResolvedValue(dbVersion);
     await compileVersion('v1');
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('throws when the version does not exist', async () => {
     mockPrisma.workflowVersion.findUnique.mockResolvedValue(null);
+    mockTx.workflowVersion.findUnique.mockResolvedValue(null);
     await expect(compileVersion('missing')).rejects.toThrow('Workflow version missing not found');
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });

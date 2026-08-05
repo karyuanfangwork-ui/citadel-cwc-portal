@@ -42,6 +42,8 @@ import ExecutiveServices from './pages/ExecutiveServices';
 import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
 import AdminSettings from './pages/AdminSettings';
+import WorkflowList from './pages/WorkflowList';
+import WorkflowDesigner from './pages/WorkflowDesigner';
 import AuditTrail from './pages/AuditTrail';
 import UnifiedInbox from './pages/UnifiedInbox';
 import CreateRequest from './pages/CreateRequest';
@@ -325,6 +327,8 @@ const AppShell = () => {
               </Route>
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AdminSettings /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/admin/workflows" element={<ProtectedRoute requirePermission="admin:access"><WorkflowList /></ProtectedRoute>} />
+              <Route path="/admin/workflows/:workflowTypeId/versions/:versionId" element={<ProtectedRoute requirePermission="admin:access"><WorkflowDesigner /></ProtectedRoute>} />
               <Route path="/admin/audit" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AuditTrail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

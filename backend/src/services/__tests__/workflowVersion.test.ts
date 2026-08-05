@@ -1,5 +1,8 @@
 const mockTx = {
-  workflowVersion: { updateMany: jest.fn(), update: jest.fn(), create: jest.fn() },
+  workflowVersion: {
+    findUnique: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(),
+    updateMany: jest.fn(), update: jest.fn(), create: jest.fn(),
+  },
   workflowNode: { createMany: jest.fn() },
   workflowEdge: { createMany: jest.fn() },
 };
@@ -21,9 +24,11 @@ jest.mock('../workflowValidator.service', () => ({
 }));
 
 const mockCompileVersion = jest.fn();
+const mockCompileVersionInTransaction = jest.fn();
 const mockLoadGraph = jest.fn();
 jest.mock('../workflowCompiler.service', () => ({
   compileVersion: (...args: unknown[]) => mockCompileVersion(...args),
+  compileVersionInTransaction: (...args: unknown[]) => mockCompileVersionInTransaction(...args),
   loadGraph: (...args: unknown[]) => mockLoadGraph(...args),
 }));
 
@@ -39,17 +44,18 @@ const emptyGraph = { nodes: [], edges: [] };
 describe('createDraft', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPrisma.workflowVersion.aggregate.mockResolvedValue({ _max: { version: 3 } });
+    mockTx.workflowVersion.findFirst.mockResolvedValue(null);
+    mockTx.workflowVersion.aggregate.mockResolvedValue({ _max: { version: 3 } });
     mockTx.workflowVersion.create.mockResolvedValue({ id: 'v4', version: 4 });
   });
 
   it('rejects a second draft for the same workflow', async () => {
-    mockPrisma.workflowVersion.findFirst.mockResolvedValue({ id: 'existing-draft' });
+    mockTx.workflowVersion.findFirst.mockResolvedValue({ id: 'existing-draft' });
     await expect(createDraft('wf1')).rejects.toThrow('already has an open draft');
   });
 
   it('numbers the new draft one above the highest existing version', async () => {
-    mockPrisma.workflowVersion.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    mockTx.workflowVersion.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     mockLoadGraph.mockResolvedValue({ workflowTypeId: 'wf1', graph: emptyGraph });
     await createDraft('wf1');
     expect(mockTx.workflowVersion.create).toHaveBeenCalledWith(
@@ -58,7 +64,7 @@ describe('createDraft', () => {
   });
 
   it('clones the active version\'s nodes and edges into the draft', async () => {
-    mockPrisma.workflowVersion.findFirst
+    mockTx.workflowVersion.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 'v3' });
     mockLoadGraph.mockResolvedValue({
@@ -86,6 +92,11 @@ describe('createDraft', () => {
       data: [expect.objectContaining({ statusCode: 'NEW', positionX: 5, isInitial: true })],
     });
   });
+
+  it('maps a database draft uniqueness race to a conflict', async () => {
+    mockTx.workflowVersion.create.mockRejectedValue({ code: 'P2002' });
+    await expect(createDraft('wf1')).rejects.toMatchObject({ statusCode: 409 });
+  });
 });
 
 describe('publishVersion', () => {
@@ -100,6 +111,8 @@ describe('publishVersion', () => {
     mockLoadGraph.mockResolvedValue({ workflowTypeId: 'wf1', graph: emptyGraph });
     mockValidateGraph.mockResolvedValue({ blocking: [], warnings: [] });
     mockCompileVersion.mockResolvedValue({ transitionCount: 2, stepCount: 3 });
+    mockCompileVersionInTransaction.mockResolvedValue({ transitionCount: 2, stepCount: 3 });
+    mockTx.workflowVersion.findUnique.mockResolvedValue({ id: 'v4', version: 4, status: 'DRAFT', workflowTypeId: 'wf1' });
   });
 
   it('refuses to publish when validation reports a blocking finding', async () => {
@@ -108,7 +121,7 @@ describe('publishVersion', () => {
       warnings: [],
     });
     await expect(publishVersion('v4', 'u1')).rejects.toThrow('starting status');
-    expect(mockCompileVersion).not.toHaveBeenCalled();
+    expect(mockCompileVersionInTransaction).not.toHaveBeenCalled();
   });
 
   it('archives the previously active version', async () => {
@@ -129,12 +142,18 @@ describe('publishVersion', () => {
 
   it('compiles after activating, and returns the compile counts', async () => {
     const result = await publishVersion('v4', 'u1');
-    expect(mockCompileVersion).toHaveBeenCalledWith('v4');
+    expect(mockCompileVersionInTransaction).toHaveBeenCalledWith(mockTx, 'v4');
     expect(result).toEqual({ version: 4, transitionCount: 2, stepCount: 3 });
   });
 
+  it('propagates compiler failure through the publish transaction', async () => {
+    mockCompileVersionInTransaction.mockRejectedValueOnce(new Error('compile failed'));
+    await expect(publishVersion('v4', 'u1')).rejects.toThrow('compile failed');
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to publish a version that is already active', async () => {
-    mockPrisma.workflowVersion.findUnique.mockResolvedValue({
+    mockTx.workflowVersion.findUnique.mockResolvedValue({
       id: 'v3',
       version: 3,
       status: 'ACTIVE',
@@ -156,11 +175,13 @@ describe('rollbackToVersion', () => {
     mockLoadGraph.mockResolvedValue({ workflowTypeId: 'wf1', graph: emptyGraph });
     mockValidateGraph.mockResolvedValue({ blocking: [], warnings: [] });
     mockCompileVersion.mockResolvedValue({ transitionCount: 1, stepCount: 2 });
+    mockCompileVersionInTransaction.mockResolvedValue({ transitionCount: 1, stepCount: 2 });
+    mockTx.workflowVersion.findUnique.mockResolvedValue({ id: 'v2', version: 2, status: 'ARCHIVED', workflowTypeId: 'wf1' });
   });
 
   it('re-validates before re-activating, because live requests have moved since', async () => {
     await rollbackToVersion('v2', 'u1');
-    expect(mockValidateGraph).toHaveBeenCalledWith({ workflowTypeId: 'wf1', graph: emptyGraph });
+    expect(mockValidateGraph).toHaveBeenCalledWith({ workflowTypeId: 'wf1', graph: emptyGraph }, mockTx);
   });
 
   it('refuses a rollback that would strand in-flight requests', async () => {
@@ -169,11 +190,11 @@ describe('rollbackToVersion', () => {
       warnings: [],
     });
     await expect(rollbackToVersion('v2', 'u1')).rejects.toThrow('UNDER_REVIEW');
-    expect(mockCompileVersion).not.toHaveBeenCalled();
+    expect(mockCompileVersionInTransaction).not.toHaveBeenCalled();
   });
 
   it('rejects rolling back to a draft', async () => {
-    mockPrisma.workflowVersion.findUnique.mockResolvedValue({
+    mockTx.workflowVersion.findUnique.mockResolvedValue({
       id: 'v5',
       version: 5,
       status: 'DRAFT',

@@ -237,6 +237,7 @@ const RequestDetailContainer: React.FC = () => {
                         serviceDeskCode,
                         requestTypeName: request.requestType?.name,
                         requestTypeCode: request.requestType?.code,
+                        workflowCode: request.requestType?.workflow?.code,
                         requesterId: request.requesterId || request.requester?.id,
                         requesterName: request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : '',
                         requiresApproval: request.requestType?.requiresApproval ?? true,
@@ -288,6 +289,8 @@ const RequestDetailContainer: React.FC = () => {
                     onCompleteOffboarding={rq.handleCompleteOffboarding}
                     onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
                     onCancelRequest={() => rq.handleStatusChange('CANCELLED')}
+                    availableTransitions={rq.availableTransitions}
+                    onWorkflowTransition={rq.updateStatusDirectly}
                     onUploadResume={() => rq.setShowUploadModal(true)}
                     offboardingPreConditionsMet={offboardingPreConditions.preConditionsMet}
                     canExportPdf={canExport}

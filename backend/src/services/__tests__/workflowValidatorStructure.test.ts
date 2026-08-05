@@ -140,4 +140,24 @@ describe('validateStructure', () => {
     graph.edges[1].requiresComment = true;
     expect(codes(validateStructure(graph).warnings)).not.toContain('REJECT_WITHOUT_COMMENT');
   });
+
+  it('blocks a STATUS node without a status code', () => {
+    const graph = validGraph();
+    graph.nodes[1].statusCode = null;
+    expect(codes(validateStructure(graph).blocking)).toContain('INVALID_STATUS_NODE');
+  });
+
+  it('blocks duplicate node ids and duplicate status codes', () => {
+    const graph = validGraph();
+    graph.nodes.push({ ...graph.nodes[1], id: 'NEW' });
+    const codesFound = codes(validateStructure(graph).blocking);
+    expect(codesFound).toContain('DUPLICATE_NODE_ID');
+    expect(codesFound).toContain('DUPLICATE_STATUS_CODE');
+  });
+
+  it('blocks duplicate edge identities', () => {
+    const graph = validGraph();
+    graph.edges.push({ ...graph.edges[0] });
+    expect(codes(validateStructure(graph).blocking)).toContain('DUPLICATE_EDGE');
+  });
 });

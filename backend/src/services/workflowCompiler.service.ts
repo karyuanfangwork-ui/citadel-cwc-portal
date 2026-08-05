@@ -43,6 +43,9 @@ export interface ProjectedStep {
  * validation) are appended so nothing is silently dropped.
  */
 function orderNodes(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
+  if (nodes.length > 0 && nodes.every((node) => node.displayOrder != null)) {
+    return [...nodes].sort((a, b) => (a.displayOrder! - b.displayOrder!));
+  }
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const forward = new Map<string, string[]>();
   for (const edge of edges) {
@@ -106,15 +109,17 @@ export function projectGraph(
   }
 
   const steps: ProjectedStep[] = [];
-  let displayOrder = 0;
+  let nextDisplayOrder =
+    Math.max(-1, ...graph.nodes.map((node) => node.displayOrder ?? -1)) + 1;
   for (const node of orderNodes(graph.nodes, graph.edges)) {
     if (node.statusCode === null) continue;
+    const nodeDisplayOrder = node.displayOrder ?? nextDisplayOrder++;
     steps.push({
       workflowTypeId,
       status: node.statusCode,
-      label: node.statusCode,
+      label: node.label ?? node.statusCode,
       icon: node.icon,
-      displayOrder: displayOrder++,
+      displayOrder: nodeDisplayOrder,
       isInitial: node.isInitial,
       isFinal: node.isFinal,
       slaPause: node.slaPause,
@@ -125,8 +130,11 @@ export function projectGraph(
 }
 
 /** Load a version's graph in the shared in-memory shape. */
-export async function loadGraph(versionId: string): Promise<{ workflowTypeId: string; graph: WorkflowGraph }> {
-  const version = await prisma.workflowVersion.findUnique({
+export async function loadGraph(
+  versionId: string,
+  client: any = prisma,
+): Promise<{ workflowTypeId: string; graph: WorkflowGraph }> {
+  const version = await client.workflowVersion.findUnique({
     where: { id: versionId },
     include: { nodes: true, edges: true },
   });
@@ -135,10 +143,12 @@ export async function loadGraph(versionId: string): Promise<{ workflowTypeId: st
   return {
     workflowTypeId: version.workflowTypeId,
     graph: {
-      nodes: version.nodes.map((n) => ({
+      nodes: version.nodes.map((n: any) => ({
         id: n.id,
         type: 'STATUS',
         statusCode: n.statusCode,
+        label: n.label ?? n.statusCode,
+        displayOrder: n.displayOrder,
         positionX: n.positionX,
         positionY: n.positionY,
         isInitial: n.isInitial,
@@ -146,7 +156,7 @@ export async function loadGraph(versionId: string): Promise<{ workflowTypeId: st
         slaPause: n.slaPause,
         icon: n.icon,
       })),
-      edges: version.edges.map((e) => ({
+      edges: version.edges.map((e: any) => ({
         id: e.id,
         fromNodeId: e.fromNodeId,
         toNodeId: e.toNodeId,
@@ -165,20 +175,25 @@ export async function loadGraph(versionId: string): Promise<{ workflowTypeId: st
  * Delete-then-insert scoped to one workflowTypeId, in a single transaction.
  * Rows with workflowTypeId NULL are platform defaults and are never touched.
  */
+export async function compileVersionInTransaction(
+  tx: any,
+  versionId: string,
+): Promise<{ transitionCount: number; stepCount: number }> {
+  const { workflowTypeId, graph } = await loadGraph(versionId, tx);
+  const { transitions, steps } = projectGraph(graph, workflowTypeId);
+
+  await tx.workflowTransition.deleteMany({ where: { workflowTypeId, tenantId: null } });
+  await tx.workflowStep.deleteMany({ where: { workflowTypeId } });
+  if (transitions.length > 0) await tx.workflowTransition.createMany({ data: transitions });
+  if (steps.length > 0) await tx.workflowStep.createMany({ data: steps });
+
+  return { transitionCount: transitions.length, stepCount: steps.length };
+}
+
 export async function compileVersion(
   versionId: string,
 ): Promise<{ transitionCount: number; stepCount: number }> {
-  const { workflowTypeId, graph } = await loadGraph(versionId);
-  const { transitions, steps } = projectGraph(graph, workflowTypeId);
-
-  await prisma.$transaction(async (tx: any) => {
-    await tx.workflowTransition.deleteMany({ where: { workflowTypeId } });
-    await tx.workflowStep.deleteMany({ where: { workflowTypeId } });
-    if (transitions.length > 0) await tx.workflowTransition.createMany({ data: transitions });
-    if (steps.length > 0) await tx.workflowStep.createMany({ data: steps });
-  });
-
-  return { transitionCount: transitions.length, stepCount: steps.length };
+  return prisma.$transaction((tx: any) => compileVersionInTransaction(tx, versionId));
 }
 
 import { randomUUID } from 'crypto';
@@ -188,12 +203,29 @@ import { randomUUID } from 'crypto';
  * workflows get a version 1 without anyone re-drawing them. Node ids are
  * generated here and become the real primary keys when the backfill persists.
  */
-export async function reverseCompile(workflowTypeId: string): Promise<WorkflowGraph> {
-  const steps = await prisma.workflowStep.findMany({
+export async function reverseCompile(workflowTypeId: string, client: any = prisma): Promise<WorkflowGraph> {
+  const steps: Array<{
+    status: string;
+    label: string;
+    displayOrder: number;
+    icon: string;
+    isInitial: boolean;
+    isFinal: boolean;
+    slaPause: boolean;
+  }> = await client.workflowStep.findMany({
     where: { workflowTypeId },
     orderBy: { displayOrder: 'asc' },
   });
-  const transitions = await prisma.workflowTransition.findMany({
+  const transitions: Array<{
+    fromStatus: string;
+    toStatus: string;
+    transitionLabel: string | null;
+    requiresComment: boolean;
+    autoAssignRole: string | null;
+    autoAssignUserId: string | null;
+    allowedRoles: string[];
+    allowedExecutiveRoles: string[];
+  }> = await client.workflowTransition.findMany({
     where: { workflowTypeId, isActive: true },
   });
 
@@ -205,6 +237,8 @@ export async function reverseCompile(workflowTypeId: string): Promise<WorkflowGr
       id: randomUUID(),
       type: 'STATUS',
       statusCode: status,
+      label: over.label ?? steps.find((step) => step.status === status)?.label ?? status,
+      displayOrder: over.displayOrder ?? steps.find((step) => step.status === status)?.displayOrder ?? null,
       positionX: null,
       positionY: null,
       isInitial: false,
@@ -219,6 +253,8 @@ export async function reverseCompile(workflowTypeId: string): Promise<WorkflowGr
 
   for (const step of steps) {
     addNode(step.status, {
+      label: step.label,
+      displayOrder: step.displayOrder,
       icon: step.icon,
       isInitial: step.isInitial,
       isFinal: step.isFinal,

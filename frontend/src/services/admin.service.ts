@@ -199,6 +199,8 @@ export interface WorkflowTransition {
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
+    tenantId?: string | null;
+    workflowTypeId?: string | null;
 }
 
 export interface WorkflowTransitionInput {
