@@ -18,7 +18,8 @@ describe('WorkflowList', () => {
   it('shows workflow impact and active version', async () => {
     render(<MemoryRouter><WorkflowList /></MemoryRouter>);
     expect(await screen.findByText('IT Simple')).toBeInTheDocument();
-    expect(screen.getByText(/affects\s+2\s+request type/)).toBeInTheDocument();
+    expect(screen.getByText('Hardware')).toBeInTheDocument();
+    expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Active v1')).toBeInTheDocument();
   });
 

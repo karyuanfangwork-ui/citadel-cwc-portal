@@ -9,6 +9,8 @@ interface WorkflowListCardProps {
 export default function WorkflowListCard({ workflow, onCreateDraft }: WorkflowListCardProps) {
   const active = workflow.activeVersion;
   const draft = workflow.draftVersion;
+  const visibleTypes = workflow.requestTypes.slice(0, 3);
+  const overflowTypes = workflow.requestTypes.slice(3);
   return (
     <article className="rounded-2xl border border-[#dbe3ef] bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -20,10 +22,26 @@ export default function WorkflowListCard({ workflow, onCreateDraft }: WorkflowLi
           {active ? `Active v${active.version}` : 'No active version'}
         </span>
       </div>
-      <p className="mt-4 text-sm text-[#44546f]">
-        Bound request types: <span className="font-semibold text-[#101418]">{workflow.requestTypes.length}</span>
-        {' · '}affects {workflow.requestTypes.length} request type{workflow.requestTypes.length === 1 ? '' : 's'}
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-1.5" data-testid="workflow-request-types">
+        {workflow.requestTypes.length === 0 && (
+          <span className="rounded-full border border-dashed border-[#e0c48a] px-2.5 py-1 text-xs font-semibold text-[#8a5a00]">
+            Not bound to any request type
+          </span>
+        )}
+        {visibleTypes.map((requestType) => (
+          <span key={requestType.id} className="rounded-full bg-[#f1f4f9] px-2.5 py-1 text-xs font-semibold text-[#44546f]">
+            {requestType.name}
+          </span>
+        ))}
+        {overflowTypes.length > 0 && (
+          <span
+            className="rounded-full bg-[#f1f4f9] px-2.5 py-1 text-xs font-semibold text-[#8993a4]"
+            title={overflowTypes.map((requestType) => requestType.name).join(', ')}
+          >
+            +{overflowTypes.length} more
+          </span>
+        )}
+      </div>
       <div className="mt-5 flex flex-wrap items-center gap-2">
         {draft && <span className="rounded-full bg-[#fff4d6] px-2.5 py-1 text-xs font-bold text-[#8a5a00]">Draft v{draft.version}</span>}
         {active && <Link className="rounded-lg border border-[#b9c8de] px-3 py-2 text-sm font-semibold text-[#334a70] hover:bg-[#f7f9fc]" to={`/admin/workflows/${workflow.id}/versions/${active.id}`}>Open active</Link>}
