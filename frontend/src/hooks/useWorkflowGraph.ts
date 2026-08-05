@@ -43,7 +43,7 @@ export interface WorkflowGraphState {
 }
 
 const defaultEdge = (connection: Connection): Edge => ({
-  id: `edge-${connection.source}-${connection.target}-${Date.now()}`,
+  id: globalThis.crypto.randomUUID(),
   source: connection.source!,
   target: connection.target!,
   type: 'workflow',

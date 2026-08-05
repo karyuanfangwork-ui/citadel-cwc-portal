@@ -7,8 +7,9 @@
  * code change.
  *
  * Scope resolution is most-specific-first: (tenant, workflowType) beats
- * (tenant, NULL) beats (NULL, NULL). A row with both allow-lists empty imposes
- * no restriction.
+ * (tenant, NULL) beats (NULL, NULL). A row with both allow-lists empty defaults
+ * to Agent/Admin operational access. Explicit role or executive allow-lists
+ * remain authoritative for approval transitions.
  */
 
 import prisma from '../utils/prisma';
@@ -57,7 +58,10 @@ export async function canActorTransition(
   const allowedRoles: string[] = rule.allowedRoles ?? [];
   const allowedExecutiveRoles: string[] = rule.allowedExecutiveRoles ?? [];
   if (allowedRoles.length === 0 && allowedExecutiveRoles.length === 0) {
-    return { allowed: true };
+    const canManageWorkflow = actor.roles.some((role) => ['AGENT', 'ADMIN'].includes(role.toUpperCase()));
+    return canManageWorkflow
+      ? { allowed: true }
+      : { allowed: false, reason: 'Workflow transitions require the AGENT or ADMIN role' };
   }
 
   if (actor.roles.some((role) => allowedRoles.includes(role))) return { allowed: true };

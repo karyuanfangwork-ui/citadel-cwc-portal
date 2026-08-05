@@ -15,11 +15,25 @@ const base = { tenantId: 't1', workflowTypeId: 'wf1', fromStatus: 'SUBMITTED', t
 describe('canActorTransition', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('allows any actor when the transition sets no restrictions', async () => {
+  it('allows an agent when the transition sets no explicit restrictions', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue({
       allowedRoles: [], allowedExecutiveRoles: [],
     });
     await expect(canActorTransition({ actor: agent, ...base })).resolves.toEqual({ allowed: true });
+  });
+
+  it('denies normal staff when the transition sets no explicit restrictions', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: [],
+    });
+    const result = await canActorTransition({
+      actor: { userId: 'u4', roles: ['NORMAL_STAFF'], executiveRole: null },
+      ...base,
+    });
+    expect(result).toEqual({
+      allowed: false,
+      reason: 'Workflow transitions require the AGENT or ADMIN role',
+    });
   });
 
   it('allows an actor holding a listed role', async () => {
@@ -62,7 +76,7 @@ describe('canActorTransition', () => {
     expect(mockPrisma.workflowTransition.findFirst.mock.calls.map(([args]: any[]) => args.where)).toEqual([
       { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: 't1', workflowTypeId: 'wf1' },
       { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: 't1', workflowTypeId: null },
-      { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: null, workflowTypeId: null },
+      { fromStatus: 'SUBMITTED', toStatus: 'IN_PROGRESS', isActive: true, tenantId: null, workflowTypeId: 'wf1' },
     ]);
   });
 });

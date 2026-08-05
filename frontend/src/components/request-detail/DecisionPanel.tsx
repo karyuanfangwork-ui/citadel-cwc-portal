@@ -246,7 +246,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
 
-  const actions = getWorkflowActions(
+  const workflowActions = getWorkflowActions(
     status,
     userRoles,
     isAssigned,
@@ -267,15 +267,27 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     assignedTeam ?? '',
   );
 
+  // The published workflow graph is authoritative for whether a transition
+  // exists. Keep the specialized cancellation confirmation flow, but do not
+  // offer it when the designer has removed the CANCELLED edge.
+  const designerTargets = new Set(availableTransitions.map((transition) => transition.toStatus));
+  const canManageWorkflow = userRoles.some((role) => ['AGENT', 'ADMIN'].includes(role.toUpperCase()));
+  const actions = canManageWorkflow
+    ? workflowActions.filter((action) =>
+      action.type !== 'CANCEL_REQUEST' || designerTargets.has('CANCELLED'),
+    )
+    : [];
+
   const representedTargets = new Set(
     actions.flatMap((action) => {
       if (action.type === 'START_IT_REVIEW') return ['IN_REVIEW'];
       if (action.type === 'MARK_IN_PROGRESS') return ['IN_PROGRESS'];
       if (action.type === 'RESOLVE_IT') return ['RESOLVED'];
+      if (action.type === 'CANCEL_REQUEST') return ['CANCELLED'];
       return [];
     }),
   );
-  const genericTransitions = workflowCode === 'IT_SIMPLE'
+  const genericTransitions = canManageWorkflow && workflowCode === 'IT_SIMPLE'
     ? availableTransitions.filter((transition) => !representedTargets.has(transition.toStatus))
     : [];
   const humanizeStatus = (value: string) => value.toLowerCase().split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');

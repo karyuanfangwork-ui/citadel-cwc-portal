@@ -60,12 +60,21 @@ export async function getAvailableTransitionsForRequest(
     },
   });
 
+  // A published workflow graph is a complete transition source for that
+  // workflow. Global rows are legacy fallbacks for workflows that do not yet
+  // have compiled rows; merging them per target leaks routes from other
+  // workflows (for example HR/Finance approval routes into IT_SIMPLE).
+  const hasWorkflowScopedRows = rows.some((row) => row.workflowTypeId === workflowTypeId);
+  const scopedRows = hasWorkflowScopedRows
+    ? rows.filter((row) => row.workflowTypeId === workflowTypeId)
+    : rows;
+
   const specificity = (row: typeof rows[number]): number =>
     (row.tenantId !== null && row.tenantId === request.tenantId ? 2 : 0) +
     (row.workflowTypeId !== null && row.workflowTypeId === workflowTypeId ? 1 : 0);
 
   const selected = new Map<string, typeof rows[number]>();
-  for (const row of [...rows].sort((a, b) => specificity(b) - specificity(a))) {
+  for (const row of [...scopedRows].sort((a, b) => specificity(b) - specificity(a))) {
     if (!selected.has(row.toStatus)) selected.set(row.toStatus, row);
   }
 

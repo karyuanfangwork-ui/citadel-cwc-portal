@@ -26,10 +26,13 @@ const validateBatch = (upsert: unknown, remove: unknown, required: string[]) => 
 
 const isNullableString = (value: unknown): value is string | null => value === null || typeof value === 'string';
 const isNullableNumber = (value: unknown): value is number | null => value === null || typeof value === 'number';
+const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const validateNodeBatch = (upsert: unknown[]) => {
   for (const item of upsert as Record<string, unknown>[]) {
     if (
+      !isUuid(item.id) ||
       !isNullableString(item.statusCode) ||
       !isNullableNumber(item.positionX) ||
       !isNullableNumber(item.positionY) ||
@@ -46,6 +49,9 @@ const validateNodeBatch = (upsert: unknown[]) => {
 const validateEdgeBatch = (upsert: unknown[]) => {
   for (const item of upsert as Record<string, unknown>[]) {
     if (
+      !isUuid(item.id) ||
+      !isUuid(item.fromNodeId) ||
+      !isUuid(item.toNodeId) ||
       !isNullableString(item.transitionLabel) ||
       typeof item.requiresComment !== 'boolean' ||
       !isNullableString(item.autoAssignRole) ||

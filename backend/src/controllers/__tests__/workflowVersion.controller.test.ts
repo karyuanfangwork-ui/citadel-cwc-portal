@@ -67,7 +67,7 @@ describe('WorkflowVersionController API contracts', () => {
     const controller = new WorkflowVersionController();
     const result = await invoke(
       controller.updateNodes,
-      { upsert: [{ id: 'n1', statusCode: 'NEW', positionX: 0, positionY: 0, isInitial: true, isFinal: false, slaPause: false, icon: 'start' }], remove: ['n2'] },
+      { upsert: [{ id: '11111111-1111-4111-8111-111111111111', statusCode: 'NEW', positionX: 0, positionY: 0, isInitial: true, isFinal: false, slaPause: false, icon: 'start' }], remove: ['22222222-2222-4222-8222-222222222222'] },
       { versionId: 'v1' },
     );
 
@@ -75,7 +75,7 @@ describe('WorkflowVersionController API contracts', () => {
       statusCode: 200,
       body: { status: 'success', data: { upserted: 1, removed: 1 } },
     });
-    expect(mockGraph.updateNodes).toHaveBeenCalledWith('v1', expect.any(Array), ['n2']);
+    expect(mockGraph.updateNodes).toHaveBeenCalledWith('v1', expect.any(Array), ['22222222-2222-4222-8222-222222222222']);
   });
 
   it('returns 201 and the draft contract when creating a draft', async () => {
