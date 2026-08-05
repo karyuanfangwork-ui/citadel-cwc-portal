@@ -180,3 +180,113 @@ export async function compileVersion(
 
   return { transitionCount: transitions.length, stepCount: steps.length };
 }
+
+import { randomUUID } from 'crypto';
+
+/**
+ * Builds an authoring graph from the rows that exist today, so existing
+ * workflows get a version 1 without anyone re-drawing them. Node ids are
+ * generated here and become the real primary keys when the backfill persists.
+ */
+export async function reverseCompile(workflowTypeId: string): Promise<WorkflowGraph> {
+  const steps = await prisma.workflowStep.findMany({
+    where: { workflowTypeId },
+    orderBy: { displayOrder: 'asc' },
+  });
+  const transitions = await prisma.workflowTransition.findMany({
+    where: { workflowTypeId, isActive: true },
+  });
+
+  const nodeByStatus = new Map<string, GraphNode>();
+  const addNode = (status: string, over: Partial<GraphNode> = {}): GraphNode => {
+    const existing = nodeByStatus.get(status);
+    if (existing) return existing;
+    const node: GraphNode = {
+      id: randomUUID(),
+      type: 'STATUS',
+      statusCode: status,
+      positionX: null,
+      positionY: null,
+      isInitial: false,
+      isFinal: false,
+      slaPause: false,
+      icon: 'radio_button_checked',
+      ...over,
+    };
+    nodeByStatus.set(status, node);
+    return node;
+  };
+
+  for (const step of steps) {
+    addNode(step.status, {
+      icon: step.icon,
+      isInitial: step.isInitial,
+      isFinal: step.isFinal,
+      slaPause: step.slaPause,
+    });
+  }
+
+  // Statuses referenced by a transition but with no step row would otherwise
+  // be silently dropped.
+  for (const t of transitions) {
+    addNode(t.fromStatus);
+    addNode(t.toStatus);
+  }
+
+  const edges: GraphEdge[] = transitions.map((t) => ({
+    id: randomUUID(),
+    fromNodeId: nodeByStatus.get(t.fromStatus)!.id,
+    toNodeId: nodeByStatus.get(t.toStatus)!.id,
+    transitionLabel: t.transitionLabel,
+    requiresComment: t.requiresComment,
+    autoAssignRole: t.autoAssignRole,
+    autoAssignUserId: t.autoAssignUserId,
+    allowedRoles: t.allowedRoles,
+    allowedExecutiveRoles: t.allowedExecutiveRoles,
+  }));
+
+  return { nodes: [...nodeByStatus.values()], edges };
+}
+
+const transitionKey = (t: { fromStatus: string; toStatus: string }) => `${t.fromStatus}->${t.toStatus}`;
+
+const rulesFingerprint = (t: ProjectedTransition) =>
+  JSON.stringify({
+    transitionLabel: t.transitionLabel,
+    requiresComment: t.requiresComment,
+    autoAssignRole: t.autoAssignRole,
+    autoAssignUserId: t.autoAssignUserId,
+    allowedRoles: [...t.allowedRoles].sort(),
+    allowedExecutiveRoles: [...t.allowedExecutiveRoles].sort(),
+  });
+
+/**
+ * Shadow-mode comparison: does compiling a version reproduce exactly the rows
+ * that are live today? Zero differences across all workflows is the gate to
+ * exposing the compiler for real writes.
+ */
+export function diffProjection(
+  projected: ProjectedTransition[],
+  live: ProjectedTransition[],
+): { missing: string[]; extra: string[]; changed: string[] } {
+  const projectedByKey = new Map(projected.map((t) => [transitionKey(t), t]));
+  const liveByKey = new Map(live.map((t) => [transitionKey(t), t]));
+
+  const missing: string[] = [];
+  const extra: string[] = [];
+  const changed: string[] = [];
+
+  for (const [key, liveRow] of liveByKey) {
+    const projectedRow = projectedByKey.get(key);
+    if (!projectedRow) {
+      missing.push(key);
+    } else if (rulesFingerprint(projectedRow) !== rulesFingerprint(liveRow)) {
+      changed.push(key);
+    }
+  }
+  for (const key of projectedByKey.keys()) {
+    if (!liveByKey.has(key)) extra.push(key);
+  }
+
+  return { missing, extra, changed };
+}

@@ -11,6 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:prod": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "workflow:backfill": "tsx prisma/backfill-workflow-versions.ts",
+    "workflow:backfill:shadow": "tsx prisma/backfill-workflow-versions.ts --shadow",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:purchase-requisition-approval": "tsx prisma/seed-purchase-requisition-approval.ts",
     "prisma:rectify:purchase-requisition-group-dceo": "tsx prisma/rectify-purchase-requisition-group-dceo.ts",
