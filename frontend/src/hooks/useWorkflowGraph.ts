@@ -11,6 +11,7 @@ import {
 import workflowVersionService, {
   type GraphEdge,
   type GraphNode,
+  type RemapPlan,
   type ValidationResult,
   type WorkflowGraph,
 } from '../services/workflow-version.service';
@@ -27,6 +28,7 @@ export interface WorkflowGraphState {
   selectedEdgeId: string | null;
   blockingFindings: ValidationResult['blocking'];
   warnings: ValidationResult['warnings'];
+  remapPlan: RemapPlan | null;
   readOnly: boolean;
   onNodesChange: (changes: NodeChange<Node<WorkflowNodeData>>[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
@@ -60,7 +62,7 @@ const defaultEdge = (connection: Connection): Edge => ({
   },
 });
 
-export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOnly: boolean): WorkflowGraphState {
+export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOnly: boolean, initialRemapPlan: RemapPlan | null = null): WorkflowGraphState {
   const initial = toReactFlowGraph(graph);
   const [nodes, setNodes] = useState<Node<WorkflowNodeData>[]>(initial.nodes);
   const [edges, setEdges] = useState<Edge[]>(initial.edges);
@@ -71,6 +73,7 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
   const [selectedNodeId, selectNode] = useState<string | null>(null);
   const [selectedEdgeId, selectEdge] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationResult>({ blocking: [], warnings: [] });
+  const [remapPlan, setRemapPlan] = useState<RemapPlan | null>(initialRemapPlan);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutationRef = useRef(0);
   const dirtyRef = useRef(false);
@@ -89,7 +92,8 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
     removedEdgesRef.current = [];
     setSaveError(null);
     setValidation({ blocking: [], warnings: [] });
-  }, [versionId, graph]);
+    setRemapPlan(initialRemapPlan);
+  }, [versionId, graph, initialRemapPlan]);
 
   useEffect(() => {
     latestGraph.current = { nodes, edges };
@@ -112,7 +116,10 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
       setSaving(false);
       setLastSavedAt(new Date());
       const result = await workflowVersionService.validateVersion(versionId);
-      if (mutation === mutationRef.current) setValidation(result.validation);
+      if (mutation === mutationRef.current) {
+        setValidation(result.validation);
+        setRemapPlan(result.remapPlan);
+      }
     } catch (error) {
       if (mutation !== mutationRef.current) return;
       setSaving(false);
@@ -196,6 +203,7 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
     try {
       const result = await workflowVersionService.validateVersion(versionId);
       setValidation(result.validation);
+      setRemapPlan(result.remapPlan);
       return result.validation;
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Unable to validate workflow');
@@ -214,6 +222,7 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
     selectedEdgeId,
     blockingFindings: validation.blocking,
     warnings: validation.warnings,
+    remapPlan,
     readOnly,
     onNodesChange,
     onEdgesChange,
