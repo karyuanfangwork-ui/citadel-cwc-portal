@@ -111,6 +111,20 @@ describe('projectGraph', () => {
     expect(steps.map((step) => step.displayOrder)).toEqual([7, 8, 9]);
   });
 
+  it('normalizes a partially authored order using graph order', () => {
+    const authored: WorkflowGraph = {
+      nodes: [
+        node('NEW', { isInitial: true, displayOrder: 1 }),
+        node('REVIEW', { displayOrder: null }),
+        node('CLOSED', { isFinal: true, displayOrder: 3 }),
+      ],
+      edges: [edge('NEW', 'REVIEW'), edge('REVIEW', 'CLOSED')],
+    };
+    const { steps } = projectGraph(authored, 'wf1');
+    expect(steps.map((step) => step.status)).toEqual(['NEW', 'REVIEW', 'CLOSED']);
+    expect(steps.map((step) => step.displayOrder)).toEqual([0, 1, 2]);
+  });
+
   it('orders steps by graph distance so a branching graph still reads sensibly', () => {
     const branching: WorkflowGraph = {
       nodes: [

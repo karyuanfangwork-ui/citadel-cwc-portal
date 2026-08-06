@@ -8,7 +8,7 @@ export default function StatusPalette({ existingCodes, readOnly, onAdd }: Status
   const add = () => {
     const normalized = code.trim().toUpperCase();
     if (!normalized || existingCodes.has(normalized)) return;
-    onAdd({ id: `client-node-${crypto.randomUUID()}`, type: 'STATUS', statusCode: normalized, label: label.trim() || normalized, displayOrder: null, positionX: 80, positionY: 80 + existingCodes.size * 110, isInitial: existingCodes.size === 0, isFinal: false, slaPause: false, icon: 'radio_button_checked' });
+    onAdd({ id: crypto.randomUUID(), type: 'STATUS', statusCode: normalized, label: label.trim() || normalized, displayOrder: null, positionX: 80, positionY: 80 + existingCodes.size * 110, isInitial: existingCodes.size === 0, isFinal: false, slaPause: false, icon: 'radio_button_checked' });
     setCode(''); setLabel('');
   };
   return <div className="space-y-4"><p className="text-sm text-[#44546f]">Add a governed status code to this draft. Status codes are globally meaningful and may affect multiple request types.</p>

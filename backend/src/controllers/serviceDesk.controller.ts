@@ -68,12 +68,46 @@ class ServiceDeskController {
     });
 
     createServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { name, code, description, autoAssignTeam, assignmentStrategy } = req.body;
+        const { name, code, description, autoAssignTeam, assignmentStrategy, autoAssignUserId } = req.body;
+
+        // Clear autoAssignUserId when team is NONE — avoids orphaned config
+        const effectiveAutoAssignUserId = (!autoAssignTeam || autoAssignTeam === 'NONE')
+            ? null
+            : autoAssignUserId ?? null;
+
+        // Validate: FIXED_AGENT requires a user; a user requires FIXED_AGENT or a team
+        if (assignmentStrategy === 'FIXED_AGENT' && !effectiveAutoAssignUserId) {
+            return res.status(400).json({ status: 'error', message: 'Fixed agent assignment requires selecting a specific agent.' });
+        }
+        if (effectiveAutoAssignUserId && (!autoAssignTeam || autoAssignTeam === 'NONE')) {
+            return res.status(400).json({ status: 'error', message: 'Cannot assign a fixed agent without selecting a team.' });
+        }
+
+        // Validate the fixed agent if provided
+        if (effectiveAutoAssignUserId) {
+            const targetUser = await prisma.user.findUnique({
+                where: { id: effectiveAutoAssignUserId },
+                select: { id: true, isActive: true, agentTeam: true, roles: { select: { role: { select: { name: true } } } } },
+            });
+            if (!targetUser || !targetUser.isActive) {
+                return res.status(400).json({ status: 'error', message: 'The selected agent is not active.' });
+            }
+            const hasAgentRole = targetUser.roles.some(r => ['AGENT', 'ADMIN'].includes(r.role.name));
+            if (!hasAgentRole) {
+                return res.status(400).json({ status: 'error', message: 'The selected user does not have AGENT or ADMIN role.' });
+            }
+            const normalizedTeam = (targetUser.agentTeam || '').trim().toUpperCase();
+            const normalizedDeskTeam = (autoAssignTeam || '').trim().toUpperCase();
+            if (normalizedTeam !== normalizedDeskTeam) {
+                return res.status(400).json({ status: 'error', message: `The selected agent belongs to team "${targetUser.agentTeam}", which does not match the desk team "${autoAssignTeam}".` });
+            }
+        }
 
         const serviceDesk = await serviceDeskService.createServiceDesk({
             name, code, description,
             autoAssignTeam: autoAssignTeam || 'NONE',
             assignmentStrategy: assignmentStrategy || 'ROUND_ROBIN',
+            autoAssignUserId: effectiveAutoAssignUserId,
         });
 
         await auditLog(req, 'ADMIN_CREATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
@@ -89,11 +123,51 @@ class ServiceDeskController {
 
     updateServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-        const { name, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
+        const { name, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex, autoAssignUserId } = req.body;
+
+        // Clear autoAssignUserId when team is NONE — avoids orphaned config
+        let effectiveAutoAssignUserId: string | null | undefined = autoAssignUserId;
+        if (autoAssignTeam === 'NONE') {
+            effectiveAutoAssignUserId = null;
+        } else if (autoAssignUserId === null || autoAssignUserId === '') {
+            effectiveAutoAssignUserId = null;
+        }
+
+        // Validate: FIXED_AGENT requires a user
+        if (assignmentStrategy === 'FIXED_AGENT' && !effectiveAutoAssignUserId) {
+            return res.status(400).json({ status: 'error', message: 'Fixed agent assignment requires selecting a specific agent.' });
+        }
+        // Validate: a user requires a team
+        if (effectiveAutoAssignUserId && autoAssignTeam === 'NONE') {
+            return res.status(400).json({ status: 'error', message: 'Cannot assign a fixed agent without selecting a team.' });
+        }
+
+        // Validate the fixed agent if provided
+        if (effectiveAutoAssignUserId) {
+            const targetUser = await prisma.user.findUnique({
+                where: { id: effectiveAutoAssignUserId },
+                select: { id: true, isActive: true, agentTeam: true, roles: { select: { role: { select: { name: true } } } } },
+            });
+            if (!targetUser || !targetUser.isActive) {
+                return res.status(400).json({ status: 'error', message: 'The selected agent is not active.' });
+            }
+            const hasAgentRole = targetUser.roles.some(r => ['AGENT', 'ADMIN'].includes(r.role.name));
+            if (!hasAgentRole) {
+                return res.status(400).json({ status: 'error', message: 'The selected user does not have AGENT or ADMIN role.' });
+            }
+            // Use the effective team (from request body, or fall back to current desk config)
+            const effectiveTeam = autoAssignTeam || (await serviceDeskService.getServiceDeskById(id)).autoAssignTeam;
+            const normalizedTeam = (targetUser.agentTeam || '').trim().toUpperCase();
+            const normalizedDeskTeam = (effectiveTeam || '').trim().toUpperCase();
+            if (normalizedTeam !== normalizedDeskTeam) {
+                return res.status(400).json({ status: 'error', message: `The selected agent belongs to team "${targetUser.agentTeam}", which does not match the desk team "${effectiveTeam}".` });
+            }
+        }
 
         const serviceDesk = await serviceDeskService.updateServiceDesk(id, {
             name, description, isActive,
             autoAssignTeam, assignmentStrategy, lastAssignedIndex,
+            autoAssignUserId: effectiveAutoAssignUserId,
         });
 
         await auditLog(req, 'ADMIN_UPDATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
@@ -269,26 +343,41 @@ class ServiceDeskController {
     });
 
     /**
-     * Get eligible agents for a service desk's auto-assign team
+     * Get eligible agents for a service desk's auto-assign team.
+     * Normalizes team values for case-insensitive comparison.
+     * Includes the current fixed assignee and strategy for UI initialization.
      * GET /api/v1/service-desks/:id/agents
      */
     getTeamAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-        const serviceDesk = await serviceDeskService.getServiceDeskById(id);
+        const requestedTeam = typeof req.query.team === 'string' ? req.query.team : null;
+        const serviceDesk = requestedTeam ? null : await serviceDeskService.getServiceDeskById(id);
 
-        if (!serviceDesk) {
+        if (!serviceDesk && !requestedTeam) {
             return res.status(404).json({ status: 'error', message: 'Service desk not found' });
         }
 
-        const team = serviceDesk.autoAssignTeam || 'NONE';
+        const team = requestedTeam || serviceDesk?.autoAssignTeam || 'NONE';
         if (team === 'NONE') {
-            return res.json({ status: 'success', data: { agents: [], team: 'NONE' } });
+            return res.json({
+                status: 'success',
+                data: {
+                    team: 'NONE',
+                    assignmentStrategy: serviceDesk?.assignmentStrategy ?? null,
+                    lastAssignedIndex: serviceDesk?.lastAssignedIndex ?? 0,
+                    autoAssignUserId: serviceDesk?.autoAssignUserId ?? null,
+                    autoAssignUser: null,
+                    agents: [],
+                },
+            });
         }
 
-        // Find all active agents with matching agentTeam
-        const agents = await prisma.user.findMany({
+        // Case-insensitive team match: compare normalized (uppercase, trimmed)
+        const normalizedDeskTeam = team.trim().toUpperCase();
+
+        // Find all active agents with matching agentTeam (case-insensitive)
+        const allActiveAgents = await prisma.user.findMany({
             where: {
-                agentTeam: team,
                 isActive: true,
                 roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
             },
@@ -303,18 +392,26 @@ class ServiceDeskController {
             orderBy: { createdAt: 'asc' },
         });
 
+        // Filter by normalized team match
+        const agents = allActiveAgents.filter(a => {
+            const normalizedAgentTeam = (a.agentTeam || '').trim().toUpperCase();
+            return normalizedAgentTeam === normalizedDeskTeam;
+        });
+
         // Count open requests per agent (non-terminal statuses)
         const TERMINAL_STATUSES = ['RESOLVED', 'COMPLETED', 'CANCELLED'];
         const agentIds = agents.map((a) => a.id);
 
         const openCountRows: { assigned_to_id: string; count: bigint }[] =
-            await prisma.$queryRaw`
-                SELECT assigned_to_id, COUNT(*)::bigint as count
-                FROM requests
-                WHERE assigned_to_id = ANY(${agentIds}::uuid[])
-                  AND status::text != ALL(${TERMINAL_STATUSES}::text[])
-                GROUP BY assigned_to_id
-            `;
+            agentIds.length > 0
+                ? await prisma.$queryRaw`
+                    SELECT assigned_to_id, COUNT(*)::bigint as count
+                    FROM requests
+                    WHERE assigned_to_id = ANY(${agentIds}::uuid[])
+                      AND status::text != ALL(${TERMINAL_STATUSES}::text[])
+                    GROUP BY assigned_to_id
+                `
+                : [];
 
         const countMap = new Map<string, number>();
         for (const row of openCountRows) {
@@ -331,12 +428,33 @@ class ServiceDeskController {
             openRequestCount: countMap.get(a.id) || 0,
         }));
 
+        // Resolve current fixed assignee if set
+        let autoAssignUser: { id: string; firstName: string; lastName: string; email: string; agentTeam: string | null; isActive: boolean } | null = null;
+        if (serviceDesk?.autoAssignUserId) {
+            const fixedUser = await prisma.user.findUnique({
+                where: { id: serviceDesk.autoAssignUserId },
+                select: { id: true, firstName: true, lastName: true, email: true, agentTeam: true, isActive: true },
+            });
+            if (fixedUser) {
+                autoAssignUser = {
+                    id: fixedUser.id,
+                    firstName: fixedUser.firstName,
+                    lastName: fixedUser.lastName,
+                    email: fixedUser.email,
+                    agentTeam: fixedUser.agentTeam,
+                    isActive: fixedUser.isActive,
+                };
+            }
+        }
+
         res.json({
             status: 'success',
             data: {
                 team,
-                assignmentStrategy: serviceDesk.assignmentStrategy,
-                lastAssignedIndex: serviceDesk.lastAssignedIndex,
+                assignmentStrategy: serviceDesk?.assignmentStrategy ?? null,
+                lastAssignedIndex: serviceDesk?.lastAssignedIndex ?? 0,
+                autoAssignUserId: serviceDesk?.autoAssignUserId ?? null,
+                autoAssignUser,
                 agents: result,
             },
         });

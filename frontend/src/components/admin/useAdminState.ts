@@ -51,6 +51,7 @@ export interface DeskFormData {
     isActive: boolean;
     autoAssignTeam: string;
     assignmentStrategy: string;
+    autoAssignUserId: string | null;
 }
 
 export interface PendingAction {
@@ -98,6 +99,11 @@ export interface UseAdminStateReturn {
     deskModalOpen: boolean;
     editingDesk: any | null;
     deskFormData: DeskFormData;
+    availableAgents: Array<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string | null; openRequestCount: number }>;
+    agentsLoading: boolean;
+    agentsError: string | null;
+    loadAgentsForDesk: (deskId: string) => Promise<void>;
+    loadAgentsForTeam: (team: string) => Promise<void>;
 
     // Services
     serviceModalOpen: boolean;
@@ -290,8 +296,14 @@ export function useAdminState(): UseAdminStateReturn {
         isActive: true,
         autoAssignTeam: 'NONE',
         assignmentStrategy: 'ROUND_ROBIN',
+        autoAssignUserId: null,
     });
     const [categorySearch, setCategorySearch] = useState('');
+
+    // ── Agent list for fixed-assignment dropdown ──
+    const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string | null; openRequestCount: number }>>([]);
+    const [agentsLoading, setAgentsLoading] = useState(false);
+    const [agentsError, setAgentsError] = useState<string | null>(null);
 
     // ── Computed: filtered categories by search ──
     const filteredCategories = useMemo(() => {
@@ -628,6 +640,42 @@ export function useAdminState(): UseAdminStateReturn {
         });
     }, [selectedDesk, fetchCategories, showToast]);
 
+    // ── Load agents for fixed-assignment dropdown ──
+    const loadAgentsForDesk = useCallback(async (deskId: string) => {
+        setAgentsLoading(true);
+        setAgentsError(null);
+        try {
+            const data = await serviceDeskService.getServiceDeskAgents(deskId);
+            setAvailableAgents(data.agents || []);
+        } catch (err) {
+            console.error('Error loading agents for desk:', err);
+            setAvailableAgents([]);
+            setAgentsError('Unable to load eligible agents. Please try again.');
+        } finally {
+            setAgentsLoading(false);
+        }
+    }, []);
+
+    const loadAgentsForTeam = useCallback(async (team: string) => {
+        if (!team || team === 'NONE') {
+            setAvailableAgents([]);
+            setAgentsError(null);
+            return;
+        }
+        setAgentsLoading(true);
+        setAgentsError(null);
+        try {
+            const data = await serviceDeskService.getServiceDeskAgentsByTeam(team);
+            setAvailableAgents(data.agents || []);
+        } catch (err) {
+            console.error('Error loading agents for team:', err);
+            setAvailableAgents([]);
+            setAgentsError('Unable to load eligible agents. Please try again.');
+        } finally {
+            setAgentsLoading(false);
+        }
+    }, []);
+
     // ───────────────────────────────────────────────────────────────────────
     // Service Desk CRUD Handlers
     // ───────────────────────────────────────────────────────────────────────
@@ -641,6 +689,7 @@ export function useAdminState(): UseAdminStateReturn {
             isActive: true,
             autoAssignTeam: 'NONE',
             assignmentStrategy: 'ROUND_ROBIN',
+            autoAssignUserId: null,
         });
         setDeskModalOpen(true);
     }, []);
@@ -654,9 +703,17 @@ export function useAdminState(): UseAdminStateReturn {
             isActive: desk.isActive !== false,
             autoAssignTeam: desk.autoAssignTeam || 'NONE',
             assignmentStrategy: desk.assignmentStrategy || 'ROUND_ROBIN',
+            autoAssignUserId: desk.autoAssignUserId || null,
         });
+        // Load agents for the fixed-assignment dropdown when editing
+        if (desk.id && desk.autoAssignTeam && desk.autoAssignTeam !== 'NONE') {
+            loadAgentsForDesk(desk.id);
+        } else {
+            setAvailableAgents([]);
+            setAgentsError(null);
+        }
         setDeskModalOpen(true);
-    }, []);
+    }, [loadAgentsForDesk]);
 
     const handleSaveDesk = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
@@ -668,6 +725,7 @@ export function useAdminState(): UseAdminStateReturn {
                     isActive: deskFormData.isActive,
                     autoAssignTeam: deskFormData.autoAssignTeam,
                     assignmentStrategy: deskFormData.assignmentStrategy,
+                    autoAssignUserId: deskFormData.autoAssignTeam === 'NONE' ? null : deskFormData.autoAssignUserId,
                 });
             } else {
                 await serviceDeskService.createServiceDesk({
@@ -676,6 +734,7 @@ export function useAdminState(): UseAdminStateReturn {
                     description: deskFormData.description || undefined,
                     autoAssignTeam: deskFormData.autoAssignTeam,
                     assignmentStrategy: deskFormData.assignmentStrategy,
+                    autoAssignUserId: deskFormData.autoAssignTeam === 'NONE' ? null : deskFormData.autoAssignUserId,
                 });
             }
             setDeskModalOpen(false);
@@ -1102,6 +1161,11 @@ export function useAdminState(): UseAdminStateReturn {
         deskModalOpen,
         editingDesk,
         deskFormData,
+        availableAgents,
+        agentsLoading,
+        agentsError,
+        loadAgentsForDesk,
+        loadAgentsForTeam,
 
         // Services
         serviceModalOpen,

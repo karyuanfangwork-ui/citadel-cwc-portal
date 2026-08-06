@@ -164,15 +164,25 @@ export async function getValidNextStatuses(from: string): Promise<string[]> {
  */
 export async function getTransitionMeta(
   from: string,
-  to: string
+  to: string,
+  scope: { tenantId?: string | null; workflowTypeId?: string | null } = {},
 ): Promise<{ transitionLabel: string | null; requiresComment: boolean; autoAssignRole: string | null; autoAssignUserId: string | null } | null> {
-  // Use findFirst since the unique key now includes nullable tenantId/workflowTypeId.
-  // NULL columns require `equals: null` in Prisma, which findFirst supports but findUnique doesn't.
-  const row = await prisma.workflowTransition.findFirst({
-    where: { fromStatus: from, toStatus: to, tenantId: null, workflowTypeId: null, isActive: true },
-    select: { transitionLabel: true, requiresComment: true, autoAssignRole: true, autoAssignUserId: true },
-  });
-  return row;
+  // Resolve the most specific active policy first. Use findFirst because the
+  // scoped compound key contains nullable columns.
+  const scopes = [
+    { tenantId: scope.tenantId ?? null, workflowTypeId: scope.workflowTypeId ?? null },
+    { tenantId: scope.tenantId ?? null, workflowTypeId: null },
+    { tenantId: null, workflowTypeId: scope.workflowTypeId ?? null },
+    { tenantId: null, workflowTypeId: null },
+  ];
+  for (const policyScope of scopes) {
+    const row = await prisma.workflowTransition.findFirst({
+      where: { fromStatus: from, toStatus: to, ...policyScope, isActive: true },
+      select: { transitionLabel: true, requiresComment: true, autoAssignRole: true, autoAssignUserId: true },
+    });
+    if (row) return row;
+  }
+  return null;
 }
 
 /**

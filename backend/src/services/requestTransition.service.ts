@@ -302,7 +302,10 @@ export async function transitionRequest(
   }
 
   // ── 4. Check requiresComment from transition metadata ────────────────────
-  const transitionMeta = await getTransitionMeta(fromStatus, toStatus);
+  const transitionMeta = await getTransitionMeta(fromStatus, toStatus, {
+    tenantId: currentRequest.tenantId,
+    workflowTypeId: currentRequest.requestType?.workflow?.id ?? null,
+  });
   if (transitionMeta?.requiresComment && !comment) {
     throw new AppError(`Transition from ${fromStatus} to ${toStatus} requires a comment`, 400);
   }
@@ -322,7 +325,13 @@ export async function transitionRequest(
   // ── 6. Auto-assignment from transition metadata ──────────────────────────
   if (!skipAutoAssignment && transitionMeta) {
     if (transitionMeta.autoAssignUserId) {
-      updateData.assignedToId = transitionMeta.autoAssignUserId;
+      const target = await prisma.user.findUnique({
+        where: { id: transitionMeta.autoAssignUserId },
+        select: { id: true, isActive: true },
+      });
+      if (target?.isActive) {
+        updateData.assignedToId = target.id;
+      }
     } else if (transitionMeta.autoAssignRole) {
       // Find a user with the specified role
       const candidate = await prisma.user.findFirst({

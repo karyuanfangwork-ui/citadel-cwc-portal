@@ -21,6 +21,13 @@ const router = Router();
 router.get('/', optionalAuth, serviceDeskController.getAllServiceDesks);
 
 /**
+ * @route   GET /api/v1/service-desks/agents?team=FINANCE
+ * @desc    Get eligible agents for a team before a desk is created
+ * @access  Private — requirePermission enforces RBAC at the permission level
+ */
+router.get('/agents', authenticate, requirePermission('admin:access', 'admin:settings'), serviceDeskController.getTeamAgents);
+
+/**
  * @route   GET /api/v1/service-desks/:id
  * @desc    Get service desk by ID
  * @access  Public

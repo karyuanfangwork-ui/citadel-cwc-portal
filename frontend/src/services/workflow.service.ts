@@ -25,6 +25,28 @@ export interface WorkflowType {
   };
 }
 
+interface WorkflowListSummary {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface WorkflowListResponse {
+  status: 'success';
+  data: { workflows: WorkflowListSummary[] };
+}
+
+const normalizeWorkflowList = (payload: WorkflowListResponse | WorkflowType[]): WorkflowType[] => {
+  if (Array.isArray(payload)) return payload;
+
+  return payload.data.workflows.map((workflow, displayOrder) => ({
+    ...workflow,
+    isActive: true,
+    displayOrder,
+    steps: [],
+  }));
+};
+
 export interface CreateWorkflowData {
   name: string;
   code: string;
@@ -68,8 +90,8 @@ export interface UpdateStepData {
 const workflowService = {
   // Get all workflow types
   getWorkflowTypes: async (): Promise<WorkflowType[]> => {
-    const response = await api.get('/admin/workflows');
-    return response.data;
+    const response = await api.get<WorkflowListResponse | WorkflowType[]>('/admin/workflows');
+    return normalizeWorkflowList(response.data);
   },
 
   // Get workflow type by ID

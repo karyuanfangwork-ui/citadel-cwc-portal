@@ -36,7 +36,8 @@ export const createServiceDeskSchema = z.object({
         description: z.string().optional(),
         isActive: z.boolean().default(true),
         autoAssignTeam: z.string().max(50).optional(),
-        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM']).default('ROUND_ROBIN'),
+        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM', 'FIXED_AGENT']).default('ROUND_ROBIN'),
+        autoAssignUserId: z.string().uuid().nullable().optional(),
     }),
 });
 
@@ -48,8 +49,9 @@ export const updateServiceDeskSchema = z.object({
         description: z.string().optional(),
         isActive: z.boolean().optional(),
         autoAssignTeam: z.string().max(50).optional(),
-        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM']).optional(),
+        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM', 'FIXED_AGENT']).optional(),
         lastAssignedIndex: z.number().int().min(0).optional(),
+        autoAssignUserId: z.string().uuid().nullable().optional(),
     }),
 });
 

@@ -1996,9 +1996,31 @@ class RequestController {
         if (!id) throw new AppError('Request not found', 404);
         const { assignedToId } = req.body;
 
+        // Build update data and validate the target user if assigning
+        const updateData: any = { assignedToId };
+
+        if (assignedToId) {
+            const targetUser = await prisma.user.findUnique({
+                where: { id: assignedToId },
+                select: { id: true, isActive: true, agentTeam: true, roles: { select: { role: { select: { name: true } } } } },
+            });
+            if (!targetUser || !targetUser.isActive) {
+                throw new AppError('Cannot assign to an inactive or non-existent user.', 400);
+            }
+            const hasAgentRole = targetUser.roles.some(r => ['AGENT', 'ADMIN'].includes(r.role.name));
+            if (!hasAgentRole) {
+                throw new AppError('Cannot assign to a user without AGENT or ADMIN role.', 400);
+            }
+            // Derive the assigned team from the target user's team (normalized)
+            updateData.assignedTeam = (targetUser.agentTeam || '').trim().toUpperCase() || null;
+        } else {
+            // Unassignment: clear the team too
+            updateData.assignedTeam = null;
+        }
+
         const request = await prisma.request.update({
             where: { id },
-            data: { assignedToId },
+            data: updateData,
             include: {
                 requester: {
                     select: {

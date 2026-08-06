@@ -1,7 +1,7 @@
 import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
 
-type AssignmentStrategy = 'ROUND_ROBIN' | 'LEAST_LOADED' | 'RANDOM';
+type AssignmentStrategy = 'ROUND_ROBIN' | 'LEAST_LOADED' | 'RANDOM' | 'FIXED_AGENT';
 
 interface AutoAssignResult {
     success: boolean;
@@ -16,6 +16,12 @@ interface AutoAssignResult {
  * Auto-assign a newly created request to an available agent based on
  * the ServiceDesk's configuration (autoAssignTeam + assignmentStrategy).
  *
+ * Fixed-agent mode: When assignmentStrategy is FIXED_AGENT and autoAssignUserId
+ * is set, always assign to that specific user. Validates the target is still
+ * active and eligible. Fails safely (leaves unassigned) if the fixed target
+ * is invalid — does NOT silently fall back to a different user.
+ *
+ * Team strategies: Round Robin, Least Loaded, Random continue unchanged.
  * This is designed to be called AFTER request creation, as a non-blocking
  * enhancement. If auto-assignment fails, the request remains unassigned
  * and can still be manually assigned later.
@@ -36,6 +42,18 @@ export async function autoAssignRequest(requestId: string): Promise<AutoAssignRe
                         autoAssignTeam: true,
                         assignmentStrategy: true,
                         lastAssignedIndex: true,
+                        autoAssignUserId: true,
+                        autoAssignUser: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                email: true,
+                                agentTeam: true,
+                                isActive: true,
+                                roles: { select: { role: { select: { name: true } } } },
+                            },
+                        },
                     },
                 },
             },
@@ -64,10 +82,69 @@ export async function autoAssignRequest(requestId: string): Promise<AutoAssignRe
             return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: null, reason: 'NO_TEAM_CONFIGURED' };
         }
 
-        // Find eligible agents: AGENT role, matching team, active
-        const eligibleAgents = await prisma.user.findMany({
+        const strategy = (desk.assignmentStrategy as AssignmentStrategy) || 'ROUND_ROBIN';
+
+        // ── Fixed-agent assignment: takes precedence over team strategy ──
+        if (strategy === 'FIXED_AGENT') {
+            if (!desk.autoAssignUserId) {
+                logger.warn(`[AutoAssign] FIXED_AGENT strategy on desk ${desk.id} but no autoAssignUserId configured`);
+                return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: 'FIXED_AGENT', reason: 'NO_FIXED_AGENT_CONFIGURED' };
+            }
+
+            const fixedUser = desk.autoAssignUser;
+
+            // Validate: user exists, is active, has AGENT/ADMIN role, belongs to the right team
+            if (!fixedUser) {
+                logger.warn(`[AutoAssign] Fixed agent ${desk.autoAssignUserId} not found for request ${request.referenceNumber}`);
+                return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: 'FIXED_AGENT', reason: 'INVALID_FIXED_AGENT' };
+            }
+
+            if (!fixedUser.isActive) {
+                logger.warn(`[AutoAssign] Fixed agent ${fixedUser.firstName} ${fixedUser.lastName} (${desk.autoAssignUserId}) is inactive for request ${request.referenceNumber}`);
+                return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: 'FIXED_AGENT', reason: 'FIXED_AGENT_INACTIVE' };
+            }
+
+            const hasAgentRole = fixedUser.roles.some(r => ['AGENT', 'ADMIN'].includes(r.role.name));
+            if (!hasAgentRole) {
+                logger.warn(`[AutoAssign] Fixed agent ${fixedUser.firstName} ${fixedUser.lastName} (${desk.autoAssignUserId}) lacks AGENT/ADMIN role for request ${request.referenceNumber}`);
+                return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: 'FIXED_AGENT', reason: 'FIXED_AGENT_INELIGIBLE_ROLE' };
+            }
+
+            const normalizedUserTeam = (fixedUser.agentTeam || '').trim().toUpperCase();
+            const normalizedDeskTeam = desk.autoAssignTeam.trim().toUpperCase();
+            if (normalizedUserTeam !== normalizedDeskTeam) {
+                logger.warn(`[AutoAssign] Fixed agent ${fixedUser.firstName} ${fixedUser.lastName} (${desk.autoAssignUserId}) team "${fixedUser.agentTeam}" does not match desk team "${desk.autoAssignTeam}" for request ${request.referenceNumber}`);
+                return { success: false, assignedToId: null, assignedTeam: null, agentName: null, strategy: 'FIXED_AGENT', reason: 'FIXED_AGENT_TEAM_MISMATCH' };
+            }
+
+            // Assign to the fixed user (no transaction needed — we don't update lastAssignedIndex)
+            await prisma.request.update({
+                where: { id: requestId },
+                data: {
+                    assignedToId: fixedUser.id,
+                    assignedTeam: desk.autoAssignTeam,
+                },
+            });
+
+            const agentName = `${fixedUser.firstName} ${fixedUser.lastName}`;
+            logger.info(
+                `[AutoAssign] Request ${request.referenceNumber} auto-assigned to ${agentName} (${fixedUser.id}) via FIXED_AGENT strategy`
+            );
+
+            return {
+                success: true,
+                assignedToId: fixedUser.id,
+                assignedTeam: desk.autoAssignTeam,
+                agentName,
+                strategy: 'FIXED_AGENT',
+            };
+        }
+
+        // ── Team-based strategies: find eligible agents ──
+        // Prisma string equality is case-sensitive, so filter the bounded active
+        // roster in application code to preserve existing Finance/FINANCE data.
+        const allActiveAgents = await prisma.user.findMany({
             where: {
-                agentTeam: desk.autoAssignTeam,
                 isActive: true,
                 roles: {
                     some: {
@@ -85,6 +162,10 @@ export async function autoAssignRequest(requestId: string): Promise<AutoAssignRe
             },
             orderBy: { createdAt: 'asc' }, // Stable ordering for round-robin
         });
+        const normalizedDeskTeam = desk.autoAssignTeam.trim().toUpperCase();
+        const eligibleAgents = allActiveAgents.filter((agent) =>
+            (agent.agentTeam || '').trim().toUpperCase() === normalizedDeskTeam
+        );
 
         if (eligibleAgents.length === 0) {
             logger.warn(`[AutoAssign] No eligible agents found for team "${desk.autoAssignTeam}" on request ${request.referenceNumber}`);
@@ -92,7 +173,6 @@ export async function autoAssignRequest(requestId: string): Promise<AutoAssignRe
         }
 
         // Select agent based on strategy
-        const strategy = desk.assignmentStrategy as AssignmentStrategy || 'ROUND_ROBIN';
         let selectedAgent: typeof eligibleAgents[0];
         let updatedLastAssignedIndex: number;
 

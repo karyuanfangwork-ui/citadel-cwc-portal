@@ -7,6 +7,9 @@ class ServiceDeskService {
             where: { isActive: true },
             orderBy: { createdAt: 'asc' },
             include: {
+                autoAssignUser: {
+                    select: { id: true, firstName: true, lastName: true, email: true, agentTeam: true, isActive: true },
+                },
                 categories: {
                     where: { isActive: true },
                     orderBy: { displayOrder: 'asc' },
@@ -19,6 +22,9 @@ class ServiceDeskService {
         const serviceDesk = await prisma.serviceDesk.findUnique({
             where: { id },
             include: {
+                autoAssignUser: {
+                    select: { id: true, firstName: true, lastName: true, email: true, agentTeam: true, isActive: true },
+                },
                 categories: {
                     where: { isActive: true },
                     orderBy: { displayOrder: 'asc' },
@@ -36,6 +42,7 @@ class ServiceDeskService {
     async createServiceDesk(data: {
         name: string; code: string; description?: string;
         autoAssignTeam?: string; assignmentStrategy?: string;
+        autoAssignUserId?: string | null;
     }) {
         return prisma.serviceDesk.create({
             data: {
@@ -44,6 +51,7 @@ class ServiceDeskService {
                 description: data.description,
                 autoAssignTeam: data.autoAssignTeam || 'NONE',
                 assignmentStrategy: data.assignmentStrategy || 'ROUND_ROBIN',
+                autoAssignUserId: data.autoAssignUserId ?? null,
             },
         });
     }
@@ -51,6 +59,7 @@ class ServiceDeskService {
     async updateServiceDesk(id: string, data: {
         name?: string; description?: string; isActive?: boolean;
         autoAssignTeam?: string; assignmentStrategy?: string; lastAssignedIndex?: number;
+        autoAssignUserId?: string | null;
     }) {
         return prisma.serviceDesk.update({
             where: { id },
@@ -61,6 +70,7 @@ class ServiceDeskService {
                 ...(data.autoAssignTeam !== undefined && { autoAssignTeam: data.autoAssignTeam }),
                 ...(data.assignmentStrategy !== undefined && { assignmentStrategy: data.assignmentStrategy }),
                 ...(data.lastAssignedIndex !== undefined && { lastAssignedIndex: data.lastAssignedIndex }),
+                ...(data.autoAssignUserId !== undefined && { autoAssignUserId: data.autoAssignUserId }),
             },
         });
     }

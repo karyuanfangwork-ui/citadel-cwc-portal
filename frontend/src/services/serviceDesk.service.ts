@@ -36,12 +36,12 @@ export const serviceDeskService = {
 
     // --- Admin Service Desk Management ---
 
-    async createServiceDesk(data: { name: string; code: string; description?: string; autoAssignTeam?: string; assignmentStrategy?: string }) {
+    async createServiceDesk(data: { name: string; code: string; description?: string; autoAssignTeam?: string; assignmentStrategy?: string; autoAssignUserId?: string | null }) {
         const response = await apiClient.post('/service-desks', data);
         return response.data.data.serviceDesk;
     },
 
-    async updateServiceDesk(id: string, data: { name?: string; description?: string; isActive?: boolean; autoAssignTeam?: string; assignmentStrategy?: string }) {
+    async updateServiceDesk(id: string, data: { name?: string; description?: string; isActive?: boolean; autoAssignTeam?: string; assignmentStrategy?: string; autoAssignUserId?: string | null }) {
         const response = await apiClient.put(`/service-desks/${id}`, data);
         return response.data.data.serviceDesk;
     },
@@ -53,6 +53,11 @@ export const serviceDeskService = {
 
     async getServiceDeskAgents(id: string) {
         const response = await apiClient.get(`/service-desks/${id}/agents`);
+        return response.data.data;
+    },
+
+    async getServiceDeskAgentsByTeam(team: string) {
+        const response = await apiClient.get('/service-desks/agents', { params: { team } });
         return response.data.data;
     },
 

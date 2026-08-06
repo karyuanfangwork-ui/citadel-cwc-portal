@@ -109,15 +109,16 @@ export function projectGraph(
   }
 
   const steps: ProjectedStep[] = [];
-  let nextDisplayOrder =
-    Math.max(-1, ...graph.nodes.map((node) => node.displayOrder ?? -1)) + 1;
-  for (const node of orderNodes(graph.nodes, graph.edges)) {
-    if (node.statusCode === null) continue;
-    const nodeDisplayOrder = node.displayOrder ?? nextDisplayOrder++;
+  const hasCompleteDisplayOrder = graph.nodes.length > 0
+    && graph.nodes.every((node) => node.displayOrder != null);
+  const orderedStatusNodes = orderNodes(graph.nodes, graph.edges)
+    .filter((node) => node.statusCode !== null);
+  for (const [index, node] of orderedStatusNodes.entries()) {
+    const nodeDisplayOrder = hasCompleteDisplayOrder ? node.displayOrder! : index;
     steps.push({
       workflowTypeId,
-      status: node.statusCode,
-      label: node.label ?? node.statusCode,
+      status: node.statusCode as string,
+      label: node.label ?? node.statusCode as string,
       icon: node.icon,
       displayOrder: nodeDisplayOrder,
       isInitial: node.isInitial,

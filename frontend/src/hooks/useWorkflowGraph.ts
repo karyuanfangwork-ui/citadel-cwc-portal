@@ -162,7 +162,11 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
 
   const addNode = useCallback((node: GraphNode) => {
     if (readOnly) return;
-    setNodes((current) => [...current, { id: node.id, type: 'status', position: { x: node.positionX ?? 0, y: node.positionY ?? 0 }, data: { ...node } }]);
+    setNodes((current) => {
+      const nextDisplayOrder = Math.max(-1, ...current.map((item) => item.data.displayOrder ?? -1)) + 1;
+      const data = { ...node, displayOrder: node.displayOrder ?? nextDisplayOrder };
+      return [...current, { id: node.id, type: 'status', position: { x: node.positionX ?? 0, y: node.positionY ?? 0 }, data }];
+    });
     markChanged();
   }, [markChanged, readOnly]);
 

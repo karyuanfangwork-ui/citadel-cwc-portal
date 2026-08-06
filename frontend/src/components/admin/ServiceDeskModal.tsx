@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { DeskFormData } from './useAdminState';
@@ -10,6 +10,11 @@ interface ServiceDeskModalProps {
     onSave: (e: React.FormEvent) => void;
     onClose: () => void;
     onFormDataChange: (data: DeskFormData) => void;
+    availableAgents: Array<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string | null; openRequestCount: number }>;
+    agentsLoading: boolean;
+    agentsError: string | null;
+    loadAgentsForDesk: (deskId: string) => Promise<void>;
+    loadAgentsForTeam: (team: string) => Promise<void>;
 }
 
 export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
@@ -19,15 +24,48 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
     onSave,
     onClose,
     onFormDataChange,
+    availableAgents,
+    agentsLoading,
+    agentsError,
+    loadAgentsForDesk,
+    loadAgentsForTeam,
 }) => {
     const containerRef = useFocusTrap(isOpen);
     const handleClose = useCallback(() => onClose(), [onClose]);
     useEscapeKey(handleClose);
 
+    // Clear the selected agent when team changes and the agent no longer belongs
+    const handleTeamChange = useCallback((newTeam: string) => {
+        const updates: Partial<DeskFormData> = { autoAssignTeam: newTeam };
+        if (newTeam === 'NONE') {
+            updates.autoAssignUserId = null;
+            updates.assignmentStrategy = 'ROUND_ROBIN';
+        }
+        // If we already have agents loaded and the selected agent isn't in the new team, clear it
+        if (deskFormData.autoAssignUserId && availableAgents.length > 0) {
+            const stillEligible = availableAgents.some(a => a.id === deskFormData.autoAssignUserId);
+            if (!stillEligible) {
+                updates.autoAssignUserId = null;
+            }
+        }
+        onFormDataChange({ ...deskFormData, ...updates });
+        void loadAgentsForTeam(newTeam);
+    }, [deskFormData, availableAgents, onFormDataChange, loadAgentsForTeam]);
+
+    // Load agents when modal opens with an existing desk that has a team
+    useEffect(() => {
+        if (isOpen && editingDesk?.id && deskFormData.autoAssignTeam && deskFormData.autoAssignTeam !== 'NONE') {
+            loadAgentsForDesk(editingDesk.id);
+        }
+    }, [isOpen, editingDesk?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
     if (!isOpen) return null;
 
     const isCodeValid = editingDesk || (deskFormData.code.length >= 3 && deskFormData.code.length <= 20 && /^[A-Z0-9_]+$/.test(deskFormData.code));
-    const isFormValid = deskFormData.name.trim() !== '' && isCodeValid;
+    const isStrategyValid = deskFormData.autoAssignTeam === 'NONE' || deskFormData.assignmentStrategy !== 'FIXED_AGENT' || deskFormData.autoAssignUserId;
+    const isFormValid = deskFormData.name.trim() !== '' && isCodeValid && isStrategyValid;
+
+    const selectedAgent = availableAgents.find(a => a.id === deskFormData.autoAssignUserId);
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
@@ -130,7 +168,8 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
                                     <select
                                         className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all cursor-pointer"
                                         value={deskFormData.autoAssignTeam}
-                                        onChange={e => onFormDataChange({ ...deskFormData, autoAssignTeam: e.target.value })}
+                                        onChange={e => handleTeamChange(e.target.value)}
+                                        data-testid="auto-assign-team"
                                     >
                                         <option value="NONE">None (Manual assignment only)</option>
                                         <option value="IT">IT Team</option>
@@ -144,20 +183,72 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
                                     <select
                                         className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={deskFormData.assignmentStrategy}
-                                        onChange={e => onFormDataChange({ ...deskFormData, assignmentStrategy: e.target.value })}
+                                        onChange={e => onFormDataChange({ ...deskFormData, assignmentStrategy: e.target.value, autoAssignUserId: e.target.value !== 'FIXED_AGENT' ? null : deskFormData.autoAssignUserId })}
                                         disabled={deskFormData.autoAssignTeam === 'NONE'}
+                                        data-testid="assignment-strategy"
                                     >
                                         <option value="ROUND_ROBIN">Round Robin</option>
                                         <option value="LEAST_LOADED">Least Loaded</option>
                                         <option value="RANDOM">Random</option>
+                                        <option value="FIXED_AGENT">Fixed Agent</option>
                                     </select>
                                     <p className="text-[10px] text-[#8993a4] mt-2 font-medium">
                                         {deskFormData.assignmentStrategy === 'ROUND_ROBIN' && 'Cycles through agents in order, one after another.'}
                                         {deskFormData.assignmentStrategy === 'LEAST_LOADED' && 'Assigns to the agent with the fewest open tickets.'}
                                         {deskFormData.assignmentStrategy === 'RANDOM' && 'Picks a random agent from the team.'}
+                                        {deskFormData.assignmentStrategy === 'FIXED_AGENT' && 'Always assigns new tickets to the selected agent.'}
                                     </p>
                                 </div>
                             </div>
+
+                            {/* ── Fixed Agent Selector ── */}
+                            {deskFormData.assignmentStrategy === 'FIXED_AGENT' && deskFormData.autoAssignTeam !== 'NONE' && (
+                                <div className="mt-6">
+                                    <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Assign to Agent *</label>
+                                    {agentsLoading ? (
+                                        <div className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm text-[#8993a4]">
+                                            Loading agents...
+                                        </div>
+                                    ) : agentsError ? (
+                        <div className="w-full px-6 py-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-600">
+                            {agentsError}
+                        </div>
+                    ) : availableAgents.length === 0 ? (
+                                        <div className="w-full px-6 py-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-600">
+                                            No eligible agents found for the {deskFormData.autoAssignTeam} team. Ensure agents are active with AGENT or ADMIN role and assigned to this team.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <select
+                                                className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all cursor-pointer"
+                                                value={deskFormData.autoAssignUserId || ''}
+                                                onChange={e => onFormDataChange({ ...deskFormData, autoAssignUserId: e.target.value || null })}
+                                                data-testid="fixed-agent-select"
+                                            >
+                                                <option value="">Select an agent...</option>
+                                                {availableAgents.map(agent => (
+                                                    <option key={agent.id} value={agent.id}>
+                                                        {agent.firstName} {agent.lastName} ({agent.email}) — {agent.openRequestCount} open
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {selectedAgent && (
+                                                <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                                    <span className="material-symbols-outlined text-emerald-600 text-lg">person_check</span>
+                                                    <div>
+                                                        <span className="text-sm font-bold text-emerald-800">{selectedAgent.firstName} {selectedAgent.lastName}</span>
+                                                        <span className="text-xs text-emerald-600 ml-2">{selectedAgent.email}</span>
+                                                        <span className="text-xs text-emerald-500 ml-2">({selectedAgent.openRequestCount} open requests)</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!deskFormData.autoAssignUserId && (
+                                                <p className="text-xs text-red-500 font-medium">Please select an agent for fixed assignment.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 

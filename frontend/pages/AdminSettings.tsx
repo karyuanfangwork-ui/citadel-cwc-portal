@@ -279,6 +279,11 @@ const AdminSettings = () => {
                 onSave={admin.handleSaveDesk}
                 onClose={() => admin.setDeskModalOpen(false)}
                 onFormDataChange={admin.setDeskFormData}
+                availableAgents={admin.availableAgents}
+                agentsLoading={admin.agentsLoading}
+                agentsError={admin.agentsError}
+                loadAgentsForDesk={admin.loadAgentsForDesk}
+                loadAgentsForTeam={admin.loadAgentsForTeam}
             />
 
             <ServiceModal

@@ -133,7 +133,10 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                 <span className="material-symbols-outlined text-xs">smart_toy</span>
                                 Auto-assign → {selectedDesk.autoAssignTeam}
                                 <span className="text-amber-400/60 mx-0.5">•</span>
-                                {selectedDesk.assignmentStrategy === 'ROUND_ROBIN' ? 'Round Robin' : selectedDesk.assignmentStrategy === 'LEAST_LOADED' ? 'Least Loaded' : 'Random'}
+                                {selectedDesk.assignmentStrategy === 'ROUND_ROBIN' ? 'Round Robin' : selectedDesk.assignmentStrategy === 'LEAST_LOADED' ? 'Least Loaded' : selectedDesk.assignmentStrategy === 'RANDOM' ? 'Random' : 'Fixed'}
+                                {selectedDesk.assignmentStrategy === 'FIXED_AGENT' && selectedDesk.autoAssignUser && (
+                                    <span className="text-amber-600"> → {selectedDesk.autoAssignUser.firstName} {selectedDesk.autoAssignUser.lastName}</span>
+                                )}
                             </span>
                         )}
 

@@ -269,6 +269,7 @@ model User {
   memoVersionsGenerated         CreditMemoVersion[]           @relation("MemoGeneratedBy")
   NotificationDelivery          NotificationDelivery[]
   publishedWorkflowVersions     WorkflowVersion[]             @relation("WorkflowVersionPublisher")
+  fixedAssigneeServiceDesks     ServiceDesk[]                 @relation("ServiceDeskFixedAssignee")
 
   @@index([tenantId])
   @@index([tenantId, agentTeam]) // P2-08: composite for role-based queries
@@ -427,11 +428,13 @@ model ServiceDesk {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Auto-assignment config
-  autoAssignTeam     String @default("NONE") @map("auto_assign_team") @db.VarChar(50)
-  assignmentStrategy String @default("ROUND_ROBIN") @map("assignment_strategy") @db.VarChar(20)
-  lastAssignedIndex  Int    @default(0) @map("last_assigned_index")
+  autoAssignTeam     String  @default("NONE") @map("auto_assign_team") @db.VarChar(50)
+  assignmentStrategy String  @default("ROUND_ROBIN") @map("assignment_strategy") @db.VarChar(20)
+  lastAssignedIndex  Int     @default(0) @map("last_assigned_index")
+  autoAssignUserId   String? @map("auto_assign_user_id") @db.Uuid
 
   // Relations
+  autoAssignUser     User?   @relation("ServiceDeskFixedAssignee", fields: [autoAssignUserId], references: [id], onDelete: SetNull)
   department Department?            @relation(fields: [tenantId, departmentId], references: [tenantId, id], onDelete: Restrict)
   categories ServiceCategory[]
   requests   Request[]
