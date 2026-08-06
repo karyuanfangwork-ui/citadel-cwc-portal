@@ -184,16 +184,14 @@ async function main() {
 
   // Get sales team users
   const salesManager = await prisma.user.findUnique({ where: { email: 'salesmanager@test.local' } });
-  const salesRep = await prisma.user.findUnique({ where: { email: 'salesrep@test.local' } });
   const adminUser = await prisma.user.findUnique({ where: { email: 'admin@test.local' } });
 
-  if (!salesManager || !salesRep || !adminUser) {
+  if (!salesManager || !adminUser) {
     console.error('❌ Missing required users. Run main seed.ts first.');
     process.exit(1);
   }
 
   console.log(`👥 Sales Manager: ${salesManager.firstName} ${salesManager.lastName} (${salesManager.id})`);
-  console.log(`👥 Sales Rep: ${salesRep.firstName} ${salesRep.lastName} (${salesRep.id})`);
   console.log(`👥 Admin: ${adminUser.firstName} ${adminUser.lastName} (${adminUser.id})`);
 
   // 1. Create Accounts
@@ -202,7 +200,7 @@ async function main() {
   
   for (let i = 0; i < ACCOUNTS.length; i++) {
     const acc = ACCOUNTS[i];
-    const owner = i < 2 ? salesManager : (i < 4 ? salesRep : adminUser);
+    const owner = i < 4 ? salesManager : adminUser;
     const created = await prisma.crmAccount.create({
       data: { ...acc, tenantId: DEFAULT_TENANT_ID, ownerId: owner.id },
     });
@@ -288,7 +286,7 @@ async function main() {
         title: lead.title,
         status: lead.status as LeadStatus,
         source: lead.source as LeadSource,
-        ownerId: salesRep.id,
+        ownerId: salesManager.id,
         accountId: accounts[randomAccount]?.id || null,
         contactId: contactByEmail[lead.contactEmail] || null,
         contactName: lead.contactName,
@@ -322,7 +320,7 @@ async function main() {
         contactId: contactByEmail[lead.contactEmail] || null,
         pipelineId: pipeline.id,
         stageId: stageMap[stageName],
-        ownerId: salesRep.id,
+        ownerId: salesManager.id,
         value: lead.estimatedValue || 50000,
         currency: 'MYR',
         probability: stageName === 'Proposal' ? 50 : 30,
@@ -350,7 +348,7 @@ async function main() {
         activityType,
         subject: `${activityType} - ${accountName} Follow-up #${i + 1}`,
         description: `Sample activity: Discuss project requirements and timeline`,
-        userId: salesRep.id,
+        userId: salesManager.id,
         accountId,
         contactId: contactIds?.[0] || null,
         scheduledAt: new Date(Date.now() + (i * 2) * 24 * 60 * 60 * 1000),
@@ -372,7 +370,7 @@ async function main() {
     await prisma.crmNote.create({
       data: {
         content: `**Meeting Notes #${i + 1}**\n\n- Discussed project scope and requirements\n- Client interested in Q3 implementation\n- Budget approved, waiting for final sign-off\n- Next follow-up scheduled for next week\n\n*Key contacts: Technical team + decision makers*`,
-        authorId: salesRep.id,
+        authorId: salesManager.id,
         accountId,
         isPinned: i < 3, // Pin first 3 notes
       },
@@ -407,7 +405,7 @@ async function main() {
           screeningHits: [{ source: 'PEP_SCREENING', result: isPep ? 'MATCH_FOUND' : 'NO_MATCH', checkedAt: new Date().toISOString(), details: isPep ? 'Politically Exposed Person identified' : 'No adverse findings' }],
           lastScreeningAt: new Date(),
           nextScreeningDueAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          approvedBy: salesRep.id,
+          approvedBy: salesManager.id,
           approvedAt: new Date(),
           expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
           notes: `CRM seed KYC — verified for ${contact.firstName} ${contact.lastName}`,
@@ -518,7 +516,6 @@ async function main() {
   console.log(`   • Notes: ${notesCreated}`);
   console.log('\n💡 Login as:');
   console.log(`   • Sales Manager: salesmanager@test.local / abc@123`);
-  console.log(`   • Sales Rep: salesrep@test.local / abc@123`);
 }
 
 main()

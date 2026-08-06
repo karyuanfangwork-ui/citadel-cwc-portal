@@ -809,22 +809,6 @@ async function main() {
     await assignRoles(salesManagerUser.id, [salesManagerRole.id]);
     console.log('✅ Sales Manager user created (email: salesmanager@test.local, password: abc@123)');
 
-    const salesRepUser = await prisma.user.upsert({
-        where: { email: 'salesrep@test.local' },
-        update: {},
-        create: {
-            tenantId: defaultTenant.id,
-            email: 'salesrep@test.local',
-            passwordHash: testPassword,
-            firstName: 'Nurul',
-            lastName: 'Ain',
-            department: 'Sales',
-            jobTitle: 'Relationship Manager',
-            isActive: true,
-        },
-    });
-    await assignRoles(salesRepUser.id, [salesRepRole.id]);
-    console.log('✅ Sales Rep user created (email: salesrep@test.local, password: abc@123)');
 
     // --- Legacy USER role test account (now uses NORMAL_STAFF) ---
     const legacyUser = await prisma.user.upsert({
@@ -844,65 +828,6 @@ async function main() {
     await assignRoles(legacyUser.id, [normalStaffRole.id]);
     console.log('✅ Legacy user account created (email: user@helpdesk.com, password: abc@123)');
 
-    // --- Credit module test accounts ---
-    const creditRmRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_RM' } });
-    const creditAnalystRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_ANALYST' } });
-    const creditManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_MANAGER' } });
-
-    const creditManagerUser = await prisma.user.upsert({
-        where: { email: 'credit.manager@test.local' },
-        update: {},
-        create: {
-            tenantId: defaultTenant.id,
-            email: 'credit.manager@test.local',
-            passwordHash: testPassword,
-            firstName: 'Sarah',
-            lastName: 'Tan',
-            department: 'Credit',
-            jobTitle: 'Credit Manager',
-            isActive: true,
-        },
-    });
-    await assignRoles(creditManagerUser.id, [creditManagerRole.id, normalStaffRole.id]);
-    console.log('✅ Credit Manager user created (email: credit.manager@test.local, password: abc@123)');
-
-    const creditAnalystUser = await prisma.user.upsert({
-        where: { email: 'credit.analyst@test.local' },
-        update: {},
-        create: {
-            tenantId: defaultTenant.id,
-            email: 'credit.analyst@test.local',
-            passwordHash: testPassword,
-            firstName: 'Rajesh',
-            lastName: 'Kumar',
-            department: 'Credit',
-            jobTitle: 'Credit Analyst',
-            isActive: true,
-        },
-    });
-    await assignRoles(creditAnalystUser.id, [creditAnalystRole.id, normalStaffRole.id]);
-    console.log('✅ Credit Analyst user created (email: credit.analyst@test.local, password: abc@123)');
-
-    const creditSeniorUser = await prisma.user.upsert({
-        where: { email: 'credit.senior@test.local' },
-        update: {},
-        create: {
-            tenantId: defaultTenant.id,
-            email: 'credit.senior@test.local',
-            passwordHash: testPassword,
-            firstName: 'Lim',
-            lastName: 'Wei',
-            department: 'Credit',
-            jobTitle: 'Senior Credit Officer',
-            isActive: true,
-        },
-    });
-    await assignRoles(creditSeniorUser.id, [creditManagerRole.id, normalStaffRole.id]);
-    console.log('✅ Credit Senior user created (email: credit.senior@test.local, password: abc@123) — assigned CREDIT_MANAGER role');
-
-    // john.doe also gets CREDIT_RM role (existing user, add role only)
-    await assignRoles(johnDoeUser.id, [creditRmRole.id]);
-    console.log('✅ John Doe assigned CREDIT_RM role');
 
     // ── Entities ─────────────────────────────────────────────────────────────
     console.log('Seeding entities...');

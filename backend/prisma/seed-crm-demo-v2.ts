@@ -287,7 +287,6 @@ async function main() {
 
   // Also find other users for territory assignments
   const salesManager = await prisma.user.findUnique({ where: { email: 'salesmanager@test.local' } });
-  const salesRep = await prisma.user.findUnique({ where: { email: 'salesrep@test.local' } });
 
   // ── 1. Create Custom Field Definitions ──
   console.log('\n📋 Creating CRM Custom Field Definitions...');
@@ -384,18 +383,10 @@ async function main() {
       create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, userId: salesManager.id, role: 'MANAGER' },
     });
     membersCreated++;
-  }
-  if (salesRep) {
     await prisma.crmTerritoryMember.upsert({
-      where: { territoryId_userId: { territoryId: territoryKlangValley.id, userId: salesRep.id } },
+      where: { territoryId_userId: { territoryId: territoryNorth.id, userId: salesManager.id } },
       update: {},
-      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryKlangValley.id, userId: salesRep.id, role: 'MEMBER' },
-    });
-    membersCreated++;
-    await prisma.crmTerritoryMember.upsert({
-      where: { territoryId_userId: { territoryId: territoryNorth.id, userId: salesRep.id } },
-      update: {},
-      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryNorth.id, userId: salesRep.id, role: 'MEMBER' },
+      create: { tenantId: DEFAULT_TENANT_ID, territoryId: territoryNorth.id, userId: salesManager.id, role: 'MEMBER' },
     });
     membersCreated++;
   }

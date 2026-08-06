@@ -1047,20 +1047,6 @@
       "isActive": true
     },
     {
-      "email": "salesrep@test.local",
-      "firstName": "Nurul",
-      "lastName": "Ain",
-      "department": "Sales",
-      "jobTitle": "Relationship Manager",
-      "executiveRole": null,
-      "agentTeam": null,
-      "entityCode": null,
-      "roles": [
-        "SALES_REP"
-      ],
-      "isActive": true
-    },
-    {
       "email": "saravanan.ramaiah@citadelgroup.com.my",
       "firstName": "Saravanan",
       "lastName": "Ramaiah",

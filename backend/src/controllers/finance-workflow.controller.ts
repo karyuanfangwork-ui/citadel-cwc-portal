@@ -26,7 +26,7 @@ async function logActivity(requestId: string, message: string, authorId?: string
 }
 
 /** Helper: extract common transition options from Express request. */
-function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; source?: string; metadata?: Record<string, unknown>; requestPatch?: Record<string, unknown> }) {
+function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifications?: boolean; skipAutoAssignment?: boolean; skipTransitionPolicy?: boolean; source?: string; metadata?: Record<string, unknown>; requestPatch?: Record<string, unknown> }) {
     const user = (req as any).user;
     const userRoles: string[] = user?.roles || [];
     return {
@@ -35,7 +35,8 @@ function transitionOpts(req: Request, overrides?: { comment?: string; skipNotifi
         userRole: userRoles[0] || undefined,
         metadata: { userRoles, ...overrides?.metadata },
         skipNotifications: overrides?.skipNotifications ?? false,
-        skipAutoAssignment: true, // Controllers manage assignment explicitly
+        skipAutoAssignment: overrides?.skipAutoAssignment ?? true, // Controllers manage assignment explicitly unless the workflow edge owns routing
+        skipTransitionPolicy: overrides?.skipTransitionPolicy ?? false,
         skipSlaPause: true,       // Controllers manage SLA pause/resume explicitly
         comment: overrides?.comment,
         source: overrides?.source || 'finance-workflow',
@@ -128,6 +129,7 @@ export const acknowledge = async (req: Request, res: Response) => {
         await transitionRequest(id, 'FINANCE_ACKNOWLEDGED', transitionOpts(req, {
             comment: notes || undefined,
             source: 'finance-workflow/acknowledge',
+            skipAutoAssignment: false,
         }));
 
         await auditLog(req as any, 'FINANCE_ACKNOWLEDGED', 'request', id, {
@@ -414,6 +416,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             // Step 2a: CFO_APPROVED_FIN → FINANCE_IN_PROGRESS (budget adopted)
             await transitionRequest(id, 'FINANCE_IN_PROGRESS', transitionOpts(req, {
                 source: 'finance-workflow/cfo-approve-budget',
+                skipTransitionPolicy: true,
             }));
             await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
         } else {
@@ -432,6 +435,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
 
             await transitionRequest(id, 'PENDING_GROUP_DCEO_APPROVAL', transitionOpts(req, {
                 source: 'finance-workflow/cfo-approve-purchase',
+                skipTransitionPolicy: true,
                 ...(groupDceoId ? { requestPatch: { assignedToId: groupDceoId } } : {}),
             }));
 
@@ -669,6 +673,7 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             // GROUP_DCEO_APPROVED → PAYMENT_PROCESSING_FIN
             await transitionRequest(id, 'PAYMENT_PROCESSING_FIN', transitionOpts(req, {
                 source: 'finance-workflow/group-dceo-approve',
+                skipTransitionPolicy: true,
             }));
         } else {
             // PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_REJECTED

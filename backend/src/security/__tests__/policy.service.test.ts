@@ -304,6 +304,14 @@ describe('P02-08: Central Policy Decision Service', () => {
             if (decision.allowed) expect(decision.reason).toBe('team_scope');
         });
 
+        it('matches agent teams case-insensitively after reassignment', () => {
+            const financeAgent = { ...itAgent, agentTeam: 'Finance' };
+            const financeRequest = { ...itRequestOtherAssignee, serviceDeskCode: 'FINANCE', assignedTeam: 'FINANCE' };
+            const decision = policyService.authorize(financeAgent, 'read', financeRequest);
+            expect(decision.allowed).toBe(true);
+            if (decision.allowed) expect(decision.reason).toBe('team_scope');
+        });
+
         it('returns "executive_role" reason for CEO approval', () => {
             const decision = policyService.authorize(ceo, 'read', pendingCeoNoApprover);
             expect(decision.allowed).toBe(true);
@@ -345,6 +353,13 @@ describe('P02-08: Central Policy Decision Service', () => {
             const where = policyService.buildVisibleWhere(itAgent, 'request');
             const orConditions = (where.AND as any[]).find((c: any) => c.OR)?.OR;
             expect(orConditions.some((c: any) => c.serviceDesk)).toBe(true);
+        });
+
+        it('normalizes agent team codes in request visibility filters', () => {
+            const where = policyService.buildVisibleWhere({ ...itAgent, agentTeam: 'Finance' }, 'request');
+            const orConditions = (where.AND as any[]).find((c: any) => c.OR)?.OR;
+            expect(orConditions).toContainEqual({ serviceDesk: { code: 'FINANCE' } });
+            expect(orConditions).toContainEqual({ assignedTeam: 'FINANCE' });
         });
 
         it('scopes notifications to userId only', () => {

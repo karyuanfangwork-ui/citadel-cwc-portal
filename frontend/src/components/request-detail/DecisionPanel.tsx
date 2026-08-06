@@ -271,11 +271,28 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   // exists. Keep the specialized cancellation confirmation flow, but do not
   // offer it when the designer has removed the CANCELLED edge.
   const designerTargets = new Set(availableTransitions.map((transition) => transition.toStatus));
-  const canManageWorkflow = userRoles.some((role) => ['AGENT', 'ADMIN'].includes(role.toUpperCase()));
+  // Executive approvers are not AGENT/ADMIN users, but must still see their
+  // designated approval actions (for example CFO on PENDING_CFO_APPROVAL_FIN).
+  const canManageWorkflow = isDesignatedApprover
+    || userRoles.some((role) => ['AGENT', 'ADMIN'].includes(role.toUpperCase()));
+  const executiveApprovalActions = new Set<WorkflowActionType>([
+    'CFO_DECISION',
+    'CFO_DECISION_FIN',
+    'CFO_DECISION_ESM',
+    'CEO_DECISION_IT',
+    'CEO_DECISION_HR',
+    'CEO_DECISION_ESM',
+    'GROUP_DCEO_DECISION_HR',
+    'GROUP_DCEO_DECISION_FIN',
+    'GROUP_DCEO_DECISION_ESM',
+  ]);
   const actions = canManageWorkflow
-    ? workflowActions.filter((action) =>
-      action.type !== 'CANCEL_REQUEST' || designerTargets.has('CANCELLED'),
-    )
+    ? workflowActions.filter((action) => {
+      // An executive who submitted the request is the requester, not an
+      // independent approver. Never expose an approval action to that user.
+      if (isRequester && executiveApprovalActions.has(action.type)) return false;
+      return action.type !== 'CANCEL_REQUEST' || designerTargets.has('CANCELLED');
+    })
     : [];
 
   const representedTargets = new Set(

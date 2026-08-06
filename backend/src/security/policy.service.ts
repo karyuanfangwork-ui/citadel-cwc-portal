@@ -92,8 +92,9 @@ class PolicyServiceImpl implements IPolicyService {
         // ── 7. Team-scoped agent access (only when agent's team matches) ──
         // BUT: confidentiality blocks team scope unless agent is assignee or has explicit permission
         if (principal.roles.includes('AGENT') && principal.agentTeam) {
-            const teamMatch = resource.serviceDeskCode === principal.agentTeam
-                || resource.assignedTeam === principal.agentTeam;
+            const agentTeam = principal.agentTeam.trim().toUpperCase();
+            const teamMatch = resource.serviceDeskCode?.trim().toUpperCase() === agentTeam
+                || resource.assignedTeam?.trim().toUpperCase() === agentTeam;
             if (teamMatch) {
                 // Confidentiality gate: team scope doesn't bypass confidentiality
                 if (resource.isConfidential && !principal.permissions.includes('request:confidential') && principal.userId !== resource.ownerId && principal.userId !== resource.assignedToId) {
@@ -176,10 +177,10 @@ class PolicyServiceImpl implements IPolicyService {
                 { assignedToId: principal.userId },
             ];
 
-            // Agent team scope
             if (principal.agentTeam) {
-                orConditions.push({ serviceDesk: { code: principal.agentTeam } });
-                orConditions.push({ assignedTeam: principal.agentTeam });
+                const agentTeam = principal.agentTeam.trim().toUpperCase();
+                orConditions.push({ serviceDesk: { code: agentTeam } });
+                orConditions.push({ assignedTeam: agentTeam });
             }
 
             // Executive roles
@@ -250,8 +251,9 @@ class PolicyServiceImpl implements IPolicyService {
                 { assignedToId: principal.userId },
             ];
             if (principal.agentTeam) {
-                orConditions.push({ serviceDesk: { code: principal.agentTeam } });
-                orConditions.push({ assignedTeam: principal.agentTeam });
+                const agentTeam = principal.agentTeam.trim().toUpperCase();
+                orConditions.push({ serviceDesk: { code: agentTeam } });
+                orConditions.push({ assignedTeam: agentTeam });
             }
             for (const role of principal.roles) {
                 if (EXECUTIVE_ROLES.has(role)) {

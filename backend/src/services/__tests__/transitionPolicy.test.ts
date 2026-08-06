@@ -36,6 +36,32 @@ describe('canActorTransition', () => {
     });
   });
 
+  it('allows a CFO on a legacy Finance approval transition with empty allow-lists', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: [],
+    });
+    await expect(canActorTransition({
+      actor: { userId: 'u5', roles: ['CFO', 'NORMAL_STAFF'], executiveRole: null },
+      ...base,
+      fromStatus: 'PENDING_CFO_APPROVAL_FIN',
+      toStatus: 'CFO_APPROVED_FIN',
+    })).resolves.toEqual({ allowed: true });
+  });
+
+  it('does not allow a CFO to use an ordinary legacy transition', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: [],
+    });
+    const result = await canActorTransition({
+      actor: { userId: 'u5', roles: ['CFO', 'NORMAL_STAFF'], executiveRole: null },
+      ...base,
+    });
+    expect(result).toEqual({
+      allowed: false,
+      reason: 'Workflow transitions require the AGENT or ADMIN role',
+    });
+  });
+
   it('allows an actor holding a listed role', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue({
       allowedRoles: ['AGENT', 'ADMIN'], allowedExecutiveRoles: [],

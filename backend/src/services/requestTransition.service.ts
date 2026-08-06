@@ -89,6 +89,8 @@ export interface TransitionOptions {
   idempotencyKey?: string;
   /** Actor to authorize against transition policy (opt-in). When provided, canActorTransition is checked before guards. */
   actor?: TransitionActor;
+  /** Skip the data-driven actor policy for an internal chained transition. Guards still run. */
+  skipTransitionPolicy?: boolean;
   /** Audit attribution captured by the HTTP boundary. */
   userEmail?: string;
   ipAddress?: string;
@@ -282,7 +284,7 @@ export async function transitionRequest(
   }
 
   // ── 2b. Authorize the actor against transition policy (opt-in) ──────────
-  if (options.actor) {
+  if (options.actor && !options.skipTransitionPolicy) {
     const decision = await canActorTransition({
       actor: options.actor,
       tenantId: currentRequest.tenantId ?? null,
