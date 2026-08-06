@@ -118,6 +118,7 @@ describe('planCanonicalBootstrap', () => {
       current: { nodes: [], edges: [] },
       steps: [
         step('SUBMITTED', { isInitial: true }),
+        step('CANCELLED', { isFinal: true }),
       ],
       definitions: [],
       globalPolicies: [],

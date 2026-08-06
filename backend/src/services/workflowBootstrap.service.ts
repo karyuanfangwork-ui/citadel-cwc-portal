@@ -188,6 +188,10 @@ export function planCanonicalBootstrap(input: {
       transitionLabel: 'ADVANCE',
       requiresComment: false,
     };
+    if (
+      definition.toStatus === 'CANCELLED'
+      && workflowCode === APPROVED_CANCELLATION_POLICY.workflowCode
+    ) continue;
     const transitionKey = key(definition.fromStatus, definition.toStatus);
     if (plannedPairs.has(transitionKey)) continue;
     plannedPairs.add(transitionKey);
