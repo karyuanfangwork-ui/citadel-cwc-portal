@@ -4,13 +4,14 @@ export const defaultWorkflows = [
   {
     name: 'IT Simple',
     code: 'IT_SIMPLE',
-    description: 'Simple IT support workflow (4 steps)',
+    description: 'Simple IT support workflow (5 steps)',
     displayOrder: 1,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
       { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
       { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
+      { label: 'Cancelled', status: 'CANCELLED', icon: 'cancel', isFinal: true },
     ]
   },
   {
