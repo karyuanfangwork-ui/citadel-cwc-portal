@@ -68,14 +68,12 @@ export interface BootstrapPlan {
 
 export const CANCELABLE_STATUSES: Record<string, string[]> = {
   IT_SIMPLE: ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING'],
-  HR_GENERAL: ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING'],
-  IT_PROCUREMENT: ['ACKNOWLEDGED_IT', 'PROCUREMENT_IN_PROGRESS', 'PENDING_INVOICE_IT', 'PAYMENT_PROCESSING_IT'],
-  IT_HARDWARE_PROCUREMENT: [
-    'ACKNOWLEDGED_IT', 'PROCUREMENT_IN_PROGRESS', 'HARDWARE_ORDERED', 'HARDWARE_RECEIVED',
-    'SOFTWARE_PROVISIONED', 'PENDING_INVOICE_IT', 'PAYMENT_PROCESSING_IT',
-  ],
-  EXPENSE_REIMBURSEMENT: ['PAYMENT_PROCESSING'],
-  FINANCE: ['FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS'],
+};
+
+const APPROVED_CANCELLATION_POLICY = {
+  workflowCode: 'IT_SIMPLE',
+  allowedRoles: ['AGENT', 'ADMIN'],
+  requiresComment: true,
 };
 
 const key = (fromStatus: string, toStatus: string): string => `${fromStatus}\u0000${toStatus}`;
@@ -217,13 +215,15 @@ export function planCanonicalBootstrap(input: {
       plannedPairs.add(transitionKey);
       statuses.add('CANCELLED');
       plannedDefinitionsWithSource.push({ definition, source: 'CANCEL' });
-      issues.push({
-        code: 'SYNTHETIC_CANCEL_EDGE',
-        severity: 'BLOCKING',
-        fromStatus,
-        toStatus: 'CANCELLED',
-        message: `${workflowCode} needs an explicit reviewed cancellation edge ${fromStatus} → CANCELLED`,
-      });
+      if (workflowCode !== APPROVED_CANCELLATION_POLICY.workflowCode) {
+        issues.push({
+          code: 'SYNTHETIC_CANCEL_EDGE',
+          severity: 'BLOCKING',
+          fromStatus,
+          toStatus: 'CANCELLED',
+          message: `${workflowCode} needs an explicit reviewed cancellation edge ${fromStatus} → CANCELLED`,
+        });
+      }
     }
   }
 
@@ -300,6 +300,12 @@ export function planCanonicalBootstrap(input: {
       const recommendedRoles = EXPLICIT_ROLE_POLICIES[definition.toStatus];
       if (recommendedRoles) {
         edge.allowedRoles = [...recommendedRoles];
+      } else if (
+        definition.toStatus === 'CANCELLED'
+        && workflowCode === APPROVED_CANCELLATION_POLICY.workflowCode
+      ) {
+        edge.allowedRoles = [...APPROVED_CANCELLATION_POLICY.allowedRoles];
+        edge.requiresComment = APPROVED_CANCELLATION_POLICY.requiresComment;
       } else {
         issues.push({
           code: 'MISSING_RUNTIME_POLICY',

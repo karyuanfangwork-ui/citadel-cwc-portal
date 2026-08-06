@@ -111,4 +111,27 @@ describe('planCanonicalBootstrap', () => {
       expect.objectContaining({ code: 'OCCUPIED_STATUS_NOT_CANONICAL', status: 'LEGACY_STATUS' }),
     ]));
   });
+
+  it('applies the approved IT_SIMPLE cancellation policy', () => {
+    const plan = planCanonicalBootstrap({
+      workflowCode: 'IT_SIMPLE',
+      current: { nodes: [], edges: [] },
+      steps: [
+        step('SUBMITTED', { isInitial: true }),
+      ],
+      definitions: [],
+      globalPolicies: [],
+      occupiedStatuses: ['CANCELLED'],
+    });
+
+    const cancellationEdges = plan.graph.edges.filter((edge) => edge.requiresComment);
+    expect(cancellationEdges).toHaveLength(1);
+    expect(cancellationEdges[0]).toMatchObject({
+      allowedRoles: ['AGENT', 'ADMIN'],
+      requiresComment: true,
+    });
+    expect(plan.issues).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'SYNTHETIC_CANCEL_EDGE', severity: 'BLOCKING' }),
+    ]));
+  });
 });
