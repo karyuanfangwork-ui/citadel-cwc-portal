@@ -11,6 +11,8 @@ const corsOrigins = Array.from(
     )
 );
 
+const appUrl = (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+
 if (process.env.NODE_ENV !== 'production') {
     corsOrigins.push('http://localhost:5173');
     corsOrigins.push('http://127.0.0.1:5173');
@@ -181,7 +183,7 @@ export const config = {
     // Application
     app: {
         name: process.env.APP_NAME || 'Enterprise Help Center',
-        url: process.env.APP_URL || 'http://localhost:5173',
+        url: appUrl,
         adminEmail: process.env.ADMIN_EMAIL || 'admin@helpdesk.com',
     },
 
@@ -222,4 +224,8 @@ for (const [name, value] of requiredSecrets) {
             `Generate a secure value with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
         );
     }
+}
+
+if (config.env === 'production' && (!process.env.APP_URL || /(^|:\/\/)(localhost|127\.0\.0\.1)([:/]|$)/i.test(config.app.url))) {
+    throw new Error('APP_URL must be set to the public frontend URL in production; localhost URLs are not allowed.');
 }

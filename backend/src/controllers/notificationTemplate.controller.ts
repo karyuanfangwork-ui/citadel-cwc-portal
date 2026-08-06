@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { sendEmail, renderTemplate } from '../services/email.service';
 import { logger } from '../utils/logger';
+import { config } from '../config';
 
 import prisma from '../utils/prisma';
 
@@ -280,7 +281,7 @@ class NotificationTemplateController {
             amount: '10,000.00',
             paymentRef: 'PAY-2026-001',
             resetUrl: '#',
-            appUrl: 'http://localhost:5173',
+            appUrl: config.app.url,
         };
 
         const subject = renderTemplate(template.emailSubject, sampleVars);

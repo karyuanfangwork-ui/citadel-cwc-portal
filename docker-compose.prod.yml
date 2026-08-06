@@ -79,7 +79,7 @@ services:
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       # ── Application ──
       APP_NAME: ${APP_NAME:-Enterprise Help Center}
-      APP_URL: ${APP_URL:-https://localhost}
+      APP_URL: ${APP_URL:?APP_URL must be set to the public frontend URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@helpdesk.com}
       # ── Email (Resend) ──
       RESEND_API_KEY: ${RESEND_API_KEY:-}
