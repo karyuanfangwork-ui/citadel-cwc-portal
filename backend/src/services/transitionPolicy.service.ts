@@ -91,8 +91,14 @@ export async function canActorTransition(
       : { allowed: false, reason: 'Workflow transitions require the AGENT or ADMIN role' };
   }
 
-  if (actor.roles.some((role) => allowedRoles.includes(role))) return { allowed: true };
-  if (actor.executiveRole && allowedExecutiveRoles.includes(actor.executiveRole)) {
+  const actorRoles = actor.roles.map((role) => role.toUpperCase());
+  const normalizedAllowedRoles = allowedRoles.map((role) => role.toUpperCase());
+  const normalizedAllowedExecutiveRoles = allowedExecutiveRoles.map((role) => role.toUpperCase());
+  if (actorRoles.some((role) => normalizedAllowedRoles.includes(role))) return { allowed: true };
+  if (
+    actorRoles.some((role) => normalizedAllowedExecutiveRoles.includes(role))
+    || (actor.executiveRole && normalizedAllowedExecutiveRoles.includes(actor.executiveRole.toUpperCase()))
+  ) {
     return { allowed: true };
   }
 

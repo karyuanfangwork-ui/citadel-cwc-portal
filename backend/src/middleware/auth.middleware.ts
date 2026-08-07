@@ -17,6 +17,7 @@ export interface AuthRequest extends Request {
         firstName: string;
         lastName: string;
         roles: string[];
+        executiveRole?: string | null;
         permissions: string[];
         agentTeam?: string | null;
         departmentIds?: string[];
@@ -117,6 +118,7 @@ export const authenticate = async (
             firstName: user.firstName,
             lastName: user.lastName,
             roles,
+            executiveRole: user.executiveRole,
             permissions,
             agentTeam: user.agentTeam,
             departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
@@ -225,6 +227,7 @@ export const optionalAuth = async (
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles,
+                executiveRole: user.executiveRole,
                 permissions,
                 agentTeam: user.agentTeam,
                 departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
@@ -362,6 +365,7 @@ export const sseAuth = async (
             firstName: user.firstName,
             lastName: user.lastName,
             roles,
+            executiveRole: user.executiveRole,
             permissions,
             agentTeam: user.agentTeam,
             tenantId: user.tenantId ?? undefined,

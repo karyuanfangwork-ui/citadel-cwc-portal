@@ -85,6 +85,16 @@ describe('canActorTransition', () => {
     await expect(canActorTransition({ actor: ceo, ...base })).resolves.toEqual({ allowed: true });
   });
 
+  it('allows a matching RBAC role when the transition lists it as an executive role', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: ['CFO'],
+    });
+    await expect(canActorTransition({
+      actor: { userId: 'u5', roles: ['CFO', 'NORMAL_STAFF'], executiveRole: null },
+      ...base,
+    })).resolves.toEqual({ allowed: true });
+  });
+
   it('denies when no transition row matches the scope', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue(null);
     const result = await canActorTransition({ actor: admin, ...base });

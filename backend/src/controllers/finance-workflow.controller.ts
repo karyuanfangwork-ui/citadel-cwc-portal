@@ -5,6 +5,7 @@ import { registerUpload } from '../services/attachmentAccess.service';
 import { auditLog } from '../utils/audit';
 import { reassignToTeam } from '../services/reassign.service';
 import { transitionRequest } from '../services/requestTransition.service';
+import { getTransitionMeta } from '../utils/workflowTransitions';
 import prisma from '../utils/prisma';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { runPurchaseRequisitionApprovalShadow } from '../services/purchaseRequisitionApprovalShadow.service';
@@ -63,6 +64,40 @@ async function findFinanceCfo(tenantId: string | null | undefined): Promise<stri
         select: { id: true },
     });
     return cfo?.id;
+}
+
+/**
+ * Resolve an exact CFO configured on the published workflow edge.
+ *
+ * The edge assignment is only accepted when the target is active, belongs to
+ * the request tenant, and has CFO authority through either executiveRole or
+ * RBAC. Invalid/stale edge assignments deliberately fall back to normal CFO
+ * resolution rather than routing an approval to an arbitrary user.
+ */
+export async function findEdgeConfiguredCfo(request: any): Promise<string | undefined> {
+    const workflowTypeId = request.requestType?.workflow?.id;
+    if (!workflowTypeId) return undefined;
+
+    const transitionMeta = await getTransitionMeta(request.status, 'PENDING_CFO_APPROVAL_FIN', {
+        tenantId: request.tenantId,
+        workflowTypeId,
+    });
+    const configuredUserId = transitionMeta?.autoAssignUserId;
+    if (!configuredUserId) return undefined;
+
+    const configuredCfo = await prisma.user.findFirst({
+        where: {
+            id: configuredUserId,
+            isActive: true,
+            ...(request.tenantId ? { tenantId: request.tenantId } : {}),
+            OR: [
+                { executiveRole: 'CFO' },
+                { roles: { some: { role: { name: 'CFO' } } } },
+            ],
+        },
+        select: { id: true },
+    });
+    return configuredCfo?.id;
 }
 
 async function findConfiguredGroupDceo(
@@ -154,18 +189,24 @@ export const routeToCfo = async (req: Request, res: Response) => {
         const id = String(req.params.id);
         const { notes } = req.body;
 
-        const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: { serviceDesk: true, requestType: { include: { workflow: true } } },
+        });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
 
-        // Find CFO user for assignment
+        // Preserve an existing pending approver, then honor the published
+        // workflow edge, and finally fall back to the first active CFO.
         const cfoPendingApproval = await prisma.requestApproval.findFirst({
             where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
             select: { approverId: true },
         });
-        const cfoUserId = cfoPendingApproval?.approverId ?? await findFinanceCfo(request.tenantId);
+        const cfoUserId = cfoPendingApproval?.approverId
+            ?? await findEdgeConfiguredCfo(request)
+            ?? await findFinanceCfo(request.tenantId);
         if (!cfoUserId) {
             res.status(409).json({ status: 'error', message: 'No active CFO approver is configured for this tenant' });
             return;
@@ -175,13 +216,13 @@ export const routeToCfo = async (req: Request, res: Response) => {
         await transitionRequest(id, 'PENDING_CFO_APPROVAL_FIN', transitionOpts(req, {
             comment: notes || undefined,
             source: 'finance-workflow/route-cfo',
-            ...(cfoUserId ? { requestPatch: { assignedToId: cfoUserId } } : {}),
+            requestPatch: { assignedToId: cfoUserId },
         }));
 
         // Create CFO approval record
         if (!cfoPendingApproval) {
             await prisma.requestApproval.create({
-                data: { requestId: id, approverType: 'CFO', approverId: cfoUserId || 'system', status: 'PENDING', comments: notes || null },
+                data: { requestId: id, approverType: 'CFO', approverId: cfoUserId, status: 'PENDING', comments: notes || null },
             });
         }
 
@@ -201,9 +242,7 @@ export const routeToCfo = async (req: Request, res: Response) => {
         }, { status: request.status });
 
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
-        if (cfoUserId) {
-            await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
-        }
+        await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
 
         const { pauseSla } = await import('../services/sla-pause.service');
         await pauseSla(id);
@@ -480,6 +519,9 @@ export const cfoDecision = async (req: Request, res: Response) => {
         res.json({ status: 'success', message: `Request ${decision.toLowerCase()} by CFO — routed to ${isBudgetProposal ? 'Finance Updating' : 'Group Deputy CEO'}` });
     } catch (error: any) {
         console.error('cfoDecision error:', error);
+        if (typeof error?.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 500) {
+            return res.status(error.statusCode).json({ error: error.message });
+        }
         if (error.message?.includes('Transition guard blocked') || error.message?.includes('Invalid status transition')) {
             return res.status(403).json({ error: error.message });
         }

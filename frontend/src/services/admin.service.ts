@@ -28,6 +28,21 @@ export const adminService = {
         return response.data.data.agents as { id: string; firstName: string; lastName: string; email: string; agentTeam: string | null }[];
     },
 
+    async listStaff() {
+        const response = await apiClient.get('/users/staff');
+        return (response.data.data.staff as {
+            id: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            roles: { role: { name: string } }[];
+        }[]).map((person) => ({
+            ...person,
+            agentTeam: null,
+            roles: person.roles.map(({ role }) => role.name),
+        }));
+    },
+
     async updateUser(userId: string, data: Partial<{ firstName: string; lastName: string; email: string; phone: string; department: string; jobTitle: string; isActive: boolean; managerId: string; agentTeam: string; entityId: string | null }>) {
         const response = await apiClient.put(`/users/${userId}`, data);
         return response.data.data.user;
