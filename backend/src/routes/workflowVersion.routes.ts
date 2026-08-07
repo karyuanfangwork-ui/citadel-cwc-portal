@@ -14,6 +14,7 @@ router.post('/:workflowTypeId/versions', authenticate, manage, controller.create
 router.get('/versions/:versionId', authenticate, controller.getVersion);
 router.patch('/versions/:versionId/nodes', authenticate, manage, controller.updateNodes);
 router.patch('/versions/:versionId/edges', authenticate, manage, controller.updateEdges);
+router.patch('/versions/:versionId/graph', authenticate, manage, controller.replaceGraph);
 router.post('/versions/:versionId/validate', authenticate, controller.validate);
 router.post('/versions/:versionId/publish', authenticate, manage, controller.publish);
 router.post('/versions/:versionId/rollback', authenticate, manage, controller.rollback);

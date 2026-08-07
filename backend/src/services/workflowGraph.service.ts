@@ -152,3 +152,23 @@ export async function updateEdges(versionId: string, edges: EdgeInput[], remove:
     await deleteEdges(versionId, remove, tx);
   });
 }
+
+/** Replace the complete draft graph atomically; absent rows are deleted. */
+export async function replaceGraph(versionId: string, nodes: NodeInput[], edges: EdgeInput[]): Promise<void> {
+  await prisma.$transaction(async (tx: any) => {
+    await assertDraft(versionId, tx);
+    const nodeIds = nodes.map((node) => node.id);
+    const edgeIds = edges.map((edge) => edge.id);
+    if (new Set(nodeIds).size !== nodeIds.length) throw new AppError('Duplicate node ids in graph update', 422);
+    if (new Set(edgeIds).size !== edgeIds.length) throw new AppError('Duplicate edge ids in graph update', 422);
+
+    await upsertNodes(versionId, nodes, tx);
+    await tx.workflowEdge.deleteMany({
+      where: { workflowVersionId: versionId, ...(edgeIds.length > 0 ? { id: { notIn: edgeIds } } : {}) },
+    });
+    await tx.workflowNode.deleteMany({
+      where: { workflowVersionId: versionId, ...(nodeIds.length > 0 ? { id: { notIn: nodeIds } } : {}) },
+    });
+    await upsertEdges(versionId, edges, tx);
+  });
+}

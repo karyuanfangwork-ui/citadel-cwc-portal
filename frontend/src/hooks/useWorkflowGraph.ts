@@ -106,8 +106,7 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
     setSaving(true);
     setSaveError(null);
     try {
-      await workflowVersionService.updateNodes(versionId, { upsert: snapshot.nodes, remove: removedNodesRef.current });
-      await workflowVersionService.updateEdges(versionId, { upsert: snapshot.edges, remove: removedEdgesRef.current });
+      await workflowVersionService.replaceGraph(versionId, snapshot);
       if (mutation !== mutationRef.current) return;
       setDirty(false);
       dirtyRef.current = false;
@@ -190,9 +189,16 @@ export function useWorkflowGraph(versionId: string, graph: WorkflowGraph, readOn
 
   const removeNode = useCallback((id: string) => {
     if (readOnly) return;
+    const incidentEdgeIds = latestGraph.current.edges
+      .filter((edge) => edge.source === id || edge.target === id)
+      .map((edge) => edge.id);
+    const nextNodes = latestGraph.current.nodes.filter((node) => node.id !== id);
+    const nextEdges = latestGraph.current.edges.filter((edge) => edge.source !== id && edge.target !== id);
+    latestGraph.current = { nodes: nextNodes, edges: nextEdges };
     setNodes((current) => current.filter((node) => node.id !== id));
     setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
     removedNodesRef.current = [...new Set([...removedNodesRef.current, id])];
+    removedEdgesRef.current = [...new Set([...removedEdgesRef.current, ...incidentEdgeIds])];
     markChanged();
   }, [markChanged, readOnly]);
 

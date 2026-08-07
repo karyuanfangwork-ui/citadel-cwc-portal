@@ -138,6 +138,17 @@ export class WorkflowVersionController {
     res.json({ status: 'success', data: { upserted: upsert.length, removed: remove.length } });
   });
 
+  replaceGraph = asyncHandler(async (req: Request, res: Response) => {
+    const { nodes = [], edges = [] } = req.body;
+    validateBatch(nodes, [], ['id']);
+    validateBatch(edges, [], ['id', 'fromNodeId', 'toNodeId']);
+    validateNodeBatch(nodes);
+    validateEdgeBatch(edges);
+    const versionId = req.params.versionId as string;
+    await graphService.replaceGraph(versionId, nodes, edges);
+    res.json({ status: 'success', data: { nodeCount: nodes.length, edgeCount: edges.length } });
+  });
+
   validate = asyncHandler(async (req: Request, res: Response) => {
     const versionId = req.params.versionId as string;
     const { validation, remapPlan } = await versionService.getVersionDetail(versionId);

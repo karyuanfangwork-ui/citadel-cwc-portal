@@ -142,6 +142,10 @@ export const workflowVersionService = {
     return unwrap(await apiClient.patch<ApiEnvelope<{ upserted: number; removed: number }>>(`/admin/workflows/versions/${versionId}/edges`, batch));
   },
 
+  async replaceGraph(versionId: string, graph: WorkflowGraph): Promise<{ nodeCount: number; edgeCount: number }> {
+    return unwrap(await apiClient.patch<ApiEnvelope<{ nodeCount: number; edgeCount: number }>>(`/admin/workflows/versions/${versionId}/graph`, graph));
+  },
+
   async validateVersion(versionId: string): Promise<{ validation: ValidationResult; remapPlan: RemapPlan }> {
     return unwrap(await apiClient.post<ApiEnvelope<{ validation: ValidationResult; remapPlan: RemapPlan }>>(`/admin/workflows/versions/${versionId}/validate`));
   },
