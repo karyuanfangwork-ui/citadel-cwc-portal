@@ -45,8 +45,11 @@ const DECISION_BUTTONS: { decision: ApprovalDecision; label: string; classes: st
 
 // ── Component ──────────────────────────────────────────────────────
 
-// States where approval submission is allowed (must match backend approvalAction.service.ts)
-const APPROVAL_ELIGIBLE_STATES = new Set(['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW']);
+// LOS-001 — States where approval submission is allowed. Only COMMITTEE_REVIEW
+// is eligible; the canonical submit_to_committee transition enforces readiness,
+// assessment freeze and memo lock. UNDERWRITING and CREDIT_ASSESSMENT were removed
+// because approving in those states bypassed the committee gate.
+const APPROVAL_ELIGIBLE_STATES = new Set(['COMMITTEE_REVIEW']);
 
 const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsComplete, onActionComplete }) => {
   const { user } = useAuth();

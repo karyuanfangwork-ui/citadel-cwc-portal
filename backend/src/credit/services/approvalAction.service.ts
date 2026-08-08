@@ -54,6 +54,24 @@ export function requiresBoardBandAuthority(
 }
 
 // ---------------------------------------------------------------------------
+// LOS-001 — Eligible states for approval decisions
+// ---------------------------------------------------------------------------
+
+/**
+ * LOS-001 — Approval decisions are only valid once an application has reached
+ * COMMITTEE_REVIEW.
+ *
+ * COMMITTEE_REVIEW is reachable only through the canonical `submit_to_committee`
+ * transition, which enforces submission readiness, freezes the assessment
+ * (ApplicationAssessmentResult) and locks the CA memo version. A previous
+ * version also accepted UNDERWRITING and CREDIT_ASSESSMENT and advanced the
+ * state itself, which walked the application past all three of those gates.
+ */
+export const APPROVAL_ELIGIBLE_STATES: ApplicationState[] = [
+  ApplicationState.COMMITTEE_REVIEW as ApplicationState,
+];
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -121,16 +139,13 @@ class ApprovalActionService {
       throw Object.assign(new Error('Credit application not found'), { statusCode: 404 });
     }
 
-    // Only allow approval actions on certain states
-    const approvalEligibleStates: ApplicationState[] = [
-      ApplicationState.UNDERWRITING as ApplicationState,
-      ApplicationState.CREDIT_ASSESSMENT as ApplicationState,
-      ApplicationState.COMMITTEE_REVIEW as ApplicationState,
-    ];
-
-    if (!approvalEligibleStates.includes(application.state as ApplicationState)) {
+    if (!APPROVAL_ELIGIBLE_STATES.includes(application.state as ApplicationState)) {
       throw Object.assign(
-        new Error(`Approval actions are not allowed on application in state '${application.state}'`),
+        new Error(
+          `Approval actions are not allowed on application in state '${application.state}'. ` +
+          `Submit the application to committee first using the submit_to_committee transition, ` +
+          `which validates submission readiness, freezes the assessment and locks the memo.`,
+        ),
         { statusCode: 400 },
       );
     }
@@ -392,10 +407,11 @@ class ApprovalActionService {
    * Get the next state after a successful approval.
    */
   private getNextApprovedState(currentState: ApplicationState): string {
-    // Based on the state machine in creditApplication.service.ts
+    // LOS-001 — approvals only occur in COMMITTEE_REVIEW, so this is the only
+    // advancement an approval decision can produce. The former UNDERWRITING ->
+    // CREDIT_ASSESSMENT -> COMMITTEE_REVIEW entries let an approver walk the
+    // application past the canonical readiness/freeze/memo gates.
     const stateAdvancements: Record<string, string> = {
-      UNDERWRITING: 'CREDIT_ASSESSMENT',
-      CREDIT_ASSESSMENT: 'COMMITTEE_REVIEW',
       COMMITTEE_REVIEW: 'APPROVED',
     };
     return stateAdvancements[currentState] ?? currentState;
