@@ -9,6 +9,8 @@ import StateBadge from './StateBadge';
 import RiskBadge from './RiskBadge';
 import { useAuth } from '../../context/AuthContext';
 import { getBorrowerDisplayName } from './BorrowerSummaryCard';
+import { validateApprovalDecision, buildApprovalPayload, COMMENT_MIN_LENGTH } from './approvalDecision';
+import toast from 'react-hot-toast';
 
 interface ApprovalQuickViewProps {
   open: boolean;
@@ -27,6 +29,8 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [decisionLoading, setDecisionLoading] = useState(false);
   const [comment, setComment] = useState('');
+  const [rejectionReasonCode, setRejectionReasonCode] = useState('');
+  const [rejectionReasonCodes, setRejectionReasonCodes] = useState<{ value: string; label: string }[]>([]);
   const [showDecision, setShowDecision] = useState<ApprovalDecision | null>(null);
 
   const fetchDetail = useCallback(async () => {
@@ -56,6 +60,14 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
     }
   }, [open, application, fetchDetail]);
 
+  // LOS-012 — Load rejection reason codes when REJECT is selected
+  useEffect(() => {
+    if (showDecision !== 'REJECT' || rejectionReasonCodes.length > 0) return;
+    creditService.listRejectionReasonCodes?.()
+      .then(setRejectionReasonCodes)
+      .catch(() => setRejectionReasonCodes([]));
+  }, [showDecision, rejectionReasonCodes.length]);
+
   // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -73,15 +85,19 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
 
   const handleSubmitDecision = async (decision: ApprovalDecision) => {
     if (!application) return;
+    const input = { decision, comment, rejectionReasonCode };
+    const validationError = validateApprovalDecision(input);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setDecisionLoading(true);
     try {
-      await creditService.submitApproval(application.id, {
-        decision,
-        comment: comment.trim() || undefined,
-      });
+      await creditService.submitApproval(application.id, buildApprovalPayload(input));
       onDecision?.(application.id, decision);
       setShowDecision(null);
       setComment('');
+      setRejectionReasonCode('');
       onClose();
     } catch (e) {
       console.error('Decision failed', e);
@@ -333,6 +349,19 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
                 {showDecision === 'REJECT' && 'Reject this application — a reason is required'}
                 {showDecision === 'RETURN' && 'Return to analyst for more work — a reason is required'}
               </p>
+              {showDecision === 'REJECT' && (
+                <select
+                  value={rejectionReasonCode}
+                  onChange={(e) => setRejectionReasonCode(e.target.value)}
+                  aria-label="Rejection reason code"
+                  className="w-full mb-2 rounded border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">Select a rejection reason…</option>
+                  {rejectionReasonCodes.map((rc) => (
+                    <option key={rc.value} value={rc.value}>{rc.label}</option>
+                  ))}
+                </select>
+              )}
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -347,7 +376,7 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
               <div className="flex gap-2">
                 <button
                   onClick={() => handleSubmitDecision(showDecision)}
-                  disabled={decisionLoading || (showDecision !== 'APPROVE' && !comment.trim())}
+                  disabled={decisionLoading || validateApprovalDecision({ decision: showDecision as ApprovalDecision, comment, rejectionReasonCode }) !== null}
                   className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 ${
                     showDecision === 'APPROVE' ? 'bg-green-600 hover:bg-green-700' :
                     showDecision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' :

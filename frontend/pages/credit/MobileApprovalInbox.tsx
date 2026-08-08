@@ -6,6 +6,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { hasPermission } from '../../src/utils/permissions';
 import toast from 'react-hot-toast';
 import StateBadge from '../../src/components/ui/StateBadge';
+import { validateApprovalDecision, buildApprovalPayload, COMMENT_MIN_LENGTH } from '../../src/components/credit/approvalDecision';
 
 /**
  * MobileApprovalInbox — Mobile-optimised approval inbox (§3.3).
@@ -40,9 +41,10 @@ const MobileApprovalInbox: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decision, setDecision] = useState<ApprovalDecision | ''>('');
   const [comment, setComment] = useState('');
+  const [rejectionReasonCode, setRejectionReasonCode] = useState('');
+  const [rejectionReasonCodes, setRejectionReasonCodes] = useState<{ value: string; label: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false); // for REJECT / CONDITIONAL
-  const COMMENT_MIN_LENGTH = 10;
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -82,15 +84,30 @@ const MobileApprovalInbox: React.FC = () => {
 
   const handleQuickDecision = async (d: ApprovalDecision) => {
     if (!selectedId || !canApprove) return;
-    if (d === 'REJECT' || d === 'CONDITIONAL') {
+    // LOS-012 — CONDITIONAL requires a condition editor, so route to full panel
+    if (d === 'CONDITIONAL') {
+      navigate(`/credit/applications/${selectedId}?tab=approvals`);
+      return;
+    }
+    if (d === 'REJECT') {
       setDecision(d);
+      // Load rejection reason codes
+      if (rejectionReasonCodes.length === 0) {
+        creditService.listRejectionReasonCodes?.()
+          .then(setRejectionReasonCodes)
+          .catch(() => setRejectionReasonCodes([]));
+      }
       setShowCommentModal(true);
       return;
     }
+    // APPROVE / RETURN — quick path with validation
+    const input = { decision: d, comment: '' };
+    const validationError = validateApprovalDecision(input);
+    if (validationError) { toast.error(validationError); return; }
     setSubmitting(true);
     try {
-      await creditService.submitApproval(selectedId, { decision: d });
-      toast.success(d === 'APPROVE' ? 'Approved' : 'Deferred');
+      await creditService.submitApproval(selectedId, buildApprovalPayload(input));
+      toast.success(d === 'APPROVE' ? 'Approved' : 'Returned');
       setSelectedId(null);
       fetchInbox();
     } catch (e) {
@@ -101,13 +118,17 @@ const MobileApprovalInbox: React.FC = () => {
   };
 
   const handleCommentSubmit = async () => {
-    if (!selectedId || !decision || comment.trim().length < COMMENT_MIN_LENGTH) return;
+    if (!selectedId || !decision) return;
+    const input = { decision: decision as ApprovalDecision, comment, rejectionReasonCode };
+    const validationError = validateApprovalDecision(input);
+    if (validationError) { toast.error(validationError); return; }
     setSubmitting(true);
     try {
-      await creditService.submitApproval(selectedId, { decision, comment: comment.trim() });
+      await creditService.submitApproval(selectedId, buildApprovalPayload(input));
       toast.success(decision === 'REJECT' ? 'Rejected' : 'Conditionally Approved');
       setShowCommentModal(false);
       setComment('');
+      setRejectionReasonCode('');
       setDecision('');
       setSelectedId(null);
       fetchInbox();
@@ -319,6 +340,19 @@ const MobileApprovalInbox: React.FC = () => {
             <h3 className="text-base font-bold text-gray-900 mb-3">
               {decision === 'REJECT' ? 'Reason for rejection *' : 'Reason for conditional approval *'}
             </h3>
+            {decision === 'REJECT' && (
+              <select
+                value={rejectionReasonCode}
+                onChange={(e) => setRejectionReasonCode(e.target.value)}
+                aria-label="Rejection reason code"
+                className="w-full mb-2 rounded border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">Select a rejection reason…</option>
+                {rejectionReasonCodes.map((rc) => (
+                  <option key={rc.value} value={rc.value}>{rc.label}</option>
+                ))}
+              </select>
+            )}
             <textarea
               value={comment}
               onChange={e => setComment(e.target.value)}
@@ -346,7 +380,7 @@ const MobileApprovalInbox: React.FC = () => {
               </button>
               <button
                 onClick={handleCommentSubmit}
-                disabled={comment.trim().length < COMMENT_MIN_LENGTH || submitting}
+                disabled={validateApprovalDecision({ decision: decision as ApprovalDecision, comment, rejectionReasonCode }) !== null || submitting}
                 className={`flex-1 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-50 min-h-[44px] ${
                   decision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'
                 }`}
