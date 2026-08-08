@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission, requireServiceApiKey, requireMfa } from '../../middleware/auth.middleware';
 import { requireFeatureFlag, invalidateFlagCache } from '../middleware/featureFlag.middleware';
+import { applyRmScope } from '../middleware/rmScope.middleware';
+import { requireApplicationAccess } from '../middleware/applicationAccess.middleware';
 import prisma from '../../utils/prisma';
 import { getIntegrationsStatus } from '../adapters/registry';
 
@@ -229,6 +231,13 @@ router.use('/branches', branchRoutes);
 router.use(creditDocumentRoutes);
 
 // Sprint 2 — Application routes
+// ---------------------------------------------------------------------------
+// LOS-004 — Row-level access boundary for every application-scoped route.
+// Mounted once at the parent so all nested application routers (facilities,
+// parties, scoring, collateral, risks, ECL, monitoring, ...) inherit the same
+// assertion. Non-UUID subpaths such as /applications/draft pass through.
+// ---------------------------------------------------------------------------
+router.use('/applications/:applicationId', applyRmScope(), requireApplicationAccess());
 router.use('/applications', applicationRoutes);
 router.use('/applications', applicationFacilityRoutes);
 router.use('/applications', applicationPartyRoutes);
