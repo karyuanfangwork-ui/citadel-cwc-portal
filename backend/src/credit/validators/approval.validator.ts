@@ -67,11 +67,14 @@ export const submitApprovalActionSchema = z.object({
       dueDate: z.string().optional().nullable(),
     })).optional(),
   }).superRefine((data, ctx) => {
-    // Mandatory comment for REJECT or CONDITIONAL decisions (min 10 chars)
-    if ((data.decision === 'REJECT' || data.decision === 'CONDITIONAL') && (!data.comment || data.comment.trim().length < 10)) {
+    // LOS-019 — RETURN (refer back) must carry a reason so the analyst knows
+    // what to remediate and the audit trail records why the case was returned.
+    // ApprovalChainPanel already enforces this client-side; the API did not.
+    const REASON_REQUIRED_DECISIONS = ['REJECT', 'CONDITIONAL', 'RETURN'];
+    if (REASON_REQUIRED_DECISIONS.includes(data.decision) && (!data.comment || data.comment.trim().length < 10)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Comment is required (minimum 10 characters) for REJECT and CONDITIONAL decisions',
+        message: `Comment is required (minimum 10 characters) for ${data.decision} decisions`,
         path: ['comment'],
       });
     }
