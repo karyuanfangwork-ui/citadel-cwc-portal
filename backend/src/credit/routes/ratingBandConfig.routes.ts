@@ -1,5 +1,8 @@
 /**
  * Rating Band Config + Risk Factor Matrix Routes — Phase 5 admin
+ *
+ * LOS-003: mutation routes govern credit methodology and are restricted to
+ * credit:admin. Reads remain available to any authenticated credit user.
  */
 import { Router } from 'express';
 import {
@@ -11,7 +14,8 @@ import {
   listRiskFactorMatrices,
   upsertRiskFactorMatrix,
 } from '../controllers/ratingBandConfig.controller';
-import { authenticate } from '../../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { validateUUID } from '../../middleware/uuidValidate.middleware';
 
 const router = Router();
 
@@ -21,12 +25,12 @@ router.use(authenticate);
 // Rating band config CRUD
 router.get('/', listRatingBands);
 router.get('/active', getActiveBands);
-router.post('/', createRatingBand);
-router.patch('/:id', updateRatingBand);
-router.post('/seed', seedBands);
+router.post('/', requirePermission('credit:admin'), createRatingBand);
+router.patch('/:id', requirePermission('credit:admin'), validateUUID('id'), updateRatingBand);
+router.post('/seed', requirePermission('credit:admin'), seedBands);
 
 // Risk factor matrix config
 router.get('/risk-factors', listRiskFactorMatrices);
-router.post('/risk-factors', upsertRiskFactorMatrix);
+router.post('/risk-factors', requirePermission('credit:admin'), upsertRiskFactorMatrix);
 
 export default router;
