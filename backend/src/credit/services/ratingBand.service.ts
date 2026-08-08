@@ -4,6 +4,19 @@ import { AppError } from '../../middleware/error.middleware';
 import { ratingBandSetSchema, createRatingBandSetSchema } from '../validators/ratingBandConfig.validator';
 import { AuditChainService } from './auditChain.service';
 
+/**
+ * LOS-010 — Only an ACTIVE band set affects scoring.
+ *
+ * This previously accepted `['ACTIVE', 'APPROVED']`, so a set that had been
+ * approved but never deliberately activated already changed live ratings.
+ * Activation is the step that makes a methodology effective and it must be the
+ * only thing scoring reads.
+ */
+export const EFFECTIVE_BAND_STATUSES: string[] = ['ACTIVE'];
+
+/** Only a DRAFT band may be edited in place; anything further requires the lifecycle. */
+export const MUTABLE_BAND_STATUSES: string[] = ['DRAFT'];
+
 export interface RatingBand {
   scoreMin: number;
   scoreMax: number;
@@ -41,7 +54,7 @@ class RatingBandService {
     const now = new Date();
     const bands = await prisma.ratingBandConfig.findMany({
       where: {
-        status: { in: ['ACTIVE', 'APPROVED'] },
+        status: { in: EFFECTIVE_BAND_STATUSES },
         effectiveFrom: { lte: now },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
       },
