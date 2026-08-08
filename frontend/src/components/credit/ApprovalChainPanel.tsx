@@ -10,6 +10,7 @@ import { hasPermission } from '../../utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../utils/errorMessages';
 import { formatDateTime } from '../../../pages/credit/creditUtils';
+import { validateApprovalDecision, buildApprovalPayload } from './approvalDecision';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -109,40 +110,21 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
 
   const handleSubmit = async () => {
     if (!selectedDecision || !application.id) return;
-    if (commentRequired && !comment.trim()) {
-      toast.error('Comment is required for this approval tier');
-      return;
-    }
-    // Sprint 4: 10-char minimum comment for REJECT / CONDITIONAL
-    const COMMENT_MIN_LENGTH = 10;
-    const needsMinComment = selectedDecision === 'REJECT' || selectedDecision === 'CONDITIONAL';
-    if (needsMinComment && comment.trim().length < COMMENT_MIN_LENGTH) {
-      toast.error(`Comment must be at least ${COMMENT_MIN_LENGTH} characters for ${selectedDecision === 'REJECT' ? 'rejection' : 'conditional approval'}`);
-      return;
-    }
-    // §2.7 — Require rejection reason code when rejecting
-    if (selectedDecision === 'REJECT' && !rejectionReasonCode) {
-      toast.error('Rejection reason code is required');
-      return;
-    }
-    // Refer Back requires a reason (comment)
-    if (selectedDecision === 'RETURN' && !comment.trim()) {
-      toast.error('A reason is required when referring an application back');
-      return;
-    }
-    // §2.5 — Require at least one condition for CONDITIONAL approval
-    if (selectedDecision === 'CONDITIONAL' && conditions.length === 0) {
-      toast.error('At least one condition is required for conditional approval');
+    const input = {
+      decision: selectedDecision,
+      comment,
+      rejectionReasonCode,
+      conditions,
+      requireCommentForTier: commentRequired,
+    };
+    const validationError = validateApprovalDecision(input);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     setSubmitting(true);
     try {
-      await creditService.submitApproval(application.id, {
-        decision: selectedDecision,
-        comment: comment.trim() || undefined,
-        rejectionReasonCode: selectedDecision === 'REJECT' ? rejectionReasonCode : undefined,
-        conditions: selectedDecision === 'CONDITIONAL' ? conditions : undefined,
-      });
+      await creditService.submitApproval(application.id, buildApprovalPayload(input));
       toast.success('Decision submitted');
       setSelectedDecision('');
       setComment('');
