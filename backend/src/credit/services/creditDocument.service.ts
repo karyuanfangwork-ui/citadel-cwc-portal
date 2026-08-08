@@ -369,6 +369,20 @@ class CreditDocumentService {
       return null;
     }
 
+    // LOS-007 — a document replacement rewrites the file behind an existing
+    // decision, so it needs the same parent-state gate as an edit. Without this
+    // the file under an APPROVED application could be swapped silently.
+    if (existing.applicationId) {
+      const app = await prisma.creditApplication.findUnique({
+        where: { id: existing.applicationId },
+        select: { state: true },
+      });
+      if (!app) {
+        throw new AppError(`Application not found: ${existing.applicationId}`, 404);
+      }
+      requireEditableState(app.state, 'replace document');
+    }
+
     const currentMaxVersion = existing.versions.length > 0 ? existing.versions[0].version : 0;
     const nextVersion = currentMaxVersion + 1;
 

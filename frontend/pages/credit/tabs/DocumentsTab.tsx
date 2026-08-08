@@ -6,6 +6,12 @@ import EmptyState from '../../../src/components/EmptyState';
 import BulkDocumentUpload from '../../../src/components/credit/BulkDocumentUpload';
 import { getBorrowerSegment, SEGMENT_LABELS, SEGMENT_COLORS, BorrowerSegment } from '../creditUtils';
 
+// LOS-007 — states in which document deletion is allowed (mirrors backend DELETABLE_STATES)
+const DOC_DELETABLE_STATES = new Set([
+  'DRAFT', 'KYC_REVIEW', 'COMPLIANCE_HOLD', 'KYC_APPROVED',
+  'UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW',
+]);
+
 const ALL_DOC_CLASSES: { value: string; label: string; borrowerTypes?: string[]; segments?: BorrowerSegment[] }[] = [
   { value: 'NRIC_PASSPORT', label: 'NRIC / Passport', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'], segments: ['retail', 'sme'] },
   { value: 'PAYSLIP', label: 'Payslip (latest 3 months)', borrowerTypes: ['INDIVIDUAL'], segments: ['retail'] },
@@ -429,14 +435,17 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
                     >
                       <span className="material-symbols-outlined text-base">download</span>
                     </button>
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      aria-label="Delete document"
-                      className="text-text-secondary hover:text-red-500 transition-colors"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      <span className="material-symbols-outlined text-base">delete</span>
-                    </button>
+                    {/* LOS-007 — hide delete for post-decision states */}
+                    {DOC_DELETABLE_STATES.has(app.state) && (
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        aria-label="Delete document"
+                        className="text-text-secondary hover:text-red-500 transition-colors"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        <span className="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    )}
                   </div>
                   {/* Rejection reason input */}
                   {rejectingId === doc.id && (

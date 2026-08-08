@@ -22,8 +22,13 @@ const EDITABLE_STATES: ApplicationState[] = [
 ];
 
 /**
- * States in which document deletion is allowed — broader than edits because
- * approved applications may still need cleanup of stale documents.
+ * States in which document deletion is allowed.
+ *
+ * LOS-007: this list previously included APPROVED, OFFER and ACCEPTED to permit
+ * "cleanup of stale documents". That is precisely the window in which documents
+ * are the retained evidence behind a credit decision — removing one leaves the
+ * decision unsupported. Post-decision corrections must go through a controlled
+ * supersession (upload a new version), never a delete.
  */
 const DELETABLE_STATES: ApplicationState[] = [
   'DRAFT',
@@ -33,9 +38,6 @@ const DELETABLE_STATES: ApplicationState[] = [
   'UNDERWRITING',
   'CREDIT_ASSESSMENT',
   'COMMITTEE_REVIEW',
-  'APPROVED',
-  'OFFER',
-  'ACCEPTED',
 ];
 
 /**
@@ -56,7 +58,7 @@ export function requireEditableState(state: ApplicationState, action: string): v
 export function requireDeletableState(state: ApplicationState, action: string): void {
   if (!DELETABLE_STATES.includes(state)) {
     throw new AppError(
-      `Cannot ${action} — application is in ${state} state. Deletion is only allowed in DRAFT, KYC_REVIEW, COMPLIANCE_HOLD, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, COMMITTEE_REVIEW, APPROVED, OFFER, or ACCEPTED states.`,
+      `Cannot ${action} — application is in ${state} state. Deletion is only allowed in DRAFT, KYC_REVIEW, COMPLIANCE_HOLD, KYC_APPROVED, UNDERWRITING, CREDIT_ASSESSMENT, or COMMITTEE_REVIEW states.`,
       400,
     );
   }
