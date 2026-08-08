@@ -266,21 +266,30 @@ describe('P1.1 — RBAC Permission Boundaries', () => {
   // 6. Security flags
   // ──────────────────────────────────────────────────────────────────────
   describe('Security flags', () => {
-    it('ratingBandConfig routes are flagged as unauthenticated (P1.6)', () => {
-      // This test documents the known security issue that ratingBandConfig
-      // routes have no authentication. The fix belongs in P1.6 (Scoring Governance).
-      // For now, this test serves as a reminder that this issue exists.
-      const unauthenticatedRoutes = [
-        'GET /rating-band-configs',
-        'GET /rating-band-configs/active',
-        'POST /rating-band-configs',
-        'PATCH /rating-band-configs/:id',
-        'POST /rating-band-configs/seed',
-        'GET /rating-band-configs/risk-factors',
-        'POST /rating-band-configs/risk-factors',
+    it('ratingBandConfig mutation routes require credit:admin (LOS-003 regression)', () => {
+      // Methodology configuration is a maker-checker surface: any user able to
+      // rewrite score->rating bands can change every credit decision outcome.
+      // Enforcement lives in ratingBandConfig.routes.ts and is proven end-to-end
+      // in routes/__tests__/ratingBandConfigRbac.test.ts. This assertion records
+      // the intended policy so a future route addition is a visible change.
+      const adminOnlyRoutes = [
+        'POST /rating-bands',
+        'PATCH /rating-bands/:id',
+        'POST /rating-bands/seed',
+        'POST /rating-bands/risk-factors',
       ];
-      // This is a known issue — these routes should require credit:admin
-      expect(unauthenticatedRoutes.length).toBe(7);
+      const readOnlyRoutes = [
+        'GET /rating-bands',
+        'GET /rating-bands/active',
+        'GET /rating-bands/risk-factors',
+      ];
+      expect(adminOnlyRoutes).toHaveLength(4);
+      expect(readOnlyRoutes).toHaveLength(3);
+      // credit:admin must not be held by non-admin credit roles
+      expect(ROLE_PERMISSIONS.CREDIT_RM).not.toContain('credit:admin');
+      expect(ROLE_PERMISSIONS.CREDIT_ANALYST).not.toContain('credit:admin');
+      expect(ROLE_PERMISSIONS.CREDIT_MANAGER).not.toContain('credit:admin');
+      expect(ROLE_PERMISSIONS.CREDIT_ADMIN).toContain('credit:admin');
     });
 
     it('disbursement SOD: approve and disburse are separate permissions', () => {
