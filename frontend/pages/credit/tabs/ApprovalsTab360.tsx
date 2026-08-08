@@ -3,6 +3,8 @@ import { CreditApplication } from '../../../src/services/credit.service';
 import ApprovalsTab from './sections/ApprovalsTab';
 import SignoffTab from './SignoffTab';
 import ApprovalMatrixApplicabilityPanel from '../../../src/components/credit/ApprovalMatrixApplicabilityPanel';
+import RecommendationSection from '../../../src/components/credit/RecommendationSection';
+import { useAuth } from '../../../src/context/AuthContext';
 
 interface ApprovalsTab360Props {
   app: CreditApplication;
@@ -21,8 +23,26 @@ const sectionHeaderStyle: React.CSSProperties = {
 };
 
 const ApprovalsTab360: React.FC<ApprovalsTab360Props> = ({ app, onRefresh, onUpdated }) => {
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? '';
+
   return (
     <div className="space-y-8">
+      <section>
+        <h3 style={sectionHeaderStyle}>
+          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+            recommend
+          </span>
+          Recommendation
+        </h3>
+        <RecommendationSection
+          applicationId={app.id}
+          applicationState={app.state}
+          currentUserId={currentUserId}
+          onChanged={onRefresh}
+        />
+      </section>
+
       <section>
         <h3 style={sectionHeaderStyle}>
           <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
