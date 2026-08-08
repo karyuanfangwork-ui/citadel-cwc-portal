@@ -15,7 +15,8 @@ import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { ScoreOverrideStatus } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
-import { notchDelta, MATERIAL_OVERRIDE_NOTCHES } from './ratingScale';
+import { notchDelta, MATERIAL_OVERRIDE_NOTCHES, isKnownRating } from './ratingScale';
+import { AppError } from '../../middleware/error.middleware';
 
 // Minimum notch delta that requires dual approval.
 const DUAL_APPROVAL_THRESHOLD = MATERIAL_OVERRIDE_NOTCHES;
@@ -35,18 +36,66 @@ export function calculateNotchDelta(originalRating: string, overrideRating: stri
 /**
  * Request a score override. If the delta is < 2 notches, auto-approve.
  * If ≥ 2, require a second approver (mark PENDING_SECOND_APPROVAL).
+ *
+ * LOS-008 — originalRating and scoreRunId are now derived from the latest
+ * CreditScoreRun, never accepted from the client. Previously originalRating
+ * arrived in the request body (allowing the caller to choose the notch delta)
+ * and scoreRunId was never persisted (making every approved override inert).
  */
 export async function requestScoreOverride(params: {
   applicationId: string;
-  originalRating: string;
   overrideRating: string;
   justification: string;
   approverId: string;
-}): Promise<{ id: string; status: ScoreOverrideStatus; notchDelta: number; requiresSecondApproval: boolean }> {
-  const { applicationId, originalRating, overrideRating, justification, approverId } = params;
+}): Promise<{
+  id: string;
+  status: ScoreOverrideStatus;
+  notchDelta: number;
+  requiresSecondApproval: boolean;
+  scoreRunId: string;
+  originalRating: string;
+}> {
+  const { applicationId, overrideRating, justification, approverId } = params;
 
-  const notchDelta = calculateNotchDelta(originalRating, overrideRating);
-  const requiresSecondApproval = notchDelta >= DUAL_APPROVAL_THRESHOLD;
+  // LOS-008 — Derive the subject of the override from the server, never the
+  // client. Previously `originalRating` arrived in the request body, so the
+  // caller chose the notch delta and therefore whether dual approval applied;
+  // and `scoreRunId` was never persisted at all, which made every approved
+  // override inert (resolveScoreOverride only applies when scoreRunId is set).
+  const latestRun = await prisma.creditScoreRun.findFirst({
+    where: { applicationId },
+    orderBy: { runAt: 'desc' },
+    select: { id: true, riskRating: true },
+  });
+
+  if (!latestRun) {
+    throw new AppError(
+      'Cannot override a rating before the application has been scored.',
+      400,
+      { code: 'SCORE_OVERRIDE_NO_RUN' },
+    );
+  }
+
+  if (!isKnownRating(overrideRating)) {
+    throw new AppError(
+      `Unknown override rating '${overrideRating}'.`,
+      400,
+      { code: 'SCORE_OVERRIDE_INVALID_RATING' },
+    );
+  }
+
+  const originalRating = latestRun.riskRating as string;
+
+  if (originalRating === overrideRating) {
+    throw new AppError(
+      'The override rating matches the current rating — nothing to override.',
+      400,
+      { code: 'SCORE_OVERRIDE_NO_CHANGE' },
+    );
+  }
+
+  const nd = notchDelta(originalRating, overrideRating);
+  const requiresSecondApproval = nd >= DUAL_APPROVAL_THRESHOLD;
 
   const status: ScoreOverrideStatus = requiresSecondApproval
     ? ScoreOverrideStatus.PENDING_SECOND_APPROVAL
@@ -57,11 +106,12 @@ export async function requestScoreOverride(params: {
       applicationId,
       originalRating,
       overrideRating,
-      notchDelta,
+      notchDelta: nd,
       justification,
       firstApproverId: approverId,
       firstApprovedAt: new Date(),
       status,
+      scoreRunId: latestRun.id,
       ...(requiresSecondApproval ? {} : { secondApproverId: approverId, secondApprovedAt: new Date() }),
     },
   });
@@ -71,21 +121,23 @@ export async function requestScoreOverride(params: {
     applicationId,
     'SCORE_OVERRIDE_REQUESTED',
     approverId,
-    `Override ${originalRating} → ${overrideRating} (Δ${notchDelta} notches)`,
+    `Override ${originalRating} → ${overrideRating} (Δ${nd} notches)`,
     originalRating,
     overrideRating,
-    { overrideId: override.id, notchDelta, requiresSecondApproval, autoApproved: !requiresSecondApproval },
+    { overrideId: override.id, notchDelta: nd, requiresSecondApproval, autoApproved: !requiresSecondApproval },
   );
 
   logger.info(
-    `[ScoreOverride] ${requiresSecondApproval ? 'PENDING second approval' : 'Auto-approved'}: ${originalRating} → ${overrideRating} (Δ${notchDelta}) for application ${applicationId}`,
+    `[ScoreOverride] ${requiresSecondApproval ? 'PENDING second approval' : 'Auto-approved'}: ${originalRating} → ${overrideRating} (Δ${nd}) for application ${applicationId}`,
   );
 
   return {
     id: override.id,
     status,
-    notchDelta,
+    notchDelta: nd,
     requiresSecondApproval,
+    scoreRunId: latestRun.id,
+    originalRating,
   };
 }
 

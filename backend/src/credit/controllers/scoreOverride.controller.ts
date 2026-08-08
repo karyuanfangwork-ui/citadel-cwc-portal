@@ -15,17 +15,17 @@ class ScoreOverrideController {
    */
   requestOverride = asyncHandler(async (req: AuthRequest, res: Response) => {
     const user = requireUser(req);
-    const { applicationId, originalRating, overrideRating, justification } = req.body;
+    // LOS-008 — originalRating is no longer accepted from the client.
+    const { applicationId, overrideRating, justification } = req.body;
 
-    if (!applicationId || !originalRating || !overrideRating) {
-      throw new AppError('applicationId, originalRating, and overrideRating are required', 400);
+    if (!applicationId || !overrideRating) {
+      throw new AppError('applicationId and overrideRating are required', 400);
     }
 
     const result = await requestScoreOverride({
       applicationId,
-      originalRating,
       overrideRating,
-      justification: justification ?? '',
+      justification,
       approverId: user.id,
     });
 

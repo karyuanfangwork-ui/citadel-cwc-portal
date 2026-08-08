@@ -10,9 +10,10 @@ import { creditScoreOverrideLimiter } from '../../middleware/rateLimit.middlewar
 const requestOverrideSchema = z.object({
   body: z.object({
     applicationId: z.string().uuid('applicationId must be a valid UUID'),
-    originalRating: z.string().min(1, 'originalRating is required').max(50),
+    // LOS-008 — originalRating is no longer accepted: it is derived from the
+    // latest CreditScoreRun so the caller cannot choose the notch delta.
     overrideRating: z.string().min(1, 'overrideRating is required').max(50),
-    justification: z.string().max(5000).optional().default(''),
+    justification: z.string().min(20, 'A justification of at least 20 characters is required'),
   }),
 });
 

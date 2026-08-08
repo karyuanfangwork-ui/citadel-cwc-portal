@@ -1576,12 +1576,31 @@ const creditService = {
     return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 
+  /**
+   * LOS-008 — Request a governed score override via the dual-approval path.
+   * The direct POST /score-runs/:id/override route is retired (410 Gone).
+   * originalRating is derived server-side from the latest CreditScoreRun.
+   */
+  async requestScoreOverride(data: {
+    applicationId: string;
+    overrideRating: string;
+    justification: string;
+  }) {
+    const res = await apiClient.post('/credit/score-overrides', data);
+    return res.data.data;
+  },
+
+  /**
+   * @deprecated Use requestScoreOverride instead. The direct override route
+   * returns 410 Gone — this method is retained only for type compatibility.
+   */
   async overrideScore(
-    scoreRunId: string,
-    data: { newRiskRating: RiskRating; overrideReason: string; overrideApprovedById: string },
+    _scoreRunId: string,
+    _data: { newRiskRating: RiskRating; overrideReason: string; overrideApprovedById: string },
   ) {
-    const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
-    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
+    throw new Error(
+      'Direct score override is retired (LOS-008). Use requestScoreOverride for the governed path.',
+    );
   },
 
   // §6.1 — Clone / Renew application
