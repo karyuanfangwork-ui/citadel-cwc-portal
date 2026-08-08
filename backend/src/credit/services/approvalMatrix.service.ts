@@ -1,16 +1,9 @@
 import prisma from '../../utils/prisma';
 import { RiskRating } from '@prisma/client';
-
-// ---------------------------------------------------------------------------
-// Risk rating ordering — AAA is best (1), D is worst (10)
-// ---------------------------------------------------------------------------
-const RATING_ORDER: Record<string, number> = {
-  AAA: 1, AA: 2, A: 3, BBB: 4, BB: 5,
-  B: 6, CCC: 7, CC: 8, C: 9, D: 10, NR: 11,
-};
+import { ratingOrdinal } from './ratingScale';
 
 export function ratingToOrdinal(r: string): number {
-  return RATING_ORDER[r] ?? 99;
+  return ratingOrdinal(r);
 }
 
 // ---------------------------------------------------------------------------

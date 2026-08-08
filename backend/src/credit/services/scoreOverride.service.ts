@@ -15,32 +15,21 @@ import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { ScoreOverrideStatus } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
+import { notchDelta, MATERIAL_OVERRIDE_NOTCHES } from './ratingScale';
 
-// Minimum notch delta that requires dual approval
-const DUAL_APPROVAL_THRESHOLD = 2;
+// Minimum notch delta that requires dual approval.
+const DUAL_APPROVAL_THRESHOLD = MATERIAL_OVERRIDE_NOTCHES;
 
 /**
- * Calculate the notch delta between two rating strings.
- * Uses the standard 20-notch scale: AAA=1, AA+=2, ..., D=20
+ * Notch delta between two ratings, on the module's single canonical scale.
+ *
+ * This previously used a local 20-notch scale with modifier grades (AA+, BBB-,
+ * ...) that this system does not issue and which omitted CC, C and NR. Deltas
+ * involving those three grades silently returned exactly the dual-approval
+ * threshold, and adjacent real grades measured as two notches.
  */
-const RATING_SCALE: Record<string, number> = {
-  AAA: 1, 'AA+': 2, AA: 3, 'AA-': 4,
-  'A+': 5, A: 6, 'A-': 7,
-  'BBB+': 8, BBB: 9, 'BBB-': 10,
-  'BB+': 11, BB: 12, 'BB-': 13,
-  'B+': 14, B: 15, 'B-': 16,
-  'CCC+': 17, CCC: 18, 'CCC-': 19,
-  D: 20,
-};
-
 export function calculateNotchDelta(originalRating: string, overrideRating: string): number {
-  const orig = RATING_SCALE[originalRating] ?? 0;
-  const over = RATING_SCALE[overrideRating] ?? 0;
-  if (orig === 0 || over === 0) {
-    // Unknown rating format — conservatively require approval
-    return DUAL_APPROVAL_THRESHOLD;
-  }
-  return Math.abs(orig - over);
+  return notchDelta(originalRating, overrideRating);
 }
 
 /**
