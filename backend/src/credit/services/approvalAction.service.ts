@@ -24,6 +24,36 @@ import {
 } from './authority.service';
 
 // ---------------------------------------------------------------------------
+// LOS-002 — Board-band trigger
+// ---------------------------------------------------------------------------
+
+/**
+ * LOS-002 — Board-band trigger.
+ *
+ * An application must go to committee/board authority when either:
+ *   - total exposure reaches RM5,000,000, or
+ *   - the effective risk rating is CC or worse.
+ *
+ * RATING_ORDER ascends from best (AAA=1) to worst (D=10, NR=11), so "CC or
+ * worse" is `ordinal >= ratingToOrdinal('CC')`. A previous version used `<=`,
+ * which inverted the rule: it caught every healthy grade AAA-CC and let the
+ * three worst grades (C, D, NR) through to single-manager approval.
+ *
+ * An unknown or missing rating yields ordinal 99 from ratingToOrdinal() and is
+ * therefore also treated as board band — unrated exposure fails safe.
+ */
+export const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000;
+
+export function requiresBoardBandAuthority(
+  totalExposure: number,
+  rating: string | null | undefined,
+): boolean {
+  const boardBandOrdinal = ratingToOrdinal('CC');
+  const currentOrdinal = ratingToOrdinal(rating ?? 'NR');
+  return totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentOrdinal >= boardBandOrdinal;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -162,13 +192,8 @@ class ApprovalActionService {
     let authorityLevel: string | null = authorityResult.authorityLevel;
     let requiredApproverCount = authorityResult.requiredApproverCount;
 
-    // P1-1 — Board-band enforcement: exposures >= RM5M or risk rating CC/worse
-    // must be approved by committee or board — never by a single manager.
-    const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000;
-    const BOARD_BAND_RATING_ORDINAL = ratingToOrdinal('CC'); // CC or worse
-    const currentRatingOrdinal = ratingToOrdinal(borrowerRating ?? 'NR');
-
-    if (totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL) {
+    // P1-1 / LOS-002 — Board-band enforcement.
+    if (requiresBoardBandAuthority(totalExposure, borrowerRating)) {
       const authorityOrdinal = AUTHORITY_HIERARCHY[authorityLevel!] ?? 0;
       if (authorityOrdinal < AUTHORITY_HIERARCHY['COMMITTEE']) {
         throw new AppError(

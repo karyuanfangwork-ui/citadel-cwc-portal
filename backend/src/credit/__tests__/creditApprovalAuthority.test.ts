@@ -26,12 +26,14 @@ import {
 } from '../services/authority.service';
 
 import { ratingToOrdinal } from '../services/approvalMatrix.service';
+import {
+  requiresBoardBandAuthority,
+  BOARD_BAND_EXPOSURE_THRESHOLD as SERVICE_BOARD_BAND_THRESHOLD,
+} from '../services/approvalAction.service';
 
 // ---------------------------------------------------------------------------
 // Test constants — mirror the thresholds used in approvalAction.service.ts
 // ---------------------------------------------------------------------------
-const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000; // RM5,000,000
-const BOARD_BAND_RATING_ORDINAL = ratingToOrdinal('CC'); // CC or worse
 const COMMITTEE_AUTHORITY_LEVEL = AUTHORITY_HIERARCHY['COMMITTEE']; // 4
 
 // Authority levels (from authority.service.ts)
@@ -201,108 +203,73 @@ describe('Duplicate approval rejection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Board-band enforcement
+// 4. Board-band enforcement — LOS-002 corrected
 // ---------------------------------------------------------------------------
 describe('Board-band enforcement', () => {
   /**
-   * From approvalAction.service.ts lines 165-180:
-   *   const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000;
-   *   const BOARD_BAND_RATING_ORDINAL = ratingToOrdinal('CC');
-   *   if (totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL) {
-   *     if (authorityOrdinal < AUTHORITY_HIERARCHY['COMMITTEE']) {
-   *       throw COMMITTEE_REQUIRED error
-   *     }
-   *   }
-   *
-   * ratingToOrdinal: AAA=1 (best), D=10 (worst), NR=11
-   * Lower ordinal = worse rating (CC=8, CCC=7, etc.)
-   * So "CC or worse" means ordinal <= 8 (since CC=8 and lower ordinal is worse... wait,
-   * actually in this system lower ordinal = BETTER rating. AAA=1 is best, D=10 is worst.
-   * So CC=8 is worse than BBB=4. "CC or worse" means ordinal >= CC's ordinal.
-   *
-   * But the code checks: currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL
-   * With BOARD_BAND_RATING_ORDINAL = ratingToOrdinal('CC') = 8
-   * So this means: ratings with ordinal <= 8 are caught.
-   * AAA(1), AA(2), A(3), BBB(4), BB(5), B(6), CCC(7), CC(8) — all of these have ordinal <= 8.
-   *
-   * Wait, that would mean ALL ratings from AAA through CC trigger the board-band?
-   * That seems wrong. Let me re-read the code...
-   *
-   * Actually, looking again: the comment says "CC or worse", and in this ordinal system,
-   * worse ratings have HIGHER ordinal numbers (D=10 > CC=8 > AAA=1).
-   * So "CC or worse" should be ordinal >= 8, not ordinal <= 8.
-   *
-   * But the code checks `currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL`.
-   * With CC=8, this means ratings with ordinal 1..8 trigger the band.
-   * That would be AAA through CC — basically everything except C and D and NR.
-   *
-   * This seems like it could be a bug, but we should test what the code ACTUALLY does,
-   * not what we wish it did. The tests should verify the actual implementation behavior.
+   * LOS-002 fix: the comparator is now `>=` (ordinal >= CC).
+   * Higher ordinal = worse credit, so "CC or worse" means ordinal >= 8.
+   * C(9), D(10), NR(11) all require committee/board authority.
+   * AAA(1)–CCC(7) below RM5m do NOT trigger on rating alone.
    */
 
   // Verify the threshold constants match the service
   it('board-band exposure threshold is RM5,000,000', () => {
-    expect(BOARD_BAND_EXPOSURE_THRESHOLD).toBe(5_000_000);
+    expect(SERVICE_BOARD_BAND_THRESHOLD).toBe(5_000_000);
   });
 
   it('board-band rating ordinal matches CC rating', () => {
-    expect(BOARD_BAND_RATING_ORDINAL).toBe(8); // CC = 8 in the ordinal system
+    expect(ratingToOrdinal('CC')).toBe(8);
   });
 
   // Exposure triggers
   it('triggers board-band for exposure exactly at RM5M threshold', () => {
-    const totalExposure = 5_000_000;
-    const currentRatingOrdinal = ratingToOrdinal('AAA'); // best rating
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    expect(triggersBand).toBe(true); // exposure hits threshold
+    expect(requiresBoardBandAuthority(5_000_000, 'AAA')).toBe(true);
   });
 
   it('triggers board-band for exposure above RM5M threshold', () => {
-    const totalExposure = 10_000_000;
-    const currentRatingOrdinal = ratingToOrdinal('AAA');
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    expect(triggersBand).toBe(true);
+    expect(requiresBoardBandAuthority(10_000_000, 'AAA')).toBe(true);
   });
 
-  it('does NOT trigger board-band for exposure below RM5M with good rating', () => {
-    const totalExposure = 4_999_999;
-    // AAA has ordinal 1, which is <= 8, so the rating condition triggers.
-    // We need a rating with ordinal > 8 to not trigger the rating condition.
-    // C=9, D=10, NR=11 — these are > 8.
-    // But that's "worse than CC", which should trigger the band.
-    // The <= check means AAA through CC triggers, C/D/NR does NOT trigger on rating.
-    // For exposure < 5M and rating > CC ordinal: no trigger.
-    const currentRatingOrdinal = ratingToOrdinal('C'); // ordinal 9, which is > 8
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    // exposure is below threshold AND C rating (9 > 8) doesn't satisfy <= condition
-    expect(triggersBand).toBe(false);
+  it('does NOT trigger board-band for exposure below RM5M with a good rating', () => {
+    expect(requiresBoardBandAuthority(4_999_999, 'AAA')).toBe(false);
   });
 
-  // Rating triggers (testing what the code actually does with <=)
+  // Rating triggers (LOS-002 corrected: ordinal >= CC)
   it('triggers board-band for CC rating even with exposure below RM5M', () => {
-    const totalExposure = 1_000_000;
-    const currentRatingOrdinal = ratingToOrdinal('CC'); // ordinal 8
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    expect(triggersBand).toBe(true);
+    expect(requiresBoardBandAuthority(1_000_000, 'CC')).toBe(true);
   });
 
   it('triggers board-band for D rating (worst) regardless of exposure', () => {
-    const totalExposure = 100; // tiny exposure
-    const currentRatingOrdinal = ratingToOrdinal('D'); // ordinal 10
-    // D=10, and 10 <= 8 is FALSE — so under the current code, D does NOT trigger
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    // This reveals the potential bug: D (worse than CC) does NOT trigger the board-band
-    // because the code uses <= instead of >=.
-    // We test the ACTUAL behavior; this test documents it.
-    expect(triggersBand).toBe(false); // Bug: D should trigger but doesn't due to <= vs >=
+    expect(requiresBoardBandAuthority(100, 'D')).toBe(true);
   });
 
-  it('triggers board-band for AAA rating (best) even with low exposure — because ordinal 1 <= 8', () => {
-    const totalExposure = 100;
-    const currentRatingOrdinal = ratingToOrdinal('AAA'); // ordinal 1
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    // Under the current code, even AAA (ordinal 1) triggers because 1 <= 8
-    expect(triggersBand).toBe(true);
+  it('triggers board-band for C rating with low exposure', () => {
+    expect(requiresBoardBandAuthority(100, 'C')).toBe(true);
+  });
+
+  it('triggers board-band for NR (not rated) with low exposure', () => {
+    expect(requiresBoardBandAuthority(100, 'NR')).toBe(true);
+  });
+
+  it('does NOT trigger board-band for AAA rating with low exposure', () => {
+    expect(requiresBoardBandAuthority(100, 'AAA')).toBe(false);
+  });
+
+  it('does NOT trigger board-band for BBB rating with low exposure', () => {
+    expect(requiresBoardBandAuthority(100, 'BBB')).toBe(false);
+  });
+
+  it('does NOT trigger board-band for CCC rating with low exposure', () => {
+    expect(requiresBoardBandAuthority(100, 'CCC')).toBe(false);
+  });
+
+  it('treats an unknown rating conservatively as board band', () => {
+    expect(requiresBoardBandAuthority(100, 'UNKNOWN')).toBe(true);
+  });
+
+  it('treats a null rating conservatively as board band', () => {
+    expect(requiresBoardBandAuthority(100, null)).toBe(true);
   });
 
   // Authority enforcement within board-band
@@ -328,15 +295,9 @@ describe('Board-band enforcement', () => {
 
   // Combined: full board-band check logic
   it('rejects approval from MANAGER for RM5M+ exposure (below COMMITTEE)', () => {
-    const totalExposure = 5_000_000;
-    const borrowerRating = 'BB'; // ordinal 5
-    const authorityLevel = 'MANAGER'; // level 2
-
-    const currentRatingOrdinal = ratingToOrdinal(borrowerRating);
-    const triggersBand = totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL;
-    const authorityOrdinal = AUTHORITY_HIERARCHY[authorityLevel] ?? 0;
+    const triggersBand = requiresBoardBandAuthority(5_000_000, 'BB');
+    const authorityOrdinal = AUTHORITY_HIERARCHY['MANAGER']; // 2
     const blockedByBand = triggersBand && authorityOrdinal < COMMITTEE_AUTHORITY_LEVEL;
-
     expect(triggersBand).toBe(true);
     expect(blockedByBand).toBe(true);
   });
