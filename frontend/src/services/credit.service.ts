@@ -31,6 +31,36 @@ export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY'
 
 export type ApprovalDecision = 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE' | 'CONDITIONAL';
 
+// ── Credit Recommendation (P2.3) ────────────────────────────────────────────
+// Backend: backend/src/credit/services/creditRecommendation.service.ts
+export type RecommendationStatus = 'DRAFT' | 'SUBMITTED' | 'ACKNOWLEDGED' | 'SUPERSEDED';
+export type RecommendationType = 'APPROVE' | 'CONDITIONAL' | 'REJECT';
+
+export interface CreditRecommendation {
+  id: string;
+  applicationId: string;
+  authorId: string;
+  recommendationType: RecommendationType;
+  status: RecommendationStatus;
+  recommendedAmount?: number | null;
+  recommendedTenorMonths?: number | null;
+  pricingTerms?: Record<string, unknown> | null;
+  conditions?: string | null;
+  rationale?: string | null;
+  submittedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecommendationDraftInput {
+  recommendationType: RecommendationType;
+  recommendedAmount?: number | null;
+  recommendedTenorMonths?: number | null;
+  pricingTerms?: Record<string, unknown> | null;
+  conditions?: string | null;
+  rationale?: string | null;
+}
+
 // §2.8 — AML Rescreen Event types
 export type AmlRescreenOutcome = 'CLEAR' | 'POTENTIAL_HIT' | 'CONFIRMED_HIT' | 'FALSE_POSITIVE';
 export type AmlRescreenAction = 'NO_ACTION' | 'ESCALATED_TO_COMPLIANCE' | 'RELATIONSHIP_EXITED' | 'FILED_STR';
@@ -3391,5 +3421,67 @@ export const scoreStatusApi = {
   rescore: async (applicationId: string): Promise<{ scoreRunId: string; riskRating: string; totalScore: number }> => {
     const res = await apiClient.post(`/credit/applications/${applicationId}/rescore`);
     return res.data.data as { scoreRunId: string; riskRating: string; totalScore: number };
+  },
+};
+
+// ── Credit Recommendation lifecycle (LOS-005) ──────────────────────────────
+// A submitted recommendation is a hard gate on committee submission
+// (submissionReadiness.service.ts Check 13), so these endpoints are on the
+// critical path to a decision — not an optional extra.
+
+export const creditRecommendationApi = {
+  /** Create a new DRAFT recommendation. */
+  async createRecommendation(applicationId: string, data: RecommendationDraftInput): Promise<CreditRecommendation> {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/recommendations`, {
+      applicationId,
+      ...data,
+    });
+    return res.data.data;
+  },
+
+  /** List all recommendations for an application (includes superseded ones). */
+  async listRecommendations(applicationId: string): Promise<CreditRecommendation[]> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/recommendations`);
+    return res.data.data ?? [];
+  },
+
+  /** Get the current (latest submitted/acknowledged) recommendation, or null. */
+  async getCurrentRecommendation(applicationId: string): Promise<CreditRecommendation | null> {
+    try {
+      const res = await apiClient.get(`/credit/applications/${applicationId}/recommendations/current`);
+      return res.data.data ?? null;
+    } catch (e: any) {
+      if (e?.response?.status === 404) return null;
+      throw e;
+    }
+  },
+
+  /** Update a DRAFT recommendation (author only). */
+  async updateRecommendationDraft(
+    applicationId: string,
+    recommendationId: string,
+    data: Partial<RecommendationDraftInput>,
+  ): Promise<CreditRecommendation> {
+    const res = await apiClient.patch(
+      `/credit/applications/${applicationId}/recommendations/${recommendationId}`,
+      data,
+    );
+    return res.data.data;
+  },
+
+  /** Submit a DRAFT recommendation (author only, supersedes previous SUBMITTED). */
+  async submitRecommendation(applicationId: string, recommendationId: string): Promise<CreditRecommendation> {
+    const res = await apiClient.post(
+      `/credit/applications/${applicationId}/recommendations/${recommendationId}/submit`,
+    );
+    return res.data.data;
+  },
+
+  /** Acknowledge a submitted recommendation (committee action). */
+  async acknowledgeRecommendation(applicationId: string, recommendationId: string): Promise<CreditRecommendation> {
+    const res = await apiClient.post(
+      `/credit/applications/${applicationId}/recommendations/${recommendationId}/acknowledge`,
+    );
+    return res.data.data;
   },
 };
