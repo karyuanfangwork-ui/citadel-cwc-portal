@@ -4,6 +4,29 @@ import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 import { getTemplateForType } from '../constants/financialStatementTemplates';
 import { recalcScore } from './recalc.service';
+import { AppError } from '../../middleware/error.middleware';
+
+// ---------------------------------------------------------------------------
+// LOS-006 — Statement immutability guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Statuses in which a financial statement's figures may still change.
+ * Once REVIEWED/APPROVED the statement is decision evidence: the score, memo and
+ * approval pack all reference it, so amendments must create a new statement
+ * version rather than mutating the reviewed one.
+ */
+export const MUTABLE_STATEMENT_STATUSES: string[] = ['DRAFT'];
+
+export function assertStatementMutable(status: string, action: string): void {
+  if (!MUTABLE_STATEMENT_STATUSES.includes(status)) {
+    throw new AppError(
+      `Cannot ${action} — the financial statement is ${status}. ` +
+      `Approved figures are decision evidence; create a new statement to record an amendment.`,
+      400,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,8 +46,8 @@ export interface UpdateStatementData {
   fiscalYearEnd?: string;
   statementType?: string;
   currency?: string;
-  reviewedById?: string | null;
-  status?: string;
+  // LOS-006 — status and reviewedById removed from generic PATCH;
+  // use POST /financials/:id/review (credit:approve) instead.
   // CA Memo Phase 3 — Section 12
   auditorName?: string | null;
   isQualified?: boolean | null;
@@ -389,12 +412,8 @@ class FinancialService {
     if (data.fiscalYearEnd !== undefined) updateData.fiscalYearEnd = new Date(data.fiscalYearEnd);
     if (data.statementType !== undefined) updateData.statementType = data.statementType as any;
     if (data.currency !== undefined) updateData.currency = data.currency as any;
-    if (data.status !== undefined) updateData.status = data.status as any;
-    if (data.reviewedById !== undefined) {
-      updateData.reviewedBy = data.reviewedById
-        ? { connect: { id: data.reviewedById } }
-        : { disconnect: true };
-    }
+    // LOS-006 — status and reviewedById are no longer set via generic PATCH.
+    // Use the review endpoint (POST /financials/:id/review) for governance transitions.
     if (data.auditorName !== undefined) updateData.auditorName = data.auditorName;
     if (data.isQualified !== undefined) updateData.isQualified = data.isQualified;
     if (data.qualificationNotes !== undefined) updateData.qualificationNotes = data.qualificationNotes;
@@ -457,6 +476,10 @@ class FinancialService {
    * existing items are updated.
    */
   async upsertLineItems(statementId: string, items: LineItemInput[]) {
+    // LOS-006 — block line-item mutations on reviewed/approved statements
+    const stmt = await prisma.financialStatement.findFirst({ where: { id: statementId, deletedAt: null } });
+    if (stmt) assertStatementMutable(stmt.status, 'edit line items');
+
     const operations = items.map((item) =>
       prisma.financialLineItem.upsert({
         where: {
@@ -494,6 +517,10 @@ class FinancialService {
    * Delete specific line items by key.
    */
   async deleteLineItems(statementId: string, lineKeys: string[]) {
+    // LOS-006 — block line-item mutations on reviewed/approved statements
+    const stmt = await prisma.financialStatement.findFirst({ where: { id: statementId, deletedAt: null } });
+    if (stmt) assertStatementMutable(stmt.status, 'delete line items');
+
     return prisma.financialLineItem.deleteMany({
       where: {
         statementId,
@@ -511,6 +538,9 @@ class FinancialService {
       where: { id: statementId, deletedAt: null },
     });
     if (!stmt) return null;
+
+    // LOS-006 — block line-item mutations on reviewed/approved statements
+    assertStatementMutable(stmt.status, 'add line items');
 
     // Find the current max displayOrder to append at the end
     const maxOrder = await prisma.financialLineItem.aggregate({

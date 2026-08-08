@@ -101,7 +101,7 @@ describe('Financial Statement Templates & Add Row (F4)', () => {
 
   describe('addLine — single row add', () => {
     it('creates a new line item on an existing statement', async () => {
-      (prisma.financialStatement.findFirst as jest.Mock).mockResolvedValue({ id: 'stmt-1' });
+      (prisma.financialStatement.findFirst as jest.Mock).mockResolvedValue({ id: 'stmt-1', status: 'DRAFT' });
 
       const result = await financialService.addLine('stmt-1', 'custom_key', 'Custom Line');
 

@@ -33,8 +33,10 @@ export const updateStatementSchema = z.object({
     fiscalYearEnd: z.string().optional(),
     statementType: financialStatementTypeEnum.optional(),
     currency: currencyCodeEnum.optional(),
-    reviewedById: z.string().uuid().optional().nullable(),
-    status: financialStatusEnum.optional(),
+    // LOS-006 — `status` and `reviewedById` are governance fields owned by
+    // POST /financials/:id/review (credit:approve). Allowing them here let a
+    // credit:write holder approve their own statement and name any reviewer,
+    // bypassing maker-checker entirely.
     // CA Memo Phase 3 — Section 12 audit + commentary
     auditorName: z.string().max(255).optional().nullable(),
     isQualified: z.boolean().optional().nullable(),
