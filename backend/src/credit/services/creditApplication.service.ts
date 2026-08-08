@@ -1185,12 +1185,9 @@ class CreditApplicationService {
         }
       }
 
-      // P1-5 — freeze the assessment result at committee submission so the
-      // rating/recommendation/reason-codes are immutable from this point forward
-      await freezeAssessmentResult(id, actorId ?? 'system');
-
-      // P2.2 — Validate committee readiness BEFORE locking the memo version.
-      // This prevents leaving locked evidence for a failed submission.
+      // P2.2 — Validate committee readiness BEFORE any irreversible step.
+      // A failed submission must leave no frozen assessment and no locked memo
+      // behind: the analyst has to be able to fix the blocker and retry cleanly.
       const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
       if (!readiness.ready) {
         const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
@@ -1200,9 +1197,12 @@ class CreditApplicationService {
         );
       }
 
-      // P2.2 — Lock the latest memo version at committee submission so the
-      // approval pack always references an immutable snapshot. If no memo
-      // version exists yet, generate one first.
+      // P1-5 — Freeze the assessment result so the rating / recommendation /
+      // reason-codes are immutable from this point forward.
+      await freezeAssessmentResult(id, actorId ?? 'system');
+
+      // P2.2 — Lock the latest memo version so the approval pack always
+      // references an immutable snapshot.
       const { lockMemoVersionOnSubmission } = await import('./creditMemoVersion.service');
       await lockMemoVersionOnSubmission(id, actorId);
     }
