@@ -108,7 +108,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex gap-2">
             <NotificationDropdown />
-            <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-cwc-md h-9 w-9 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
+            <button aria-label="Open help center" title="Help center" onClick={() => navigate('/kb')} className="hidden sm:flex items-center justify-center rounded-cwc-md h-9 w-9 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
               <span className="material-symbols-outlined">help</span>
             </button>
           </div>

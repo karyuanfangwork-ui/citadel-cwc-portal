@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
@@ -16,6 +16,7 @@ interface TicketRow {
   summary: string;
   priority: string;
   status: string;
+  createdAt?: string | null;
   slaDeadline?: string | null;
   requester?: { firstName: string; lastName: string; email: string } | null;
   requestType?: { id: string; name: string } | null;
@@ -58,6 +59,7 @@ export default function AgentDashboard() {
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const isAgent = user?.roles?.includes('AGENT') ?? false;
   const showAllTab = isAdmin || isAgent;
+  const showUnassignedTab = isAdmin;
   const allTabLabel = isAdmin ? 'All Tickets' : `All ${TEAM_LABELS[user?.agentTeam ?? ''] ?? user?.agentTeam ?? ''} Tickets`;
   const [activeTab, setActiveTab] = useState<'mine' | 'unassigned' | 'all' | 'resolved'>('mine');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -73,6 +75,11 @@ export default function AgentDashboard() {
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [slaFilter, setSlaFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'urgency' | 'created-desc' | 'created-asc'>('created-desc');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'CANCELLED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'DCEO_REJECTED_FIN', 'GROUP_DCEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
 
@@ -120,6 +127,7 @@ export default function AgentDashboard() {
             summary: r.summary,
             priority: r.priority ?? 'MEDIUM',
             status: r.status,
+            createdAt: r.createdAt ?? r.created_at ?? null,
             slaDeadline: r.slaDeadline ?? r.sla_deadline ?? r.slaDueAt ?? null,
             requester: r.requester ?? r.requestedBy ?? null,
             requestType: r.requestType ?? null,
@@ -130,6 +138,7 @@ export default function AgentDashboard() {
         setResolvedTicketsFetched(extractTickets(resolvedRes));
         setUnassignedTickets(extractTickets(unRes));
         if (showAllTab && allRes) setAllTickets(extractTickets(allRes));
+        setLastUpdatedAt(new Date());
       } catch (err) {
         console.error('AgentDashboard fetch error:', err);
         setError(friendlyMessage(err, 'Failed to load dashboard'));
@@ -163,12 +172,56 @@ export default function AgentDashboard() {
     : activeTab === 'all' ? allTickets
     : unassignedTickets;
 
+  const visibleTickets = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return tickets
+      .filter((ticket) => {
+        const requesterName = ticket.requester
+          ? `${ticket.requester.firstName} ${ticket.requester.lastName}`
+          : '';
+        const matchesSearch = !query || [ticket.reference, ticket.summary, requesterName, ticket.requestType?.name]
+          .some((value) => value?.toLowerCase().includes(query));
+        const matchesPriority = !priorityFilter || ticket.priority === priorityFilter;
+        const sla = getSlaDisplay(ticket.slaDeadline);
+        const matchesSla = !slaFilter
+          || (slaFilter === 'breached' && sla.breached)
+          || (slaFilter === 'at-risk' && !sla.breached && sla.label !== 'No SLA' && !sla.label.includes('d left'))
+          || (slaFilter === 'on-track' && !sla.breached && sla.label !== 'No SLA' && !sla.label.includes('h left'));
+        return matchesSearch && matchesPriority && matchesSla;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'created-desc' || sortBy === 'created-asc') {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return sortBy === 'created-desc' ? bTime - aTime : aTime - bTime;
+        }
+        const aSla = getSlaDisplay(a.slaDeadline);
+        const bSla = getSlaDisplay(b.slaDeadline);
+        if (aSla.breached !== bSla.breached) return aSla.breached ? -1 : 1;
+        const priorityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+        return (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
+      });
+  }, [tickets, searchQuery, priorityFilter, slaFilter, sortBy]);
+
+  const attentionTickets = useMemo(() => {
+    const seen = new Set<string>();
+    return [...myTickets, ...(showUnassignedTab ? unassignedTickets : [])]
+      .filter((ticket) => {
+        if (seen.has(ticket.id)) return false;
+        seen.add(ticket.id);
+        const sla = getSlaDisplay(ticket.slaDeadline);
+        return sla.breached || ticket.priority === 'CRITICAL' || ticket.priority === 'HIGH';
+      })
+      .sort((a, b) => Number(getSlaDisplay(b.slaDeadline).breached) - Number(getSlaDisplay(a.slaDeadline).breached))
+      .slice(0, 3);
+  }, [myTickets, unassignedTickets, showUnassignedTab]);
+
   // ── Multi-select & Export ──
   const toggleSelectAll = () => {
-    if (selectedIds.size === tickets.length) {
+    if (selectedIds.size === visibleTickets.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(tickets.map(t => t.id)));
+      setSelectedIds(new Set(visibleTickets.map(t => t.id)));
     }
   };
 
@@ -271,6 +324,7 @@ export default function AgentDashboard() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Agent Dashboard</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {user?.firstName}. Here's your queue overview.</p>
+          {lastUpdatedAt && <p className="text-xs text-gray-400 mt-2">Updated {lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
         </div>
         <button
           onClick={() => setRefreshKey(k => k + 1)}
@@ -284,8 +338,18 @@ export default function AgentDashboard() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        {cards.map(card => (
-          <div key={card.label} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4">
+        {cards.filter((card) => showUnassignedTab || card.label !== 'Unassigned').map(card => (
+          <button
+            key={card.label}
+            type="button"
+            onClick={() => {
+              if (card.label === 'My Open Tickets') setActiveTab('mine');
+              if (card.label === 'Resolved') setActiveTab('resolved');
+              if (card.label === 'Unassigned') setActiveTab('unassigned');
+              if (card.label === 'SLA Breached') { setActiveTab(showAllTab ? 'all' : 'mine'); setSlaFilter('breached'); }
+            }}
+            className="text-left bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex items-center gap-4 hover:border-blue-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 transition-all"
+          >
             <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center flex-shrink-0`}>
               <span className={`material-symbols-outlined ${card.color} text-2xl`}>{card.icon}</span>
             </div>
@@ -293,13 +357,43 @@ export default function AgentDashboard() {
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{loading ? '—' : card.value}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{card.label}</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* Request Type Filter */}
-      <div className="mb-4">
+      {/* Needs attention */}
+      {attentionTickets.length > 0 && (
+        <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50/70 p-4" aria-labelledby="needs-attention-heading">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div>
+              <h2 id="needs-attention-heading" className="text-sm font-bold text-gray-900">Needs attention</h2>
+              <p className="text-xs text-gray-600 mt-0.5">Prioritised by SLA risk and ticket urgency.</p>
+            </div>
+            <button type="button" onClick={() => { setActiveTab(showAllTab ? 'all' : 'mine'); setSlaFilter('breached'); }} className="text-xs font-semibold text-blue-700 hover:text-blue-900">View breached</button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {attentionTickets.map((ticket) => {
+              const sla = getSlaDisplay(ticket.slaDeadline);
+              return (
+                <button key={ticket.id} type="button" onClick={() => navigate(`/request/${ticket.reference || ticket.id}`)} className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2 text-left hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+                  <span className="min-w-0">
+                    <span className="block text-xs font-mono font-semibold text-gray-600">{ticket.reference}</span>
+                    <span className="block truncate text-sm font-medium text-gray-900">{stripHtml(ticket.summary)}</span>
+                  </span>
+                  <span className={`shrink-0 text-xs font-semibold ${sla.breached ? 'text-red-600' : 'text-amber-700'}`}>{sla.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Queue filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-2" role="search" aria-label="Filter tickets">
+        <label className="sr-only" htmlFor="ticket-search">Search tickets</label>
+        <input id="ticket-search" type="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search tickets, requesters, or summaries" className="w-full md:w-80 px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" />
         <select
+          aria-label="Request type"
           className="pl-3 pr-8 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-gray-500 dark:text-gray-400"
           value={selectedRequestTypeId || ''}
           onChange={(e) => setSelectedRequestTypeId(e.target.value || null)}
@@ -309,6 +403,20 @@ export default function AgentDashboard() {
             <option key={opt.id} value={opt.id}>{opt.name}</option>
           ))}
         </select>
+        <select aria-label="Priority" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none">
+          <option value="">All priorities</option>
+          <option value="CRITICAL">Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option>
+        </select>
+        <select aria-label="SLA status" value={slaFilter} onChange={(e) => setSlaFilter(e.target.value)} className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none">
+          <option value="">All SLA states</option><option value="breached">Breached</option><option value="at-risk">Due soon</option><option value="on-track">On track</option>
+        </select>
+        <select aria-label="Sort tickets" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none">
+          <option value="urgency">Sort: SLA urgency</option>
+          <option value="created-desc">Sort: Latest created</option>
+          <option value="created-asc">Sort: Oldest created</option>
+        </select>
+        {(searchQuery || priorityFilter || slaFilter || selectedRequestTypeId) && <button type="button" onClick={() => { setSearchQuery(''); setPriorityFilter(''); setSlaFilter(''); setSelectedRequestTypeId(null); }} className="px-3 py-2 text-sm font-medium text-blue-700 hover:text-blue-900">Clear filters</button>}
+        <span className="ml-auto text-xs text-gray-500" aria-live="polite">Showing {visibleTickets.length} of {tickets.length}</span>
       </div>
 
       {/* Tab Toggle */}
@@ -328,21 +436,23 @@ export default function AgentDashboard() {
             </span>
           )}
         </button>
-        <button
-          onClick={() => setActiveTab('unassigned')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'unassigned'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Unassigned
-          {!loading && unassignedTickets.length > 0 && (
-            <span className="ml-2 bg-orange-100 text-orange-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
-              {unassignedTickets.length}
-            </span>
-          )}
-        </button>
+        {showUnassignedTab && (
+          <button
+            onClick={() => setActiveTab('unassigned')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'unassigned'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Unassigned
+            {!loading && unassignedTickets.length > 0 && (
+              <span className="ml-2 bg-orange-100 text-orange-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                {unassignedTickets.length}
+              </span>
+            )}
+          </button>
+        )}
         {showAllTab && (
           <button
             onClick={() => setActiveTab('all')}
@@ -409,7 +519,8 @@ export default function AgentDashboard() {
                 <th className="text-left px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={tickets.length > 0 && selectedIds.size === tickets.length}
+                    aria-label="Select all visible tickets"
+                    checked={visibleTickets.length > 0 && selectedIds.size === visibleTickets.length}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                   />
@@ -430,7 +541,7 @@ export default function AgentDashboard() {
             </tbody>
           </table>
           </div>
-        ) : tickets.length === 0 ? (
+        ) : visibleTickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
             <span className="material-symbols-outlined text-5xl opacity-40">
               {selectedRequestTypeId ? 'filter_alt_off' : 'inbox'}
@@ -458,7 +569,8 @@ export default function AgentDashboard() {
                 <th className="text-left px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={tickets.length > 0 && selectedIds.size === tickets.length}
+                    aria-label="Select all visible tickets"
+                    checked={visibleTickets.length > 0 && selectedIds.size === visibleTickets.length}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"
                   />
@@ -473,7 +585,7 @@ export default function AgentDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {tickets.map(ticket => {
+              {visibleTickets.map(ticket => {
                 const sla = getSlaDisplay(ticket.slaDeadline);
                 const priorityCfg = PRIORITY_CONFIG[ticket.priority] ?? PRIORITY_CONFIG.MEDIUM;
                 const statusCfg = STATUS_CONFIG[ticket.status as keyof typeof STATUS_CONFIG];
@@ -494,6 +606,7 @@ export default function AgentDashboard() {
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
+                        aria-label={`Select ${ticket.reference}`}
                         checked={selectedIds.has(ticket.id)}
                         onChange={() => toggleSelect(ticket.id)}
                         className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#0052cc] focus:ring-[#0052cc]"

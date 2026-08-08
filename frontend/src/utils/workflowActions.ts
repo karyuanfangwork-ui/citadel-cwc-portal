@@ -81,6 +81,27 @@ export interface WorkflowAction {
   variant: 'primary' | 'success' | 'danger' | 'warning';
 }
 
+const DESIGNER_CONTROLLED_ACTION_TARGETS: Partial<Record<WorkflowActionType, string>> = {
+  START_IT_REVIEW: 'IN_REVIEW',
+  MARK_IN_PROGRESS: 'IN_PROGRESS',
+  RESOLVE_IT: 'RESOLVED',
+};
+
+/**
+ * Specialized legacy actions must not bypass the published workflow graph.
+ * Actions without a known status target remain untouched because they use
+ * domain-specific handlers rather than generic status transitions.
+ */
+export function filterActionsByDesignerTargets(
+  actions: WorkflowAction[],
+  designerTargets: ReadonlySet<string>,
+): WorkflowAction[] {
+  return actions.filter((action) => {
+    const target = DESIGNER_CONTROLLED_ACTION_TARGETS[action.type];
+    return !target || designerTargets.has(target);
+  });
+}
+
 /**
  * Returns the list of workflow actions available for a given status + role combo.
  * Returns empty array when no actions are available (section should be hidden).

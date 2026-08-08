@@ -4,7 +4,7 @@
  * Returns a clean interface for tab and modal components
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { adminService, CategoryData } from '../../services/admin.service';
@@ -89,10 +89,20 @@ export interface UseAdminStateReturn {
     filteredCategories: any[];
     loading: boolean;
     desksLoading: boolean;
+    desksError: string | null;
     categoriesLoading: boolean;
+    categoriesError: string | null;
     requestTypesLoading: boolean;
+    requestTypesError: string | null;
     selectedCategory: any;
     requestTypes: any[];
+    requestTypeSearch: string;
+    setRequestTypeSearch: (search: string) => void;
+    requestTypeStatusFilter: 'ALL' | 'ACTIVE' | 'INACTIVE';
+    setRequestTypeStatusFilter: (filter: 'ALL' | 'ACTIVE' | 'INACTIVE') => void;
+    requestTypeLifecycleFilter: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED';
+    setRequestTypeLifecycleFilter: (filter: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED') => void;
+    filteredRequestTypes: any[];
     formData: CategoryData;
     editingCategory: any;
     modalOpen: boolean;
@@ -164,6 +174,7 @@ export interface UseAdminStateReturn {
     // UI
     activeTab: AdminTabId;
     pendingAction: PendingAction | null;
+    deactivationImpact: any | null;
     toastMsg: ToastMessage | null;
 
     // Service Desk Handlers
@@ -252,10 +263,28 @@ export interface UseAdminStateReturn {
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
     setShowOffboardingTemplateForm: (show: boolean) => void;
     setPendingAction: (action: PendingAction | null) => void;
+    setDeactivationImpact: (impact: any | null) => void;
     setEditTypeForm: (form: { name: string; description: string; workflowTypeId: string; slaHours: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
     setFormBuilderOpen: (open: boolean) => void;
     setCatalogDetailOpen: (open: boolean) => void; // P5-03
+}
+
+export function filterRequestTypes(
+    requestTypes: any[],
+    search: string,
+    status: 'ALL' | 'ACTIVE' | 'INACTIVE',
+    lifecycle: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED',
+) {
+    const normalizedSearch = search.trim().toLowerCase();
+    return requestTypes.filter(type => {
+        const matchesSearch = !normalizedSearch || [type.name, type.description, type.code]
+            .some(value => String(value || '').toLowerCase().includes(normalizedSearch));
+        const matchesStatus = status === 'ALL'
+            || (status === 'ACTIVE' ? type.isActive !== false : type.isActive === false);
+        const matchesLifecycle = lifecycle === 'ALL' || type.lifecycleStatus === lifecycle;
+        return matchesSearch && matchesStatus && matchesLifecycle;
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,11 +297,15 @@ export function useAdminState(): UseAdminStateReturn {
     // ── Service Desks State ────────────────────────────────────────────────
     const [serviceDesks, setServiceDesks] = useState<any[]>([]);
     const [selectedDesk, setSelectedDesk] = useState<any>(null);
+    const selectedDeskIdRef = useRef<string | null>(null);
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [desksLoading, setDesksLoading] = useState(false);
+    const [desksError, setDesksError] = useState<string | null>(null);
     const [categoriesLoading, setCategoriesLoading] = useState(false);
+    const [categoriesError, setCategoriesError] = useState<string | null>(null);
     const [requestTypesLoading, setRequestTypesLoading] = useState(false);
+    const [requestTypesError, setRequestTypesError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
     const [requestTypes, setRequestTypes] = useState<any[]>([]);
     const [formData, setFormData] = useState<CategoryData>({
@@ -299,6 +332,9 @@ export function useAdminState(): UseAdminStateReturn {
         autoAssignUserId: null,
     });
     const [categorySearch, setCategorySearch] = useState('');
+    const [requestTypeSearch, setRequestTypeSearch] = useState('');
+    const [requestTypeStatusFilter, setRequestTypeStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+    const [requestTypeLifecycleFilter, setRequestTypeLifecycleFilter] = useState<'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED'>('ALL');
 
     // ── Agent list for fixed-assignment dropdown ──
     const [availableAgents, setAvailableAgents] = useState<Array<{ id: string; firstName: string; lastName: string; email: string; agentTeam: string | null; openRequestCount: number }>>([]);
@@ -311,6 +347,11 @@ export function useAdminState(): UseAdminStateReturn {
         const search = categorySearch.toLowerCase().trim();
         return categories.filter(cat => cat.name?.toLowerCase().includes(search));
     }, [categories, categorySearch]);
+
+    const filteredRequestTypes = useMemo(
+        () => filterRequestTypes(requestTypes, requestTypeSearch, requestTypeStatusFilter, requestTypeLifecycleFilter),
+        [requestTypes, requestTypeSearch, requestTypeStatusFilter, requestTypeLifecycleFilter],
+    );
 
     // ── Services State ─────────────────────────────────────────────────────
     const [serviceModalOpen, setServiceModalOpen] = useState(false);
@@ -397,6 +438,7 @@ export function useAdminState(): UseAdminStateReturn {
     // ── UI State ───────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<AdminTabId>('service-desks');
     const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+    const [deactivationImpact, setDeactivationImpact] = useState<any | null>(null);
     const [toastMsg, setToastMsg] = useState<ToastMessage | null>(null);
 
     // ───────────────────────────────────────────────────────────────────────
@@ -426,16 +468,24 @@ export function useAdminState(): UseAdminStateReturn {
 
     const fetchServiceDesks = useCallback(async () => {
         setDesksLoading(true);
+        setDesksError(null);
         try {
             setLoading(true);
-            const desks = await serviceDeskService.getAllServiceDesks();
+            // P2-01: Use admin endpoint so inactive desks are visible for restoration
+            const desks = await serviceDeskService.getAllServiceDesksAdmin();
             setServiceDesks(desks);
             if (desks.length > 0) {
-                setSelectedDesk(desks[0]);
-                fetchCategories(desks[0].id);
+                const preferredDesk = desks.find((desk: any) => desk.id === selectedDeskIdRef.current) || desks[0];
+                selectedDeskIdRef.current = preferredDesk.id;
+                setSelectedDesk(preferredDesk);
+                fetchCategories(preferredDesk.id);
+            } else {
+                selectedDeskIdRef.current = null;
+                setSelectedDesk(null);
             }
         } catch (err) {
             console.error('Error fetching service desks:', err);
+            setDesksError('Failed to load service desks. Please try again.');
         } finally {
             setLoading(false);
             setDesksLoading(false);
@@ -456,11 +506,13 @@ export function useAdminState(): UseAdminStateReturn {
 
     const fetchCategories = useCallback(async (deskId: string) => {
         setCategoriesLoading(true);
+        setCategoriesError(null);
         try {
             const cats = await serviceDeskService.getAllCategoriesAdmin(deskId);
             setCategories(cats);
         } catch (err) {
             console.error('Error fetching categories:', err);
+            setCategoriesError('Failed to load categories. Please try again.');
         } finally {
             setCategoriesLoading(false);
         }
@@ -540,12 +592,13 @@ export function useAdminState(): UseAdminStateReturn {
     const fetchWorkflowConfig = useCallback(async () => {
         setWorkflowLoading(true);
         try {
-            const desks = await serviceDeskService.getAllServiceDesks();
+            // P1-03: Use admin endpoint so DRAFT/unpublished types appear in workflow config
+            const desks = await serviceDeskService.getAllServiceDesksAdmin();
             const desksWithTypes = await Promise.all(
                 desks.map(async (desk: any) => {
                     const categoriesWithTypes = await Promise.all(
                         (desk.categories || []).map(async (cat: any) => {
-                            const types = await serviceDeskService.getRequestTypes(desk.id, cat.id);
+                            const types = await serviceDeskService.getAllRequestTypesAdmin(desk.id, cat.id);
                             return { ...cat, requestTypes: types || [] };
                         })
                     );
@@ -566,6 +619,8 @@ export function useAdminState(): UseAdminStateReturn {
 
     const handleDeskChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         const desk = serviceDesks.find(d => d.id === e.target.value);
+        if (!desk) return;
+        selectedDeskIdRef.current = desk.id;
         setSelectedDesk(desk);
         fetchCategories(desk.id);
         setSelectedCategory(null);
@@ -600,12 +655,24 @@ export function useAdminState(): UseAdminStateReturn {
     const handleSave = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDesk) return;
+        // P2-06: Trim and validate before submission
+        const trimmedName = formData.name?.trim();
+        if (!trimmedName) {
+            showToast('error', 'Category name is required.');
+            return;
+        }
+
+        const trimmedData = {
+            ...formData,
+            name: trimmedName,
+            description: formData.description?.trim() || undefined,
+        };
 
         try {
             if (editingCategory) {
-                await serviceDeskService.updateCategory(selectedDesk.id, editingCategory.id, formData);
+                await serviceDeskService.updateCategory(selectedDesk.id, editingCategory.id, trimmedData);
             } else {
-                await serviceDeskService.createCategory(selectedDesk.id, formData);
+                await serviceDeskService.createCategory(selectedDesk.id, trimmedData);
             }
             setModalOpen(false);
             fetchCategories(selectedDesk.id);
@@ -616,7 +683,16 @@ export function useAdminState(): UseAdminStateReturn {
         }
     }, [selectedDesk, editingCategory, formData, fetchCategories, showToast]);
 
-    const handleDelete = useCallback((catId: string) => {
+    const handleDelete = useCallback(async (catId: string) => {
+        if (!selectedDesk) return;
+        try {
+            const impact = await serviceDeskService.getCategoryDeactivationImpact(selectedDesk.id, catId);
+            setDeactivationImpact(impact);
+        } catch {
+            setDeactivationImpact(null);
+            showToast('error', 'Unable to load deactivation impact. Nothing was changed.');
+            return;
+        }
         setPendingAction({
             message: 'Deactivate this category? It will be hidden from users but can be restored.',
             onConfirm: async () => {
@@ -624,6 +700,7 @@ export function useAdminState(): UseAdminStateReturn {
                 await serviceDeskService.deleteCategory(selectedDesk.id, catId);
                 fetchCategories(selectedDesk.id);
                 showToast('success', 'Category deactivated.');
+                setDeactivationImpact(null);
             },
         });
     }, [selectedDesk, fetchCategories, showToast]);
@@ -717,22 +794,33 @@ export function useAdminState(): UseAdminStateReturn {
 
     const handleSaveDesk = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
+        // P2-06: Trim and validate before submission
+        const trimmedName = deskFormData.name?.trim();
+        if (!trimmedName) {
+            showToast('error', 'Service desk name is required.');
+            return;
+        }
         try {
             if (editingDesk) {
                 await serviceDeskService.updateServiceDesk(editingDesk.id, {
-                    name: deskFormData.name,
-                    description: deskFormData.description,
+                    name: trimmedName,
+                    description: deskFormData.description?.trim() || undefined,
                     isActive: deskFormData.isActive,
-                    autoAssignTeam: deskFormData.autoAssignTeam,
+                    autoAssignTeam: deskFormData.autoAssignTeam?.trim() || undefined,
                     assignmentStrategy: deskFormData.assignmentStrategy,
                     autoAssignUserId: deskFormData.autoAssignTeam === 'NONE' ? null : deskFormData.autoAssignUserId,
                 });
             } else {
+                const trimmedCode = deskFormData.code?.trim();
+                if (!trimmedCode || trimmedCode.length < 3) {
+                    showToast('error', 'Code must be at least 3 characters (uppercase letters, numbers, underscores).');
+                    return;
+                }
                 await serviceDeskService.createServiceDesk({
-                    name: deskFormData.name,
-                    code: deskFormData.code,
-                    description: deskFormData.description || undefined,
-                    autoAssignTeam: deskFormData.autoAssignTeam,
+                    name: trimmedName,
+                    code: trimmedCode,
+                    description: deskFormData.description?.trim() || undefined,
+                    autoAssignTeam: deskFormData.autoAssignTeam?.trim() || undefined,
                     assignmentStrategy: deskFormData.assignmentStrategy,
                     autoAssignUserId: deskFormData.autoAssignTeam === 'NONE' ? null : deskFormData.autoAssignUserId,
                 });
@@ -746,13 +834,22 @@ export function useAdminState(): UseAdminStateReturn {
         }
     }, [editingDesk, deskFormData, fetchServiceDesks, showToast]);
 
-    const handleDeleteDesk = useCallback((deskId: string) => {
+    const handleDeleteDesk = useCallback(async (deskId: string) => {
+        try {
+            const impact = await serviceDeskService.getDeskDeactivationImpact(deskId);
+            setDeactivationImpact(impact);
+        } catch {
+            setDeactivationImpact(null);
+            showToast('error', 'Unable to load deactivation impact. Nothing was changed.');
+            return;
+        }
         setPendingAction({
             message: 'Delete this service desk? It will be soft-deleted and can be restored later.',
             onConfirm: async () => {
                 await serviceDeskService.deleteServiceDesk(deskId);
                 await fetchServiceDesks();
                 showToast('success', 'Service desk deleted.');
+                setDeactivationImpact(null);
             },
         });
     }, [fetchServiceDesks, showToast]);
@@ -774,16 +871,17 @@ export function useAdminState(): UseAdminStateReturn {
         const idx = sorted.findIndex(c => c.id === cat.id);
         const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swapTarget = sorted[swapIdx];
+        const reordered = [...sorted];
+        const [moved] = reordered.splice(idx, 1);
+        reordered.splice(swapIdx, 0, moved);
         try {
-            await serviceDeskService.updateCategory(selectedDesk.id, cat.id, { displayOrder: swapTarget.displayOrder });
-            await serviceDeskService.updateCategory(selectedDesk.id, swapTarget.id, { displayOrder: cat.displayOrder });
-            fetchCategories(selectedDesk.id);
+            const updated = await serviceDeskService.reorderCategories(selectedDesk.id, reordered.map((category: any) => category.id));
+            setCategories(updated);
         } catch (err) {
             console.error('Error reordering category:', err);
             showToast('error', 'Failed to reorder categories.');
         }
-    }, [selectedDesk, categories, fetchCategories, showToast]);
+    }, [selectedDesk, categories, showToast]);
 
     const handleManageTypes = useCallback(async (cat: any) => {
         if (selectedCategory?.id === cat.id) {
@@ -792,11 +890,13 @@ export function useAdminState(): UseAdminStateReturn {
         }
         setSelectedCategory(cat);
         setRequestTypesLoading(true);
+        setRequestTypesError(null);
         try {
             const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, cat.id);
             setRequestTypes(types);
         } catch (err) {
             console.error('Error fetching request types:', err);
+            setRequestTypesError('Failed to load services. Please try again.');
         } finally {
             setRequestTypesLoading(false);
         }
@@ -805,19 +905,31 @@ export function useAdminState(): UseAdminStateReturn {
     const handleCreateService = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDesk || !selectedCategory) return;
+        // P2-06: Trim and validate before submission
+        const trimmedName = serviceFormData.name?.trim();
+        if (!trimmedName) {
+            showToast('error', 'Service name is required.');
+            return;
+        }
+        const slaHours = serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null;
+        if (slaHours !== null && slaHours <= 0) {
+            showToast('error', 'SLA hours must be a positive number.');
+            return;
+        }
         try {
             await serviceDeskService.createRequestType({
                 categoryId: selectedCategory.id,
-                name: serviceFormData.name,
-                description: serviceFormData.description,
+                name: trimmedName,
+                description: serviceFormData.description?.trim() || undefined,
                 icon: serviceFormData.icon,
                 requiresApproval: serviceFormData.requiresApproval,
-                slaHours: serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null,
-                requiredRole: serviceFormData.requiredRole || null,
+                slaHours,
+                requiredRole: serviceFormData.requiredRole?.trim() || null,
             });
             setServiceModalOpen(false);
             setServiceFormData({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '', requiredRole: '' });
-            const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
+            // P1-03 fix: Use admin endpoint so DRAFT services remain visible after create
+            const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, selectedCategory.id);
             setRequestTypes(types);
             showToast('success', 'Service created.');
         } catch (err) {
@@ -826,7 +938,12 @@ export function useAdminState(): UseAdminStateReturn {
         }
     }, [selectedDesk, selectedCategory, serviceFormData, showToast]);
 
-    const handleDeleteService = useCallback((typeId: string) => {
+    const handleDeleteService = useCallback(async (typeId: string) => {
+        // P2-04: Fetch impact data before confirming
+        try {
+            const impact = await serviceDeskService.getRequestTypeDeactivationImpact(typeId);
+            setDeactivationImpact(impact);
+        } catch { /* impact preview is best-effort */ }
         setPendingAction({
             message: 'Deactivate this service? It will be hidden from users but can be restored.',
             onConfirm: async () => {
@@ -836,6 +953,7 @@ export function useAdminState(): UseAdminStateReturn {
                     setRequestTypes(types);
                 }
                 showToast('success', 'Service deactivated.');
+                setDeactivationImpact(null);
             },
         });
     }, [selectedDesk, selectedCategory, showToast]);
@@ -871,14 +989,25 @@ export function useAdminState(): UseAdminStateReturn {
     const handleUpdateService = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingService) return;
+        // P2-06: Trim and validate before submission
+        const trimmedName = serviceFormData.name?.trim();
+        if (!trimmedName) {
+            showToast('error', 'Service name is required.');
+            return;
+        }
+        const slaHours = serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null;
+        if (slaHours !== null && slaHours <= 0) {
+            showToast('error', 'SLA hours must be a positive number.');
+            return;
+        }
         try {
             await serviceDeskService.updateRequestType(editingService.id, {
-                name: serviceFormData.name,
-                description: serviceFormData.description,
+                name: trimmedName,
+                description: serviceFormData.description?.trim() || undefined,
                 icon: serviceFormData.icon,
                 requiresApproval: serviceFormData.requiresApproval,
-                slaHours: serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null,
-                requiredRole: serviceFormData.requiredRole || null,
+                slaHours,
+                requiredRole: serviceFormData.requiredRole?.trim() || null,
             });
             setServiceModalOpen(false);
             setEditingService(null);
@@ -913,7 +1042,8 @@ export function useAdminState(): UseAdminStateReturn {
             showToast('success', 'Form configuration saved successfully.');
             setFormBuilderOpen(false);
             if (selectedCategory) {
-                const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
+                // P1-03 fix: Use admin endpoint so DRAFT services remain visible after form save
+                const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, selectedCategory.id);
                 setRequestTypes(types);
             }
         } catch (err) {
@@ -1151,10 +1281,20 @@ export function useAdminState(): UseAdminStateReturn {
         filteredCategories,
         loading,
         desksLoading,
+        desksError,
         categoriesLoading,
+        categoriesError,
         requestTypesLoading,
+        requestTypesError,
         selectedCategory,
         requestTypes,
+        requestTypeSearch,
+        setRequestTypeSearch,
+        requestTypeStatusFilter,
+        setRequestTypeStatusFilter,
+        requestTypeLifecycleFilter,
+        setRequestTypeLifecycleFilter,
+        filteredRequestTypes,
         formData,
         editingCategory,
         modalOpen,
@@ -1226,6 +1366,7 @@ export function useAdminState(): UseAdminStateReturn {
         // UI
         activeTab,
         pendingAction,
+        deactivationImpact,
         toastMsg,
 
         // Handlers
@@ -1305,6 +1446,7 @@ export function useAdminState(): UseAdminStateReturn {
         setOffboardingTemplateForm,
         setShowOffboardingTemplateForm,
         setPendingAction,
+        setDeactivationImpact,
         setEditTypeForm,
         setEditingTypeName,
         setFormBuilderOpen,

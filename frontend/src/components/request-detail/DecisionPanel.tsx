@@ -8,7 +8,11 @@ import ScheduleInterviewModal from './ScheduleInterviewModal';
 import PendingInvoiceModal from './PendingInvoiceModal';
 import CfoDecisionModal from './CfoDecisionModal';
 import CfoDecisionFinModal from './CfoDecisionFinModal';
-import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
+import {
+  filterActionsByDesignerTargets,
+  getWorkflowActions,
+  WorkflowActionType,
+} from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
 import GenericTransitionModal from './GenericTransitionModal';
@@ -286,8 +290,11 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     'GROUP_DCEO_DECISION_FIN',
     'GROUP_DCEO_DECISION_ESM',
   ]);
+  const designerAwareActions = availableTransitions.length > 0
+    ? filterActionsByDesignerTargets(workflowActions, designerTargets)
+    : workflowActions;
   const actions = canManageWorkflow
-    ? workflowActions.filter((action) => {
+    ? designerAwareActions.filter((action) => {
       // An executive who submitted the request is the requester, not an
       // independent approver. Never expose an approval action to that user.
       if (isRequester && executiveApprovalActions.has(action.type)) return false;

@@ -15,6 +15,16 @@ class ServiceDeskController {
         });
     });
 
+    // P2-01: Admin endpoint — returns active + inactive desks for admin management
+    getAllServiceDesksAdmin = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const serviceDesks = await serviceDeskService.getAllServiceDesksAdmin();
+
+        res.json({
+            status: 'success',
+            data: { serviceDesks },
+        });
+    });
+
     getServiceDeskById = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
         const serviceDesk = await serviceDeskService.getServiceDeskById(id);
@@ -226,10 +236,10 @@ class ServiceDeskController {
     });
 
     updateCategory = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { categoryId } = req.params;
+        const { id, categoryId } = req.params;
         const { name, description, icon, colorClass, displayOrder, isActive } = req.body;
 
-        const updatedCategory = await serviceDeskService.updateCategory(categoryId as string, {
+        const updatedCategory = await serviceDeskService.updateCategory(id as string, categoryId as string, {
             name,
             description,
             icon,
@@ -237,6 +247,11 @@ class ServiceDeskController {
             displayOrder: displayOrder !== undefined ? parseInt(displayOrder as string) : undefined,
             isActive,
         });
+
+        if (!updatedCategory) {
+            res.status(404).json({ status: 'error', message: 'Category not found' });
+            return;
+        }
 
         await auditLog(req, 'ADMIN_UPDATE_CATEGORY', 'Category', updatedCategory.id, {
             name: updatedCategory.name,
@@ -251,9 +266,9 @@ class ServiceDeskController {
     });
 
     deleteCategory = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { categoryId } = req.params;
+        const { id, categoryId } = req.params;
 
-        await serviceDeskService.deleteCategory(categoryId as string);
+        await serviceDeskService.deleteCategory(id as string, categoryId as string);
 
         await auditLog(req, 'ADMIN_DELETE_CATEGORY', 'Category', categoryId as string, {
             deactivated: true,
@@ -263,6 +278,13 @@ class ServiceDeskController {
             status: 'success',
             message: 'Category deleted successfully',
         });
+    });
+
+    reorderCategories = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const id = String(req.params.id);
+        const { categoryIds } = req.body as { categoryIds?: string[] };
+        const categories = await serviceDeskService.reorderCategories(id, categoryIds || []);
+        res.json({ status: 'success', data: { categories } });
     });
 
     // --- Request Type Management Methods ---
@@ -458,6 +480,25 @@ class ServiceDeskController {
                 agents: result,
             },
         });
+    });
+
+    // P2-04: Deactivation impact preview endpoints
+    getDeskDeactivationImpact = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const id = String(req.params.id);
+        const impact = await serviceDeskService.getDeskDeactivationImpact(id);
+        res.json({ status: 'success', data: { impact } });
+    });
+
+    getCategoryDeactivationImpact = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { id, categoryId } = req.params;
+        const impact = await serviceDeskService.getCategoryDeactivationImpact(id as string, categoryId as string);
+        res.json({ status: 'success', data: { impact } });
+    });
+
+    getRequestTypeDeactivationImpact = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { typeId } = req.params;
+        const impact = await serviceDeskService.getRequestTypeDeactivationImpact(typeId as string);
+        res.json({ status: 'success', data: { impact } });
     });
 }
 

@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { serviceDeskController } from '../controllers/serviceDesk.controller';
-import { authenticate, optionalAuth, requirePermission } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import {
     createServiceDeskSchema,
     updateServiceDeskSchema,
     createCategorySchema,
     updateCategorySchema,
+    reorderCategoriesSchema,
     createRequestTypeSchema,
     updateRequestTypeSchema,
 } from '../validators/serviceDesk.validator';
@@ -16,9 +17,9 @@ const router = Router();
 /**
  * @route   GET /api/v1/service-desks
  * @desc    Get all service desks
- * @access  Public
+ * @access  Authenticated tenant user
  */
-router.get('/', optionalAuth, serviceDeskController.getAllServiceDesks);
+router.get('/', authenticate, serviceDeskController.getAllServiceDesks);
 
 /**
  * @route   GET /api/v1/service-desks/agents?team=FINANCE
@@ -30,26 +31,33 @@ router.get('/agents', authenticate, requirePermission('admin:access', 'admin:set
 /**
  * @route   GET /api/v1/service-desks/:id
  * @desc    Get service desk by ID
- * @access  Public
+ * @access  Authenticated tenant user
  */
-router.get('/:id', optionalAuth, serviceDeskController.getServiceDeskById);
+router.get('/:id', authenticate, serviceDeskController.getServiceDeskById);
 
 /**
  * @route   GET /api/v1/service-desks/:id/categories
  * @desc    Get categories for a service desk
- * @access  Public
+ * @access  Authenticated tenant user
  */
-router.get('/:id/categories', optionalAuth, serviceDeskController.getCategories);
+router.get('/:id/categories', authenticate, serviceDeskController.getCategories);
 
 /**
  * @route   GET /api/v1/service-desks/:id/request-types
  * @desc    Get request types for a service desk
- * @access  Public
+ * @access  Authenticated tenant user
  */
-router.get('/:id/request-types', optionalAuth, serviceDeskController.getRequestTypes);
+router.get('/:id/request-types', authenticate, serviceDeskController.getRequestTypes);
 
 // Admin routes — require authentication + admin:access (read) or admin:settings (write)
 router.use(authenticate, requirePermission('admin:access', 'admin:settings'));
+
+/**
+ * @route   GET /api/v1/service-desks/admin/all
+ * @desc    Get ALL service desks (including inactive) — admin only
+ * @access  Private — requirePermission enforces RBAC at the permission level
+ */
+router.get('/admin/all', serviceDeskController.getAllServiceDesksAdmin);
 
 /**
  * @route   GET /api/v1/service-desks/:id/categories/all
@@ -64,6 +72,28 @@ router.get('/:id/categories/all', serviceDeskController.getAllCategoriesAdmin);
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
 router.get('/:id/request-types/all', serviceDeskController.getAllRequestTypesAdmin);
+
+// P2-04: Deactivation impact preview endpoints
+/**
+ * @route   GET /api/v1/service-desks/:id/deactivation-impact
+ * @desc    Preview impact of deactivating a service desk
+ * @access  Private — admin:access or admin:settings
+ */
+router.get('/:id/deactivation-impact', serviceDeskController.getDeskDeactivationImpact);
+
+/**
+ * @route   GET /api/v1/service-desks/:id/categories/:categoryId/deactivation-impact
+ * @desc    Preview impact of deactivating a category
+ * @access  Private — admin:access or admin:settings
+ */
+router.get('/:id/categories/:categoryId/deactivation-impact', serviceDeskController.getCategoryDeactivationImpact);
+
+/**
+ * @route   GET /api/v1/service-desks/request-types/:typeId/deactivation-impact
+ * @desc    Preview impact of deactivating a request type
+ * @access  Private — admin:access or admin:settings
+ */
+router.get('/request-types/:typeId/deactivation-impact', serviceDeskController.getRequestTypeDeactivationImpact);
 
 /**
  * @route   POST /api/v1/service-desks
@@ -101,6 +131,8 @@ router.delete('/:id', requirePermission('admin:settings'), serviceDeskController
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
 router.post('/:id/categories', requirePermission('admin:settings'), validate(createCategorySchema), serviceDeskController.createCategory);
+
+router.put('/:id/categories/reorder', requirePermission('admin:settings'), validate(reorderCategoriesSchema), serviceDeskController.reorderCategories);
 
 /**
  * @route   PUT /api/v1/service-desks/:id/categories/:categoryId

@@ -36,6 +36,12 @@ export const serviceDeskService = {
 
     // --- Admin Service Desk Management ---
 
+    // P2-01: Admin endpoint — returns active + inactive desks for admin management
+    async getAllServiceDesksAdmin() {
+        const response = await apiClient.get('/service-desks/admin/all');
+        return response.data.data.serviceDesks;
+    },
+
     async createServiceDesk(data: { name: string; code: string; description?: string; autoAssignTeam?: string; assignmentStrategy?: string; autoAssignUserId?: string | null }) {
         const response = await apiClient.post('/service-desks', data);
         return response.data.data.serviceDesk;
@@ -78,6 +84,11 @@ export const serviceDeskService = {
         return response.data.data.category;
     },
 
+    async reorderCategories(serviceDeskId: string, categoryIds: string[]) {
+        const response = await apiClient.put(`/service-desks/${serviceDeskId}/categories/reorder`, { categoryIds });
+        return response.data.data.categories;
+    },
+
     async deleteCategory(serviceDeskId: string, categoryId: string) {
         const response = await apiClient.delete(`/service-desks/${serviceDeskId}/categories/${categoryId}`);
         return response.data;
@@ -98,6 +109,22 @@ export const serviceDeskService = {
     async deleteRequestType(typeId: string) {
         const response = await apiClient.delete(`/service-desks/request-types/${typeId}`);
         return response.data;
+    },
+
+    // P2-04: Deactivation impact preview
+    async getDeskDeactivationImpact(deskId: string) {
+        const response = await apiClient.get(`/service-desks/${deskId}/deactivation-impact`);
+        return response.data.data.impact;
+    },
+
+    async getCategoryDeactivationImpact(deskId: string, categoryId: string) {
+        const response = await apiClient.get(`/service-desks/${deskId}/categories/${categoryId}/deactivation-impact`);
+        return response.data.data.impact;
+    },
+
+    async getRequestTypeDeactivationImpact(typeId: string) {
+        const response = await apiClient.get(`/service-desks/request-types/${typeId}/deactivation-impact`);
+        return response.data.data.impact;
     },
 
     // --- Escalation Rules ---

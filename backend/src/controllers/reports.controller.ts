@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { policyService } from '../security/policy.service';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { RESOLVED_STATUSES, CLOSED_STATUSES } from '../constants/requestStatuses';
+import { activeSlaAtRiskWhere, activeSlaBreachWhere, withinSlaWhere } from '../utils/slaPredicates';
 
 /** Parse optional from/to query params into a Prisma date filter. */
 function dateFilter(req: AuthRequest): { createdAt?: { gte?: Date; lte?: Date } } {
@@ -270,27 +271,23 @@ class ReportsController {
             const visible = policyService.buildVisibleWhere(principal, 'request');
             const df = dateFilter(req);
             const baseWhere = mergeVisible({ deletedAt: null, ...df }, visible);
+            const now = new Date();
 
             // SLA metrics scoped to visible requests
             const [total, breached, atRisk, withinSla] = await Promise.all([
                 prisma.request.count({ where: baseWhere }),
                 prisma.request.count({
-                    where: { ...baseWhere, slaDueAt: { lt: new Date() }, status: { notIn: CLOSED_STATUSES } },
+                    where: { AND: [baseWhere, activeSlaBreachWhere(now)], status: { notIn: CLOSED_STATUSES } },
                 }),
                 prisma.request.count({
                     where: {
-                        ...baseWhere,
-                        slaDueAt: { lt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+                        AND: [baseWhere, activeSlaAtRiskWhere(now)],
                         status: { notIn: CLOSED_STATUSES },
                     },
                 }),
                 prisma.request.count({
                     where: {
-                        ...baseWhere,
-                        OR: [
-                            { slaDueAt: { gt: new Date() } },
-                            { slaDueAt: null },
-                        ],
+                        AND: [baseWhere, withinSlaWhere(now)],
                         status: { notIn: CLOSED_STATUSES },
                     },
                 }),

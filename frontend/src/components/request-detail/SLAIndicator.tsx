@@ -1,9 +1,9 @@
 import React from 'react';
+import { getSlaDisplayDueMs } from './slaDisplay';
 
 interface SLAIndicatorProps {
   slaDueAt: string | null | undefined;
   status: string;
-  slaPaused?: boolean;
   slaPausedAt?: string | null;
   slaPauseDurationMs?: number | bigint | null;
 }
@@ -33,41 +33,42 @@ function formatDuration(ms: number): string {
 const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   slaDueAt,
   status,
-  slaPaused = false,
   slaPausedAt,
   slaPauseDurationMs,
 }) => {
   if (!slaDueAt || TERMINAL_STATUSES.includes(status)) return null;
 
   const now = new Date();
-  const due = new Date(slaDueAt);
-
-  // Compute effective due date accounting for pause time
   const pauseDuration = Number(slaPauseDurationMs ?? 0) || 0;
-  const effectiveDue = new Date(due.getTime() + pauseDuration);
 
-  // If currently paused, the "remaining time" is frozen at the moment of pause
-  if (slaPaused && slaPausedAt) {
+  // slaPausedAt is the authoritative signal that the clock is currently paused.
+  if (slaPausedAt) {
     const pausedAt = new Date(slaPausedAt);
-    // Time remaining when paused = effectiveDue - pausedAt (not current time)
-    const pausedRemainingMs = effectiveDue.getTime() - pausedAt.getTime();
-
     // Format cumulative pause info
     const cumulativePauseMs = pauseDuration + (now.getTime() - pausedAt.getTime());
     const pauseLabel = formatDuration(cumulativePauseMs);
 
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-        <span className="material-symbols-outlined text-sm">pause_circle</span>
-        <span>SLA: Paused (approval pending)</span>
-        <span className="text-[10px] font-normal opacity-70">
-          — paused for {pauseLabel}
+      <div
+        role="status"
+        aria-label="SLA paused. Timer stopped for the current workflow status."
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 rounded-lg text-xs bg-blue-50 text-blue-800 border border-blue-200"
+      >
+        <span className="material-symbols-outlined text-base" aria-hidden="true">pause_circle</span>
+        <span className="font-bold tracking-wide">SLA PAUSED</span>
+        <span className="font-normal">Timer stopped for the current workflow status.</span>
+        <span className="w-full pl-6 text-[10px] font-normal text-blue-700">
+          Paused for {pauseLabel}. The deadline resumes when the request leaves this status.
         </span>
       </div>
     );
   }
 
-  const diffMs = effectiveDue.getTime() - now.getTime();
+  const displayDueMs = getSlaDisplayDueMs(slaDueAt, null, now.getTime());
+  if (displayDueMs === null) return null;
+
+  const effectiveDue = new Date(displayDueMs);
+  const diffMs = displayDueMs - now.getTime();
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffHours / 24);
   const remainingHours = Math.abs(diffHours) % 24;

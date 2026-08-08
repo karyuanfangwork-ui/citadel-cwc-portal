@@ -120,6 +120,8 @@ export interface Request {
     resolvedAt?: string | null;
     completedAt?: string | null;
     slaDueAt?: string | null;
+    slaPausedAt?: string | null;
+    slaPauseDurationMs?: number | bigint | null;
     priority: string;
     requestType?: {
         code: string;

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { getSlaDisplayDueMs } from './slaDisplay';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -402,9 +403,11 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
 
   // SLA computation — only active for non-terminal statuses
   const isTerminal = TERMINAL_STATUSES.has(request.status);
-  const slaDueMs = request.slaDueAt ? new Date(request.slaDueAt).getTime() - Date.now() : null;
-  const isBreached = slaDueMs !== null && slaDueMs < 0 && !request.resolvedAt && !isTerminal;
   const isPaused = !!request.slaPausedAt && !request.resolvedAt && !isTerminal;
+  const nowMs = Date.now();
+  const displayDueMs = getSlaDisplayDueMs(request.slaDueAt, isPaused ? request.slaPausedAt : null, nowMs);
+  const slaDueMs = displayDueMs === null ? null : displayDueMs - nowMs;
+  const isBreached = slaDueMs !== null && slaDueMs < 0 && !request.resolvedAt && !isTerminal;
 
   // Approval lookup for popover
   const approvalMap = useMemo(() => {

@@ -148,13 +148,26 @@ const AdminSettings = () => {
                             filteredCategories={admin.filteredCategories}
                             selectedCategory={admin.selectedCategory}
                             requestTypes={admin.requestTypes}
+                            requestTypeSearch={admin.requestTypeSearch}
+                            onRequestTypeSearchChange={admin.setRequestTypeSearch}
+                            requestTypeStatusFilter={admin.requestTypeStatusFilter}
+                            onRequestTypeStatusFilterChange={admin.setRequestTypeStatusFilter}
+                            requestTypeLifecycleFilter={admin.requestTypeLifecycleFilter}
+                            onRequestTypeLifecycleFilterChange={admin.setRequestTypeLifecycleFilter}
+                            filteredRequestTypes={admin.filteredRequestTypes}
                             availableRoles={admin.availableRoles}
                             formData={admin.formData}
                             modalOpen={admin.modalOpen}
                             serviceModalOpen={admin.serviceModalOpen}
                             desksLoading={admin.desksLoading}
+                            desksError={admin.desksError}
                             categoriesLoading={admin.categoriesLoading}
+                            categoriesError={admin.categoriesError}
                             requestTypesLoading={admin.requestTypesLoading}
+                            requestTypesError={admin.requestTypesError}
+                            onRetryDesks={() => admin.fetchServiceDesks()}
+                            onRetryCategories={() => admin.selectedDesk && admin.fetchCategories(admin.selectedDesk.id)}
+                            onRetryRequestTypes={() => admin.selectedCategory && admin.handleManageTypes(admin.selectedCategory)}
                             onDeskChange={admin.handleDeskChange}
                             onAddCategory={admin.openAddModal}
                             onEditCategory={admin.openEditModal}
@@ -197,7 +210,11 @@ const AdminSettings = () => {
                             onEditUser={(user) => { admin.setEditingUser(user); admin.setShowEditUserModal(true); }}
                             onManageRoles={(user) => { admin.setRoleModalUser(user); admin.setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
                             onResetPassword={(user) => admin.setResetPasswordUser(user)}
-                            onAssignAgentTeam={(user) => { admin.setRoleModalUser(user); admin.setShowAgentTeamModal(true); }}
+                            onAssignAgentTeam={(user) => {
+                                admin.setRoleModalUser(user);
+                                admin.setSelectedAgentTeam(user.agentTeam || '');
+                                admin.setShowAgentTeamModal(true);
+                            }}
                             onToggleUserStatus={(user) => {
                                 if (user.isActive) {
                                     admin.setConfirmDisableUser(user);
@@ -299,7 +316,7 @@ const AdminSettings = () => {
             />
 
             <RoleAssignmentModal
-                isOpen={!!admin.roleModalUser}
+                isOpen={!!admin.roleModalUser && !admin.showAgentTeamModal}
                 user={admin.roleModalUser}
                 availableRoles={admin.availableRoles}
                 selectedRoles={admin.roleModalSelected}
@@ -324,12 +341,16 @@ const AdminSettings = () => {
                         const apiClient = (await import('../src/services/api')).default;
                         await apiClient.put(`/users/${admin.roleModalUser.id}`, { agentTeam: admin.selectedAgentTeam || null });
                         admin.setShowAgentTeamModal(false);
+                        admin.setRoleModalUser(null);
                         await admin.fetchUsers(admin.userPagination.page);
                     } catch (err: any) {
                         alert(err.response?.data?.message || 'Failed to assign agent team');
                     }
                 }}
-                onClose={() => admin.setShowAgentTeamModal(false)}
+                onClose={() => {
+                    admin.setShowAgentTeamModal(false);
+                    admin.setRoleModalUser(null);
+                }}
             />
 
             {/* Create User Modal */}
@@ -404,17 +425,82 @@ const AdminSettings = () => {
             {/* Confirm Dialog */}
             {admin.pendingAction && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-10 scale-in">
+                    <div role="dialog" aria-modal="true" aria-labelledby="admin-confirm-action-title" className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-10 scale-in">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
-                                <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
+                                <span className="material-symbols-outlined text-red-500 text-2xl" aria-hidden="true">warning</span>
                             </div>
-                            <h3 className="text-xl font-black text-[#101418]">Confirm Action</h3>
+                            <h3 id="admin-confirm-action-title" className="text-xl font-black text-[#101418]">Confirm Action</h3>
                         </div>
                         <p className="text-[#44546f] font-medium mb-8">{admin.pendingAction.message}</p>
+                        {/* P2-04: Deactivation impact preview */}
+                        {admin.deactivationImpact && (
+                            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="material-symbols-outlined text-amber-600 text-lg">report</span>
+                                    <span className="text-xs font-black text-amber-700 uppercase tracking-wider">Impact Preview</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    {admin.deactivationImpact.categories !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Categories affected</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.categories} ({admin.deactivationImpact.activeCategories} active)</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.publishedTypes !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Published services</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.publishedTypes}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.draftTypes !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Draft services</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.draftTypes}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.requestTypes !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Request types</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.requestTypes}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.existingRequests !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Existing requests</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.existingRequests}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.entitlements !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Entitlements</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.entitlements}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.escalationRules !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Escalation rules</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.escalationRules}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.workflowTypes !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Workflow mappings</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.workflowTypes}</div>
+                                        </>
+                                    )}
+                                    {admin.deactivationImpact.hasWorkflow !== undefined && (
+                                        <>
+                                            <div className="text-[#44546f]">Workflow assigned</div>
+                                            <div className="font-bold text-[#101418]">{admin.deactivationImpact.hasWorkflow ? 'Yes' : 'No'}</div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <div className="flex gap-4">
                             <button
-                                onClick={() => admin.setPendingAction(null)}
+                                onClick={() => { admin.setPendingAction(null); admin.setDeactivationImpact?.(null); }}
                                 className="flex-1 py-3 bg-gray-100 text-[#44546f] font-black rounded-2xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest"
                             >
                                 Cancel

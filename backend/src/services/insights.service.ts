@@ -8,6 +8,7 @@
 import prisma from '../utils/prisma';
 import { cacheGetJSON, cacheSetJSON } from '../utils/cache';
 import { RESOLVED_STATUSES, CLOSED_STATUSES } from '../constants/requestStatuses';
+import { activeSlaBreachWhere, noSlaWhere, withinSlaWhere } from '../utils/slaPredicates';
 
 // Module-team mapping — assignedTeam values mapped to module names
 const MODULE_TEAMS: Record<string, string> = {
@@ -120,16 +121,17 @@ class InsightsService {
       createdAt: { gte: thirtyDaysAgo },
       status: { notIn: CLOSED_STATUSES },
     };
+    const now = new Date();
 
     const [withinSla, breached, noSla] = await Promise.all([
       prisma.request.count({
-        where: { ...openFilter, slaDueAt: { gt: new Date() } },
+        where: { ...openFilter, ...withinSlaWhere(now) },
       }),
       prisma.request.count({
-        where: { ...openFilter, slaDueAt: { lte: new Date() } },
+        where: { ...openFilter, ...activeSlaBreachWhere(now) },
       }),
       prisma.request.count({
-        where: { ...openFilter, slaDueAt: null },
+        where: { ...openFilter, ...noSlaWhere() },
       }),
     ]);
 
@@ -275,7 +277,7 @@ class InsightsService {
         date_trunc(${truncVal}, "createdAt") as bucket,
         count(*) as total,
         count(*) FILTER (WHERE "resolvedAt" IS NOT NULL) as resolved,
-        count(*) FILTER (WHERE "slaDueAt" IS NOT NULL AND "slaDueAt" < NOW() AND "resolvedAt" IS NULL AND "deletedAt" IS NULL) as breached
+        count(*) FILTER (WHERE "slaDueAt" IS NOT NULL AND "slaDueAt" < NOW() AND "slaPausedAt" IS NULL AND "resolvedAt" IS NULL AND "deletedAt" IS NULL) as breached
       FROM "requests"
       WHERE "deletedAt" IS NULL AND "createdAt" >= ${from} AND "createdAt" <= ${to}
       GROUP BY bucket

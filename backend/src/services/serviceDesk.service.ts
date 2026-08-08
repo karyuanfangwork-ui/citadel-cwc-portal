@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma';
 import { AppError } from '../middleware/error.middleware';
+import { validateConditionalRules } from './conditionalRules.service';
 
 class ServiceDeskService {
     async getAllServiceDesks() {
@@ -18,9 +19,24 @@ class ServiceDeskService {
         });
     }
 
+    // P2-01: Admin endpoint — returns both active and inactive desks for restoration
+    async getAllServiceDesksAdmin() {
+        return prisma.serviceDesk.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: {
+                autoAssignUser: {
+                    select: { id: true, firstName: true, lastName: true, email: true, agentTeam: true, isActive: true },
+                },
+                categories: {
+                    orderBy: { displayOrder: 'asc' },
+                },
+            },
+        });
+    }
+
     async getServiceDeskById(id: string) {
         const serviceDesk = await prisma.serviceDesk.findUnique({
-            where: { id },
+            where: { id, isActive: true },
             include: {
                 autoAssignUser: {
                     select: { id: true, firstName: true, lastName: true, email: true, agentTeam: true, isActive: true },
@@ -93,6 +109,7 @@ class ServiceDeskService {
     }
 
     async getAllCategoriesAdmin(deskId: string) {
+        await this.requireServiceDesk(deskId);
         return prisma.serviceCategory.findMany({
             where: { serviceDeskId: deskId },
             orderBy: { displayOrder: 'asc' },
@@ -103,6 +120,7 @@ class ServiceDeskService {
     }
 
     async createCategory(deskId: string, data: { name: string; description?: string; icon?: string; colorClass?: string; displayOrder?: number }) {
+        await this.requireServiceDesk(deskId);
         return prisma.serviceCategory.create({
             data: {
                 serviceDeskId: deskId,
@@ -116,35 +134,38 @@ class ServiceDeskService {
         });
     }
 
-    async updateCategory(categoryId: string, data: { name?: string; description?: string; icon?: string; colorClass?: string; displayOrder?: number; isActive?: boolean }) {
-        // If displayOrder is being updated, check for conflicts
+    async updateCategory(deskId: string, categoryId: string, data: { name?: string; description?: string; icon?: string; colorClass?: string; displayOrder?: number; isActive?: boolean }) {
+        const category = await this.requireCategory(deskId, categoryId);
+        // If displayOrder is being updated, handle the swap atomically
         if (data.displayOrder !== undefined) {
-            const category = await prisma.serviceCategory.findUnique({
-                where: { id: categoryId },
-                select: { serviceDeskId: true, displayOrder: true },
-            });
-
-            if (category) {
-                const newOrder = data.displayOrder!;
-
-                // If the order is changing, adjust other categories
-                if (category.displayOrder !== newOrder) {
-                    // Find if another category has this displayOrder
-                    const conflicting = await prisma.serviceCategory.findFirst({
+            if (category.displayOrder !== data.displayOrder) {
+                // P2-05: Use transaction to prevent race conditions during reorder
+                await prisma.$transaction(async (tx) => {
+                    const conflicting = await tx.serviceCategory.findFirst({
                         where: {
                             serviceDeskId: category.serviceDeskId,
-                            displayOrder: newOrder,
+                            displayOrder: data.displayOrder,
                             id: { not: categoryId },
                         },
                     });
 
-                    // If there's a conflict, swap the orders
                     if (conflicting) {
-                        await prisma.serviceCategory.update({
+                        await tx.serviceCategory.update({
                             where: { id: conflicting.id },
                             data: { displayOrder: category.displayOrder },
                         });
                     }
+
+                    await tx.serviceCategory.update({
+                        where: { id: categoryId },
+                        data: { displayOrder: data.displayOrder },
+                    });
+                });
+
+                // Return the updated category (outside transaction for read-only)
+                if (!data.name && !data.description && !data.icon && !data.colorClass && data.isActive === undefined) {
+                    // This was a reorder-only call — return the category
+                    return prisma.serviceCategory.findUnique({ where: { id: categoryId } });
                 }
             }
         }
@@ -162,11 +183,59 @@ class ServiceDeskService {
         });
     }
 
-    async deleteCategory(categoryId: string) {
+    async deleteCategory(deskId: string, categoryId: string) {
+        await this.requireCategory(deskId, categoryId);
         await prisma.serviceCategory.update({
             where: { id: categoryId },
             data: { isActive: false },
         });
+    }
+
+    async reorderCategories(deskId: string, categoryIds: string[]) {
+        await this.requireServiceDesk(deskId);
+        if (categoryIds.length === 0 || new Set(categoryIds).size !== categoryIds.length) {
+            throw new AppError('Category IDs must be unique and non-empty', 400);
+        }
+
+        const categories = await prisma.serviceCategory.findMany({
+            where: { serviceDeskId: deskId, id: { in: categoryIds } },
+            select: { id: true },
+        });
+        if (categories.length !== categoryIds.length) {
+            throw new AppError('All category IDs must belong to the selected service desk', 400);
+        }
+
+        return prisma.$transaction(async (tx) => {
+            await tx.serviceCategory.updateMany({
+                where: { serviceDeskId: deskId, id: { in: categoryIds } },
+                data: { displayOrder: { increment: categoryIds.length } },
+            });
+            await Promise.all(categoryIds.map((id, index) => tx.serviceCategory.update({
+                where: { id },
+                data: { displayOrder: index },
+            })));
+            return tx.serviceCategory.findMany({
+                where: { serviceDeskId: deskId },
+                orderBy: { displayOrder: 'asc' },
+            });
+        });
+    }
+
+    private async requireServiceDesk(deskId: string) {
+        const desk = await prisma.serviceDesk.findUnique({ where: { id: deskId } });
+        if (!desk) throw new AppError('Service desk not found', 404);
+        return desk;
+    }
+
+    private async requireCategory(deskId: string, categoryId: string) {
+        const category = await prisma.serviceCategory.findUnique({
+            where: { id: categoryId },
+            select: { id: true, serviceDeskId: true, displayOrder: true, name: true, isActive: true },
+        });
+        if (!category || category.serviceDeskId !== deskId) {
+            throw new AppError('Category not found for the selected service desk', 404);
+        }
+        return category;
     }
 
     async getRequestTypes(deskId: string, categoryId?: string) {
@@ -254,6 +323,7 @@ class ServiceDeskService {
         lifecycleStatus?: string;
         reviewDate?: Date | null;
     }) {
+        this.assertValidFormConfig(data.formConfig || []);
         return prisma.requestType.create({
             data: {
                 serviceCategoryId: data.serviceCategoryId,
@@ -287,6 +357,9 @@ class ServiceDeskService {
         lifecycleStatus?: string;
         reviewDate?: Date | null;
     }) {
+        if (data.formConfig !== undefined) {
+            this.assertValidFormConfig(data.formConfig);
+        }
         // P5-04: If formConfig is being updated, increment the version
         const updateData: any = {
             name: data.name,
@@ -302,21 +375,6 @@ class ServiceDeskService {
             lifecycleStatus: data.lifecycleStatus as any,
             reviewDate: data.reviewDate !== undefined ? (data.reviewDate ?? null) : undefined,
         };
-        // P5-05: Sanitize formConfig — strip incomplete showWhen conditions before persisting
-        if (data.formConfig !== undefined) {
-            const sanitizedConfig = (data.formConfig as any[])?.map((field: any) => {
-                if (!field.showWhen) return field;
-                const validConditions = (field.showWhen.conditions as any[])?.filter(
-                    (c: any) => c.fieldId && c.fieldId.trim() !== ''
-                );
-                if (!validConditions || validConditions.length === 0) {
-                    const { showWhen, ...rest } = field;
-                    return rest;
-                }
-                return { ...field, showWhen: { ...field.showWhen, conditions: validConditions } };
-            });
-            updateData.formConfig = sanitizedConfig ?? data.formConfig;
-        }
         if (data.formConfig !== undefined) {
             updateData.formConfigVersion = { increment: 1 };
         }
@@ -331,6 +389,108 @@ class ServiceDeskService {
             where: { id: typeId },
             data: { isActive: false },
         });
+    }
+
+    // P2-04: Deactivation impact preview — returns counts of dependent records
+    async getDeskDeactivationImpact(deskId: string) {
+        const desk = await prisma.serviceDesk.findUnique({ where: { id: deskId } });
+        if (!desk) throw new AppError('Service desk not found', 404);
+
+        const [categories, requests, entitlements, escalationRules, workflowTypes] = await Promise.all([
+            prisma.serviceCategory.count({ where: { serviceDeskId: deskId } }),
+            prisma.request.count({ where: { serviceDeskId: deskId } }),
+            prisma.catalogEntitlement.count({
+                where: { requestType: { serviceCategory: { serviceDeskId: deskId } } },
+            }),
+            prisma.escalationRule.count({
+                where: { requestType: { serviceCategory: { serviceDeskId: deskId } } },
+            }),
+            prisma.requestType.count({
+                where: { serviceCategory: { serviceDeskId: deskId }, workflowTypeId: { not: null } },
+            }),
+        ]);
+
+        const activeCategories = await prisma.serviceCategory.count({ where: { serviceDeskId: deskId, isActive: true } });
+        const publishedTypes = await prisma.requestType.count({
+            where: { serviceCategory: { serviceDeskId: deskId }, lifecycleStatus: 'PUBLISHED' },
+        });
+        const draftTypes = await prisma.requestType.count({
+            where: { serviceCategory: { serviceDeskId: deskId }, lifecycleStatus: 'DRAFT' },
+        });
+
+        return {
+            deskId,
+            deskName: desk.name,
+            isActive: desk.isActive,
+            categories,
+            activeCategories,
+            publishedTypes,
+            draftTypes,
+            existingRequests: requests,
+            entitlements,
+            escalationRules,
+            workflowTypes,
+        };
+    }
+
+    async getCategoryDeactivationImpact(deskId: string, categoryId: string) {
+        const category = await this.requireCategory(deskId, categoryId);
+
+        const [requestTypes, publishedTypes, draftTypes, entitlements, escalationRules, workflowTypes] = await Promise.all([
+            prisma.requestType.count({ where: { serviceCategoryId: categoryId } }),
+            prisma.requestType.count({ where: { serviceCategoryId: categoryId, lifecycleStatus: 'PUBLISHED' } }),
+            prisma.requestType.count({ where: { serviceCategoryId: categoryId, lifecycleStatus: 'DRAFT' } }),
+            prisma.catalogEntitlement.count({ where: { requestType: { serviceCategoryId: categoryId } } }),
+            prisma.escalationRule.count({ where: { requestType: { serviceCategoryId: categoryId } } }),
+            prisma.requestType.count({ where: { serviceCategoryId: categoryId, workflowTypeId: { not: null } } }),
+        ]);
+
+        const existingRequests = await prisma.request.count({
+            where: { requestType: { serviceCategoryId: categoryId } },
+        });
+
+        return {
+            categoryId,
+            categoryName: category.name,
+            isActive: category.isActive,
+            requestTypes,
+            publishedTypes,
+            draftTypes,
+            existingRequests,
+            entitlements,
+            escalationRules,
+            workflowTypes,
+        };
+    }
+
+    async getRequestTypeDeactivationImpact(typeId: string) {
+        const requestType = await prisma.requestType.findUnique({ where: { id: typeId } });
+        if (!requestType) throw new AppError('Request type not found', 404);
+
+        const [existingRequests, entitlements, escalationRules] = await Promise.all([
+            prisma.request.count({ where: { requestTypeId: typeId } }),
+            prisma.catalogEntitlement.count({ where: { requestTypeId: typeId } }),
+            prisma.escalationRule.count({ where: { requestTypeId: typeId } }),
+        ]);
+
+        return {
+            typeId,
+            typeName: requestType.name,
+            isActive: requestType.isActive,
+            lifecycleStatus: requestType.lifecycleStatus,
+            existingRequests,
+            entitlements,
+            escalationRules,
+            hasWorkflow: !!requestType.workflowTypeId,
+            slaHours: requestType.slaHours,
+        };
+    }
+
+    private assertValidFormConfig(formConfig: unknown) {
+        const result = validateConditionalRules(formConfig as any[]);
+        if (!result.isValid) {
+            throw new AppError(`Invalid form configuration: ${result.errors.slice(0, 3).join(' ')}`, 400);
+        }
     }
 }
 

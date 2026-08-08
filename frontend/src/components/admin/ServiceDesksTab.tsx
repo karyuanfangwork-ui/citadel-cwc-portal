@@ -11,13 +11,26 @@ interface ServiceDesksTabProps {
     filteredCategories: any[];
     selectedCategory: any;
     requestTypes: any[];
+    requestTypeSearch: string;
+    onRequestTypeSearchChange: (search: string) => void;
+    requestTypeStatusFilter: 'ALL' | 'ACTIVE' | 'INACTIVE';
+    onRequestTypeStatusFilterChange: (filter: 'ALL' | 'ACTIVE' | 'INACTIVE') => void;
+    requestTypeLifecycleFilter: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED';
+    onRequestTypeLifecycleFilterChange: (filter: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | 'RETIRED') => void;
+    filteredRequestTypes: any[];
     availableRoles: any[];
     formData: CategoryData;
     modalOpen: boolean;
     serviceModalOpen: boolean;
     desksLoading: boolean;
+    desksError: string | null;
     categoriesLoading: boolean;
+    categoriesError: string | null;
     requestTypesLoading: boolean;
+    requestTypesError: string | null;
+    onRetryDesks: () => void;
+    onRetryCategories: () => void;
+    onRetryRequestTypes: () => void;
     onDeskChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
     onAddCategory: () => void;
     onEditCategory: (cat: any) => void;
@@ -48,13 +61,26 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     filteredCategories,
     selectedCategory,
     requestTypes,
+    requestTypeSearch,
+    onRequestTypeSearchChange,
+    requestTypeStatusFilter,
+    onRequestTypeStatusFilterChange,
+    requestTypeLifecycleFilter,
+    onRequestTypeLifecycleFilterChange,
+    filteredRequestTypes,
     availableRoles,
     formData,
     modalOpen,
     serviceModalOpen,
     desksLoading,
+    desksError,
     categoriesLoading,
+    categoriesError,
     requestTypesLoading,
+    requestTypesError,
+    onRetryDesks,
+    onRetryCategories,
+    onRetryRequestTypes,
     onDeskChange,
     onAddCategory,
     onEditCategory,
@@ -75,7 +101,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     onReactivateDesk,
 }) => {
     // ── Empty state: no desks at all and not loading ──
-    if (serviceDesks.length === 0 && !desksLoading) {
+    if (serviceDesks.length === 0 && !desksLoading && !desksError) {
         return (
             <div className="py-24 text-center">
                 <span className="material-symbols-outlined text-6xl text-gray-200 mb-6 block">support_agent</span>
@@ -103,6 +129,24 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
         );
     }
 
+    // ── P1-04: Error state with retry ──
+    if (desksError) {
+        return (
+            <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm p-16 text-center">
+                <span className="material-symbols-outlined text-5xl text-red-300 mb-4 block">cloud_off</span>
+                <h3 className="text-lg font-bold text-[#101418] mb-2">Failed to Load Service Desks</h3>
+                <p className="text-sm text-[#44546f] mb-6">{desksError}</p>
+                <button
+                    onClick={onRetryDesks}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#0052cc] text-white font-bold rounded-2xl hover:bg-blue-700 transition-all"
+                >
+                    <span className="material-symbols-outlined text-lg">refresh</span>
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gray-50/20">
@@ -120,12 +164,22 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                     <option>Loading desks...</option>
                                 ) : (
                                     serviceDesks.map(desk => (
-                                        <option key={desk.id} value={desk.id}>{desk.name}</option>
+                                        <option key={desk.id} value={desk.id}>
+                                            {desk.isActive === false ? '⏸ ' : ''}{desk.name}
+                                        </option>
                                     ))
                                 )}
                             </select>
                             <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                         </div>
+
+                        {/* P2-01: Inactive desk badge */}
+                        {selectedDesk?.isActive === false && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200">
+                                <span className="material-symbols-outlined text-xs">pause</span>
+                                Inactive
+                            </span>
+                        )}
 
                         {/* Auto-assign badge */}
                         {selectedDesk?.autoAssignTeam && selectedDesk.autoAssignTeam !== 'NONE' && (
@@ -205,6 +259,18 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                     <span className="text-xs text-[#44546f] font-bold">Showing {filteredCategories.length} of {categories.length} categories</span>
                 )}
             </div>
+
+            {/* P1-04: Categories error state */}
+            {categoriesError && !categoriesLoading && (
+                <div className="px-8 py-6 text-center border-b border-gray-100">
+                    <span className="material-symbols-outlined text-3xl text-red-300 mb-2 block">error_outline</span>
+                    <p className="text-sm text-[#44546f] mb-3">{categoriesError}</p>
+                    <button onClick={onRetryCategories} className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0052cc] text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all">
+                        <span className="material-symbols-outlined text-sm">refresh</span>
+                        Retry
+                    </button>
+                </div>
+            )}
 
             <div className="overflow-x-auto">
                 <table role="table" aria-label={`Service categories for ${selectedDesk?.name || 'service desk'}`} className="w-full text-left">
@@ -348,7 +414,49 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                         </button>
                     </div>
 
+                    <div className="flex flex-col lg:flex-row gap-3 mb-6" role="search" aria-label="Filter services">
+                        <label className="relative flex-1">
+                            <span className="sr-only">Search services</span>
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                            <input
+                                value={requestTypeSearch}
+                                onChange={e => onRequestTypeSearchChange(e.target.value)}
+                                placeholder="Search services, descriptions, or codes"
+                                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none"
+                            />
+                        </label>
+                        <label>
+                            <span className="sr-only">Service availability</span>
+                            <select value={requestTypeStatusFilter} onChange={e => onRequestTypeStatusFilterChange(e.target.value as typeof requestTypeStatusFilter)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold">
+                                <option value="ALL">All availability</option>
+                                <option value="ACTIVE">Active only</option>
+                                <option value="INACTIVE">Inactive only</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span className="sr-only">Service lifecycle</span>
+                            <select value={requestTypeLifecycleFilter} onChange={e => onRequestTypeLifecycleFilterChange(e.target.value as typeof requestTypeLifecycleFilter)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold">
+                                <option value="ALL">All lifecycle states</option>
+                                <option value="DRAFT">Draft</option>
+                                <option value="PUBLISHED">Published</option>
+                                <option value="DEPRECATED">Deprecated</option>
+                                <option value="RETIRED">Retired</option>
+                            </select>
+                        </label>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {/* P1-04: Request types error state */}
+                        {requestTypesError && !requestTypesLoading && (
+                            <div className="col-span-full text-center py-12">
+                                <span className="material-symbols-outlined text-4xl text-red-300 mb-3 block">error_outline</span>
+                                <p className="text-sm text-[#44546f] mb-4">{requestTypesError}</p>
+                                <button onClick={onRetryRequestTypes} className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0052cc] text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all">
+                                    <span className="material-symbols-outlined text-sm">refresh</span>
+                                    Retry
+                                </button>
+                            </div>
+                        )}
                         {requestTypesLoading ? (
                             <>
                                 {[1, 2, 3].map(i => (
@@ -361,7 +469,12 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                             </>
                         ) : (
                         <>
-                        {requestTypes.map(type => (
+                        {filteredRequestTypes.length === 0 ? (
+                            <div className="col-span-full text-center py-12">
+                                <span className="material-symbols-outlined text-4xl text-gray-300 mb-3 block">search_off</span>
+                                <p className="text-sm font-bold text-[#44546f]">No services match the selected filters.</p>
+                            </div>
+                        ) : filteredRequestTypes.map(type => (
                             <div key={type.id} className={`bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden ${!type.isActive ? 'opacity-60' : ''}`}>
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/30 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
 
@@ -370,48 +483,26 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                         <div className={`w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-[#0052cc] group-hover:text-white transition-all duration-300 shadow-sm`}>
                                             <span className="material-symbols-outlined text-2xl">{type.icon || 'bolt'}</span>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => onEditService(type)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
-                                                title="Edit Service"
-                                                aria-label="Edit service"
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">edit</span>
+                                        <div className="flex flex-wrap justify-end gap-2 max-w-[34rem]" aria-label={`Actions for ${type.name}`}>
+                                            <button onClick={() => onEditService(type)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Edit service" aria-label="Edit service">
+                                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span><span>Edit</span>
                                             </button>
-                                            <button
-                                                onClick={() => onOpenFormBuilder(type)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#0052cc] hover:bg-blue-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
-                                                title="Configure Form Fields"
-                                                aria-label="Configure form fields"
-                                            >
-                                                <span className="material-symbols-outlined text-[22px]">dynamic_form</span>
+                                            <button onClick={() => onOpenFormBuilder(type)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-[#0052cc] hover:bg-blue-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Configure form fields" aria-label="Configure form fields">
+                                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">dynamic_form</span><span>Form</span>
                                             </button>
-                                            <button
-                                                onClick={() => onOpenCatalogDetail(type)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
-                                                title="Governance & Entitlements"
-                                                aria-label="View governance detail"
-                                            >
-                                                <span className="material-symbols-outlined text-[22px]">shield</span>
+                                            <button onClick={() => onOpenCatalogDetail(type)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Governance and entitlements" aria-label="View governance detail">
+                                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">shield</span><span>Governance</span>
+                                            </button>
+                                            <button onClick={() => onEditTypeName(type)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Workflow and SLA" aria-label="Edit workflow mapping">
+                                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">account_tree</span><span>Workflow</span>
                                             </button>
                                             {type.isActive !== false ? (
-                                                <button
-                                                    onClick={() => onDeleteService(type.id)}
-                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
-                                                    title="Deactivate service"
-                                                    aria-label="Deactivate service"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                <button onClick={() => onDeleteService(type.id)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Deactivate service" aria-label="Deactivate service">
+                                                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span><span>Deactivate</span>
                                                 </button>
                                             ) : (
-                                                <button
-                                                    onClick={() => onReactivateService(type.id)}
-                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
-                                                    title="Reactivate service"
-                                                    aria-label="Reactivate service"
-                                                >
-                                                    <span className="material-symbols-outlined text-[20px]">restore</span>
+                                                <button onClick={() => onReactivateService(type.id)} className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2" title="Restore service" aria-label="Restore service">
+                                                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">restore</span><span>Restore</span>
                                                 </button>
                                             )}
                                         </div>
@@ -428,6 +519,25 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                     {type.isActive === false && (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200 mb-4">
                                             <span className="material-symbols-outlined text-xs mr-1">pause</span>Inactive
+                                        </span>
+                                    )}
+
+                                    {/* P2-02: Lifecycle status badge — separate from technical availability */}
+                                    {type.lifecycleStatus && (
+                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ml-1 mb-2 ${
+                                            type.lifecycleStatus === 'PUBLISHED' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                            type.lifecycleStatus === 'DRAFT' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                            type.lifecycleStatus === 'DEPRECATED' ? 'bg-orange-50 text-orange-700 border border-orange-100' :
+                                            type.lifecycleStatus === 'RETIRED' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                            'bg-gray-50 text-gray-500 border border-gray-100'
+                                        }`}>
+                                            <span className="material-symbols-outlined text-xs mr-1">{
+                                                type.lifecycleStatus === 'PUBLISHED' ? 'rocket_launch' :
+                                                type.lifecycleStatus === 'DRAFT' ? 'edit_note' :
+                                                type.lifecycleStatus === 'DEPRECATED' ? 'warning' :
+                                                type.lifecycleStatus === 'RETIRED' ? 'block' : 'help'
+                                            }</span>
+                                            {type.lifecycleStatus}
                                         </span>
                                     )}
 
