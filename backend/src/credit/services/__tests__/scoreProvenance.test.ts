@@ -11,6 +11,10 @@ jest.mock('../../../utils/prisma', () => {
   const mockFindFirst = jest.fn();
   const mockFindUnique = jest.fn();
   const mockCreate = jest.fn();
+  const mockTx = {
+    creditScoreRun: { create: mockCreate },
+    creditApplication: { update: jest.fn().mockResolvedValue({}), findUnique: mockFindUnique },
+  };
   return {
     __esModule: true,
     default: {
@@ -21,6 +25,7 @@ jest.mock('../../../utils/prisma', () => {
       ratingBandConfig: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       scoreFactorDefinition: { findMany: jest.fn().mockResolvedValue([]) },
       $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (fn: any) => fn(mockTx)),
     },
   };
 });

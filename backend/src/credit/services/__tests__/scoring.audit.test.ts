@@ -3,16 +3,22 @@ jest.mock('../../../utils/prisma', () => {
   const mockFindMany = jest.fn();
   const mockFindUnique = jest.fn();
   const mockCreate = jest.fn();
+  const mockUpdate = jest.fn();
+  const mockTx = {
+    creditScoreRun: { create: mockCreate, update: mockUpdate },
+    creditApplication: { update: jest.fn().mockResolvedValue({}), findUnique: mockFindUnique },
+  };
   return {
     __esModule: true,
     default: {
       creditScorecardVersion: { findFirst: mockFindFirst, findMany: mockFindMany },
-      creditApplication: { findUnique: mockFindUnique },
+      creditApplication: { findUnique: mockFindUnique, update: jest.fn().mockResolvedValue({}) },
       financialStatement: { findFirst: jest.fn().mockResolvedValue(null) },
-      creditScoreRun: { create: mockCreate },
+      creditScoreRun: { create: mockCreate, update: mockUpdate },
       ratingBandConfig: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue({ version: 1 }) },
       scoreFactorDefinition: { findMany: jest.fn().mockResolvedValue([]) },
       $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (fn: any) => fn(mockTx)),
     },
   };
 });
@@ -112,6 +118,7 @@ describe('executeScore audit', () => {
         totalScore: expect.any(Number),
         riskRating: expect.any(String),
       }),
+      expect.any(Object), // LOS-009: tx client
     );
   });
 
@@ -148,6 +155,7 @@ describe('executeScore audit', () => {
     expect(AuditChainService.appendEvent).toHaveBeenCalledWith(
       'app-1', 'SCORE_RUN_CREATED', null, 'score',
       null, expect.any(String), expect.objectContaining({ scoreRunId: 'run-3' }),
+      expect.any(Object), // LOS-009: tx client
     );
   });
 });

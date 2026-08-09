@@ -11,8 +11,10 @@ export async function persistApplicationRiskRating(
   applicationId: string,
   riskRating: RiskRating,
   riskRatingUpdatedAt: Date = new Date(),
+  tx?: any, // LOS-009: accept transaction client for atomic audit writes
 ): Promise<void> {
-  await prisma.creditApplication.update({
+  const client = tx ?? prisma;
+  await client.creditApplication.update({
     where: { id: applicationId },
     data: {
       riskRating,

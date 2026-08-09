@@ -1,12 +1,21 @@
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
-    creditScoreRun: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
+jest.mock('../../../utils/prisma', () => {
+  const mockFindUnique = jest.fn();
+  const mockUpdate = jest.fn();
+  const mockTx = {
+    creditScoreRun: { findUnique: mockFindUnique, update: mockUpdate },
+    creditApplication: { update: jest.fn().mockResolvedValue({}) },
+  };
+  return {
+    __esModule: true,
+    default: {
+      creditScoreRun: {
+        findUnique: mockFindUnique,
+        update: mockUpdate,
+      },
+      $transaction: jest.fn(async (fn: any) => fn(mockTx)),
     },
-  },
-}));
+  };
+});
 
 jest.mock('../auditChain.service', () => ({
   AuditChainService: {
@@ -101,6 +110,6 @@ describe('scoringService.overrideScore', () => {
       requestedById: 'requester-1',
     });
 
-    expect(persistApplicationRiskRating).toHaveBeenCalledWith('app-1', 'BB', approvedAt);
+    expect(persistApplicationRiskRating).toHaveBeenCalledWith('app-1', 'BB', approvedAt, expect.any(Object));
   });
 });

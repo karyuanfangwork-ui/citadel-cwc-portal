@@ -668,61 +668,68 @@ class ScoringService {
       capturedAt: new Date().toISOString(),
     };
 
-    const scoreRun = await prisma.creditScoreRun.create({
-      data: {
-        applicationId,
-        scorecardVersionId: scorecardVersion.id,
-        factorScores: factorScores as any,
-        totalScore: new Prisma.Decimal(totalScore),
-        riskRating,
-        baseRiskRating,
-        bureauCapsApplied: bureauCapsApplied.length > 0 ? bureauCapsApplied : Prisma.JsonNull,
-        isOverride: false,
-        calculatedById: opts.actorId ?? null,
-        calculationSource: opts.source ?? 'MANUAL',
-        inputSnapshot: inputSnapshot as any,
-        missingInputs: missingInputs.length > 0 ? (missingInputs as any) : Prisma.JsonNull,
-        scoreRunWarnings: governanceWarnings.length > 0 ? (governanceWarnings as any) : Prisma.JsonNull,
-        // LOS-014 — Provenance: record exactly which methodology produced this
-        // result so an old rating can be reproduced. scorecardVersionId covered
-        // the weights; these two cover the rating bands and the missing-data
-        // policy, without which a replay cannot be reconstructed.
-        ratingBandVersion: ratingBandVersion ?? null,
-        policyVersion: policyVersion ?? null,
-        runAt: new Date(),
-      },
-      include: {
-        application: { select: { id: true, applicationNo: true } },
-        scorecardVersion: {
-          select: {
-            id: true,
-            version: true,
-            scorecard: { select: { id: true, name: true } },
-          },
+    // Step 8–9b: Create score run, persist rating, and append audit event
+    // LOS-009 — all three must commit or roll back together.
+    const scoreRun = await prisma.$transaction(async (tx) => {
+      const run = await tx.creditScoreRun.create({
+        data: {
+          applicationId,
+          scorecardVersionId: scorecardVersion.id,
+          factorScores: factorScores as any,
+          totalScore: new Prisma.Decimal(totalScore),
+          riskRating,
+          baseRiskRating,
+          bureauCapsApplied: bureauCapsApplied.length > 0 ? bureauCapsApplied : Prisma.JsonNull,
+          isOverride: false,
+          calculatedById: opts.actorId ?? null,
+          calculationSource: opts.source ?? 'MANUAL',
+          inputSnapshot: inputSnapshot as any,
+          missingInputs: missingInputs.length > 0 ? (missingInputs as any) : Prisma.JsonNull,
+          scoreRunWarnings: governanceWarnings.length > 0 ? (governanceWarnings as any) : Prisma.JsonNull,
+          // LOS-014 — Provenance: record exactly which methodology produced this
+          // result so an old rating can be reproduced. scorecardVersionId covered
+          // the weights; these two cover the rating bands and the missing-data
+          // policy, without which a replay cannot be reconstructed.
+          ratingBandVersion: ratingBandVersion ?? null,
+          policyVersion: policyVersion ?? null,
+          runAt: new Date(),
         },
-        overrideApprovedBy: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
+        include: {
+          application: { select: { id: true, applicationNo: true } },
+          scorecardVersion: {
+            select: {
+              id: true,
+              version: true,
+              scorecard: { select: { id: true, name: true } },
+            },
+          },
+          overrideApprovedBy: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
 
-    await persistApplicationRiskRating(applicationId, riskRating, scoreRun.runAt);
+      await persistApplicationRiskRating(applicationId, riskRating, run.runAt, tx);
 
-    // Step 9b: Append SCORE_RUN_CREATED to the tamper-evident audit chain
-    await AuditChainService.appendEvent(
-      applicationId,
-      'SCORE_RUN_CREATED',
-      opts.actorId ?? null,
-      'score',
-      null,
-      riskRating,
-      {
-        scoreRunId: scoreRun.id,
-        scorecardVersionId: scorecardVersion.id,
-        totalScore,
+      // Step 9b: Append SCORE_RUN_CREATED to the tamper-evident audit chain
+      await AuditChainService.appendEvent(
+        applicationId,
+        'SCORE_RUN_CREATED',
+        opts.actorId ?? null,
+        'score',
+        null,
         riskRating,
-        bureauCapsApplied,
-        bureauFresh,
-      },
-    );
+        {
+          scoreRunId: run.id,
+          scorecardVersionId: scorecardVersion.id,
+          totalScore,
+          riskRating,
+          bureauCapsApplied,
+          bureauFresh,
+        },
+        tx as any,
+      );
+
+      return run;
+    });
 
     // Step 10: Return results
     return {
@@ -784,47 +791,54 @@ class ScoringService {
       );
     }
 
-    const updated = await prisma.creditScoreRun.update({
-      where: { id: scoreRunId },
-      data: {
-        riskRating: data.newRiskRating,
-        isOverride: true,
-        overrideReason: data.overrideReason,
-        overrideApprovedById: data.overrideApprovedById,
-        overrideApprovedAt: new Date(),
-      },
-      include: {
-        application: { select: { id: true, applicationNo: true } },
-        scorecardVersion: {
-          select: {
-            id: true,
-            version: true,
-            scorecard: { select: { id: true, name: true } },
-          },
+    // LOS-009 — override, rating update, and audit event must be atomic.
+    const updated = await prisma.$transaction(async (tx) => {
+      const run = await tx.creditScoreRun.update({
+        where: { id: scoreRunId },
+        data: {
+          riskRating: data.newRiskRating,
+          isOverride: true,
+          overrideReason: data.overrideReason,
+          overrideApprovedById: data.overrideApprovedById,
+          overrideApprovedAt: new Date(),
         },
-        overrideApprovedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-      },
+        include: {
+          application: { select: { id: true, applicationNo: true } },
+          scorecardVersion: {
+            select: {
+              id: true,
+              version: true,
+              scorecard: { select: { id: true, name: true } },
+            },
+          },
+          overrideApprovedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      });
+
+      await persistApplicationRiskRating(
+        existing.applicationId,
+        data.newRiskRating,
+        run.overrideApprovedAt ?? new Date(),
+        tx,
+      );
+
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'SCORE_RUN_OVERRIDDEN',
+        data.requestedById,
+        'override',
+        existing.riskRating,
+        data.newRiskRating,
+        {
+          scoreRunId,
+          overrideReason: data.overrideReason,
+          overrideApprovedById: data.overrideApprovedById,
+        },
+        tx as any,
+      );
+
+      return run;
     });
-
-    await persistApplicationRiskRating(
-      existing.applicationId,
-      data.newRiskRating,
-      updated.overrideApprovedAt ?? new Date(),
-    );
-
-    await AuditChainService.appendEvent(
-      existing.applicationId,
-      'SCORE_RUN_OVERRIDDEN',
-      data.requestedById,
-      'override',
-      existing.riskRating,
-      data.newRiskRating,
-      {
-        scoreRunId,
-        overrideReason: data.overrideReason,
-        overrideApprovedById: data.overrideApprovedById,
-      },
-    );
 
     return updated;
   }
