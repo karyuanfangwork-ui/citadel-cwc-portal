@@ -192,29 +192,32 @@ class CreditSlaService {
         if (policy.productType && app.productType !== policy.productType) continue;
 
         try {
-          await prisma.creditSlaBreach.create({
-            data: {
-              applicationId: app.id,
-              policyId: policy.id,
-              breachedAt: now,
-            },
-          });
+          await prisma.$transaction(async (tx) => {
+            await tx.creditSlaBreach.create({
+              data: {
+                applicationId: app.id,
+                policyId: policy.id,
+                breachedAt: now,
+              },
+            });
 
-          // Create audit event
-          await AuditChainService.appendEvent(
-            app.id,
-            'SLA_BREACH',
-            null, // system-generated
-            `sla_breach_${policy.targetState.toLowerCase()}`,
-            policy.targetState,
-            policy.targetState,
-            {
-              policyId: policy.id,
-              policyName: policy.name,
-              slaHours: policy.slaHours,
-              breachedAt: now.toISOString(),
-            },
-          );
+            // Create audit event
+            await AuditChainService.appendEvent(
+              app.id,
+              'SLA_BREACH',
+              null, // system-generated
+              `sla_breach_${policy.targetState.toLowerCase()}`,
+              policy.targetState,
+              policy.targetState,
+              {
+                policyId: policy.id,
+                policyName: policy.name,
+                slaHours: policy.slaHours,
+                breachedAt: now.toISOString(),
+              },
+              tx as any,
+            );
+          });
 
           logger.warn(`[§2.2] SLA breach detected: app ${app.applicationNo}, policy ${policy.name}`);
           breachCount++;
@@ -268,37 +271,40 @@ class CreditSlaService {
       const escalateToState = breach.policy.escalateToState;
       if (!escalateToState) continue;
 
-      // Advance the application state
-      await prisma.creditApplication.update({
-        where: { id: breach.applicationId },
-        data: { state: escalateToState as ApplicationState },
-      });
+      // Advance the application state, mark breach, and audit atomically
+      await prisma.$transaction(async (tx) => {
+        await tx.creditApplication.update({
+          where: { id: breach.applicationId },
+          data: { state: escalateToState as ApplicationState },
+        });
 
-      // Mark breach as escalated
-      await prisma.creditSlaBreach.update({
-        where: { id: breach.id },
-        data: {
-          escalatedAt: now,
-          escalationNotifiedAt: now,
-        },
-      });
+        // Mark breach as escalated
+        await tx.creditSlaBreach.update({
+          where: { id: breach.id },
+          data: {
+            escalatedAt: now,
+            escalationNotifiedAt: now,
+          },
+        });
 
-      // Create audit event
-      await AuditChainService.appendEvent(
-        breach.applicationId,
-        'SLA_ESCALATION',
-        null, // system-generated
-        `sla_escalation_to_${escalateToState.toLowerCase()}`,
-        breach.application.state,
-        escalateToState,
-        {
-          policyId: breach.policyId,
-          policyName: breach.policy.name,
-          breachedAt: breach.breachedAt.toISOString(),
-          escalatedAt: now.toISOString(),
-          notifyRoles: breach.policy.notifyRoles,
-        },
-      );
+        // Create audit event
+        await AuditChainService.appendEvent(
+          breach.applicationId,
+          'SLA_ESCALATION',
+          null, // system-generated
+          `sla_escalation_to_${escalateToState.toLowerCase()}`,
+          breach.application.state,
+          escalateToState,
+          {
+            policyId: breach.policyId,
+            policyName: breach.policy.name,
+            breachedAt: breach.breachedAt.toISOString(),
+            escalatedAt: now.toISOString(),
+            notifyRoles: breach.policy.notifyRoles,
+          },
+          tx as any,
+        );
+      });
 
       logger.info(`[§2.2] SLA escalation: app ${breach.application.applicationNo} escalated to ${escalateToState}`);
       escalationCount++;
