@@ -11,6 +11,7 @@
  *   npx tsx prisma/seed-credit.ts --notifications     # Notification templates only
  *   npx tsx prisma/seed-credit.ts --approvals         # Approval matrices only
  *   npx tsx prisma/seed-credit.ts --demo              # Full demo data (applications, borrowers, etc.)
+ *   npx tsx prisma/seed-credit.ts --e2e              # E2E test identities (analyst + approver)
  *   npx tsx prisma/seed-credit.ts --clear              # Wipe all credit data (FK-safe order)
  *   npx tsx prisma/seed-credit.ts --workflow --flags   # Combine specific seeds
  *   npx tsx prisma/seed-credit.ts --clear --demo       # Clear then seed demo
@@ -35,11 +36,12 @@ const flags = {
   approvals:      args.includes('--approvals'),
   branches:       args.includes('--branches'),
   demo:           args.includes('--demo'),
+  e2e:            args.includes('--e2e'),
   clear:          args.includes('--clear'),
   policyLimits:   args.includes('--policy-limits'),
   scoring:        args.includes('--scoring'),
 };
-const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear && !flags.policyLimits && !flags.scoring;
+const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.e2e && !flags.clear && !flags.policyLimits && !flags.scoring;
 
 // ---------------------------------------------------------------------------
 // §3.1 — Branches (multi-branch support)
@@ -660,6 +662,75 @@ async function seedScoringGovernance() {
 // ---------------------------------------------------------------------------
 // 6. Demo data — delegates to existing creditDemoSeed
 // ---------------------------------------------------------------------------
+
+// LOS-022 — Distinct credit identities so segregation-of-duties paths can be
+// exercised end-to-end. With one shared credit account the inbox exclusion
+// reasons are unreachable in a browser test.
+async function seedE2eIdentities() {
+  console.log('👥 Seeding E2E credit identities (analyst + approver)...');
+  const { default: bcrypt } = await import('bcryptjs');
+  const e2ePassword = await bcrypt.hash('abc@123', 12);
+
+  const analystRole = await prisma.role.findUnique({ where: { name: 'CREDIT_ANALYST' } });
+  const managerRole = await prisma.role.findUnique({ where: { name: 'CREDIT_MANAGER' } });
+  const defaultTenant = await prisma.tenant.findFirst();
+
+  if (!analystRole || !managerRole) {
+    console.log('  ⚠️  CREDIT_ANALYST or CREDIT_MANAGER role not found — skipping E2E identities.');
+    return;
+  }
+
+  const e2eAnalyst = await prisma.user.upsert({
+    where: { email: 'e2e-analyst@test.local' },
+    update: {},
+    create: {
+      tenantId: defaultTenant?.id,
+      email: 'e2e-analyst@test.local',
+      passwordHash: e2ePassword,
+      firstName: 'E2E',
+      lastName: 'Analyst',
+      department: 'Credit',
+      jobTitle: 'Credit Analyst',
+      isActive: true,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: e2eAnalyst.id, roleId: analystRole.id } },
+    update: {},
+    create: { userId: e2eAnalyst.id, roleId: analystRole.id },
+  });
+
+  const e2eApprover = await prisma.user.upsert({
+    where: { email: 'e2e-approver@test.local' },
+    update: {},
+    create: {
+      tenantId: defaultTenant?.id,
+      email: 'e2e-approver@test.local',
+      passwordHash: e2ePassword,
+      firstName: 'E2E',
+      lastName: 'Approver',
+      department: 'Credit',
+      jobTitle: 'Credit Manager',
+      isActive: true,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: e2eApprover.id, roleId: managerRole.id } },
+    update: {},
+    create: { userId: e2eApprover.id, roleId: managerRole.id },
+  });
+
+  // Make the analyst the RM on committee-stage applications so the SOD exclusion
+  // fires when the analyst opens the approvals inbox.
+  const updated = await prisma.creditApplication.updateMany({
+    where: { state: 'COMMITTEE_REVIEW' },
+    data: { assignedRmId: e2eAnalyst.id },
+  });
+  console.log(`  ✅ E2E Analyst: ${e2eAnalyst.email} (CREDIT_ANALYST — credit:read, credit:write, credit:export)`);
+  console.log(`  ✅ E2E Approver: ${e2eApprover.email} (CREDIT_MANAGER — credit:read, credit:write, credit:approve)`);
+  console.log(`  ✅ Assigned ${updated.count} COMMITTEE_REVIEW application(s) to analyst as RM`);
+}
+
 async function seedDemo() {
   console.log('🎬 Seeding credit demo data...');
   const { seedCreditDemo } = await import('./creditDemoSeed');
@@ -702,6 +773,7 @@ async function main() {
     if (shouldRun(flags.branches))      await seedBranches();
     if (shouldRun(flags.policyLimits))   await seedPolicyLimits();
     if (shouldRun(flags.scoring))        await seedScoringGovernance();
+    if (shouldRun(flags.e2e))            await seedE2eIdentities();
     if (shouldRun(flags.demo))          await seedDemo();
 
     console.log('\n✅ Done.');

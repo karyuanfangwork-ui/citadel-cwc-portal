@@ -6,13 +6,15 @@
  *  - originalRating came from the client, letting the caller pick the notch delta
  *  - justification was optional
  */
+const txCreate = jest.fn(async (a: any) => ({ id: 'ov-1', ...a.data }));
+
 jest.mock('../../../utils/prisma', () => ({
   __esModule: true,
   default: {
     creditScoreRun: { findFirst: jest.fn(), update: jest.fn() },
     scoreOverrideApproval: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(async (fn: any) => fn({
-      scoreOverrideApproval: { update: jest.fn(async (a: any) => a.data) },
+      scoreOverrideApproval: { create: txCreate, update: jest.fn(async (a: any) => a.data) },
       creditScoreRun: { update: jest.fn() },
     })),
   },
@@ -29,6 +31,7 @@ import { AppError } from '../../../middleware/error.middleware';
 const mocked = prisma as unknown as {
   creditScoreRun: { findFirst: jest.Mock };
   scoreOverrideApproval: { create: jest.Mock };
+  $transaction: jest.Mock;
 };
 
 const APP_ID = '11111111-1111-4111-8111-111111111111';
@@ -36,9 +39,7 @@ const RUN_ID = '22222222-2222-4222-8222-222222222222';
 const APPROVER = '33333333-3333-4333-8333-333333333333';
 
 beforeEach(() => {
-  mocked.scoreOverrideApproval.create.mockImplementation(async (args: any) => ({
-    id: 'ov-1', ...args.data,
-  }));
+  txCreate.mockImplementation(async (a: any) => ({ id: 'ov-1', ...a.data }));
 });
 
 describe('requestScoreOverride', () => {
@@ -55,7 +56,8 @@ describe('requestScoreOverride', () => {
     expect(result.originalRating).toBe('BBB');
     expect(result.scoreRunId).toBe(RUN_ID);
     // The created record must carry the run id — this is the inert-override bug.
-    expect(mocked.scoreOverrideApproval.create).toHaveBeenCalledWith(
+    // Now that create happens inside $transaction, check txCreate instead.
+    expect(txCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ scoreRunId: RUN_ID }) }),
     );
   });
@@ -105,5 +107,20 @@ describe('requestScoreOverride', () => {
       justification: 'Same rating is not an override.',
       approverId: APPROVER,
     })).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('wraps create + audit in a transaction', async () => {
+    mocked.creditScoreRun.findFirst.mockResolvedValue({ id: RUN_ID, riskRating: 'BBB' });
+    mocked.$transaction.mockClear();
+    txCreate.mockImplementation(async (a: any) => ({ id: 'ov-1', ...a.data }));
+
+    await requestScoreOverride({
+      applicationId: APP_ID,
+      overrideRating: 'BB',
+      justification: 'Transactionality test.',
+      approverId: APPROVER,
+    });
+
+    expect(mocked.$transaction).toHaveBeenCalled();
   });
 });

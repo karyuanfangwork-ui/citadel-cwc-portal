@@ -34,6 +34,7 @@ jest.mock('../../../utils/prisma', () => {
 jest.mock('../../../credit/services/auditChain.service', () => ({
   AuditChainService: {
     appendEvent: jest.fn(),
+    assertChainIntact: jest.fn(),
   },
 }));
 
