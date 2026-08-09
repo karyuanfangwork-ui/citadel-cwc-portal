@@ -33,6 +33,7 @@ export const updateRiskAssessmentSchema = z.object({
     impact: impactEnum.optional(),
     mitigation: z.string().optional(),
     rating: z.number().int().min(1).max(10).optional(),
+    expectedUpdatedAt: z.string().datetime().optional(),
   }),
 });
 
@@ -45,6 +46,7 @@ const bulkItemSchema = z.object({
   impact: impactEnum,
   mitigation: z.string().optional(),
   rating: z.number().int().min(1).max(10).optional(),
+  expectedUpdatedAt: z.string().datetime().optional(),
 });
 
 export const bulkUpsertRiskAssessmentSchema = z.object({

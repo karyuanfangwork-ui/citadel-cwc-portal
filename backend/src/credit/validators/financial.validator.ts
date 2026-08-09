@@ -47,6 +47,7 @@ export const updateStatementSchema = z.object({
     commentaryDebtMgmt: z.string().max(20000).optional().nullable(),
     commentaryCashflow: z.string().max(20000).optional().nullable(),
     commentaryConclusion: z.string().max(20000).optional().nullable(),
+    expectedUpdatedAt: z.string().datetime().optional(),
   }),
 });
 

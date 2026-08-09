@@ -41,6 +41,7 @@ export const updateCollateralSchema = z.object({
     valuer: z.string().max(255).optional().nullable(),
     insuranceCoverRequired: z.boolean().optional(),
     ...phase4CollateralFields,
+    expectedUpdatedAt: z.string().datetime().optional(),
   }),
 });
 

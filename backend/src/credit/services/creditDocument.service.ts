@@ -8,6 +8,7 @@ import { AppError } from '../../middleware/error.middleware';
 import { resolveRequiredDocuments } from './creditRuleEngine.service';
 import { recalcScore } from './recalc.service';
 import { CreditAuthUser, creditScopeService } from './creditScope.service';
+import { assertVersionMatch } from '../utils/optimisticConcurrency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +33,8 @@ export interface UpdateCreditDocumentData {
   description?: string | null;
   /** @deprecated isAvClean must NOT be set via updateDocument — use updateAvStatus() instead */
   isAvClean?: boolean | null;
+  /** LOS-018 — optimistic-concurrency token */
+  expectedUpdatedAt?: string;
 }
 
 export interface ReplaceCreditDocumentData {
@@ -266,6 +269,8 @@ class CreditDocumentService {
     if (!existing) {
       return null;
     }
+
+    assertVersionMatch(existing.updatedAt, data.expectedUpdatedAt, 'Document');
 
     if (existing.applicationId) {
       const app = await prisma.creditApplication.findUnique({

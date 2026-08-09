@@ -5,6 +5,7 @@ import { computeBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.serv
 import { getTemplateForType } from '../constants/financialStatementTemplates';
 import { recalcScore } from './recalc.service';
 import { AppError } from '../../middleware/error.middleware';
+import { assertVersionMatch } from '../utils/optimisticConcurrency';
 
 // ---------------------------------------------------------------------------
 // LOS-006 — Statement immutability guard
@@ -58,6 +59,8 @@ export interface UpdateStatementData {
   commentaryDebtMgmt?: string | null;
   commentaryCashflow?: string | null;
   commentaryConclusion?: string | null;
+  /** LOS-018 — optimistic-concurrency token */
+  expectedUpdatedAt?: string;
 }
 
 export interface LineItemInput {
@@ -405,6 +408,8 @@ class FinancialService {
     if (!existing) {
       return null;
     }
+
+    assertVersionMatch(existing.updatedAt, data.expectedUpdatedAt, 'FinancialStatement');
 
     const updateData: Prisma.FinancialStatementUpdateInput = {};
 

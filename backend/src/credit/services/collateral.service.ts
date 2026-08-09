@@ -5,6 +5,7 @@ import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../utils/logger';
 import { recalcScore } from './recalc.service';
 import { getNumberPolicy } from './policyParameter.service';
+import { assertVersionMatch } from '../utils/optimisticConcurrency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +52,8 @@ export interface UpdateCollateralData {
   valuationDate?: Date | string | null;
   valuer?: string | null;
   insuranceCoverRequired?: boolean;
+  /** LOS-018 — optimistic-concurrency token */
+  expectedUpdatedAt?: string;
 }
 
 export interface CreateValuationData {
@@ -147,6 +150,8 @@ class CollateralService {
   async updateCollateral(id: string, data: UpdateCollateralData) {
     const existing = await prisma.collateral.findUnique({ where: { id } });
     if (!existing) return null;
+
+    assertVersionMatch(existing.updatedAt, data.expectedUpdatedAt, 'Collateral');
 
     const updateData: Prisma.CollateralUpdateInput = {};
 
