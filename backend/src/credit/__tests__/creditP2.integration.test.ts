@@ -172,11 +172,17 @@ describe('P2.1 — Missing-data policy resolution', () => {
       expect(result.record.policy).toBe('PENALTY');
     });
 
-    it('throws for BLOCK policy', () => {
+    it('throws AppError(400) for BLOCK policy (LOS-011)', () => {
       const policies = {
         cashflow: { factor: 'cashflow', policy: 'BLOCK', penaltyScore: 25 },
       };
-      expect(() => resolveMissingFactorScore('cashflow', 'dscr', policies)).toThrow(/BLOCK/);
+      try {
+        resolveMissingFactorScore('cashflow', 'dscr', policies);
+        throw new Error('expected resolveMissingFactorScore to throw');
+      } catch (e: any) {
+        expect(e.statusCode).toBe(400);
+        expect(e.message).toMatch(/dscr/);
+      }
     });
 
     it('produces a MissingInputRecord with factor, subField, policy, appliedScore', () => {
@@ -192,11 +198,12 @@ describe('P2.1 — Missing-data policy resolution', () => {
       });
     });
 
-    it('falls back to NEUTRAL when factor has no explicit policy', () => {
+    it('falls back to PENALTY when factor has no explicit policy (LOS-011)', () => {
+      // LOS-011 — unconfigured factors default to PENALTY (25), not NEUTRAL (50).
       const policies = {}; // no policies configured
       const result = resolveMissingFactorScore('financial_performance', 'ros', policies);
-      expect(result.score).toBe(50);
-      expect(result.record.policy).toBe('NEUTRAL');
+      expect(result.score).toBe(25);
+      expect(result.record.policy).toBe('PENALTY');
     });
 
     it('uses neutralScore when provided in PENALTY config', () => {

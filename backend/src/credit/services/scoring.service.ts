@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma, RiskRating } from '@prisma/client';
+import crypto from 'crypto';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
@@ -8,7 +9,7 @@ import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
-import { mapScoreToRatingFromBands } from './ratingBand.service';
+import { mapScoreToRatingFromBands, ratingBandService } from './ratingBand.service';
 import { persistApplicationRiskRating } from './applicationRating.service';
 import { getNumberPolicy } from './policyParameter.service';
 import { scoreFactorDefinitionService, type GovernanceWarning } from './scoreFactorDefinition.service';
@@ -612,6 +613,12 @@ class ScoringService {
     // environments have a seeded active band set.
     const bandRating = await mapScoreToRatingFromBands(totalScore);
     let baseRiskRating: RiskRating;
+
+    // LOS-014 — Capture the rating band version for provenance.
+    // The version is set when a band set is activated and stays stable across
+    // the set, so we read it once here. Null means unseeded (fallback bands).
+    const ratingBandVersion = await ratingBandService.getActiveBandSetVersion();
+
     if (bandRating) {
       baseRiskRating = bandRating;
     } else {
@@ -635,6 +642,21 @@ class ScoringService {
     const { fresh: bureauFresh, staleProviders: staleBureauProviders } = await isBureauCheckFresh(applicationId);
 
     // Step 9: Create CreditScoreRun record (with provenance + input snapshot)
+    // LOS-014 — Provenance: derive a stable policy version identifier from the
+    // resolved missing-data policies. This changes when the policy configuration
+    // changes and stays identical when it does not, so an old rating can be
+    // reproduced by re-applying the same policy version. Format: "md5:<8-char-hash>"
+    // (VarChar(50) column).
+    const policyVersion = 'md5:' + crypto
+      .createHash('md5')
+      .update(JSON.stringify(
+        Object.entries(missingDataPolicies)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([f, c]) => `${f}:${c.policy}:${c.penaltyScore}`),
+      ))
+      .digest('hex')
+      .slice(0, 8);
+
     const inputSnapshot = {
       factorScores,
       totalScore,
@@ -661,6 +683,12 @@ class ScoringService {
         inputSnapshot: inputSnapshot as any,
         missingInputs: missingInputs.length > 0 ? (missingInputs as any) : Prisma.JsonNull,
         scoreRunWarnings: governanceWarnings.length > 0 ? (governanceWarnings as any) : Prisma.JsonNull,
+        // LOS-014 — Provenance: record exactly which methodology produced this
+        // result so an old rating can be reproduced. scorecardVersionId covered
+        // the weights; these two cover the rating bands and the missing-data
+        // policy, without which a replay cannot be reconstructed.
+        ratingBandVersion: ratingBandVersion ?? null,
+        policyVersion: policyVersion ?? null,
         runAt: new Date(),
       },
       include: {

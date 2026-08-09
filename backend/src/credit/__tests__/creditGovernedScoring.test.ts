@@ -159,11 +159,20 @@ describe('P2.1 — Missing-data policy per factor and sub-field', () => {
     expect(result.record.policy).toBe('PENALTY');
   });
 
-  it('BLOCK policy throws an error', () => {
+  it('BLOCK policy throws AppError(400) with actionable message', () => {
     const policies = {
       cashflow: { factor: 'cashflow', policy: 'BLOCK', penaltyScore: 25 },
     };
-    expect(() => resolveMissingFactorScore('cashflow', 'dscr', policies)).toThrow(/BLOCK/);
+    try {
+      resolveMissingFactorScore('cashflow', 'dscr', policies);
+      throw new Error('expected resolveMissingFactorScore to throw');
+    } catch (e: any) {
+      // LOS-011 — BLOCK now throws AppError(400), not bare Error.
+      // The message names the factor and sub-field so the analyst can fix it.
+      expect(e.statusCode).toBe(400);
+      expect(e.message).toMatch(/dscr/);
+      expect(e.message).toMatch(/cashflow/);
+    }
   });
 
   it('resolves per-sub-field (e.g., ros vs roa within financial_performance)', () => {
@@ -188,11 +197,13 @@ describe('P2.1 — Missing-data policy per factor and sub-field', () => {
     });
   });
 
-  it('falls back to NEUTRAL for factors without explicit policy', () => {
+  it('falls back to PENALTY for factors without explicit policy (LOS-011)', () => {
+    // LOS-011 — an unconfigured factor must not default to neutral (score 50).
+    // The conservative fallback is PENALTY with score 25.
     const policies = {};
     const result = resolveMissingFactorScore('liquidity', 'current_ratio', policies);
-    expect(result.score).toBe(50);
-    expect(result.record.policy).toBe('NEUTRAL');
+    expect(result.score).toBe(25);
+    expect(result.record.policy).toBe('PENALTY');
   });
 });
 

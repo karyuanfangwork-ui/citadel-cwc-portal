@@ -334,9 +334,15 @@ describe('P2.6 — Missing-data policy regression', () => {
     expect(result.record.policy).toBe('PENALTY');
   });
 
-  it('BLOCK policy throws an error', () => {
+  it('BLOCK policy throws AppError(400) with actionable message (LOS-011)', () => {
     const policies = { cashflow: { factor: 'cashflow', policy: 'BLOCK' as MissingDataPolicy, penaltyScore: 25 } };
-    expect(() => resolveMissingFactorScore('cashflow', 'dscr', policies)).toThrow(/BLOCK/);
+    try {
+      resolveMissingFactorScore('cashflow', 'dscr', policies);
+      throw new Error('expected resolveMissingFactorScore to throw');
+    } catch (e: any) {
+      expect(e.statusCode).toBe(400);
+      expect(e.message).toMatch(/dscr/);
+    }
   });
 
   it('custom penalty score overrides default', () => {
@@ -353,11 +359,13 @@ describe('P2.6 — Missing-data policy regression', () => {
     expect(result.record.appliedScore).toBe(45);
   });
 
-  it('missing factor key falls back to NEUTRAL with score 50', () => {
+  it('missing factor key falls back to PENALTY with score 25 (LOS-011)', () => {
+    // LOS-011 — unconfigured factors default to PENALTY, not NEUTRAL.
+    // A missing configuration must not silently score 50.
     const policies = {};
     const result = resolveMissingFactorScore('unknown_factor', 'some_field', policies);
-    expect(result.score).toBe(50);
-    expect(result.record.policy).toBe('NEUTRAL');
+    expect(result.score).toBe(25);
+    expect(result.record.policy).toBe('PENALTY');
   });
 });
 

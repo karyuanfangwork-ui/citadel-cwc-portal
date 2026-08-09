@@ -78,6 +78,21 @@ class RatingBandService {
   }
 
   /**
+   * LOS-014 — Get the version of the currently active band set.
+   * Returns null if no active bands exist (unseeded DB).
+   * The version is the same for all bands in a set (they are created/activated together),
+   * so we take the max to be safe.
+   */
+  async getActiveBandSetVersion(): Promise<number | null> {
+    const result = await prisma.ratingBandConfig.findFirst({
+      where: { status: { in: EFFECTIVE_BAND_STATUSES } },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    return result?.version ?? null;
+  }
+
+  /**
    * Get active rating bands, falling back to CANONICAL_BANDS when DB is unseeded.
    * This is the safe version for scoring.service.ts which must always return a result.
    */
