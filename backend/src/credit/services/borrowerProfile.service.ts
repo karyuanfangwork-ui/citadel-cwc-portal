@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { maskNric } from '../utils/maskNric';
 import { PiiReadLogService } from './piiReadLog.service';
+import { normalizeIdentity } from '../utils/identityNormalization';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -240,6 +241,9 @@ class BorrowerProfileService {
     contactId?: string | null;
     name?: string | null;
     borrowerType?: string;
+    nricPassport?: string | null;
+    registrationNumber?: string | null;
+    excludeId?: string | null;
   }): Promise<{ duplicates: DuplicateMatch[] }> {
     const duplicates: DuplicateMatch[] = [];
     const seenIds = new Set<string>();
@@ -313,7 +317,45 @@ class BorrowerProfileService {
       }
     }
 
-    // 3. Check by name + borrower type (catches manual duplicates)
+    // 3. LOS-017 — Check the profile's OWN identity fields. Checks 1 and 2
+    // reach registration number and NRIC only through CRM links, so a borrower
+    // created without CRM linkage was matched on name alone — which splits
+    // exposure and KYC history across two records for the same person.
+    const directNric = normalizeIdentity(params.nricPassport);
+    const directRegNo = normalizeIdentity(params.registrationNumber);
+
+    if (directNric || directRegNo) {
+      const identityMatches = await prisma.borrowerProfile.findMany({
+        where: {
+          deletedAt: null,
+          ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+          OR: [
+            ...(directNric ? [{ nricPassportNormalized: directNric }] : []),
+            ...(directRegNo ? [{ registrationNumberNormalized: directRegNo }] : []),
+          ],
+        },
+        select: {
+          id: true, name: true, borrowerType: true,
+          nricPassportNormalized: true, registrationNumberNormalized: true,
+        },
+        take: 10,
+      });
+
+      for (const m of identityMatches) {
+        if (seenIds.has(m.id)) continue;
+        seenIds.add(m.id);
+        duplicates.push({
+          borrowerId: m.id,
+          name: m.name || 'Unknown',
+          borrowerType: m.borrowerType,
+          matchField: m.nricPassportNormalized && m.nricPassportNormalized === directNric
+            ? 'NRIC/Passport (direct)'
+            : 'Registration Number (direct)',
+        });
+      }
+    }
+
+    // 4. Check by name + borrower type (catches manual duplicates)
     if (params.name && params.borrowerType) {
       const byName = await prisma.borrowerProfile.findMany({
         where: {
@@ -474,6 +516,8 @@ class BorrowerProfileService {
         contactId: data.contactId,
         name: data.name,
         borrowerType: data.borrowerType,
+        nricPassport: data.nricPassport,
+        registrationNumber: data.registrationNumber,
       });
       if (duplicateCheck.duplicates.length > 0) {
         throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
@@ -486,8 +530,10 @@ class BorrowerProfileService {
       ...(data.accountId && { account: { connect: { id: data.accountId } } }),
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
       registrationNumber: data.registrationNumber ?? undefined,
+      registrationNumberNormalized: normalizeIdentity(data.registrationNumber),
       industry: data.industry ?? undefined,
       nricPassport: data.nricPassport ?? undefined,
+      nricPassportNormalized: normalizeIdentity(data.nricPassport),
       address: data.address ?? undefined,
       phone: data.phone ?? undefined,
       email: data.email ?? undefined,
@@ -590,8 +636,10 @@ class BorrowerProfileService {
     if (data.totalExposure !== undefined) updateData.totalExposure = data.totalExposure != null ? new Prisma.Decimal(data.totalExposure as string | number) : null;
     if (data.isSanctionedEntity !== undefined) updateData.isSanctionedEntity = data.isSanctionedEntity;
     if (data.registrationNumber !== undefined) updateData.registrationNumber = data.registrationNumber;
+    if (data.registrationNumber !== undefined) updateData.registrationNumberNormalized = normalizeIdentity(data.registrationNumber) as any;
     if (data.industry !== undefined) updateData.industry = data.industry;
     if (data.nricPassport !== undefined) updateData.nricPassport = data.nricPassport;
+    if (data.nricPassport !== undefined) updateData.nricPassportNormalized = normalizeIdentity(data.nricPassport) as any;
     if (data.address !== undefined) updateData.address = data.address;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;

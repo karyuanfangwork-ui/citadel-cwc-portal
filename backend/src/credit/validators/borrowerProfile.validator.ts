@@ -61,6 +61,7 @@ export const createBorrowerProfileSchema = z.object({
     sourceOfWealthEncrypted: z.string().optional().nullable(),
     // §2.3 Duplicate override — admin can set true to bypass duplicate check
     overrideDuplicate: z.boolean().default(false).optional(),
+    overrideReason: z.string().max(2000).optional(),
   }).superRefine((data, ctx) => {
     // Type-conditional mandatory field enforcement
     const isIndividual = data.borrowerType === 'INDIVIDUAL';

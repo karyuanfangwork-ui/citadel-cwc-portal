@@ -4018,6 +4018,10 @@ model BorrowerProfile {
   registrationNumber String? @map("registration_number") @db.VarChar(100)
   industry           String? @db.VarChar(100)
   nricPassport       String? @map("nric_passport") @db.VarChar(50)
+  /// LOS-017 — Canonical forms used for duplicate matching. Maintained by
+  /// borrowerProfile.service.ts on every create/update; never set by clients.
+  registrationNumberNormalized String? @map("registration_number_normalized") @db.VarChar(64)
+  nricPassportNormalized       String? @map("nric_passport_normalized") @db.VarChar(64)
   address            String? @db.VarChar(500)
   phone              String? @db.VarChar(50)
   email              String? @db.VarChar(255)
@@ -4094,6 +4098,8 @@ model BorrowerProfile {
   @@index([creditRiskRating])
   @@index([amlRiskTier])
   @@index([branchId])
+  @@index([registrationNumberNormalized])
+  @@index([nricPassportNormalized])
   @@map("borrower_profiles")
 }
 
