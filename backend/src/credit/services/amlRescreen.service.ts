@@ -71,31 +71,34 @@ class AmlRescreenService {
       // Create a placeholder AML re-screen record
       // The actual screening logic is a stub — Wave 4.5 will implement the real adapter
       try {
-        await prisma.creditBureauCheck.create({
-          data: {
-            applicationId: app.id,
-            provider: BureauProvider.AML_RESCREEN,
-            subjectName: `AML Quarterly Re-screen — ${app.applicationNo}`,
-            runDate: new Date(),
-            hasHits: null, // Will be populated by the real adapter
-            findings: 'Queued for quarterly AML re-screening. Awaiting PEP/sanctions check.',
-          },
-        });
+        await prisma.$transaction(async (tx) => {
+          await tx.creditBureauCheck.create({
+            data: {
+              applicationId: app.id,
+              provider: BureauProvider.AML_RESCREEN,
+              subjectName: `AML Quarterly Re-screen — ${app.applicationNo}`,
+              runDate: new Date(),
+              hasHits: null, // Will be populated by the real adapter
+              findings: 'Queued for quarterly AML re-screening. Awaiting PEP/sanctions check.',
+            },
+          });
 
-        // Create audit event
-        await AuditChainService.appendEvent(
-          app.id,
-          'AML_RESCREEN_QUEUED',
-          null, // system-generated
-          'aml_rescreen_queued',
-          undefined,
-          undefined,
-          {
-            provider: 'AML_RESCREEN',
-            reason: 'quarterly_rescreen',
-            rescreenIntervalDays: RESCREEN_INTERVAL_DAYS,
-          },
-        );
+          // Create audit event
+          await AuditChainService.appendEvent(
+            app.id,
+            'AML_RESCREEN_QUEUED',
+            null, // system-generated
+            'aml_rescreen_queued',
+            undefined,
+            undefined,
+            {
+              provider: 'AML_RESCREEN',
+              reason: 'quarterly_rescreen',
+              rescreenIntervalDays: RESCREEN_INTERVAL_DAYS,
+            },
+            tx as any,
+          );
+        });
 
         logger.info(`[§2.7] AML re-screen queued for app ${app.applicationNo}`);
         queuedCount++;
@@ -118,31 +121,34 @@ class AmlRescreenService {
     findings: string,
     runById?: string,
   ): Promise<void> {
-    await prisma.creditBureauCheck.update({
-      where: { id: checkId },
-      data: { hasHits, findings },
+    await prisma.$transaction(async (tx) => {
+      await tx.creditBureauCheck.update({
+        where: { id: checkId },
+        data: { hasHits, findings },
+      });
+
+      const check = await tx.creditBureauCheck.findUnique({
+        where: { id: checkId },
+        select: { applicationId: true },
+      });
+
+      if (!check) return;
+
+      await AuditChainService.appendEvent(
+        check.applicationId,
+        hasHits ? 'AML_RESCREEN_HITS' : 'AML_RESCREEN_CLEAR',
+        runById ?? null,
+        hasHits ? 'aml_rescreen_hits_found' : 'aml_rescreen_clear',
+        undefined,
+        undefined,
+        {
+          checkId,
+          hasHits,
+          findingsSummary: findings.substring(0, 500),
+        },
+        tx as any,
+      );
     });
-
-    const check = await prisma.creditBureauCheck.findUnique({
-      where: { id: checkId },
-      select: { applicationId: true },
-    });
-
-    if (!check) return;
-
-    await AuditChainService.appendEvent(
-      check.applicationId,
-      hasHits ? 'AML_RESCREEN_HITS' : 'AML_RESCREEN_CLEAR',
-      runById ?? null,
-      hasHits ? 'aml_rescreen_hits_found' : 'aml_rescreen_clear',
-      undefined,
-      undefined,
-      {
-        checkId,
-        hasHits,
-        findingsSummary: findings.substring(0, 500),
-      },
-    );
   }
 
   // -----------------------------------------------------------------------
@@ -163,34 +169,39 @@ class AmlRescreenService {
     actionTaken: AmlRescreenAction;
     actionNotes?: string;
   }) {
-    const event = await prisma.amlRescreenEvent.create({
-      data: {
-        borrowerProfileId: dto.borrowerProfileId,
-        applicationId: dto.applicationId ?? null,
-        triggeredById: dto.triggeredById,
-        screeningSource: dto.screeningSource,
-        outcome: dto.outcome,
-        hitDetails: dto.hitDetails ?? null,
-        actionTaken: dto.actionTaken,
-        actionNotes: dto.actionNotes ?? null,
-      },
-    });
+    const event = await prisma.$transaction(async (tx) => {
+      const evt = await tx.amlRescreenEvent.create({
+        data: {
+          borrowerProfileId: dto.borrowerProfileId,
+          applicationId: dto.applicationId ?? null,
+          triggeredById: dto.triggeredById,
+          screeningSource: dto.screeningSource,
+          outcome: dto.outcome,
+          hitDetails: dto.hitDetails ?? null,
+          actionTaken: dto.actionTaken,
+          actionNotes: dto.actionNotes ?? null,
+        },
+      });
 
-    // Audit event
-    await AuditChainService.appendEvent(
-      dto.applicationId ?? 'N/A',
-      dto.outcome === 'CONFIRMED_HIT' ? 'AML_RESCREEN_CONFIRMED_HIT' : 'AML_RESCREEN_TRIGGERED',
-      dto.triggeredById,
-      'aml_rescreen_triggered',
-      undefined,
-      undefined,
-      {
-        eventId: event.id,
-        outcome: dto.outcome,
-        screeningSource: dto.screeningSource,
-        actionTaken: dto.actionTaken,
-      },
-    );
+      // Audit event
+      await AuditChainService.appendEvent(
+        dto.applicationId ?? 'N/A',
+        dto.outcome === 'CONFIRMED_HIT' ? 'AML_RESCREEN_CONFIRMED_HIT' : 'AML_RESCREEN_TRIGGERED',
+        dto.triggeredById,
+        'aml_rescreen_triggered',
+        undefined,
+        undefined,
+        {
+          eventId: evt.id,
+          outcome: dto.outcome,
+          screeningSource: dto.screeningSource,
+          actionTaken: dto.actionTaken,
+        },
+        tx as any,
+      );
+
+      return evt;
+    });
 
     // If confirmed hit, notification is handled at the controller/route level
     // (we create a Notification record for compliance team)
@@ -223,24 +234,29 @@ class AmlRescreenService {
     if (!event) throw new AppError('AML rescreen event not found', 404);
     if (event.reviewedAt) throw new AppError('Event already reviewed', 400);
 
-    const updated = await prisma.amlRescreenEvent.update({
-      where: { id: eventId },
-      data: {
-        reviewedById,
-        reviewedAt: new Date(),
-        actionNotes: reviewNotes ? `${event.actionNotes ?? ''}\n--- Compliance Review ---\n${reviewNotes}`.trim() : event.actionNotes,
-      },
-    });
+    const updated = await prisma.$transaction(async (tx) => {
+      const reviewed = await tx.amlRescreenEvent.update({
+        where: { id: eventId },
+        data: {
+          reviewedById,
+          reviewedAt: new Date(),
+          actionNotes: reviewNotes ? `${event.actionNotes ?? ''}\n--- Compliance Review ---\n${reviewNotes}`.trim() : event.actionNotes,
+        },
+      });
 
-    await AuditChainService.appendEvent(
-      event.applicationId ?? 'N/A',
-      'AML_RESCREEN_REVIEWED',
-      reviewedById,
-      'aml_rescreen_reviewed',
-      undefined,
-      undefined,
-      { eventId, reviewNotes },
-    );
+      await AuditChainService.appendEvent(
+        event.applicationId ?? 'N/A',
+        'AML_RESCREEN_REVIEWED',
+        reviewedById,
+        'aml_rescreen_reviewed',
+        undefined,
+        undefined,
+        { eventId, reviewNotes },
+        tx as any,
+      );
+
+      return reviewed;
+    });
 
     return updated;
   }
