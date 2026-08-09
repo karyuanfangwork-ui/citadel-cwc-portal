@@ -3,17 +3,15 @@
  * LOS-020/022 — E2E: committee approval inbox
  */
 import { test, expect } from '@playwright/test';
-import { login, CREDIT_APPROVER } from './support/auth';
+import { STATE_FILES } from './support/auth';
 
 
 test.describe('LOS-020/022 — committee approval inbox', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, CREDIT_APPROVER);
-  });
+  test.use({ storageState: STATE_FILES.approver });
 
   test('My Approvals shows only actionable cases and explains exclusions', async ({ page }) => {
-    await page.goto('/credit/my-approvals');
-    await expect(page.getByRole('heading', { name: /approvals/i }).first()).toBeVisible({ timeout: 10_000 });
+    await page.goto('/credit/approvals');
+    await expect(page.getByRole('heading', { name: /my approvals/i }).first()).toBeVisible({ timeout: 10_000 });
 
     // The exclusion disclosure is the LOS-020 acceptance signal
     const disclosure = page.getByText(/applications? not shown/i);

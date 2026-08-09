@@ -3,20 +3,21 @@
  * LOS-022 — E2E: analyst credit journey
  */
 import { test, expect } from '@playwright/test';
-import { login, CREDIT_ANALYST } from './support/auth';
+import { STATE_FILES } from './support/auth';
 
 
 test.describe('LOS-022 — analyst credit journey', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, CREDIT_ANALYST);
-  });
+  test.use({ storageState: STATE_FILES.analyst });
 
   test('an analyst can open an application and see its readiness blockers', async ({ page }) => {
     await page.goto('/credit/applications');
-    await expect(page.getByRole('heading', { name: /applications/i }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /application management/i }).first()).toBeVisible({ timeout: 10_000 });
 
     const firstRow = page.getByRole('row').nth(1);
-    const hasRow = await firstRow.isVisible({ timeout: 5_000 }).catch(() => false);
+    const hasRow = await firstRow.first()
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
     if (!hasRow) {
       test.skip(true, 'No applications in list');
       return;
@@ -29,7 +30,10 @@ test.describe('LOS-022 — analyst credit journey', () => {
   test('submitting an unready application to committee is blocked with a reason', async ({ page }) => {
     await page.goto('/credit/applications');
     const firstRow = page.getByRole('row').nth(1);
-    const hasRow = await firstRow.isVisible({ timeout: 5_000 }).catch(() => false);
+    const hasRow = await firstRow.first()
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
     if (!hasRow) {
       test.skip(true, 'No applications in list');
       return;

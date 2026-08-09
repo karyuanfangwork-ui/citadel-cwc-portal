@@ -3,13 +3,13 @@
  * LOS-004/022 — E2E: credit access boundary
  */
 import { test, expect } from '@playwright/test';
-import { login, NON_CREDIT_USER } from './support/auth';
+import { STATE_FILES } from './support/auth';
 
 
 test.describe('LOS-004/022 — credit access boundary', () => {
-  test('a user without credit permissions cannot reach an application by direct URL', async ({ page }) => {
-    await login(page, NON_CREDIT_USER);
+  test.use({ storageState: STATE_FILES.nonCredit });
 
+  test('a user without credit permissions cannot reach an application by direct URL', async ({ page }) => {
     // A well-formed but unauthorised application id must not render the credit
     // application view. The app satisfies this by routing the user away rather
     // than showing a denial page — either is acceptable; rendering the record

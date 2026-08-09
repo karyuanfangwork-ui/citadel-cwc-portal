@@ -14,15 +14,30 @@ import { expect, type Page } from '@playwright/test';
  * silently continuing as an anonymous visitor.
  */
 
-/** Seed accounts (see CLAUDE.md). Override per-environment via env vars. */
+/**
+ * Seed accounts, verified against the running API rather than taken from
+ * documentation. Two things that cost time when they were assumed:
+ *
+ *   - The two account families use DIFFERENT passwords:
+ *       *@test.local      → password123
+ *       user@helpdesk.com → abc@123
+ *   - Only admin@test.local carries credit permissions. it@test.local is an
+ *     IT-support agent with none, so specs using it silently landed on the
+ *     home page instead of any credit screen.
+ *
+ * Override per-environment via env vars. Ideally analyst and approver are
+ * SEPARATE accounts so segregation-of-duties paths are exercised realistically;
+ * this seed has only one credit-permissioned user, so both default to it. Point
+ * E2E_APPROVER_USER at a dedicated approver once one is seeded.
+ */
 export const CREDIT_ANALYST = {
-  email: process.env.E2E_CREDIT_USER || 'it@test.local',
-  password: process.env.E2E_CREDIT_PASS || 'abc@123',
+  email: process.env.E2E_CREDIT_USER || 'admin@test.local',
+  password: process.env.E2E_CREDIT_PASS || 'password123',
 };
 
 export const CREDIT_APPROVER = {
-  email: process.env.E2E_APPROVER_USER || 'ceo@test.local',
-  password: process.env.E2E_APPROVER_PASS || 'abc@123',
+  email: process.env.E2E_APPROVER_USER || 'admin@test.local',
+  password: process.env.E2E_APPROVER_PASS || 'password123',
 };
 
 export const NON_CREDIT_USER = {
@@ -34,6 +49,17 @@ export interface Credentials {
   email: string;
   password: string;
 }
+
+/**
+ * Where each role's authenticated session is persisted by auth.setup.ts.
+ * Specs load one of these via `test.use({ storageState })` instead of logging
+ * in themselves — nine workers signing in at once trips the login rate limiter.
+ */
+export const STATE_FILES = {
+  analyst: 'e2e/.auth/credit-analyst.json',
+  approver: 'e2e/.auth/credit-approver.json',
+  nonCredit: 'e2e/.auth/non-credit.json',
+} as const;
 
 export async function login(page: Page, user: Credentials): Promise<void> {
   await page.goto('/login');

@@ -26,9 +26,17 @@ export default defineConfig({
       testMatch: /\.smoke\.spec\.ts$/,
     },
     {
+      // LOS-022 — signs in once per role and saves storageState; the credit
+      // specs depend on it rather than logging in nine times in parallel.
+      name: 'credit-setup',
+      testDir: './e2e/credit/support',
+      testMatch: /auth\.setup\.ts$/,
+    },
+    {
       name: 'credit',
       testDir: './e2e/credit',
       testMatch: /\.spec\.ts$/,
+      dependencies: ['credit-setup'],
     },
   ],
 });

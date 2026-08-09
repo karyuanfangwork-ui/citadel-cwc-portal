@@ -6,13 +6,11 @@
  * Run:  npx playwright test --project=credit e2e/credit/approval-inbox.spec.ts
  */
 import { test, expect } from '@playwright/test';
-import { login, CREDIT_APPROVER } from './support/auth';
+import { STATE_FILES } from './support/auth';
 
 
 test.describe('Approval inbox — authority scoping', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page, CREDIT_APPROVER);
-  });
+  test.use({ storageState: STATE_FILES.approver });
 
   test('shows the approval inbox without server error', async ({ page }) => {
     await page.goto('/credit/approvals');
