@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import creditService, {
   CreditApplication, CreditApproval, ApplicationState, ApprovalDecision,
 } from '../src/services/credit.service';
+import { dashboardApi } from '../src/services/credit.service';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { formatCurrency, formatDate } from './credit/creditUtils';
@@ -30,8 +31,6 @@ function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: bo
   return { level: 'normal', text: `${remaining}d left`, color: '#16a34a', icon: 'check_circle' };
 }
 
-const APPROVAL_STATES: ApplicationState[] = ['KYC_REVIEW', 'COMMITTEE_REVIEW', 'CREDIT_ASSESSMENT'];
-
 const MyApprovals: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -49,21 +48,21 @@ const MyApprovals: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [quickViewApp, setQuickViewApp] = useState<CreditApplication | null>(null);
   const [quickViewOpen, setQuickViewOpen] = useState(false);
+  const [excluded, setExcluded] = useState<{ applicationId: string; borrowerName: string; reason: string }[]>([]);
 
   const canApprove = hasPermission(user, 'credit:approve');
 
   const fetchPending = useCallback(async () => {
     try {
       setLoading(true);
-      const results = await Promise.all(
-        APPROVAL_STATES.map(state =>
-          creditService.listApplications({ state, limit: 100 }).then(d => d.applications).catch(() => [] as CreditApplication[])
-        )
-      );
-      const all = results.flat();
-      const seen = new Set<string>();
-      const unique = all.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
-      setApplications(unique);
+      // LOS-020 — the dashboard inbox is the single source of truth for what
+      // this user may actually act on: it applies authority level, SOD and
+      // already-decided filtering server-side. The old state fan-out showed
+      // cases the user could not approve, producing failed actions.
+      const res = await dashboardApi.getApprovalInbox();
+      const inbox = res.data.data;
+      setApplications([...inbox.high, ...inbox.medium, ...inbox.low]);
+      setExcluded(inbox.excluded ?? []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -261,6 +260,21 @@ const MyApprovals: React.FC = () => {
             {renderGroup('Urgent', urgent, 'schedule', '#ea580c')}
             {renderGroup('Pending Review', normal, 'inbox', '#6b7280')}
           </>
+        )}
+
+        {excluded.length > 0 && (
+          <details style={{ marginTop: 24, fontSize: 13, color: '#6b7280' }}>
+            <summary style={{ cursor: 'pointer' }}>
+              {excluded.length} application{excluded.length === 1 ? '' : 's'} not shown
+            </summary>
+            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+              {excluded.map((x) => (
+                <li key={x.applicationId} style={{ marginBottom: 4 }}>
+                  <strong>{x.borrowerName}</strong> — {x.reason}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </div>
 

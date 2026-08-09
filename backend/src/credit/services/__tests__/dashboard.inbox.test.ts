@@ -56,7 +56,7 @@ const makeApp = (overrides: Record<string, any> = {}) => ({
 
 describe('Approval Inbox — authority scoping (F6)', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   it('returns empty inbox when user lacks credit:approve permission', async () => {
@@ -226,15 +226,14 @@ describe('Approval Inbox — authority scoping (F6)', () => {
     );
   });
 
-  it('still respects SOD exclusion (user as RM is excluded from second query)', async () => {
-    // The second query (appsWithoutDecision) already excludes assignedRmId = userId
-    // so apps where user is the RM won't appear there.
-    // This test verifies the SOD exclusion still works after F6 changes.
+  it('still respects SOD exclusion (user as RM is excluded and reported)', async () => {
+    // LOS-020 — The second query no longer filters assignedRmId = userId;
+    // SOD exclusion is now recorded in the loop so the UI can explain it.
     const appAsRm = makeApp({ id: 'app-rm', assignedRmId: 'user-mgr' });
     const appNotRm = makeApp({ id: 'app-not-rm', assignedRmId: 'rm-other' });
 
-    // First query (assigned as RM or analyst) includes the RM app, but decisions check should skip
-    // because the user already decided. Let's simulate: user is RM but hasn't decided.
+    // First query (assigned as RM or analyst) includes the RM app
+    // Second query (appsWithoutDecision) now also includes the RM app (no filter)
     mockedFindMany
       .mockResolvedValueOnce([{ ...appAsRm, decisions: [] }]) // assigned, no decision yet
       .mockResolvedValueOnce([appNotRm]); // not-RM apps without decision
@@ -250,10 +249,11 @@ describe('Approval Inbox — authority scoping (F6)', () => {
       ['credit:approve'],
     );
 
-    // The RM-assigned app from first query is included (user is RM/analyst)
-    // The not-RM app from second query is also included
-    // Deduplication ensures no duplicates
-    expect(result.totalPending).toBe(2);
+    // The RM-assigned app is now excluded (SOD violation), only not-RM app is in the inbox
+    expect(result.totalPending).toBe(1);
+    expect(result.excluded).toEqual([
+      expect.objectContaining({ applicationId: 'app-rm', reason: expect.stringMatching(/segregation of duties|assigned RM/i) }),
+    ]);
   });
 
   it('deduplicates apps appearing in both queries', async () => {
@@ -315,5 +315,67 @@ describe('Approval Inbox — authority scoping (F6)', () => {
 
     // CREDIT_RM has level 1, can only approve RM (level 1), not MANAGER (level 2)
     expect(result.totalPending).toBe(1);
+  });
+});
+
+describe('LOS-020 — inbox explains exclusions', () => {
+  it('reports an authority exclusion instead of silently dropping the case', async () => {
+    // CREDIT_MANAGER → getUserAuthorityLevel returns 0 (not in AUTHORITY_HIERARCHY).
+    // Use MANAGER role which maps to level 2. BOARD is not in the hierarchy so maps
+    // to level 0 — but we set the matrix authorityLevel to 'SENIOR_MANAGER' (level 3)
+    // so the required level exceeds the user's MANAGER level 2.
+    const boardApp = makeApp({
+      id: 'app-board',
+      requestedAmount: 5000000,
+      borrowerProfile: {
+        id: 'bp-2',
+        creditRiskRating: 'BB',
+        name: 'Board-Level Borrower',
+        account: { name: 'Board-Level Borrower' },
+        contact: { firstName: 'J', lastName: 'D' },
+      },
+    });
+
+    mockedFindMany
+      .mockResolvedValueOnce([]) // assigned apps (none)
+      .mockResolvedValueOnce([boardApp]); // appsWithoutDecision
+
+    mockedLookupAuthority
+      .mockResolvedValueOnce({ authorityLevel: 'SENIOR_MANAGER', requiredApproverCount: 1, matrixId: 'm2', matrixName: 'Senior Manager Matrix' });
+
+    // Use 'MANAGER' role which maps to authority level 2
+    const result = await dashboardService.getApprovalInbox(
+      'user-manager',
+      ['MANAGER'],
+      ['credit:approve'],
+    );
+
+    expect(result.high.concat(result.medium, result.low)).toHaveLength(0);
+    expect(result.excluded).toEqual([
+      expect.objectContaining({ applicationId: 'app-board', reason: expect.stringMatching(/authority/i) }),
+    ]);
+  });
+
+  it('reports an SOD exclusion when the user is the assigned RM', async () => {
+    const rmApp = makeApp({ id: 'app-rm', assignedRmId: 'user-rm', borrowerProfile: { id: 'bp-1', creditRiskRating: 'A', name: 'RM Borrower', account: { name: 'RM Borrower' }, contact: { firstName: 'J', lastName: 'D' } } });
+
+    // First query: assigned apps where user is RM — will be excluded by SOD
+    mockedFindMany
+      .mockResolvedValueOnce([rmApp])
+      .mockResolvedValueOnce([]); // appsWithoutDecision
+
+    mockedLookupAuthority
+      .mockResolvedValueOnce({ authorityLevel: 'RM', requiredApproverCount: 1, matrixId: 'm1', matrixName: 'RM Matrix' });
+
+    // Use 'RM' role which maps to authority level 1
+    const result = await dashboardService.getApprovalInbox(
+      'user-rm',
+      ['RM'],
+      ['credit:approve'],
+    );
+
+    expect(result.excluded).toEqual([
+      expect.objectContaining({ reason: expect.stringMatching(/segregation of duties|assigned RM/i) }),
+    ]);
   });
 });

@@ -76,6 +76,7 @@ export interface ApprovalInboxResult {
   medium: ApprovalInboxItem[];
   low: ApprovalInboxItem[];
   totalPending: number;
+  excluded: { applicationId: string; borrowerName: string; reason: string }[];
 }
 
 export interface ExposureByBorrower {
@@ -575,7 +576,7 @@ class DashboardService {
   }): Promise<ApprovalInboxResult> {
     // F6 — Early-return empty inbox if user lacks credit:approve permission
     if (!userPermissions.includes('credit:approve')) {
-      return { high: [], medium: [], low: [], totalPending: 0 };
+      return { high: [], medium: [], low: [], totalPending: 0, excluded: [] };
     }
 
     // Find applications in approval-pending states where this user is involved
@@ -600,12 +601,12 @@ class DashboardService {
 
     // Also find applications in approval-pending states where the user has NOT yet decided
     // (i.e., they are eligible approvers but haven't acted)
+    // LOS-020 — Removed assignedRmId: { not: userId } from the query; SOD exclusion
+    // is now recorded in the loop so the UI can explain why a case is absent.
     const appsWithoutDecision = await prisma.creditApplication.findMany({
       where: {
         state: { in: APPROVAL_PENDING_STATES },
         deletedAt: null,
-        // Exclude applications where user is the RM (SOD violation) — they're above
-        assignedRmId: { not: userId },
         NOT: {
           decisions: {
             some: { decisionById: userId },
@@ -625,14 +626,26 @@ class DashboardService {
     // Merge and deduplicate
     const seenIds = new Set<string>();
     const allItems: ApprovalInboxItem[] = [];
+    const excluded: { applicationId: string; borrowerName: string; reason: string }[] = [];
 
     for (const app of [...applications, ...appsWithoutDecision]) {
       if (seenIds.has(app.id)) continue;
       seenIds.add(app.id);
 
+      const borrowerName = (app.borrowerProfile as any)?.name ?? (app.borrowerProfile as any)?.account?.name ?? 'Unknown';
+
+      // LOS-020 — SOD exclusion: user is the assigned RM on this application
+      if (app.assignedRmId === userId) {
+        excluded.push({ applicationId: app.id, borrowerName, reason: 'Segregation of duties — you are the assigned RM on this application.' });
+        continue;
+      }
+
       // Skip if user already submitted a decision (from first query)
       const alreadyDecided = app.decisions.length > 0;
-      if (alreadyDecided) continue;
+      if (alreadyDecided) {
+        excluded.push({ applicationId: app.id, borrowerName, reason: 'You have already submitted a decision on this application.' });
+        continue;
+      }
 
       // F6 — Scope to actual authority: resolve required authority via matrix lookup
       // and keep only apps the user's authority level can approve
@@ -647,11 +660,12 @@ class DashboardService {
       );
       if (authorityResult) {
         const requiredLevel = AUTHORITY_HIERARCHY[authorityResult.authorityLevel] ?? 0;
-        if (userAuthLevel < requiredLevel) continue; // user lacks sufficient authority
+        if (userAuthLevel < requiredLevel) {
+          excluded.push({ applicationId: app.id, borrowerName, reason: `Requires ${authorityResult.authorityLevel} authority, which is above your approval level.` });
+          continue; // user lacks sufficient authority
+        }
       }
       // If no matrix match, allow through (no matrix restriction applies)
-
-      const borrowerName = app.borrowerProfile?.name ?? 'Unknown';
 
       const submittedAt = app.submittedAt;
       const daysWaiting = submittedAt
@@ -684,6 +698,7 @@ class DashboardService {
       medium,
       low,
       totalPending: allItems.length,
+      excluded,
     };
   }
 
