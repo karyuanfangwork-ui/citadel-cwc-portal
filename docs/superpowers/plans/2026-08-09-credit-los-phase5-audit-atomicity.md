@@ -19,23 +19,68 @@
 
 ## What the investigation found
 
-**Already atomic (1 site):**
-- `scoreOverride.service.ts:200` — `resolveScoreOverride` wraps business + audit in `$transaction`, passes `tx`.
+**Already atomic (7 sites) — no changes needed:**
+- `applicationParty.service.ts:128` — `createParty` (tx passed)
+- `applicationParty.service.ts:181` — `updateParty` (tx passed)
+- `applicationParty.service.ts:217` — `deleteParty` (tx passed)
+- `applicationFacility.service.ts:156` — `createFacility` (tx passed)
+- `applicationFacility.service.ts:221` — `updateFacility` (tx passed)
+- `applicationFacility.service.ts:260` — `deleteFacility` (tx passed)
+- `industryAssessment.service.ts:23` — `upsert` (tx passed)
+- `scoreOverride.service.ts:200` — `resolveScoreOverride` (tx passed)
 
-**Highest-risk non-atomic sites (must fix in this phase):**
-These handle state transitions where a committed business write without an audit event is a regulatory gap.
+**Category B — in $transaction but audit outside (1 site):**
 
-| # | Service | Method | Risk | Current pattern |
-|---|---------|--------|------|-----------------|
-| 1 | `approvalAction.service.ts` | `processApprovalDecision` | Approve/reject/return without audit record | Has `$transaction` for business writes; audit called outside |
-| 2 | `scoring.service.ts` | `executeScore` | Score run persisted without chain event | No `$transaction` at all; create + update are separate calls |
-| 3 | `disbursement.service.ts` | Multiple methods | Disbursement recorded without audit | Some have `$transaction`, audit outside |
-| 4 | `committee.service.ts` | `processCommitteeDecision` | Committee action without audit | `$transaction` for business, audit outside |
-| 5 | `creditDocument.service.ts` | Multiple methods | Document state changes without audit | No `$transaction` |
-| 6 | `riskAssessment.service.ts` | `bulkUpsert` | Assessment without audit | Has `$transaction`, audit outside |
+| # | File | Line | Method | Notes |
+|---|------|------|--------|-------|
+| 1 | `disbursement.service.ts` | 336 | `confirmDisbursement` | Comment says "outside tx — non-blocking"; if audit fails, disbursement has no trail |
 
-**Lower-risk sites (fix in Task 4 sweep):**
-Party/facility/collateral CRUD, LOO, AML rescreen, pricing, industry assessment, SLA pause/resume, credit application evidence mapping, SOD middleware, borrower profile, recommendation, rejection, connected party. These are important but less critical because they're informational or have auto-audit backup from Prisma middleware.
+**Category C — no transaction at all (34 sites):**
+
+| # | File | Line | Method | Mutation | Risk |
+|---|------|------|--------|----------|------|
+| 1 | `approvalAction.service.ts` | 461 | `createAuditEvent` (private) | Called from `submitDecision` after `$transaction` closes | **Critical** — approval without chain event |
+| 2 | `approvalAction.service.ts` | 614 | `resolveDelegation` | Audit-only | Low |
+| 3 | `scoring.service.ts` | 710 | `executeScore` | `creditScoreRun.create` + app update | **Critical** — score without chain event |
+| 4 | `scoring.service.ts` | 815 | `executeScore` (second call) | Same as above | **Critical** |
+| 5 | `disbursement.service.ts` | 175 | `createOrder` | `disbursementOrder.create` | **Critical** |
+| 6 | `disbursement.service.ts` | 238 | `approveOrder` | `disbursementOrder.update` | **Critical** |
+| 7 | `disbursement.service.ts` | 394 | `cancelOrder` | `disbursementOrder.update` | Medium |
+| 8 | `committee.service.ts` | 583 | `finalizeAgendaItem` | `committeeAgendaItem.update` | **Critical** |
+| 9 | `creditDocument.service.ts` | 237 | `uploadDocument` | `creditDocument.create` | Medium |
+| 10 | `creditDocument.service.ts` | 295 | `updateDocument` | `creditDocument.update` | Medium |
+| 11 | `creditDocument.service.ts` | 340 | `deleteDocument` | `creditDocument.update` (soft-delete) | Medium |
+| 12 | `creditDocument.service.ts` | 591 | `getDownloadUrl` | Read-only | Low |
+| 13 | `creditDocument.service.ts` | 635 | `getVersionDownloadUrl` | Read-only | Low |
+| 14 | `amlRescreen.service.ts` | 86 | `queueQuarterlyRescreens` | `creditBureauCheck.create` | Low |
+| 15 | `amlRescreen.service.ts` | 133 | `processRescreenResult` | `creditBureauCheck.update` | Low |
+| 16 | `amlRescreen.service.ts` | 180 | `triggerRescreen` | `amlRescreenEvent.create` | Low |
+| 17 | `amlRescreen.service.ts` | 235 | `reviewEvent` | `amlRescreenEvent.update` | Low |
+| 18 | `loo.service.ts` | 133 | `generate` | `creditDocument.create` + `creditApplication.update` | Medium |
+| 19 | `loo.service.ts` | 281 | `checkAndNotifyExpiringLoos` | No mutation (audit-only) | Low |
+| 20 | `loo.service.ts` | 318 | `checkAndNotifyExpiringLoos` | No mutation (audit-only) | Low |
+| 21 | `rejection.service.ts` | 65 | `notifyRejection` | `notification.create` | Low |
+| 22 | `rejection.service.ts` | 134 | `copyToNewApplication` | `creditApplication.create` | Medium |
+| 23 | `delegation.service.ts` | 218 | `recordDelegatedAction` | Audit-only | Low |
+| 24 | `ratingBand.service.ts` | 203 | `approveBandSet` | `ratingBandConfig.updateMany` | Medium |
+| 25 | `ratingBand.service.ts` | 236 | `activateBandSet` | Two `updateMany` calls | Medium |
+| 26 | `pricing.service.ts` | 99 | `upsert` | `pricingWorksheet.upsert` + `applicationFacility.update` | Medium |
+| 27 | `connectedParty.service.ts` | 130 | `deriveAndSetConnectedPartyFlag` | `creditApplication.update` | Low |
+| 28 | `connectedParty.service.ts` | 176 | `overrideConnectedPartyFlag` | `creditApplication.update` | Low |
+| 29 | `creditApplication.service.ts` | 1670 | `saveEvidenceMapping` | Audit-only | Low |
+| 30 | `creditApplication.service.ts` | 1722 | `createAuditEvent` (private) | Called from create/update/delete/transition | Medium |
+| 31 | `creditApplication.service.ts` | 1825 | `cloneApplication` | `creditApplication.create` | Medium |
+| 32 | `bureauCheck.service.ts` | 312 | `verifyChecklist` | `bureauChecklist.update` | Low |
+| 33 | `sod.middleware.ts` | 133 | SOD bypass | No mutation | Low |
+| 34 | `sod.middleware.ts` | 264 | SOD committee bypass | No mutation | Low |
+| — | `creditMemoVersion.service.ts` | 252 | `lockMemoVersion` | `creditMemoVersion.update` | Medium |
+| — | `collateral.service.ts` | 523 | `createCollateral` | Likely `collateral.create` | Medium |
+| — | `collateral.service.ts` | 553 | `updateCollateral` | Likely `collateral.update` | Medium |
+| — | `creditSla.service.ts` | 204 | SLA pause | Likely `creditSla.update` | Low |
+| — | `creditSla.service.ts` | 287 | SLA resume | Likely `creditSla.update` | Low |
+| — | `creditRecommendation.service.ts` | 185 | `submitRecommendation` | Likely `recommendation.create` | Medium |
+| — | `scorecard.service.ts` | ~273 | `activateScorecardVersion` | `$transaction` for business, audit outside | Medium |
+| — | `riskAssessment.service.ts` | 39 | `bulkUpsert` | `$transaction` for business, audit outside | Medium |
 
 ---
 
