@@ -25,5 +25,10 @@ export default defineConfig({
       testDir: './e2e/smoke',
       testMatch: /\.smoke\.spec\.ts$/,
     },
+    {
+      name: 'credit',
+      testDir: './e2e/credit',
+      testMatch: /\.spec\.ts$/,
+    },
   ],
 });

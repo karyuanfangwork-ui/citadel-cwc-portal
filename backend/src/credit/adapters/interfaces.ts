@@ -95,6 +95,8 @@ export interface CbsHandoffResult {
   reference: string;
   message?: string;
   bookedAt?: Date;
+  /** LOS-021: true when returned by PlaceholderCbsProvider — never mistake this for a real booking */
+  simulated?: boolean;
 }
 
 /** Core Banking System provider */

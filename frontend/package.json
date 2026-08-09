@@ -14,7 +14,8 @@
     "check:tokens:update": "node scripts/check-tokens.mjs update",
     "test:e2e": "npx playwright test",
     "test:e2e:a11y": "npx playwright test --project=a11y",
-    "test:e2e:smoke": "npx playwright test --project=smoke"
+    "test:e2e:smoke": "npx playwright test --project=smoke",
+    "test:e2e:credit": "npx playwright test --project=credit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

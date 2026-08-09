@@ -4,6 +4,7 @@ import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
 import { notifyMultiple } from '../../services/notification.service';
 import { logger } from '../../utils/logger';
+import { assertRecordOnlyAllowed } from '../adapters/registry';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,9 @@ export async function createOrder(
   requestedById: string,
   dto: CreateDisbursementDto,
 ) {
+  // LOS-021: fail closed if live lending is on but CBS is still a placeholder
+  assertRecordOnlyAllowed('cbs');
+
   // Run readiness gate
   const readiness = await checkDisbursementReadiness(applicationId);
   if (!readiness.ready) {

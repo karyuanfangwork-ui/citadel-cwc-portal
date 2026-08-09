@@ -27,12 +27,42 @@ let esignProvider: IEsignProvider | null = null;
 
 let bureauGuardChecked = false;
 
-export function getIntegrationsStatus(): { bureau: 'LIVE' | 'PLACEHOLDER'; aml: 'LIVE' | 'PLACEHOLDER'; ocr: 'LIVE' | 'PLACEHOLDER' } {
-  return {
-    bureau: process.env.BUREAU_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
-    aml: process.env.AML_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
-    ocr: process.env.OCR_PROVIDER ? 'LIVE' : 'PLACEHOLDER',
-  };
+export type IntegrationCapability = 'bureau' | 'aml' | 'ocr' | 'cbs' | 'esign';
+
+const PROVIDER_ENV: Record<IntegrationCapability, string> = {
+  bureau: 'BUREAU_PROVIDER',
+  aml: 'AML_PROVIDER',
+  ocr: 'OCR_PROVIDER',
+  cbs: 'CBS_PROVIDER',
+  esign: 'ESIGN_PROVIDER',
+};
+
+export function getIntegrationsStatus(): Record<IntegrationCapability, 'LIVE' | 'PLACEHOLDER'> {
+  return (Object.keys(PROVIDER_ENV) as IntegrationCapability[]).reduce((acc, cap) => {
+    acc[cap] = process.env[PROVIDER_ENV[cap]] ? 'LIVE' : 'PLACEHOLDER';
+    return acc;
+  }, {} as Record<IntegrationCapability, 'LIVE' | 'PLACEHOLDER'>);
+}
+
+/**
+ * LOS-021 — This deployment is record-only: no live core-banking booking and no
+ * live e-signature. Placeholder providers are therefore acceptable, but the
+ * moment someone flips CREDIT_LIVE_LENDING=true without configuring a real
+ * vendor we must fail closed rather than simulate a booking that never happened.
+ */
+export function assertRecordOnlyAllowed(capability: 'cbs' | 'esign'): void {
+  const liveLending = process.env.CREDIT_LIVE_LENDING === 'true';
+  if (!liveLending) return;
+
+  if (!process.env[PROVIDER_ENV[capability]]) {
+    throw Object.assign(
+      new Error(
+        `CREDIT_LIVE_LENDING=true but no ${PROVIDER_ENV[capability]} is configured. ` +
+        `Refusing to run a simulated ${capability.toUpperCase()} operation as if it were real (LOS-021).`,
+      ),
+      { statusCode: 503 },
+    );
+  }
 }
 
 export function getAmlProvider(): IAmlProvider {

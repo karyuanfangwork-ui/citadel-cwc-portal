@@ -6,10 +6,12 @@ import {
   CreditApplication,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import IntegrationModeBanner from '../../../src/components/credit/IntegrationModeBanner';
 import { useAuth } from '../../../src/context/AuthContext';
 import { hasPermission } from '../../../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
+import { useCreditFeatureFlags } from '../../../src/hooks/useCreditFeatureFlags';
 
 type Props = { application: CreditApplication; onUpdated: (app: CreditApplication) => void };
 
@@ -196,6 +198,8 @@ const CancelForm: React.FC<{
 
 const DisbursementTab: React.FC<Props> = ({ application, onUpdated }) => {
   const { user } = useAuth();
+  const { integrations } = useCreditFeatureFlags();
+  const cbsStatus = integrations?.cbs ?? 'PLACEHOLDER' as const;
   const appId = application.id;
   const [order, setOrder] = useState<DisbursementOrder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,6 +280,9 @@ const DisbursementTab: React.FC<Props> = ({ application, onUpdated }) => {
 
   return (
     <>
+      {/* LOS-021: Record-only mode banner */}
+      <IntegrationModeBanner capability="core banking" status={cbsStatus} />
+
       {/* Readiness Checklist */}
       <CaMemoSection title="Disbursement Readiness" phase="S7">
         <ReadinessChecklist appId={appId} />

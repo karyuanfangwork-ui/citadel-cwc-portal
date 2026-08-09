@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validate.middleware';
 import { creditPiiReadLimiter, creditExportLimiter } from '../../middleware/rateLimit.middleware';
 import { securityController } from '../controllers/security.controller';
 import { clamAvController } from '../controllers/clamav.controller';
+import { getIntegrationsStatus } from '../adapters/registry';
 import {
   auditVerifySchema,
   piiLogsQuerySchema,
@@ -15,6 +16,20 @@ const router = Router();
 
 // All security routes require authentication
 router.use(authenticate);
+
+/**
+ * GET /credit/security/integrations
+ * Returns the status of each external integration (LIVE vs PLACEHOLDER).
+ * Requires: credit:read
+ * LOS-021 — allows the frontend to render the record-only banner.
+ */
+router.get(
+  '/integrations',
+  requirePermission('credit:read'),
+  (_req: any, res: any) => {
+    res.json({ status: 'success', data: getIntegrationsStatus() });
+  },
+);
 
 /**
  * POST /credit/security/audit-verify

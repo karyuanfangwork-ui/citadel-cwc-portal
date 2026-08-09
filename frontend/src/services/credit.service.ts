@@ -541,6 +541,8 @@ export interface CreditIntegrationsStatus {
   bureau: 'LIVE' | 'PLACEHOLDER';
   aml: 'LIVE' | 'PLACEHOLDER';
   ocr: 'LIVE' | 'PLACEHOLDER';
+  cbs: 'LIVE' | 'PLACEHOLDER';
+  esign: 'LIVE' | 'PLACEHOLDER';
 }
 
 export interface PublicFeatureFlagsResponse {
