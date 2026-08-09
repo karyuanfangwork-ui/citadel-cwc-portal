@@ -49,6 +49,35 @@ export async function getCaMemoData(applicationId: string) {
       },
       scoreRuns: { orderBy: { createdAt: 'desc' }, take: 1 },
       decisions: { include: { decidedBy: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' } },
+      // LOS-016 — The decision basis. All of this was already stored; the pack
+      // simply never asked for it, so approvers had to navigate the whole
+      // Application 360 to answer "why this rating, and what was overridden?"
+      recommendations: {
+        where: { status: { in: ['SUBMITTED', 'ACKNOWLEDGED'] } },
+        include: { author: { select: { firstName: true, lastName: true } } },
+        orderBy: { submittedAt: 'desc' },
+      },
+      assessmentResults: {
+        where: { status: 'FROZEN' },
+        orderBy: { version: 'desc' },
+        take: 1,
+      },
+      scoreOverrides: {
+        include: {
+          firstApprover: { select: { firstName: true, lastName: true } },
+          secondApprover: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      deviations: { orderBy: { createdAt: 'desc' } },
+      documents: {
+        where: { deletedAt: null },
+        select: {
+          id: true, classification: true, fileName: true, sha256Hash: true,
+          verificationStatus: true, verifiedAt: true, createdAt: true,
+        },
+        orderBy: [{ classification: 'asc' }, { createdAt: 'desc' }],
+      },
     },
   });
 
