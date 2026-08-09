@@ -64,9 +64,12 @@ async function verifyAll() {
 }
 
 async function rehash() {
-  // 1. Count and delete all audit events
-  const count = await prisma.creditAuditEvent.deleteMany({});
-  console.log(`🗑️  Deleted ${count.count} audit events`);
+  // 1. Count and delete all audit events (LOS-013: must bypass immutability trigger)
+  const count = await AuditChainService.withImmutabilityBypass(async (tx) => {
+    const result = await tx.creditAuditEvent.deleteMany({});
+    return result.count;
+  });
+  console.log(`🗑️  Deleted ${count} audit events`);
 
   // 2. Find all credit applications and admin user
   const apps = await prisma.creditApplication.findMany({

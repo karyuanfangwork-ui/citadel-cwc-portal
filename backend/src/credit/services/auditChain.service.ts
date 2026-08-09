@@ -175,4 +175,21 @@ export class AuditChainService {
     }
     return { valid: true };
   }
+
+  /**
+   * LOS-013 — Escape hatch for maintenance operations that legitimately need to
+   * rewrite the chain (hash-format migration, test teardown, `prisma migrate
+   * reset`). Sets the transaction-scoped GUC the immutability trigger checks.
+   * Never call this from request-handling code.
+   */
+  static async withImmutabilityBypass<T>(
+    fn: (tx: TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return prisma.$transaction(async (tx) => {
+      // `true` = transaction-local; released on commit/rollback, so it cannot
+      // leak to another request sharing this pooled connection.
+      await tx.$executeRaw`SELECT set_config('app.audit_chain_bypass', 'on', true)`;
+      return fn(tx as TransactionClient);
+    });
+  }
 }
