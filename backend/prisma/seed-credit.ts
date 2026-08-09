@@ -19,6 +19,7 @@
  */
 
 import { PrismaClient, RiskRating } from '@prisma/client';
+import { AuditChainService } from '../src/credit/services/auditChain.service';
 
 const prisma = new PrismaClient();
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -517,7 +518,7 @@ async function clearCreditData() {
     ['application signoffs',           () => prisma.applicationSignoff.deleteMany({}).then(r => r.count)],
     ['credit decisions',               () => prisma.creditDecision.deleteMany({}).then(r => r.count)],
     ['document requirements',          () => prisma.documentRequirement.deleteMany({}).then(r => r.count)],
-    ['credit audit events',            () => prisma.creditAuditEvent.deleteMany({}).then(r => r.count)],
+    ['credit audit events',            () => AuditChainService.withImmutabilityBypass(async (tx) => (await tx.creditAuditEvent.deleteMany({})).count)],
     ['conditions',                     () => prisma.condition.deleteMany({}).then(r => r.count)],
     ['early warning signals',           () => prisma.earlyWarningSignal.deleteMany({}).then(r => r.count)],
     ['facility health records',        () => prisma.facilityHealth.deleteMany({}).then(r => r.count)],

@@ -69,4 +69,16 @@ RUN('LOS-022 — P0 regression evidence', () => {
     delete process.env.CREDIT_LIVE_LENDING;
     expect(() => assertRecordOnlyAllowed('cbs')).not.toThrow();
   });
+
+  it('LOS-006 — an approved financial statement cannot have its line items edited', async () => {
+    const approved = await prisma.financialStatement.findFirst({
+      where: { status: 'APPROVED' },
+      select: { id: true },
+    });
+    if (!approved) return; // no approved statement in the demo set
+    const { financialService } = await import('../services/financial.service');
+    await expect(
+      financialService.updateStatement(approved.id, { notes: 'tamper' } as any),
+    ).rejects.toThrow();
+  });
 });

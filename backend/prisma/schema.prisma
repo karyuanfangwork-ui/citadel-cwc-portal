@@ -5026,10 +5026,17 @@ model CreditAuditEvent {
   hash        String? @db.VarChar(64) // hash-chain for tamper evidence
   hashVersion Int     @default(1) @map("hash_version")
 
+  /// LOS-013 — Monotonic per-application position in the hash chain.
+  /// createdAt is millisecond-precision and ties within a single transaction,
+  /// which made both the predecessor lookup and chain verification ambiguous
+  /// and forked the chain. Ordering is defined by this column, never by time.
+  sequence Int @default(0)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
 
+  @@unique([applicationId, sequence])
   @@index([applicationId])
   @@index([eventType])
   @@index([createdAt])

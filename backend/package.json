@@ -45,7 +45,9 @@
     "clear-tickets:dry-run": "DRY_RUN=true tsx src/scripts/clear-tickets.ts",
     "import:staff": "tsx scripts/bulk_import_staff.ts",
     "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing",
-    "smoke:attachment-scanner": "ATTACHMENT_SCAN_QUEUE_NAME=attachment.malware-scan.smoke tsx scripts/smoke-attachment-scanner.ts"
+    "smoke:attachment-scanner": "ATTACHMENT_SCAN_QUEUE_NAME=attachment.malware-scan.smoke tsx scripts/smoke-attachment-scanner.ts",
+    "audit:reseal": "tsx prisma/reseal-audit-chain.ts",
+    "audit:reseal:dry": "tsx prisma/reseal-audit-chain.ts --dry-run"
   },
   "keywords": [
     "help-desk",
