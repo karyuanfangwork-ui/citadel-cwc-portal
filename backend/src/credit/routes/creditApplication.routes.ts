@@ -227,6 +227,18 @@ router.get(
 );
 
 /**
+ * GET /applications/:id/return-diff
+ * LOS-015 — What changed since the application was last referred back
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/return-diff',
+  requirePermission('credit:read'),
+  validateUUID('id'),
+  creditApplicationController.getReturnDiff,
+);
+
+/**
  * POST /applications/:id/evidence-mapping
  * Persist a new source mapping snapshot
  * Requires: credit:write

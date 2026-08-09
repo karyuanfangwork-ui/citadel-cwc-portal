@@ -1854,3 +1854,67 @@ class CreditApplicationService {
 }
 
 export const creditApplicationService = new CreditApplicationService();
+
+// ---------------------------------------------------------------------------
+// LOS-015 — Return-change diff
+// ---------------------------------------------------------------------------
+
+export interface ReturnChangeDiff {
+  returnedAt: string | null;
+  returnReason: string | null;
+  returnedBy: string | null;
+  changes: Array<{
+    at: string;
+    actorId: string | null;
+    eventType: string;
+    action: string;
+    oldState: string | null;
+    newState: string | null;
+  }>;
+}
+
+/**
+ * LOS-015 — Derive "what changed since the reviewer returned this" from the
+ * audit chain, so the reviewer resumes on the delta instead of repeating the
+ * whole review. Nothing extra is stored: every mutation already appends an
+ * audit event.
+ */
+export async function getReturnChangeDiff(applicationId: string): Promise<ReturnChangeDiff> {
+  const events = await prisma.creditAuditEvent.findMany({
+    where: { applicationId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  let lastReturnIndex = -1;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].newState === 'REFERRED_BACK') {
+      lastReturnIndex = i;
+      break;
+    }
+  }
+
+  if (lastReturnIndex === -1) {
+    return { returnedAt: null, returnReason: null, returnedBy: null, changes: [] };
+  }
+
+  const returnEvent = events[lastReturnIndex];
+  const metadata = (returnEvent.metadata ?? {}) as Record<string, unknown>;
+  const reason =
+    typeof metadata.comment === 'string' ? metadata.comment
+    : typeof metadata.reason === 'string' ? metadata.reason
+    : null;
+
+  return {
+    returnedAt: returnEvent.createdAt.toISOString(),
+    returnReason: reason,
+    returnedBy: returnEvent.actorId,
+    changes: events.slice(lastReturnIndex + 1).map((e) => ({
+      at: e.createdAt.toISOString(),
+      actorId: e.actorId,
+      eventType: e.eventType,
+      action: e.action,
+      oldState: e.oldState,
+      newState: e.newState,
+    })),
+  };
+}

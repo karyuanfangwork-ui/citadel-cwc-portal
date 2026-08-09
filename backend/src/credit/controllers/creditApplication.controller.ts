@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
-import { creditApplicationService } from '../services/creditApplication.service';
+import { creditApplicationService, getReturnChangeDiff } from '../services/creditApplication.service';
 import { creditApplicationDraftService } from '../services/creditApplicationDraft.service';
 import { creditSlaService } from '../services/creditSla.service';
 import { requireUser } from '../utils/requireUser';
@@ -415,6 +415,22 @@ class CreditApplicationController {
         signedLoo: signedLoo ?? null,
       },
     });
+  });
+
+  /**
+   * GET /credit/applications/:id/return-diff
+   * LOS-015 — What changed since the application was last referred back.
+   */
+  getReturnDiff = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+
+    const application = await creditApplicationService.getApplication(id);
+    if (!application) {
+      throw new AppError('Credit application not found', 404);
+    }
+
+    const diff = await getReturnChangeDiff(id);
+    res.json({ success: true, data: diff });
   });
 }
 
