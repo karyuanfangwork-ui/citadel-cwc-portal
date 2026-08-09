@@ -363,6 +363,7 @@ class ScoringService {
       select: {
         borrowerProfileId: true,
         productType: true,
+        lane: true,
         borrowerProfile: { select: { borrowerType: true } },
       },
     });
@@ -541,7 +542,11 @@ class ScoringService {
     // Also collect governance warnings for factors using placeholder data.
     const missingInputs: MissingInputRecord[] = [];
     const governanceWarnings: GovernanceWarning[] = [];
-    const missingDataPolicies = await getMissingDataPolicies();
+    const missingDataPolicies = await getMissingDataPolicies({
+      lane: application.lane ?? null,
+      productType: application.productType ?? null,
+      borrowerType: application.borrowerProfile?.borrowerType ?? null,
+    });
 
     // Step 5c: Validate factor weights against governed definitions.
     // Emit governance warnings for EXTERNAL factors with weight > 0 (no real data source)
