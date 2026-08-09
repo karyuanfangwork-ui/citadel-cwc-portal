@@ -16,16 +16,16 @@ Effort bands: XS ≤1 day, S 2–3 days, M 4–10 days, L 2–4 weeks. Estimates
 || LOS-010 | Rating governance | Configure rating bands | RESOLVED: Lifecycle routes exposed (DRAFT→SUBMITTED→APPROVED→ACTIVE); only ACTIVE bands affect scoring; legacy CRUD guards DRAFT-only; approvedById no longer set on DRAFT creation. | Draft/submit/approve/activate lifecycle; only one effective active set. | `ratingBand.service.ts`; `ratingBandConfig.routes.ts` | Admin cannot tell what is truly effective. | Unapproved methodology affects outcomes. | Critical | Replace legacy mutation with service lifecycle; consume ACTIVE only; validate full coverage/no overlaps. | Yes | M | P0 — CLOSED 2026-08-08 | LOS-003 |
 || LOS-011 | Missing data | Calculate score/readiness | RESOLVED: BLOCK throws AppError(400); unconfigured factors default to PENALTY (25) not NEUTRAL (50); lane scope threaded through; cashflow defaults to BLOCK. | Approved policy must fail closed or apply explicit conservative penalty for essential evidence. | `missingDataPolicy.service.ts`; scoring/readiness | Incomplete file receives plausible score. | Repayment risk understated. | Critical | Configure BLOCK/PENALTY by lane/factor; hard-gate DSR/financial evidence; show treatment prominently. | Yes—policy engine | S–M | P0 — CLOSED 2026-08-08 | Credit policy approval |
 || LOS-012 | Approval UI | Management decision | RESOLVED: All approval surfaces now use a shared `validateApprovalDecision`/`buildApprovalPayload` contract; QuickView and Mobile Inbox include rejection reason code selector and route CONDITIONAL to full panel. | Every surface uses same validated decision command and fields. | `ApprovalChainPanel.tsx`, `ApprovalQuickView.tsx`, `MobileApprovalInbox.tsx` | Actions fail or behave inconsistently. | Wrong/undocumented decision route. | High | Reuse full decision form/schema; disable incomplete shortcuts until parity. | Yes | S | P0 — CLOSED 2026-08-08 | LOS-001 |
-| LOS-013 | Audit chain | All critical events | RESOLVED: `pg_advisory_xact_lock` serializes concurrent appends per application within transactions; DB-level BEFORE UPDATE OR DELETE trigger raises `42501` regardless of role. Maintenance paths use `AuditChainService.withImmutabilityBypass` which sets a transaction-scoped GUC. | Serialized append-only chain with DB-enforced immutability. | `auditChain.service.ts`; migration `20260810090000` | Integrity verification may fork/fail. | Audit evidence challenged. | High | Per-application lock/sequence; DB trigger/privilege; scheduled verify and alert. | Yes | M | P1 — CLOSED 2026-08-10 | DBA deployment |
+| LOS-013 | Audit chain | All critical events | RESOLVED (2026-08-10, after correction): chain position is an explicit per-application `sequence` with a unique index, assigned under `pg_advisory_xact_lock` and retried on P2002 for non-transactional callers; `verifyChain` walks by sequence. DB-level BEFORE UPDATE OR DELETE trigger raises `42501` regardless of role; maintenance uses `withImmutabilityBypass` (transaction-scoped GUC). NOTE: the 2026-08-09 closure was premature — ordering by `createdAt` tied on millisecond precision and had forked 10 of 17 seeded chains. Fixed and resealed in place via `npm run audit:reseal`; 17/17 now verify. | Serialized append-only chain with DB-enforced immutability. | `auditChain.service.ts`; migrations `20260810090000`, `20260810120000`; `auditChainOrdering.test.ts` | Integrity verification may fork/fail. | Audit evidence challenged. | High | Per-application lock/sequence; DB trigger/privilege; scheduled verify and alert. | Yes | M | P1 — CLOSED 2026-08-10 | DBA deployment |
 || LOS-014 | Scoring provenance | Reproduce rating | RESOLVED: policyVersion (md5 hash of resolved missing-data policy) and ratingBandVersion (from ACTIVE band set) now persisted on every CreditScoreRun; replay regression test added. | Exact applied model/policy/band versions stored and replayable. | `CreditScoreRun`; scoring create data | Reviewer cannot reconstruct old result exactly. | Model-risk/audit finding. | High | Persist IDs/versions and add replay regression test. | Yes | S–M | P1 — CLOSED 2026-08-08 | LOS-010 |
-| LOS-015 | Return workflow | Return → amend → resubmit | RESOLVED: `resume_committee` now passes the same readiness→freeze→memo gate as `submit_to_committee` (extracted to `committeeEntryGate.ts`); `GET /applications/:id/return-diff` derives what changed since last refer-back from the audit chain. | Mandatory reason, scoped amendment, before/after diff and renewed freeze. | `committeeEntryGate.ts`; `creditApplication.service.ts`; return-diff endpoint | Rework is unclear; reviewer repeats full review. | Unreviewed changes can slip through. | High | Mandate reason; derive diff from audit; always re-run readiness/freeze/memo on resume. | Yes—audit/versions | M | P1 — CLOSED 2026-08-10 | LOS-001, LOS-009 |
+| LOS-015 | Return workflow | Return → amend → resubmit | RESOLVED: `resume_committee` now passes the same readiness→freeze→memo gate as `submit_to_committee` (extracted to `committeeEntryGate.ts`), and that gate runs AFTER the SICR and balance-sheet checks so a rejected transition leaves no frozen assessment or locked memo behind; `GET /applications/:id/return-diff` derives what changed since last refer-back from the audit chain. | Mandatory reason, scoped amendment, before/after diff and renewed freeze. | `committeeEntryGate.ts`; `creditApplication.service.ts`; return-diff endpoint | Rework is unclear; reviewer repeats full review. | Unreviewed changes can slip through. | High | Mandate reason; derive diff from audit; always re-run readiness/freeze/memo on resume. | Yes—audit/versions | M | P1 — CLOSED 2026-08-10 | LOS-001, LOS-009 |
 | LOS-016 | Management pack | Review → decision | Pack omits authored recommendation, factor explanation, missing inputs, overrides, exceptions and evidence index. | Existing pack summarizes complete frozen decision basis. | memo/pack services and UI | Excessive navigation; “why” is unclear. | Poorly informed approval. | High | Add existing stored data to current pack and anchors; display frozen version. | Yes | M | P1 | LOS-005, LOS-014 |
 | LOS-017 | Duplicate borrower | Borrower create | Enhanced create check does not compare direct BorrowerProfile NRIC/registration values. | Server normalizes and uniquely checks identifiers regardless of CRM linkage. | `borrowerProfile.service.ts` | Duplicate customer records/exposure split. | Incomplete aggregate exposure and KYC history. | High | Normalize/hash identifier lookup; add conditional unique strategy and governed override. | Yes | M | P1 | Data cleanup |
 | LOS-018 | Child concurrency | Assessment edits | RESOLVED: `assertVersionMatch` on financial statement, collateral, risk assessment and document edit endpoints compares `updatedAt` timestamps and returns 409 on stale writes; `expectedUpdatedAt` is optional for backward compatibility. | Detect conflicting edits and prevent last-write loss. | `optimisticConcurrency.ts`; service/validator changes | Analysts overwrite each other. | Incorrect assessment basis. | Medium | Add version/updatedAt preconditions for high-risk child mutations. | Yes | M | P1 — CLOSED 2026-08-10 | API contract |
 || LOS-019 | Return validation | Manager return | RESOLVED: Backend validator now requires ≥10-character comment for RETURN decisions, matching desktop panel enforcement. | Reason mandatory and audited for every return surface. | approval validator/panel | Blank return gives no remediation direction. | Delay and weak audit rationale. | High | Add backend minimum reason and tests. | Yes | XS | P1 — CLOSED 2026-08-08 | None |
 | LOS-020 | Inbox | Management queue | RESOLVED: My Approvals now reads the authority- and SOD-filtered dashboard inbox; excluded applications are named with a reason in a collapsible disclosure section. | Authority/SOD-filtered backend inbox is single source. | `MyApprovals.tsx`; `dashboard.service.ts`; inbox tests | Noise and failed actions. | Operational mistakes/delay. | Medium | Connect page to existing inbox endpoint and explain ineligibility. | Yes | S | P1 — CLOSED 2026-08-10 | LOS-012 |
 | LOS-021 | Integration | Final decision/disbursement | RESOLVED (record-only scope): `assertRecordOnlyAllowed` fails closed when `CREDIT_LIVE_LENDING=true` without a configured CBS/e-sign vendor; placeholder CBS identifiers are prefixed `SIMULATED-` with a `simulated: true` flag; disbursement screen carries a record-only banner; `getIntegrationsStatus` now reports CBS and e-sign alongside bureau/AML/OCR. | Production blocks functions requiring an unconfigured live adapter or clearly operates record-only. | `registry.ts`; `cbs.placeholder.ts`; `IntegrationModeBanner.tsx`; registry gating tests | Staff may mistake simulation for external completion. | Operational/financial mismatch. | Critical for live booking | Fail closed by capability; production deployment evidence for each adapter. | Yes—registry/status | M + external | P0 — CLOSED (record-only) 2026-08-10 | Vendor/configuration |
-| LOS-022 | Test assurance | Whole journey | RESOLVED: Seeded P0 regression test (`npm run test:credit:p0`) attempts each former bypass and asserts it fails without data mutation; 6 Playwright browser specs cover analyst journey, committee entry gate, approval inbox exclusions, audit trail, committee approval, and unauthorised access. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — CLOSED 2026-08-10 | Stable test DB |
+| LOS-022 | Test assurance | Whole journey | SUBSTANTIALLY RESOLVED (2026-08-10, after correction): `npm run test:credit:p0` attempts each former bypass and asserts it fails without data mutation; `npm run test:release` chains seed → chain verification → P0 regression → full suite. 6 Playwright specs run 10 pass / 2 skip / 0 fail against a live stack. NOTE: the 2026-08-09 closure was premature — all 6 specs then ran unauthenticated and passed regardless. RESIDUAL: SOD/authority exclusion paths remain browser-unverified because only `admin@test.local` holds credit permissions; distinct E2E identities are needed before full closure. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — SUBSTANTIALLY CLOSED 2026-08-10; SOD E2E identities outstanding | Stable test DB; distinct seeded analyst/approver |
 | LOS-023 | Joint applicants | Borrower/application create | Backend enum supports JOINT; main UI omits it. | Either explicitly unsupported/hidden by policy or fully mapped. | schema/validators vs creation UI | Ambiguous staff expectations. | Misclassification/manual workaround. | Medium | Confirm scope; document as unsupported or connect existing backend fields. | Partial | S–M | P2 | Product policy |
 | LOS-024 | UX terminology | Borrower/application | SME is lane/sole proprietor while labels vary; risk/score/recommendation terms overlap. | Consistent labels with clear system versus analyst recommendation. | lane enums and UI sections | Training burden/misinterpretation. | Moderate operational error. | Medium | Standardize copy/tooltips using existing terminology map. | Yes | S | P2 | UX content review |
 | LOS-025 | Build performance | Application UX | Frontend build emits dynamic/static import and large-bundle warnings. | Credit routes load predictably within operational targets. | Vite build output | Slower first load, especially mobile approval. | Availability/productivity rather than credit control. | Low | Measure route bundles and split only demonstrated hot spots. | Yes | M | DEFERRED | Performance baseline |
@@ -33,7 +33,7 @@ Effort bands: XS ≤1 day, S 2–3 days, M 4–10 days, L 2–4 weeks. Estimates
 ## Priority summary
 
 - P0: None remaining for record-only scope. (LOS-001 through LOS-012, LOS-009 closed 2026-08-08/09; LOS-021 closed record-only 2026-08-10.)
-- P1: LOS-013 through LOS-015, LOS-018, LOS-020, LOS-022 now CLOSED (2026-08-10). Remaining open: LOS-016 (management pack), LOS-017 (duplicate borrower).
+- P1: LOS-013, LOS-014, LOS-015, LOS-018, LOS-019, LOS-020 CLOSED (2026-08-10; LOS-013 and LOS-015 required correction after verification — see Phase 6a). LOS-022 SUBSTANTIALLY CLOSED, residual: SOD/authority paths need distinct E2E identities before browser verification. Remaining open: LOS-016 (management pack), LOS-017 (duplicate borrower).
 - P2: LOS-023 and LOS-024.
 - Deferred: LOS-025 until measured performance justifies change.
 
@@ -119,14 +119,51 @@ Effort bands: XS ≤1 day, S 2–3 days, M 4–10 days, L 2–4 weeks. Estimates
   `CREDIT_LIVE_LENDING=true` without a configured CBS/e-sign vendor, placeholder
   CBS identifiers are prefixed `SIMULATED-`, and the disbursement screen carries
   a record-only banner.
-- `npm run test:credit:p0` (backend) and `npm run test:e2e:credit` (frontend)
-  constitute the go/no-go evidence suite.
+- `npm run test:release` (backend: seed → chain verification → P0 regression →
+  full suite) and `npm run test:e2e:credit` (frontend) constitute the go/no-go
+  evidence suite.
+
+### Phase 6a — verification and correction (2026-08-10)
+
+Phase 6 was recorded as complete before any of its claims had been executed
+against a database or a browser. Verifying them found four defects, three of
+which invalidated a closure:
+
+- **Audit chain forked on 10 of 17 applications.** `appendEvent` selected its
+  predecessor by `createdAt DESC` while `verifyChain` walked `createdAt ASC`.
+  `createdAt` is millisecond-precision and ties for appends inside one fast
+  transaction, so the two orderings disagreed. The Phase 5 advisory lock
+  prevents concurrent forks but not ambiguous ordering. Fixed with an explicit
+  per-application `sequence` (unique index, assigned under the lock, P2002
+  retry for lock-free callers) and an in-place reseal that preserves every
+  event; `auditChainOrdering.test.ts` fails against the previous ordering.
+- **All six browser specs ran unauthenticated and passed.** They waited for
+  `**/dashboard**`, a URL this app never navigates to, and swallowed the
+  timeout. Behind that sat four more defects: the two seed account families use
+  different passwords; `it@test.local` holds no credit permissions at all;
+  `locator.isVisible()` does not retry, so the "no applications" guards skipped
+  tests on a page showing 17; and `/credit/my-approvals` is not a route. Now 10
+  pass / 2 skip / 0 fail.
+- **The LOS-006 regression case never ran** — it queried `FinancialStatus` with
+  `'SUBMITTED'`, which is not a member of that enum.
+- **The committee gate froze too early.** It ran before the SICR and
+  balance-sheet checks, so a failing check left a frozen assessment and locked
+  memo behind — the outcome the gate documents itself as preventing. It now
+  runs last among the committee checks.
+
+Standing rule from this phase: **a gap is closed when a test proves it, not
+when the code is written.**
 
 ## Follow-ups surfaced during Phase 6
 
 - `verifyChain` should be called as a scheduled job (e.g., nightly) and on
-  critical operations (e.g., before disbursement). This is an operational
-  follow-up, not a code change.
+  critical operations (e.g., before disbursement). Raised from nicety to
+  priority: the chain was forked for 10 of 17 applications and nothing
+  surfaced it until a verification sweep was run by hand.
+- Seed distinct credit E2E identities (analyst and approver). Only
+  `admin@test.local` carries credit permissions today, so segregation-of-duties
+  and authority-exclusion paths cannot be exercised end-to-end and LOS-022
+  cannot be fully closed.
 - `requestScoreOverride` should be wrapped in `$transaction` for full consistency
   with the other atomic paths. This is a low-priority follow-up.
 - LOS-016 (management pack completeness) and LOS-017 (duplicate borrower identity)
