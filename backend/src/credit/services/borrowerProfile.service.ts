@@ -503,25 +503,45 @@ class BorrowerProfileService {
    * and throws 409 if duplicates are found.
    * If overrideDuplicate is true, skips the duplicate check (admin override).
    */
-  async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; userId?: string }) {
+  async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; overrideReason?: string; userId?: string; userPermissions?: string[] }) {
     if (!data.name?.trim()) {
       throw new Error('Borrower name is required');
     }
 
-    // Server-side duplicate check (unless admin override)
+    // LOS-017 — Overriding duplicate detection is a governed act: it creates a
+    // second record for what the system believes is the same person or company,
+    // which splits exposure and KYC history. Require the permission, a real
+    // reason, and an audit trail.
     const overrideDuplicate = options?.overrideDuplicate ?? false;
-    if (!overrideDuplicate) {
-      const duplicateCheck = await this.checkDuplicateEnhanced({
-        accountId: data.accountId,
-        contactId: data.contactId,
-        name: data.name,
-        borrowerType: data.borrowerType,
-        nricPassport: data.nricPassport,
-        registrationNumber: data.registrationNumber,
-      });
-      if (duplicateCheck.duplicates.length > 0) {
-        throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
+    if (overrideDuplicate) {
+      if (!options?.userPermissions?.includes('credit:admin')) {
+        throw Object.assign(
+          new Error('Overriding duplicate borrower detection requires the credit:admin permission.'),
+          { statusCode: 403 },
+        );
       }
+      const reason = options?.overrideReason?.trim() ?? '';
+      if (reason.length < 20) {
+        throw Object.assign(
+          new Error('A duplicate override requires a reason of at least 20 characters explaining why these are distinct parties.'),
+          { statusCode: 400 },
+        );
+      }
+    }
+
+    // Always run the duplicate check — when overriding, we capture what was
+    // suppressed for the audit record.
+    const duplicateCheck = await this.checkDuplicateEnhanced({
+      accountId: data.accountId,
+      contactId: data.contactId,
+      name: data.name,
+      borrowerType: data.borrowerType,
+      nricPassport: data.nricPassport,
+      registrationNumber: data.registrationNumber,
+    });
+
+    if (!overrideDuplicate && duplicateCheck.duplicates.length > 0) {
+      throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
     }
 
     const createData: Prisma.BorrowerProfileCreateInput = {
@@ -592,6 +612,8 @@ class BorrowerProfileService {
           resourceId: profile.id,
           newValues: {
             overrideDuplicate: true,
+            overrideReason: options.overrideReason,
+            suppressedMatches: duplicateCheck.duplicates.map((d) => ({ id: d.borrowerId, field: d.matchField })),
             borrowerType: data.borrowerType,
             name: data.name,
             accountId: data.accountId,

@@ -110,7 +110,9 @@ class BorrowerProfileController {
     try {
       const profile = await borrowerProfileService.createBorrowerProfile(req.body, {
         overrideDuplicate,
-        userId,
+        overrideReason: req.body.overrideReason,
+        userId: req.user?.id,
+        userPermissions: (req.user as any)?.permissions ?? [],
       });
       res.status(201).json({ status: 'success', data: { profile } });
     } catch (err: any) {
