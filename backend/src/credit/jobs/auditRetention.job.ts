@@ -64,11 +64,13 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
 
   let applicationsWithBrokenChains = 0;
   let totalBrokenEvents = 0;
+  const brokenApplicationIds: string[] = [];
 
   for (const { applicationId } of applicationIds) {
     const result = await AuditChainService.verifyChain(applicationId);
     if (!result.valid) {
       applicationsWithBrokenChains++;
+      brokenApplicationIds.push(applicationId);
       logger.warn(
         `[AuditRetention] Hash-chain broken for application ${applicationId} at event ${result.brokenAt}`,
       );
@@ -100,6 +102,28 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
 
   if (!chainValid) {
     logger.error(`[AuditRetention] Hash-chain integrity check FAILED: ${applicationsWithBrokenChains} applications have broken chains.`);
+
+    // A log line at 03:00 is not escalation. The chain was forked on 10 of 17
+    // applications and this job ran nightly throughout without anyone noticing.
+    // Persist a signal per affected application so it surfaces in monitoring.
+    for (const applicationId of brokenApplicationIds) {
+      const existing = await prisma.earlyWarningSignal.findFirst({
+        where: { applicationId, signalType: 'AUDIT_CHAIN_BROKEN', closedAt: null },
+      });
+      if (existing) continue; // don't raise a duplicate every night
+
+      await prisma.earlyWarningSignal.create({
+        data: {
+          applicationId,
+          signalType: 'AUDIT_CHAIN_BROKEN',
+          severity: 'CRITICAL',
+          description:
+            'Audit chain verification failed. The decision record for this application ' +
+            'cannot be evidenced until the chain is investigated and resealed ' +
+            '(npm run audit:reseal).',
+        },
+      });
+    }
   }
 
   logger.info(`[AuditRetention] Check complete: ${totalEvents} events, ${eventsOlderThan7Years} past retention, hash ${chainValid ? 'INTACT' : 'BROKEN'}`);

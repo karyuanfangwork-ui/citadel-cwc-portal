@@ -120,6 +120,9 @@ export async function createOrder(
   // LOS-021: fail closed if live lending is on but CBS is still a placeholder
   assertRecordOnlyAllowed('cbs');
 
+  // Phase 6a — the chain backing this decision must verify before money moves.
+  await AuditChainService.assertChainIntact(applicationId);
+
   // Run readiness gate
   const readiness = await checkDisbursementReadiness(applicationId);
   if (!readiness.ready) {

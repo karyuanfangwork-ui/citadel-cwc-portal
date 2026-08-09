@@ -213,6 +213,27 @@ export class AuditChainService {
   }
 
   /**
+   * Throw unless the application's audit chain verifies.
+   *
+   * Called before irreversible steps (disbursement). A chain that cannot be
+   * verified means the decision record backing this money movement cannot be
+   * evidenced — that is a stop, not a warning.
+   */
+  static async assertChainIntact(applicationId: string): Promise<void> {
+    const result = await this.verifyChain(applicationId);
+    if (!result.valid) {
+      throw Object.assign(
+        new Error(
+          `Audit chain verification failed for application ${applicationId} ` +
+          `(first discontinuity at event ${result.brokenAt}). Refusing to proceed: ` +
+          `the decision record cannot be evidenced.`,
+        ),
+        { statusCode: 409 },
+      );
+    }
+  }
+
+  /**
    * LOS-013 — Escape hatch for maintenance operations that legitimately need to
    * rewrite the chain (hash-format migration, test teardown, `prisma migrate
    * reset`). Sets the transaction-scoped GUC the immutability trigger checks.
