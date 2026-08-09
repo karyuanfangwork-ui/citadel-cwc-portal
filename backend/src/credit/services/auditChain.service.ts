@@ -12,6 +12,21 @@ type TransactionClient = any;
  */
 const HASH_VERSION = 2;
 
+/**
+ * Convert an applicationId (UUID string) to a signed int64 for use with
+ * pg_advisory_xact_lock. Takes the first 8 bytes of the UUID and interprets
+ * them as a BigInt, then converts to a JS number (safe for int53; truncation
+ * to 32 bits for advisory lock key space is intentional — collisions just
+ * mean two different applications share a lock, which is acceptable since
+ * the lock only serializes, it doesn't gate access).
+ */
+function applicationIdToLockKey(applicationId: string): number {
+  // Use a stable hash of the applicationId to produce a 32-bit integer.
+  // This is sufficient for advisory lock key space (int32).
+  const hash = crypto.createHash('sha256').update(applicationId).digest();
+  return hash.readUInt32BE(0) & 0x7FFFFFFF; // positive int32
+}
+
 export class AuditChainService {
   /**
    * Compute the hash for an audit event.
@@ -60,6 +75,10 @@ export class AuditChainService {
   /**
    * Append an audit event to the chain for a given application.
    * This is the canonical way to create audit events — never use raw prisma.creditAuditEvent.create.
+   *
+   * LOS-009/LOS-013: When called inside a transaction (tx provided), acquires a
+   * per-application advisory lock to serialize concurrent appends, preventing
+   * chain forks. The lock is automatically released on transaction commit/rollback.
    */
   static async appendEvent(
     applicationId: string,
@@ -73,6 +92,17 @@ export class AuditChainService {
   ): Promise<string> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client: any = tx ?? prisma;
+
+    // LOS-013 — Serialize appends per application within the transaction.
+    // pg_advisory_xact_lock is held until the transaction commits/rolls back,
+    // preventing concurrent appends for the same application from reading the
+    // same previousHash and forking the chain. Only acquired when inside a tx;
+    // non-transactional callers (informational audit) don't need serialization.
+    if (tx) {
+      const lockKey = applicationIdToLockKey(applicationId);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+    }
+
     const lastEvent = await client.creditAuditEvent.findFirst({
       where: { applicationId },
       orderBy: { createdAt: 'desc' },
