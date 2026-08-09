@@ -101,31 +101,37 @@ export async function requestScoreOverride(params: {
     ? ScoreOverrideStatus.PENDING_SECOND_APPROVAL
     : ScoreOverrideStatus.APPROVED;
 
-  const override = await prisma.scoreOverrideApproval.create({
-    data: {
+  const override = await prisma.$transaction(async (tx) => {
+    const created = await tx.scoreOverrideApproval.create({
+      data: {
+        applicationId,
+        originalRating,
+        overrideRating,
+        notchDelta: nd,
+        justification,
+        firstApproverId: approverId,
+        firstApprovedAt: new Date(),
+        status,
+        scoreRunId: latestRun.id,
+        ...(requiresSecondApproval ? {} : { secondApproverId: approverId, secondApprovedAt: new Date() }),
+      },
+    });
+
+    // Log audit event via chain service — inside the transaction so the
+    // override record and its audit trail commit or roll back together.
+    await AuditChainService.appendEvent(
       applicationId,
+      'SCORE_OVERRIDE_REQUESTED',
+      approverId,
+      `Override ${originalRating} → ${overrideRating} (Δ${nd} notches)`,
       originalRating,
       overrideRating,
-      notchDelta: nd,
-      justification,
-      firstApproverId: approverId,
-      firstApprovedAt: new Date(),
-      status,
-      scoreRunId: latestRun.id,
-      ...(requiresSecondApproval ? {} : { secondApproverId: approverId, secondApprovedAt: new Date() }),
-    },
-  });
+      { overrideId: created.id, notchDelta: nd, requiresSecondApproval, autoApproved: !requiresSecondApproval },
+      tx as any,
+    );
 
-  // Log audit event via chain service
-  await AuditChainService.appendEvent(
-    applicationId,
-    'SCORE_OVERRIDE_REQUESTED',
-    approverId,
-    `Override ${originalRating} → ${overrideRating} (Δ${nd} notches)`,
-    originalRating,
-    overrideRating,
-    { overrideId: override.id, notchDelta: nd, requiresSecondApproval, autoApproved: !requiresSecondApproval },
-  );
+    return created;
+  });
 
   logger.info(
     `[ScoreOverride] ${requiresSecondApproval ? 'PENDING second approval' : 'Auto-approved'}: ${originalRating} → ${overrideRating} (Δ${nd}) for application ${applicationId}`,
