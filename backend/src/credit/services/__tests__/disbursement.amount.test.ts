@@ -3,9 +3,8 @@ import { ApplicationState } from '@prisma/client';
 import prisma from '../../../utils/prisma';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../../../utils/prisma', () => {
+  const mockPrisma: any = {
     creditApplication: {
       findUnique: jest.fn(),
     },
@@ -27,8 +26,10 @@ jest.mock('../../../utils/prisma', () => ({
       findFirst: jest.fn(),
     },
     $disconnect: jest.fn(),
-  },
-}));
+  };
+  mockPrisma.$transaction = jest.fn(async (fn: any) => fn(mockPrisma));
+  return { __esModule: true, default: mockPrisma };
+});
 
 jest.mock('../../../credit/services/auditChain.service', () => ({
   AuditChainService: {

@@ -5,9 +5,8 @@
  *  - update without version throws AppError('version required', 428)
  */
 
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../../../utils/prisma', () => {
+  const mockPrisma: any = {
     creditApplication: {
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -17,8 +16,10 @@ jest.mock('../../../utils/prisma', () => ({
     creditDecision: { findMany: jest.fn() },
     creditDocument: { findFirst: jest.fn() },
     disbursementOrder: { findUnique: jest.fn() },
-  },
-}));
+  };
+  mockPrisma.$transaction = jest.fn(async (fn: any) => fn(mockPrisma));
+  return { __esModule: true, default: mockPrisma };
+});
 
 jest.mock('../connectedParty.service', () => ({
   deriveAndSetConnectedPartyFlag: jest.fn().mockResolvedValue(undefined),

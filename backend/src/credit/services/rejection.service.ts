@@ -47,30 +47,44 @@ class RejectionService {
     const reasonLabel = REJECTION_REASON_LABELS[rejectionReasonCode] ?? rejectionReasonCode;
     const detailText = rejectionReason ? ` — ${rejectionReason}` : '';
 
-    // Notify RM if assigned
+    // Notify RM if assigned + audit event (atomic)
     if (app.assignedRmId && app.assignedRm) {
-      await prisma.notification.create({
-        data: {
-          userId: app.assignedRmId,
-          tenantId: app.assignedRm.tenantId ?? '00000000-0000-0000-0000-000000000001',
-          channel: 'IN_APP',
-          subject: 'Application Rejected',
-          body: `Application ${app.applicationNo ?? app.id.slice(0, 8)} for ${borrowerName} has been rejected. Reason: ${reasonLabel}${detailText}`,
-          relatedRequestId: applicationId,
-        },
-      });
-    }
+      await prisma.$transaction(async (tx) => {
+        await tx.notification.create({
+          data: {
+            userId: app.assignedRmId!,
+            tenantId: app.assignedRm!.tenantId ?? '00000000-0000-0000-0000-000000000001',
+            channel: 'IN_APP',
+            subject: 'Application Rejected',
+            body: `Application ${app.applicationNo ?? app.id.slice(0, 8)} for ${borrowerName} has been rejected. Reason: ${reasonLabel}${detailText}`,
+            relatedRequestId: applicationId,
+          },
+        });
 
-    // Audit event
-    await AuditChainService.appendEvent(
-      applicationId,
-      'REJECTION_NOTIFIED',
-      app.assignedRmId ?? '',
-      'notify_rejection',
-      undefined,
-      undefined,
-      { rejectionReasonCode, reasonLabel, rejectionReason },
-    );
+        // Audit event
+        await AuditChainService.appendEvent(
+          applicationId,
+          'REJECTION_NOTIFIED',
+          app.assignedRmId ?? '',
+          'notify_rejection',
+          undefined,
+          undefined,
+          { rejectionReasonCode, reasonLabel, rejectionReason },
+          tx as any,
+        );
+      });
+    } else {
+      // No RM assigned — still log audit event atomically (single write, no tx needed for audit-only)
+      await AuditChainService.appendEvent(
+        applicationId,
+        'REJECTION_NOTIFIED',
+        '',
+        'notify_rejection',
+        undefined,
+        undefined,
+        { rejectionReasonCode, reasonLabel, rejectionReason },
+      );
+    }
   }
 
   /**
@@ -90,56 +104,61 @@ class RejectionService {
       throw new AppError('Only rejected applications can be cloned', 400);
     }
 
-    const newApp = await prisma.creditApplication.create({
-      data: {
-        applicationNo: `CA-CLONE-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-        borrowerProfileId: source.borrowerProfileId,
-        productType: source.productType,
-        currency: source.currency,
-        requestedAmount: source.requestedAmount,
-        requestedTenor: source.requestedTenor,
-        purpose: source.purpose,
-        state: ApplicationState.DRAFT,
-        assignedRmId: requestedById,
-        parentApplicationId: source.id,
-        // Copy parties
-        parties: {
-          create: source.parties.map((p) => ({
-            role: p.role,
-            borrowerProfileId: p.borrowerProfileId,
-            liabilityPct: p.liabilityPct,
-          })),
+    const newApp = await prisma.$transaction(async (tx) => {
+      const created = await tx.creditApplication.create({
+        data: {
+          applicationNo: `CA-CLONE-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+          borrowerProfileId: source.borrowerProfileId,
+          productType: source.productType,
+          currency: source.currency,
+          requestedAmount: source.requestedAmount,
+          requestedTenor: source.requestedTenor,
+          purpose: source.purpose,
+          state: ApplicationState.DRAFT,
+          assignedRmId: requestedById,
+          parentApplicationId: source.id,
+          // Copy parties
+          parties: {
+            create: source.parties.map((p) => ({
+              role: p.role,
+              borrowerProfileId: p.borrowerProfileId,
+              liabilityPct: p.liabilityPct,
+            })),
+          },
+          // Copy facilities
+          facilities: {
+            create: source.facilities.map((f) => ({
+              facilityType: f.facilityType,
+              amount: f.amount,
+              tenorMonths: f.tenorMonths,
+              ratePct: f.ratePct,
+              purpose: f.purpose,
+              existingLimit: f.existingLimit,
+              proposedChange: f.proposedChange,
+              newLimit: f.newLimit,
+              outstandingBalance: f.outstandingBalance,
+              undisbursedLimit: f.undisbursedLimit,
+              approvingLevel: f.approvingLevel,
+              pricingLabel: f.pricingLabel,
+            })),
+          },
         },
-        // Copy facilities
-        facilities: {
-          create: source.facilities.map((f) => ({
-            facilityType: f.facilityType,
-            amount: f.amount,
-            tenorMonths: f.tenorMonths,
-            ratePct: f.ratePct,
-            purpose: f.purpose,
-            existingLimit: f.existingLimit,
-            proposedChange: f.proposedChange,
-            newLimit: f.newLimit,
-            outstandingBalance: f.outstandingBalance,
-            undisbursedLimit: f.undisbursedLimit,
-            approvingLevel: f.approvingLevel,
-            pricingLabel: f.pricingLabel,
-          })),
-        },
-      },
-    });
+      });
 
-    // Audit event
-    await AuditChainService.appendEvent(
-      newApp.id,
-      'APPLICATION_CLONED',
-      requestedById,
-      'clone_from_rejected',
-      source.id,
-      newApp.id,
-      { parentApplicationId: source.id },
-    );
+      // Audit event
+      await AuditChainService.appendEvent(
+        created.id,
+        'APPLICATION_CLONED',
+        requestedById,
+        'clone_from_rejected',
+        source.id,
+        created.id,
+        { parentApplicationId: source.id },
+        tx as any,
+      );
+
+      return created;
+    });
 
     return newApp.id;
   }

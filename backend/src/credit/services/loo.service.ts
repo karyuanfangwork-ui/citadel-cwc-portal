@@ -95,54 +95,59 @@ class LooService {
     const s3Prefix = `uploads/credit/${applicationId}/`;
     const pdfJobId = await enqueuePdf(html, s3Prefix);
 
-    // Save as CreditDocument (fileSize filled by worker after upload)
-    const fileName = `LOO-${templateData.applicationNo}-v${newVersion}.pdf`;
-    const filePath = `uploads/credit/${applicationId}/${fileName}`;
+    const result = await prisma.$transaction(async (tx) => {
+      // Save as CreditDocument (fileSize filled by worker after upload)
+      const fileName = `LOO-${templateData.applicationNo}-v${newVersion}.pdf`;
+      const filePath = `uploads/credit/${applicationId}/${fileName}`;
 
-    const document = await prisma.creditDocument.create({
-      data: {
+      const document = await tx.creditDocument.create({
+        data: {
+          applicationId,
+          borrowerProfileId: app.borrowerProfileId,
+          classification: 'LETTER_OF_OFFER',
+          fileName,
+          filePath,
+          fileSize: null, // Filled after worker completes upload
+          mimeType: 'application/pdf',
+          verificationStatus: 'PENDING',
+          uploadedById: generatedById,
+          description: `Letter of Offer v${newVersion} generated on ${templateData.date}`,
+        },
+      });
+
+      // Note: The BullMQ PDF worker uploads the PDF to S3 asynchronously.
+      // The client can poll /api/v1/pdf-jobs/:pdfJobId for the presigned download URL.
+
+      // Update application LOO fields
+      await tx.creditApplication.update({
+        where: { id: applicationId },
+        data: {
+          looGeneratedAt: now,
+          looExpiryDate: expiryDate,
+          looGeneratedById: generatedById,
+          looVersion: newVersion,
+          state: 'OFFER',
+        },
+      });
+
+      // Audit log
+      await AuditChainService.appendEvent(
         applicationId,
-        borrowerProfileId: app.borrowerProfileId,
-        classification: 'LETTER_OF_OFFER',
-        fileName,
-        filePath,
-        fileSize: null, // Filled after worker completes upload
-        mimeType: 'application/pdf',
-        verificationStatus: 'PENDING',
-        uploadedById: generatedById,
-        description: `Letter of Offer v${newVersion} generated on ${templateData.date}`,
-      },
+        'LOO_GENERATED',
+        generatedById,
+        'generate',
+        undefined,
+        undefined,
+        { version: newVersion, documentId: document.id, expiryDate: expiryDate.toISOString() },
+        tx as any,
+      );
+
+      return { document, fileName };
     });
-
-    // Note: The BullMQ PDF worker uploads the PDF to S3 asynchronously.
-    // The client can poll /api/v1/pdf-jobs/:pdfJobId for the presigned download URL.
-
-    // Update application LOO fields
-    await prisma.creditApplication.update({
-      where: { id: applicationId },
-      data: {
-        looGeneratedAt: now,
-        looExpiryDate: expiryDate,
-        looGeneratedById: generatedById,
-        looVersion: newVersion,
-        state: 'OFFER',
-      },
-    });
-
-    // Audit log
-    await AuditChainService.appendEvent(
-      applicationId,
-      'LOO_GENERATED',
-      generatedById,
-      'generate',
-      undefined,
-      undefined,
-      { version: newVersion, documentId: document.id, expiryDate: expiryDate.toISOString() },
-    );
 
     return {
-      documentId: document.id,
-      fileName,
+      documentId: result.document.id,
+      fileName: result.fileName,
       version: newVersion,
       generatedAt: now,
       expiryDate,

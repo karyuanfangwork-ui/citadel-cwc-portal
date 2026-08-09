@@ -565,31 +565,36 @@ class CommitteeService {
 
     // Update agenda item with decision only after any required linked
     // application transition succeeds.
-    const updated = await prisma.committeeAgendaItem.update({
-      where: { id: agendaItemId },
-      data: {
-        decisionResult,
-        decidedAt: new Date(),
-      },
-      include: {
-        application: {
-          select: { id: true, applicationNo: true, state: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.committeeAgendaItem.update({
+        where: { id: agendaItemId },
+        data: {
+          decisionResult,
+          decidedAt: new Date(),
         },
-      },
-    });
+        include: {
+          application: {
+            select: { id: true, applicationNo: true, state: true },
+          },
+        },
+      });
 
-    // Record finalize comment as an audit event if provided
-    if (comment) {
-      await AuditChainService.appendEvent(
-        application?.id ?? agendaItem.applicationId ?? '',
-        'COMMITTEE_FINALIZE',
-        actorId ?? '',
-        `finalize_${decisionResult.toLowerCase()}`,
-        undefined,
-        undefined,
-        { comment },
-      );
-    }
+      // Record finalize comment as an audit event if provided
+      if (comment) {
+        await AuditChainService.appendEvent(
+          application?.id ?? agendaItem.applicationId ?? '',
+          'COMMITTEE_FINALIZE',
+          actorId ?? '',
+          `finalize_${decisionResult.toLowerCase()}`,
+          undefined,
+          undefined,
+          { comment },
+          tx as any,
+        );
+      }
+
+      return result;
+    });
 
     return {
       agendaItem: updated,

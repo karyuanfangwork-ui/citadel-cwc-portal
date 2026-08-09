@@ -203,47 +203,52 @@ class CreditDocumentService {
       requireEditableState(app.state, 'upload document');
     }
 
-    const doc = await prisma.creditDocument.create({
-      data: {
-        applicationId: data.applicationId ?? undefined,
-        borrowerProfileId: data.borrowerProfileId,
-        classification: data.classification,
-        fileName: data.fileName,
-        filePath: data.filePath,
-        fileSize: data.fileSize ?? null,
-        mimeType: data.mimeType ?? null,
-        sha256Hash: data.sha256Hash ?? null,
-        isAvClean: data.isAvClean ?? null,
-        uploadedById: data.uploadedById,
-        description: data.description ?? null,
-        versions: {
-          create: {
-            version: 1,
-            filePath: data.filePath,
-            fileName: data.fileName,
-            fileSize: data.fileSize ?? null,
-            sha256Hash: data.sha256Hash ?? null,
+    const doc = await prisma.$transaction(async (tx) => {
+      const doc = await tx.creditDocument.create({
+        data: {
+          applicationId: data.applicationId ?? undefined,
+          borrowerProfileId: data.borrowerProfileId,
+          classification: data.classification,
+          fileName: data.fileName,
+          filePath: data.filePath,
+          fileSize: data.fileSize ?? null,
+          mimeType: data.mimeType ?? null,
+          sha256Hash: data.sha256Hash ?? null,
+          isAvClean: data.isAvClean ?? null,
+          uploadedById: data.uploadedById,
+          description: data.description ?? null,
+          versions: {
+            create: {
+              version: 1,
+              filePath: data.filePath,
+              fileName: data.fileName,
+              fileSize: data.fileSize ?? null,
+              sha256Hash: data.sha256Hash ?? null,
+            },
           },
         },
-      },
-      include: {
-        uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-        versions: { orderBy: { version: 'desc' } },
-      },
-    });
+        include: {
+          uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          versions: { orderBy: { version: 'desc' } },
+        },
+      });
 
-    // Emit audit event if document is linked to a credit application
-    if (data.applicationId) {
-      await AuditChainService.appendEvent(
-        data.applicationId,
-        'DOCUMENT_UPLOADED',
-        data.uploadedById,
-        'upload',
-        undefined,
-        'DOCUMENT_UPLOADED',
-        { documentId: doc.id, fileName: data.fileName, classification: data.classification },
-      );
-    }
+      // Emit audit event if document is linked to a credit application
+      if (data.applicationId) {
+        await AuditChainService.appendEvent(
+          data.applicationId,
+          'DOCUMENT_UPLOADED',
+          data.uploadedById,
+          'upload',
+          undefined,
+          'DOCUMENT_UPLOADED',
+          { documentId: doc.id, fileName: data.fileName, classification: data.classification },
+          tx as any,
+        );
+      }
+
+      return doc;
+    });
 
     return doc;
   }
@@ -281,27 +286,32 @@ class CreditDocumentService {
     if (updateData.classification !== undefined) prismaData.classification = updateData.classification;
     if (updateData.description !== undefined) prismaData.description = updateData.description;
 
-    const doc = await prisma.creditDocument.update({
-      where: { id },
-      data: prismaData,
-      include: {
-        uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-        _count: { select: { versions: true } },
-      },
-    });
+    const doc = await prisma.$transaction(async (tx) => {
+      const doc = await tx.creditDocument.update({
+        where: { id },
+        data: prismaData,
+        include: {
+          uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          _count: { select: { versions: true } },
+        },
+      });
 
-    // Emit audit event if document is linked to a credit application
-    if (existing.applicationId) {
-      await AuditChainService.appendEvent(
-        existing.applicationId,
-        'DOCUMENT_UPDATED',
-        actorId ?? null,
-        'update',
-        undefined,
-        'DOCUMENT_UPDATED',
-        { documentId: id, fileName: existing.fileName },
-      );
-    }
+      // Emit audit event if document is linked to a credit application
+      if (existing.applicationId) {
+        await AuditChainService.appendEvent(
+          existing.applicationId,
+          'DOCUMENT_UPDATED',
+          actorId ?? null,
+          'update',
+          undefined,
+          'DOCUMENT_UPDATED',
+          { documentId: id, fileName: existing.fileName },
+          tx as any,
+        );
+      }
+
+      return doc;
+    });
 
     return doc;
   }
@@ -330,23 +340,28 @@ class CreditDocumentService {
       requireDeletableState(app.state, 'delete document');
     }
 
-    const deleted = await prisma.creditDocument.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    const deleted = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.creditDocument.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
 
-    // Emit audit event if the document is linked to a credit application
-    if (existing.applicationId) {
-      await AuditChainService.appendEvent(
-        existing.applicationId,
-        'DOCUMENT_DELETED',
-        actorId ?? null,
-        'delete',
-        undefined,
-        undefined,
-        { documentId: existing.id, fileName: existing.fileName },
-      );
-    }
+      // Emit audit event if the document is linked to a credit application
+      if (existing.applicationId) {
+        await AuditChainService.appendEvent(
+          existing.applicationId,
+          'DOCUMENT_DELETED',
+          actorId ?? null,
+          'delete',
+          undefined,
+          undefined,
+          { documentId: existing.id, fileName: existing.fileName },
+          tx as any,
+        );
+      }
+
+      return deleted;
+    });
 
     return deleted;
   }

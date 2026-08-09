@@ -59,57 +59,62 @@ class PricingService {
 
     const { effectiveRatePct, effectiveYieldPct } = computeEffectiveRate(dto, facility.tenorMonths ?? undefined);
 
-    const worksheet = await prisma.pricingWorksheet.upsert({
-      where: { facilityId },
-      create: {
-        facilityId,
-        baseRateType: dto.baseRateType,
-        baseRatePct: new Prisma.Decimal(dto.baseRatePct),
-        creditSpreadPct: new Prisma.Decimal(dto.creditSpreadPct),
-        riskPremiumPct: new Prisma.Decimal(dto.riskPremiumPct),
-        administrationFeePct: dto.administrationFeePct != null ? new Prisma.Decimal(dto.administrationFeePct) : null,
-        processingFeeFlat: dto.processingFeeFlat != null ? new Prisma.Decimal(dto.processingFeeFlat) : null,
-        effectiveRatePct: new Prisma.Decimal(effectiveRatePct),
-        effectiveYieldPct: effectiveYieldPct != null ? new Prisma.Decimal(effectiveYieldPct) : null,
-        pricingJustification: dto.pricingJustification ?? null,
-        preparedById,
-      },
-      update: {
-        baseRateType: dto.baseRateType,
-        baseRatePct: new Prisma.Decimal(dto.baseRatePct),
-        creditSpreadPct: new Prisma.Decimal(dto.creditSpreadPct),
-        riskPremiumPct: new Prisma.Decimal(dto.riskPremiumPct),
-        administrationFeePct: dto.administrationFeePct != null ? new Prisma.Decimal(dto.administrationFeePct) : null,
-        processingFeeFlat: dto.processingFeeFlat != null ? new Prisma.Decimal(dto.processingFeeFlat) : null,
-        effectiveRatePct: new Prisma.Decimal(effectiveRatePct),
-        effectiveYieldPct: effectiveYieldPct != null ? new Prisma.Decimal(effectiveYieldPct) : null,
-        pricingJustification: dto.pricingJustification ?? null,
-        preparedById,
-        preparedAt: new Date(),
-      },
-    });
+    const worksheet = await prisma.$transaction(async (tx) => {
+      const ws = await tx.pricingWorksheet.upsert({
+        where: { facilityId },
+        create: {
+          facilityId,
+          baseRateType: dto.baseRateType,
+          baseRatePct: new Prisma.Decimal(dto.baseRatePct),
+          creditSpreadPct: new Prisma.Decimal(dto.creditSpreadPct),
+          riskPremiumPct: new Prisma.Decimal(dto.riskPremiumPct),
+          administrationFeePct: dto.administrationFeePct != null ? new Prisma.Decimal(dto.administrationFeePct) : null,
+          processingFeeFlat: dto.processingFeeFlat != null ? new Prisma.Decimal(dto.processingFeeFlat) : null,
+          effectiveRatePct: new Prisma.Decimal(effectiveRatePct),
+          effectiveYieldPct: effectiveYieldPct != null ? new Prisma.Decimal(effectiveYieldPct) : null,
+          pricingJustification: dto.pricingJustification ?? null,
+          preparedById,
+        },
+        update: {
+          baseRateType: dto.baseRateType,
+          baseRatePct: new Prisma.Decimal(dto.baseRatePct),
+          creditSpreadPct: new Prisma.Decimal(dto.creditSpreadPct),
+          riskPremiumPct: new Prisma.Decimal(dto.riskPremiumPct),
+          administrationFeePct: dto.administrationFeePct != null ? new Prisma.Decimal(dto.administrationFeePct) : null,
+          processingFeeFlat: dto.processingFeeFlat != null ? new Prisma.Decimal(dto.processingFeeFlat) : null,
+          effectiveRatePct: new Prisma.Decimal(effectiveRatePct),
+          effectiveYieldPct: effectiveYieldPct != null ? new Prisma.Decimal(effectiveYieldPct) : null,
+          pricingJustification: dto.pricingJustification ?? null,
+          preparedById,
+          preparedAt: new Date(),
+        },
+      });
 
-    // Sync effectiveRatePct back to the facility's ratePct
-    await prisma.applicationFacility.update({
-      where: { id: facilityId },
-      data: { ratePct: new Prisma.Decimal(effectiveRatePct) },
-    });
+      // Sync effectiveRatePct back to the facility's ratePct
+      await tx.applicationFacility.update({
+        where: { id: facilityId },
+        data: { ratePct: new Prisma.Decimal(effectiveRatePct) },
+      });
 
-    // Log audit event
-    await AuditChainService.appendEvent(
-      facility.applicationId,
-      'PRICING_WORKSHEET_SAVED',
-      preparedById,
-      'upsert',
-      undefined,
-      undefined,
-      {
-        facilityId,
-        effectiveRatePct,
-        effectiveYieldPct,
-        baseRateType: dto.baseRateType,
-      },
-    );
+      // Log audit event
+      await AuditChainService.appendEvent(
+        facility.applicationId,
+        'PRICING_WORKSHEET_SAVED',
+        preparedById,
+        'upsert',
+        undefined,
+        undefined,
+        {
+          facilityId,
+          effectiveRatePct,
+          effectiveYieldPct,
+          baseRateType: dto.baseRateType,
+        },
+        tx as any,
+      );
+
+      return ws;
+    });
 
     return worksheet;
   }

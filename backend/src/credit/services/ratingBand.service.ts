@@ -194,21 +194,26 @@ class RatingBandService {
    * P2.4 governance: only credit:admin can approve.
    */
   async approveBandSet(bandIds: string[], approverId: string): Promise<number> {
-    const result = await prisma.ratingBandConfig.updateMany({
-      where: { id: { in: bandIds }, status: 'SUBMITTED' },
-      data: { status: 'APPROVED', approvedById: approverId },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const res = await tx.ratingBandConfig.updateMany({
+        where: { id: { in: bandIds }, status: 'SUBMITTED' },
+        data: { status: 'APPROVED', approvedById: approverId },
+      });
 
-    // Audit the approval
-    await AuditChainService.appendEvent(
-      'RATING_BAND_CONFIG', // generic entity — audit chain may need adjustment
-      'RATING_BAND_APPROVED',
-      approverId,
-      'approve_rating_band_set',
-      null,
-      null,
-      { bandIds, count: result.count },
-    );
+      // Audit the approval
+      await AuditChainService.appendEvent(
+        'RATING_BAND_CONFIG', // generic entity — audit chain may need adjustment
+        'RATING_BAND_APPROVED',
+        approverId,
+        'approve_rating_band_set',
+        null,
+        null,
+        { bandIds, count: res.count },
+        tx as any,
+      );
+
+      return res;
+    });
 
     return result.count;
   }
@@ -220,30 +225,35 @@ class RatingBandService {
   async activateBandSet(bandIds: string[], adminId: string, effectiveFrom?: Date): Promise<{ activated: number; superseded: number }> {
     const now = effectiveFrom ?? new Date();
 
-    // Find any currently ACTIVE bands and supersede them
-    const supersededResult = await prisma.ratingBandConfig.updateMany({
-      where: { status: 'ACTIVE' },
-      data: { status: 'SUPERSEDED', effectiveTo: new Date(now.getTime() - 1) },
+    const { activated, superseded } = await prisma.$transaction(async (tx) => {
+      // Find any currently ACTIVE bands and supersede them
+      const supersededResult = await tx.ratingBandConfig.updateMany({
+        where: { status: 'ACTIVE' },
+        data: { status: 'SUPERSEDED', effectiveTo: new Date(now.getTime() - 1) },
+      });
+
+      // Activate the approved bands
+      const activatedResult = await tx.ratingBandConfig.updateMany({
+        where: { id: { in: bandIds }, status: 'APPROVED' },
+        data: { status: 'ACTIVE', effectiveFrom: now },
+      });
+
+      // Audit the activation
+      await AuditChainService.appendEvent(
+        'RATING_BAND_CONFIG',
+        'RATING_BAND_ACTIVATED',
+        adminId,
+        'activate_rating_band_set',
+        null,
+        null,
+        { bandIds, activatedCount: activatedResult.count, supersededCount: supersededResult.count },
+        tx as any,
+      );
+
+      return { activated: activatedResult.count, superseded: supersededResult.count };
     });
 
-    // Activate the approved bands
-    const activatedResult = await prisma.ratingBandConfig.updateMany({
-      where: { id: { in: bandIds }, status: 'APPROVED' },
-      data: { status: 'ACTIVE', effectiveFrom: now },
-    });
-
-    // Audit the activation
-    await AuditChainService.appendEvent(
-      'RATING_BAND_CONFIG',
-      'RATING_BAND_ACTIVATED',
-      adminId,
-      'activate_rating_band_set',
-      null,
-      null,
-      { bandIds, activatedCount: activatedResult.count, supersededCount: supersededResult.count },
-    );
-
-    return { activated: activatedResult.count, superseded: supersededResult.count };
+    return { activated, superseded };
   }
 
   /**

@@ -864,18 +864,22 @@ class CreditApplicationService {
     };
     applyCaMemoFields(createData as Record<string, unknown>, data);
 
-    const application = await prisma.creditApplication.create({
-      data: createData,
-      include: {
-        borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true } },
-        assignedRm: { select: { id: true, firstName: true, lastName: true } },
-        assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
+    const application = await prisma.$transaction(async (tx) => {
+      const created = await tx.creditApplication.create({
+        data: createData,
+        include: {
+          borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true } },
+          assignedRm: { select: { id: true, firstName: true, lastName: true } },
+          assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
 
-    // Create initial audit event
-    await this.createAuditEvent(application.id, actorId, 'create', null, ApplicationState.DRAFT, {
-      applicationNo,
+      // Create initial audit event
+      await this.createAuditEvent(created.id, actorId, 'create', null, ApplicationState.DRAFT, {
+        applicationNo,
+      }, tx);
+
+      return created;
     });
 
     // P2-2: Determine and persist the processing lane
@@ -958,27 +962,31 @@ class CreditApplicationService {
     // §2.3 — Auto-increment version on every update
     (updateData as any).version = { increment: 1 };
 
-    const application = await prisma.creditApplication.update({
-      where: { id },
-      data: updateData,
-      include: {
-        borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
-        assignedRm: { select: { id: true, firstName: true, lastName: true } },
-        assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
+    const application = await prisma.$transaction(async (tx) => {
+      const updated = await tx.creditApplication.update({
+        where: { id },
+        data: updateData,
+        include: {
+          borrowerProfile: { select: { id: true, borrowerType: true, name: true, registrationNumber: true, industry: true, nricPassport: true, address: true, phone: true, email: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
+          assignedRm: { select: { id: true, firstName: true, lastName: true } },
+          assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
 
-    // Create audit event for update — include assignment change details
-    const auditMeta: Record<string, any> = { updatedFields: Object.keys(data) };
-    if (data.assignedRmId !== undefined) {
-      auditMeta.previousRmId = existing.assignedRmId;
-      auditMeta.newRmId = data.assignedRmId;
-    }
-    if (data.assignedAnalystId !== undefined) {
-      auditMeta.previousAnalystId = existing.assignedAnalystId;
-      auditMeta.newAnalystId = data.assignedAnalystId;
-    }
-    await this.createAuditEvent(id, actorId, 'update', existing.state, existing.state, auditMeta);
+      // Create audit event for update — include assignment change details
+      const auditMeta: Record<string, any> = { updatedFields: Object.keys(data) };
+      if (data.assignedRmId !== undefined) {
+        auditMeta.previousRmId = existing.assignedRmId;
+        auditMeta.newRmId = data.assignedRmId;
+      }
+      if (data.assignedAnalystId !== undefined) {
+        auditMeta.previousAnalystId = existing.assignedAnalystId;
+        auditMeta.newAnalystId = data.assignedAnalystId;
+      }
+      await this.createAuditEvent(id, actorId, 'update', existing.state, existing.state, auditMeta, tx);
+
+      return updated;
+    });
 
     // ── Notify newly assigned RM / Analyst ──
     if (data.assignedRmId && data.assignedRmId !== existing.assignedRmId) {
@@ -1037,13 +1045,17 @@ class CreditApplicationService {
       throw new Error('Application can only be deleted in DRAFT state');
     }
 
-    const application = await prisma.creditApplication.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    const application = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.creditApplication.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
 
-    // Create audit event
-    await this.createAuditEvent(id, actorId, 'delete', existing.state, existing.state, {});
+      // Create audit event
+      await this.createAuditEvent(id, actorId, 'delete', existing.state, existing.state, {}, tx);
+
+      return deleted;
+    });
 
     return application;
   }
@@ -1472,43 +1484,51 @@ class CreditApplicationService {
     // §F25 — Race-safe state transition: use updateMany with state guard so that
     // if another process moved the application to a different state since our read,
     // the write is a no-op (count 0) and we throw a 409 conflict.
-    const { count } = await prisma.creditApplication.updateMany({
-      where: { id, state: existing.state },
-      data: updateData as any,
+    const { count, application } = await prisma.$transaction(async (tx) => {
+      const { count: c } = await tx.creditApplication.updateMany({
+        where: { id, state: existing.state },
+        data: updateData as any,
+      });
+
+      if (c === 0) {
+        throw new AppError('Application state changed since read. Please refresh and try again.', 409);
+      }
+
+      // Re-read the application after the guarded write for side effects
+      const app = await tx.creditApplication.findFirst({
+        where: { id, deletedAt: null },
+        include: {
+          borrowerProfile: {
+            select: {
+              id: true,
+              borrowerType: true,
+              name: true,
+              account: { select: { id: true, name: true } },
+              contact: { select: { id: true, firstName: true, lastName: true } },
+            },
+          },
+          assignedRm: { select: { id: true, firstName: true, lastName: true } },
+          assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
+
+      // Should never be null since updateMany count > 0, but satisfy TS
+      if (!app) {
+        throw new AppError('Application not found after transition', 500);
+      }
+
+      // Create audit event for state transition
+      await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {
+        reason: reason ?? null,
+        ...(acceptedOfferDocId ? { signedLooDocId: acceptedOfferDocId } : {}),
+      }, tx);
+
+      return { count: c, application: app };
     });
 
     if (count === 0) {
       throw new AppError('Application state changed since read. Please refresh and try again.', 409);
     }
-
-    // Re-read the application after the guarded write for side effects
-    const application = await prisma.creditApplication.findFirst({
-      where: { id, deletedAt: null },
-      include: {
-        borrowerProfile: {
-          select: {
-            id: true,
-            borrowerType: true,
-            name: true,
-            account: { select: { id: true, name: true } },
-            contact: { select: { id: true, firstName: true, lastName: true } },
-          },
-        },
-        assignedRm: { select: { id: true, firstName: true, lastName: true } },
-        assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    // Should never be null since updateMany count > 0, but satisfy TS
-    if (!application) {
-      throw new AppError('Application not found after transition', 500);
-    }
-
-    // Create audit event for state transition
-    await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {
-      reason: reason ?? null,
-      ...(acceptedOfferDocId ? { signedLooDocId: acceptedOfferDocId } : {}),
-    });
 
     // §1.2 — On submit, derive connected-party flag from RelatedPartyGroup membership
     if (action === 'submit') {
@@ -1718,6 +1738,7 @@ class CreditApplicationService {
     oldState: string | null,
     newState: string,
     metadata: Record<string, unknown>,
+    tx?: any,
   ) {
     await AuditChainService.appendEvent(
       applicationId,
@@ -1727,6 +1748,7 @@ class CreditApplicationService {
       oldState ?? undefined,
       newState,
       metadata,
+      tx,
     );
   }
 
@@ -1781,60 +1803,65 @@ class CreditApplicationService {
       purpose = purpose ? `${purpose} (Renewal)` : '(Renewal)';
     }
 
-    const newApp = await prisma.creditApplication.create({
-      data: {
-        applicationNo,
-        borrowerProfileId: source.borrowerProfileId,
-        productType: source.productType,
-        currency: source.currency,
-        requestedAmount: source.requestedAmount,
-        requestedTenor: source.requestedTenor,
-        purpose,
-        state: ApplicationState.DRAFT,
-        assignedRmId: requestedById,
-        parentApplicationId: source.id,
-        // Copy parties
-        parties: {
-          create: source.parties.map((p) => ({
-            role: p.role,
-            borrowerProfileId: p.borrowerProfileId,
-            liabilityPct: p.liabilityPct,
-          })),
+    const newApp = await prisma.$transaction(async (tx) => {
+      const created = await tx.creditApplication.create({
+        data: {
+          applicationNo,
+          borrowerProfileId: source.borrowerProfileId,
+          productType: source.productType,
+          currency: source.currency,
+          requestedAmount: source.requestedAmount,
+          requestedTenor: source.requestedTenor,
+          purpose,
+          state: ApplicationState.DRAFT,
+          assignedRmId: requestedById,
+          parentApplicationId: source.id,
+          // Copy parties
+          parties: {
+            create: source.parties.map((p) => ({
+              role: p.role,
+              borrowerProfileId: p.borrowerProfileId,
+              liabilityPct: p.liabilityPct,
+            })),
+          },
+          // Copy facilities
+          facilities: {
+            create: source.facilities.map((f) => ({
+              facilityType: f.facilityType,
+              amount: f.amount,
+              tenorMonths: f.tenorMonths,
+              ratePct: f.ratePct,
+              purpose: f.purpose,
+              existingLimit: f.existingLimit,
+              proposedChange: f.proposedChange,
+              newLimit: f.newLimit,
+              outstandingBalance: f.outstandingBalance,
+              undisbursedLimit: f.undisbursedLimit,
+              approvingLevel: f.approvingLevel,
+              pricingLabel: f.pricingLabel,
+            })),
+          },
         },
-        // Copy facilities
-        facilities: {
-          create: source.facilities.map((f) => ({
-            facilityType: f.facilityType,
-            amount: f.amount,
-            tenorMonths: f.tenorMonths,
-            ratePct: f.ratePct,
-            purpose: f.purpose,
-            existingLimit: f.existingLimit,
-            proposedChange: f.proposedChange,
-            newLimit: f.newLimit,
-            outstandingBalance: f.outstandingBalance,
-            undisbursedLimit: f.undisbursedLimit,
-            approvingLevel: f.approvingLevel,
-            pricingLabel: f.pricingLabel,
-          })),
-        },
-      },
-    });
+      });
 
-    // Audit event
-    await AuditChainService.appendEvent(
-      newApp.id,
-      'APPLICATION_CLONED',
-      requestedById,
-      options?.asRenewal ? 'clone_as_renewal' : 'clone',
-      source.id,
-      newApp.id,
-      {
-        parentApplicationId: source.id,
-        fromState: source.state,
-        asRenewal: options?.asRenewal ?? false,
-      },
-    );
+      // Audit event
+      await AuditChainService.appendEvent(
+        created.id,
+        'APPLICATION_CLONED',
+        requestedById,
+        options?.asRenewal ? 'clone_as_renewal' : 'clone',
+        source.id,
+        created.id,
+        {
+          parentApplicationId: source.id,
+          fromState: source.state,
+          asRenewal: options?.asRenewal ?? false,
+        },
+        tx as any,
+      );
+
+      return created;
+    });
 
     return newApp.id;
   }

@@ -121,21 +121,24 @@ export async function deriveAndSetConnectedPartyFlag(applicationId: string, acto
 
   // If auto-derived flag is different from current flag, update it
   if (derivedFlag !== application.connectedPartyFlag) {
-    await prisma.creditApplication.update({
-      where: { id: applicationId },
-      data: { connectedPartyFlag: derivedFlag },
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.creditApplication.update({
+        where: { id: applicationId },
+        data: { connectedPartyFlag: derivedFlag },
+      });
 
-    // Log audit event via chain service
-    await AuditChainService.appendEvent(
-      applicationId,
-      'CONNECTED_PARTY_FLAG_CHANGED',
-      actorId ?? null,
-      derivedFlag ? 'AUTO_FLAG_CONNECTED' : 'AUTO_UNFLAG_CONNECTED',
-      String(application.connectedPartyFlag),
-      String(derivedFlag),
-      { source: result.source, groups: result.groups, previousFlag: application.connectedPartyFlag, newFlag: derivedFlag },
-    );
+      // Log audit event via chain service
+      await AuditChainService.appendEvent(
+        applicationId,
+        'CONNECTED_PARTY_FLAG_CHANGED',
+        actorId ?? null,
+        derivedFlag ? 'AUTO_FLAG_CONNECTED' : 'AUTO_UNFLAG_CONNECTED',
+        String(application.connectedPartyFlag),
+        String(derivedFlag),
+        { source: result.source, groups: result.groups, previousFlag: application.connectedPartyFlag, newFlag: derivedFlag },
+        tx as any,
+      );
+    });
 
     logger.info(
       `[ConnectedParty] Application ${application.applicationNo}: flag changed from ${application.connectedPartyFlag} to ${derivedFlag} (groups: ${result.groups.map((g) => g.groupName).join(', ') || 'none'})`,
@@ -167,21 +170,24 @@ export async function overrideConnectedPartyFlag(
     throw new Error(`Application ${applicationId} not found`);
   }
 
-  await prisma.creditApplication.update({
-    where: { id: applicationId },
-    data: { connectedPartyFlag: overrideValue },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.creditApplication.update({
+      where: { id: applicationId },
+      data: { connectedPartyFlag: overrideValue },
+    });
 
-  // Log override audit event via chain service
-  await AuditChainService.appendEvent(
-    applicationId,
-    'CONNECTED_PARTY_FLAG_OVERRIDE',
-    actorId,
-    overrideValue ? 'MANUAL_FLAG_CONNECTED' : 'MANUAL_UNFLAG_CONNECTED',
-    String(application.connectedPartyFlag),
-    String(overrideValue),
-    { source: 'override', autoDerivedValue: autoResult.flagged, overrideValue, reason: overrideReason || null, groups: autoResult.groups },
-  );
+    // Log override audit event via chain service
+    await AuditChainService.appendEvent(
+      applicationId,
+      'CONNECTED_PARTY_FLAG_OVERRIDE',
+      actorId,
+      overrideValue ? 'MANUAL_FLAG_CONNECTED' : 'MANUAL_UNFLAG_CONNECTED',
+      String(application.connectedPartyFlag),
+      String(overrideValue),
+      { source: 'override', autoDerivedValue: autoResult.flagged, overrideValue, reason: overrideReason || null, groups: autoResult.groups },
+      tx as any,
+    );
+  });
 
   logger.info(
     `[ConnectedParty] Application ${application.applicationNo}: manual override from ${application.connectedPartyFlag} to ${overrideValue} (auto would be ${autoResult.flagged})`,

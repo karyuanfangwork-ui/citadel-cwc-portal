@@ -152,35 +152,40 @@ export async function createOrder(
 
   const orderNo = await generateOrderNo();
 
-  const order = await prisma.disbursementOrder.create({
-    data: {
-      applicationId,
-      orderNo,
-      requestedById,
-      totalAmount: dto.totalAmount,
-      currency: dto.currency ?? 'MYR',
-      disbursementMethod: dto.disbursementMethod ?? null,
-      beneficiaryBank: dto.beneficiaryBank ?? null,
-      beneficiaryAccount: dto.beneficiaryAccount ?? null,
-      referenceNote: dto.referenceNote ?? null,
-    },
-    include: {
-      requestedBy: { select: { id: true, firstName: true, lastName: true } },
-      approvedBy: { select: { id: true, firstName: true, lastName: true } },
-      disbursedBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.disbursementOrder.create({
+      data: {
+        applicationId,
+        orderNo,
+        requestedById,
+        totalAmount: dto.totalAmount,
+        currency: dto.currency ?? 'MYR',
+        disbursementMethod: dto.disbursementMethod ?? null,
+        beneficiaryBank: dto.beneficiaryBank ?? null,
+        beneficiaryAccount: dto.beneficiaryAccount ?? null,
+        referenceNote: dto.referenceNote ?? null,
+      },
+      include: {
+        requestedBy: { select: { id: true, firstName: true, lastName: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true } },
+        disbursedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Audit event
-  await AuditChainService.appendEvent(
-    applicationId,
-    'DISBURSEMENT_ORDER_CREATED',
-    requestedById,
-    'create_disbursement_order',
-    undefined,
-    undefined,
-    { orderNo: order.orderNo, totalAmount: String(dto.totalAmount) },
-  );
+    // Audit event
+    await AuditChainService.appendEvent(
+      applicationId,
+      'DISBURSEMENT_ORDER_CREATED',
+      requestedById,
+      'create_disbursement_order',
+      undefined,
+      undefined,
+      { orderNo: created.orderNo, totalAmount: String(dto.totalAmount) },
+      tx as any,
+    );
+
+    return created;
+  });
 
   // Notify RM + ops
   await notifyDisbursementEvent(applicationId, 'disbursement_requested', requestedById, {
@@ -220,30 +225,35 @@ export async function approveOrder(
     );
   }
 
-  const updated = await prisma.disbursementOrder.update({
-    where: { id: orderId },
-    data: {
-      approvedById,
-      approvedAt: new Date(),
-      status: DisbursementStatus.APPROVED,
-    },
-    include: {
-      requestedBy: { select: { id: true, firstName: true, lastName: true } },
-      approvedBy: { select: { id: true, firstName: true, lastName: true } },
-      disbursedBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.disbursementOrder.update({
+      where: { id: orderId },
+      data: {
+        approvedById,
+        approvedAt: new Date(),
+        status: DisbursementStatus.APPROVED,
+      },
+      include: {
+        requestedBy: { select: { id: true, firstName: true, lastName: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true } },
+        disbursedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Audit event
-  await AuditChainService.appendEvent(
-    order.applicationId,
-    'DISBURSEMENT_ORDER_APPROVED',
-    approvedById,
-    'approve_disbursement_order',
-    'PENDING',
-    'APPROVED',
-    { orderNo: order.orderNo },
-  );
+    // Audit event
+    await AuditChainService.appendEvent(
+      order.applicationId,
+      'DISBURSEMENT_ORDER_APPROVED',
+      approvedById,
+      'approve_disbursement_order',
+      'PENDING',
+      'APPROVED',
+      { orderNo: order.orderNo },
+      tx as any,
+    );
+
+    return result;
+  });
 
   // Notify
   await notifyDisbursementEvent(order.applicationId, 'disbursement_approved', approvedById, {
@@ -307,7 +317,7 @@ export async function disburseOrder(
     );
   }
 
-  // Use transaction: update order + transition application state
+  // Use transaction: update order + transition application state + audit event
   const updated = await prisma.$transaction(async (tx) => {
     const disbursement = await tx.disbursementOrder.update({
       where: { id: orderId },
@@ -329,19 +339,20 @@ export async function disburseOrder(
       data: { state: ApplicationState.DISBURSED },
     });
 
+    // Audit event
+    await AuditChainService.appendEvent(
+      order.applicationId,
+      'DISBURSEMENT_COMPLETED',
+      disbursedById,
+      'confirm_disbursement',
+      'APPROVED',
+      'DISBURSED',
+      { orderNo: order.orderNo, totalAmount: order.totalAmount.toString() },
+      tx as any,
+    );
+
     return disbursement;
   });
-
-  // Audit event (outside tx — non-blocking)
-  await AuditChainService.appendEvent(
-    order.applicationId,
-    'DISBURSEMENT_COMPLETED',
-    disbursedById,
-    'confirm_disbursement',
-    'APPROVED',
-    'DISBURSED',
-    { orderNo: order.orderNo, totalAmount: order.totalAmount.toString() },
-  );
 
   // Notify
   await notifyDisbursementEvent(order.applicationId, 'disbursement_completed', disbursedById, {
@@ -374,32 +385,37 @@ export async function cancelOrder(
     throw new AppError('Order is already cancelled.', 400);
   }
 
-  const updated = await prisma.disbursementOrder.update({
-    where: { id: orderId },
-    data: {
-      cancelledById,
-      cancelledAt: new Date(),
-      cancellationReason: reason,
-      status: DisbursementStatus.CANCELLED,
-    },
-    include: {
-      requestedBy: { select: { id: true, firstName: true, lastName: true } },
-      approvedBy: { select: { id: true, firstName: true, lastName: true } },
-      disbursedBy: { select: { id: true, firstName: true, lastName: true } },
-      cancelledBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.disbursementOrder.update({
+      where: { id: orderId },
+      data: {
+        cancelledById,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        status: DisbursementStatus.CANCELLED,
+      },
+      include: {
+        requestedBy: { select: { id: true, firstName: true, lastName: true } },
+        approvedBy: { select: { id: true, firstName: true, lastName: true } },
+        disbursedBy: { select: { id: true, firstName: true, lastName: true } },
+        cancelledBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Audit event
-  await AuditChainService.appendEvent(
-    order.applicationId,
-    'DISBURSEMENT_ORDER_CANCELLED',
-    cancelledById,
-    'cancel_disbursement_order',
-    order.status,
-    'CANCELLED',
-    { orderNo: order.orderNo, cancellationReason: reason },
-  );
+    // Audit event
+    await AuditChainService.appendEvent(
+      order.applicationId,
+      'DISBURSEMENT_ORDER_CANCELLED',
+      cancelledById,
+      'cancel_disbursement_order',
+      order.status,
+      'CANCELLED',
+      { orderNo: order.orderNo, cancellationReason: reason },
+      tx as any,
+    );
+
+    return result;
+  });
 
   return updated;
 }

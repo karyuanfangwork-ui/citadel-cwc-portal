@@ -296,28 +296,33 @@ export async function verifyChecklist(
     );
   }
 
-  const updated = await prisma.bureauChecklist.update({
-    where: { applicationId },
-    data: {
-      verifiedById,
-      verifiedAt: new Date(),
-    },
-    include: {
-      tickedBy: { select: { id: true, firstName: true, lastName: true } },
-      verifiedBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.bureauChecklist.update({
+      where: { applicationId },
+      data: {
+        verifiedById,
+        verifiedAt: new Date(),
+      },
+      include: {
+        tickedBy: { select: { id: true, firstName: true, lastName: true } },
+        verifiedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Log audit event
-  await AuditChainService.appendEvent(
-    applicationId,
-    'BUREAU_CHECKLIST_VERIFIED',
-    verifiedById,
-    'verify',
-    undefined,
-    undefined,
-    { verifiedById },
-  );
+    // Log audit event
+    await AuditChainService.appendEvent(
+      applicationId,
+      'BUREAU_CHECKLIST_VERIFIED',
+      verifiedById,
+      'verify',
+      undefined,
+      undefined,
+      { verifiedById },
+      tx as any,
+    );
+
+    return result;
+  });
 
   return updated;
 }

@@ -3,9 +3,8 @@ import { AgendaItemDecisionType, ApplicationState, CommitteeAttendance } from '@
 import prisma from '../../../utils/prisma';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../../../utils/prisma', () => {
+  const mockPrisma: any = {
     committeeVote: {
       create: jest.fn(),
     },
@@ -20,8 +19,10 @@ jest.mock('../../../utils/prisma', () => ({
       findUnique: jest.fn(),
     },
     $disconnect: jest.fn(),
-  },
-}));
+  };
+  mockPrisma.$transaction = jest.fn(async (fn: any) => fn(mockPrisma));
+  return { __esModule: true, default: mockPrisma };
+});
 
 jest.mock('../creditApplication.service', () => ({
   creditApplicationService: {
@@ -241,6 +242,7 @@ describe('committeeService.finalizeDecision — transition consistency', () => {
       undefined,
       undefined,
       { comment: 'Approved by committee' },
+      expect.anything(),
     );
   });
 });
