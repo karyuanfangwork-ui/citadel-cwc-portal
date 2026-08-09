@@ -10,6 +10,8 @@ const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: '
 // Section anchors for sidebar navigation
 export const APPROVAL_PACK_SECTIONS = [
   { id: 'header-background', label: 'Header & Background' },
+  { id: 'analyst-recommendation', label: 'Analyst Recommendation' },
+  { id: 'score-explanation', label: 'Score & Rating Explanation' },
   { id: 'facilities', label: 'Facilities' },
   { id: 'way-out', label: 'Way Out' },
   { id: 'credit-bureau', label: 'Credit Bureau Checks' },
@@ -17,8 +19,135 @@ export const APPROVAL_PACK_SECTIONS = [
   { id: 'risk-assessment', label: 'Risk Assessment' },
   { id: 'esg-assessment', label: 'ESG Assessment' },
   { id: 'sicr-assessment', label: 'SICR Assessment' },
+  { id: 'overrides-deviations', label: 'Overrides & Deviations' },
+  { id: 'evidence-index', label: 'Evidence Index' },
   { id: 'signoff', label: 'Signoff' },
 ] as const;
+
+const esc = (v: any) => String(v ?? '').replace(/[&<>"]"/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+
+/** LOS-016 — What the analyst actually recommended, in their own words. */
+function recommendationSection(app: any): string {
+  const rec = app.recommendations?.[0];
+  if (!rec) {
+    return `<h2 id="analyst-recommendation">Analyst Recommendation</h2>
+      <p><em>No recommendation has been submitted for this application.</em></p>`;
+  }
+  const author = `${rec.author?.firstName ?? ''} ${rec.author?.lastName ?? ''}`.trim() || '—';
+  return `<h2 id="analyst-recommendation">Analyst Recommendation</h2>
+    <table>
+      <tr><td class="label">Recommendation</td><td><strong>${esc(rec.recommendationType)}</strong></td></tr>
+      <tr><td class="label">Recommended amount</td><td class="right">${fmt(rec.recommendedAmount)}</td></tr>
+      <tr><td class="label">Recommended tenor</td><td>${rec.recommendedTenorMonths ?? '—'} months</td></tr>
+      <tr><td class="label">Author</td><td>${esc(author)}</td></tr>
+      <tr><td class="label">Submitted</td><td>${fmtDate(rec.submittedAt)}</td></tr>
+    </table>
+    <h3>Rationale</h3>
+    <p>${esc(rec.rationale) || '<em>None recorded.</em>'}</p>
+    ${rec.conditions ? `<h3>Proposed conditions</h3><p>${esc(rec.conditions)}</p>` : ''}`;
+}
+
+/** LOS-016 — Why this rating: factor contributions, missing data, caps, provenance. */
+function scoreExplanationSection(app: any): string {
+  const run = app.scoreRuns?.[0];
+  const frozen = app.assessmentResults?.[0];
+  if (!run) {
+    return `<h2 id="score-explanation">Score &amp; Rating Explanation</h2>
+      <p><em>This application has not been scored.</em></p>`;
+  }
+
+  const factors = run.factorScores && typeof run.factorScores === 'object'
+    ? Object.entries(run.factorScores as Record<string, any>)
+    : [];
+  const missing = Array.isArray(run.missingInputs) ? run.missingInputs : [];
+  const caps = Array.isArray(run.bureauCapsApplied) ? run.bureauCapsApplied : [];
+
+  return `<h2 id="score-explanation">Score &amp; Rating Explanation</h2>
+    <table>
+      <tr><td class="label">Total score</td><td class="right">${fmt(run.totalScore)}</td></tr>
+      <tr><td class="label">Final rating</td><td><strong>${esc(run.riskRating)}</strong></td></tr>
+      ${run.baseRiskRating && run.baseRiskRating !== run.riskRating
+        ? `<tr><td class="label">Model rating before caps</td><td>${esc(run.baseRiskRating)}</td></tr>` : ''}
+      <tr><td class="label">Policy version</td><td>${esc(run.policyVersion) || '—'}</td></tr>
+      <tr><td class="label">Rating band version</td><td>${run.ratingBandVersion ?? '—'}</td></tr>
+      ${frozen ? `<tr><td class="label">Reporting</td><td>Frozen assessment v${frozen.version} (${esc(frozen.status)})</td></tr>` : ''}
+    </table>
+
+    <h3>Factor contributions</h3>
+    ${factors.length
+      ? `<table><tr><th>Factor</th><th class="right">Contribution</th></tr>
+         ${factors.map(([k, v]: [string, any]) => `<tr><td>${esc(k)}</td><td class="right">${fmt(v)}</td></tr>`).join('')}
+         </table>`
+      : '<p><em>No factor breakdown recorded.</em></p>'}
+
+    <h3>Missing inputs and treatment</h3>
+    ${missing.length
+      ? `<table><tr><th>Input</th><th>Policy applied</th></tr>
+         ${missing.map((m: any) => `<tr><td>${esc(m.factor ?? m.field ?? m)}</td><td>${esc(m.policy ?? m.treatment ?? '—')}</td></tr>`).join('')}
+         </table>`
+      : '<p>All required inputs were present.</p>'}
+
+    <h3>Caps applied</h3>
+    ${caps.length
+      ? `<table><tr><th>Reason</th><th>Capped to</th></tr>
+         ${caps.map((c: any) => `<tr><td>${esc(c.reason ?? '—')}</td><td>${esc(c.cappedTo ?? c.cap ?? '—')}</td></tr>`).join('')}
+         </table>`
+      : '<p>No rating cap was applied.</p>'}`;
+}
+
+/** LOS-016 — Every departure from the model or from policy, and who authorised it. */
+function overridesDeviationsSection(app: any): string {
+  const overrides = app.scoreOverrides ?? [];
+  const deviations = app.deviations ?? [];
+  return `<h2 id="overrides-deviations">Overrides &amp; Deviations</h2>
+    <h3>Rating overrides</h3>
+    ${overrides.length
+      ? `<table><tr><th>From</th><th>To</th><th>Notches</th><th>Status</th><th>Approvers</th><th>Justification</th></tr>
+         ${overrides.map((o: any) => `<tr>
+            <td>${esc(o.originalRating)}</td>
+            <td>${esc(o.overrideRating)}</td>
+            <td class="right">${o.notchDelta ?? '—'}</td>
+            <td>${esc(o.status)}</td>
+            <td>${esc([
+              `${o.firstApprover?.firstName ?? ''} ${o.firstApprover?.lastName ?? ''}`.trim(),
+              `${o.secondApprover?.firstName ?? ''} ${o.secondApprover?.lastName ?? ''}`.trim(),
+            ].filter(Boolean).join(', ') || '—')}</td>
+            <td>${esc(o.justification)}</td>
+          </tr>`).join('')}
+         </table>`
+      : '<p>No rating override was requested.</p>'}
+    <h3>Policy deviations</h3>
+    ${deviations.length
+      ? `<table><tr><th>Policy rule</th><th>Actual</th><th>Threshold</th><th>Severity</th><th>Status</th><th>Justification</th></tr>
+         ${deviations.map((d: any) => `<tr>
+            <td>${esc(d.policyRule)}</td>
+            <td class="right">${fmt(d.actualValue)}</td>
+            <td class="right">${fmt(d.thresholdValue)}</td>
+            <td>${esc(d.severity)}${d.isNonWaivable ? ' <strong>(non-waivable)</strong>' : ''}</td>
+            <td>${esc(d.status)}</td>
+            <td>${esc(d.justification)}</td>
+          </tr>`).join('')}
+         </table>`
+      : '<p>No policy deviation was recorded.</p>'}`;
+}
+
+/** LOS-016 — What evidence underpins the decision, and whether it was verified. */
+function evidenceIndexSection(app: any): string {
+  const docs = app.documents ?? [];
+  return `<h2 id="evidence-index">Evidence Index</h2>
+    ${docs.length
+      ? `<table><tr><th>Classification</th><th>File</th><th>Verified</th><th>Verified at</th><th>SHA-256</th></tr>
+         ${docs.map((d: any) => `<tr>
+            <td>${esc(d.classification)}</td>
+            <td>${esc(d.fileName)}</td>
+            <td>${esc(d.verificationStatus ?? 'PENDING')}</td>
+            <td>${fmtDate(d.verifiedAt)}</td>
+            <td><code>${esc((d.sha256Hash ?? '').slice(0, 12))}</code></td>
+          </tr>`).join('')}
+         </table>`
+      : '<p><em>No documents are attached to this application.</em></p>'}`;
+}
 
 /**
  * Builds the full Approval Pack HTML with named section anchors for
@@ -75,6 +204,9 @@ export function buildApprovalPackHtml(app: CaMemoData): string {
   <tr><td class="label">Team Lead</td><td>${app.teamLeadName ?? '—'}</td><td class="label">Relationship Since</td><td>${fmtDate(app.relationshipSince)}</td></tr>
 </table>
 ${app.preambleText ? `<h3>Preamble</h3><p>${app.preambleText}</p>` : ''}
+
+${recommendationSection(app)}
+${scoreExplanationSection(app)}
 
 <h2 id="parties">Section 2 — Parties</h2>
 ${(app as any).parties && (app as any).parties.length > 0 ? `<table>
@@ -162,6 +294,9 @@ ${app.esgAssessment ? `<table>
   <tr><th>Trigger Type</th><th>Has Hit</th><th>Triggering Event</th><th>Rationale</th><th>Classification</th></tr>
   ${(app.sicrAssessments ?? []).map((s: any) => `<tr><td>${s.triggerType}</td><td>${s.hasHit === true ? 'YES' : s.hasHit === false ? 'No' : '—'}</td><td>${s.triggeringEvent ?? '—'}</td><td>${s.rationale ?? '—'}</td><td>${s.classification ?? '—'}</td></tr>`).join('')}
 </table>
+
+${overridesDeviationsSection(app)}
+${evidenceIndexSection(app)}
 
 <h2 id="signoff">Section 19 — Signoff</h2>
 <table>
