@@ -340,25 +340,28 @@ class ApprovalActionService {
           data: updateData,
         });
       }
-    });
 
-    // 9. Create audit event
-    await this.createAuditEvent(
-      applicationId,
-      actorId,
-      `approval_${decision.toLowerCase()}`,
-      application.state,
-      newState,
-      {
-        decision,
-        authorityLevel,
-        approvalsCollected,
-        requiredApproverCount,
-        comment,
-        isCommitteeVote: isCommitteeVote ?? false,
-        rejectionReasonCode,
-      },
-    );
+      // 9. Create audit event — LOS-009: inside the same transaction so the
+      // decision record and its chain event commit or roll back together.
+      await AuditChainService.appendEvent(
+        applicationId,
+        'APPROVAL_ACTION',
+        actorId,
+        `approval_${decision.toLowerCase()}`,
+        application.state,
+        newState,
+        {
+          decision,
+          authorityLevel,
+          approvalsCollected,
+          requiredApproverCount,
+          comment,
+          isCommitteeVote: isCommitteeVote ?? false,
+          rejectionReasonCode,
+        },
+        tx as any,
+      );
+    });
 
     // §2.7 — Notify on rejection
     if (decision === 'REJECT') {
@@ -444,29 +447,6 @@ class ApprovalActionService {
       },
       orderBy: { createdAt: 'desc' },
     });
-  }
-
-  /***
-   * Create audit event for approval action — delegates to AuditChainService
-   * for tamper-evident hash-chain creation.
-   */
-  private async createAuditEvent(
-    applicationId: string,
-    actorId: string,
-    action: string,
-    oldState: string,
-    newState: string,
-    metadata: Record<string, unknown>,
-  ) {
-    await AuditChainService.appendEvent(
-      applicationId,
-      'APPROVAL_ACTION',
-      actorId,
-      action,
-      oldState,
-      newState,
-      metadata,
-    );
   }
 
   // -----------------------------------------------------------------------
