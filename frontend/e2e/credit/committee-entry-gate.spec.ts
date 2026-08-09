@@ -3,17 +3,12 @@
  * LOS-022 — E2E: committee entry gate (LOS-015)
  */
 import { test, expect } from '@playwright/test';
+import { login, CREDIT_ANALYST } from './support/auth';
 
-const E2E_USER = process.env.E2E_CREDIT_USER || 'it@test.local';
-const E2E_PASS = process.env.E2E_CREDIT_PASS || 'password123';
 
 test.describe('Committee entry gate', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', E2E_USER);
-    await page.fill('input[name="password"]', E2E_PASS);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
+    await login(page, CREDIT_ANALYST);
   });
 
   test('submit-to-committee on a draft shows an error', async ({ page }) => {
@@ -25,7 +20,7 @@ test.describe('Committee entry gate', () => {
       return;
     }
     await firstRow.click();
-    await page.waitForURL('**/credit/applications/**', { timeout: 10_000 }).catch(() => {});
+    await expect(page).toHaveURL(/\/credit\/applications\//, { timeout: 10_000 });
 
     const committeeBtn = page.locator('button', { hasText: /committee/i }).first();
     const hasBtn = await committeeBtn.isVisible({ timeout: 3_000 }).catch(() => false);

@@ -35,7 +35,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:credit:p0": "jest src/credit/__tests__/creditP0Regression.test.ts --runInBand",
+    "test:credit:p0": "jest src/credit/__tests__/creditP0Regression.test.ts src/credit/__tests__/auditImmutability.test.ts src/credit/__tests__/auditChainOrdering.test.ts src/credit/__tests__/committeeEntryGate.test.ts --runInBand",
     "test:p2": "jest src/credit/__tests__/creditP2.integration.test.ts src/credit/__tests__/creditGovernedScoring.test.ts src/credit/__tests__/creditMemoVersion.test.ts src/credit/__tests__/financialCalculationRegression.test.ts src/credit/__tests__/creditRecommendation.test.ts src/credit/__tests__/ratingBandGovernance.test.ts src/credit/__tests__/borrowerRiskSeparation.test.ts src/credit/__tests__/application360PersistenceMatrix.test.ts --runInBand",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -47,7 +47,8 @@
     "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing",
     "smoke:attachment-scanner": "ATTACHMENT_SCAN_QUEUE_NAME=attachment.malware-scan.smoke tsx scripts/smoke-attachment-scanner.ts",
     "audit:reseal": "tsx prisma/reseal-audit-chain.ts",
-    "audit:reseal:dry": "tsx prisma/reseal-audit-chain.ts --dry-run"
+    "audit:reseal:dry": "tsx prisma/reseal-audit-chain.ts --dry-run",
+    "test:release": "npm run prisma:seed:credit -- --demo && npm run audit:verify && npm run test:credit:p0 && npm test"
   },
   "keywords": [
     "help-desk",

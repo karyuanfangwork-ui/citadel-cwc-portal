@@ -3,21 +3,21 @@
  * LOS-004/022 — E2E: credit access boundary
  */
 import { test, expect } from '@playwright/test';
+import { login, NON_CREDIT_USER } from './support/auth';
 
-const NON_CREDIT_USER = process.env.E2E_NON_CREDIT_USER || 'user@helpdesk.com';
-const NON_CREDIT_PASS = process.env.E2E_NON_CREDIT_PASS || 'password123';
 
 test.describe('LOS-004/022 — credit access boundary', () => {
   test('a user without credit permissions cannot reach an application by direct URL', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(NON_CREDIT_USER);
-    await page.getByLabel(/password/i).fill(NON_CREDIT_PASS);
-    await page.getByRole('button', { name: /sign in|log ?in/i }).click();
-    await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
+    await login(page, NON_CREDIT_USER);
 
-    // A well-formed but unauthorised application id must not render borrower PII
+    // A well-formed but unauthorised application id must not render the credit
+    // application view. The app satisfies this by routing the user away rather
+    // than showing a denial page — either is acceptable; rendering the record
+    // is not.
     await page.goto('/credit/applications/00000000-0000-0000-0000-000000000001');
-    await expect(page.getByText(/not found|no access|forbidden|unauthori[sz]ed/i).first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByText(/NRIC|identity number/i)).toHaveCount(0);
+    await expect(page).not.toHaveURL(/\/credit\/applications\/[0-9a-f-]{36}/, { timeout: 10_000 });
+
+    // Whatever is rendered, no borrower PII may appear.
+    await expect(page.getByText(/NRIC|identity number|passport no/i)).toHaveCount(0);
   });
 });

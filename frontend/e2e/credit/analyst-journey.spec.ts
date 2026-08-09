@@ -3,17 +3,12 @@
  * LOS-022 — E2E: analyst credit journey
  */
 import { test, expect } from '@playwright/test';
+import { login, CREDIT_ANALYST } from './support/auth';
 
-const E2E_USER = process.env.E2E_CREDIT_USER || 'it@test.local';
-const E2E_PASS = process.env.E2E_CREDIT_PASS || 'password123';
 
 test.describe('LOS-022 — analyst credit journey', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(E2E_USER);
-    await page.getByLabel(/password/i).fill(E2E_PASS);
-    await page.getByRole('button', { name: /sign in|log ?in/i }).click();
-    await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
+    await login(page, CREDIT_ANALYST);
   });
 
   test('an analyst can open an application and see its readiness blockers', async ({ page }) => {
@@ -40,11 +35,15 @@ test.describe('LOS-022 — analyst credit journey', () => {
       return;
     }
     await firstRow.click();
-    await page.waitForURL(/\/credit\/applications\//, { timeout: 10_000 }).catch(() => {});
+    await expect(page).toHaveURL(/\/credit\/applications\//, { timeout: 10_000 });
 
     const submit = page.getByRole('button', { name: /submit to committee/i });
-    const isDisabled = await submit.isDisabled().catch(() => true);
-    if (isDisabled) {
+    if (await submit.count() === 0) {
+      // Treating an absent button as "blocked" would make this test vacuous.
+      test.skip(true, 'No submit-to-committee control on this application');
+      return;
+    }
+    if (await submit.isDisabled()) {
       // UI pre-empts the blocked action — desired outcome
       await expect(submit).toBeDisabled();
       return;

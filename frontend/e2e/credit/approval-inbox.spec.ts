@@ -6,17 +6,12 @@
  * Run:  npx playwright test --project=credit e2e/credit/approval-inbox.spec.ts
  */
 import { test, expect } from '@playwright/test';
+import { login, CREDIT_APPROVER } from './support/auth';
 
-const E2E_USER = process.env.E2E_CREDIT_USER || 'it@test.local';
-const E2E_PASS = process.env.E2E_CREDIT_PASS || 'password123';
 
 test.describe('Approval inbox — authority scoping', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', E2E_USER);
-    await page.fill('input[name="password"]', E2E_PASS);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
+    await login(page, CREDIT_APPROVER);
   });
 
   test('shows the approval inbox without server error', async ({ page }) => {

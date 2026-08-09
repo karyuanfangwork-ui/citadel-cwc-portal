@@ -1198,10 +1198,11 @@ class CreditApplicationService {
         }
       }
 
-      // LOS-015 — Validate committee readiness, freeze the assessment result,
-      // and lock the memo version. Extracted to committeeEntryGate.ts so both
-      // submit_to_committee and resume_committee pass the same gate.
-      await enforceCommitteeEntryGate(id, actorId ?? null);
+      // LOS-015 — The committee entry gate (readiness check → freeze assessment
+      // → lock memo) runs AFTER every validation gate below, not here. Freezing
+      // is irreversible: doing it before the SICR and balance-sheet checks left
+      // a frozen assessment and a locked memo behind whenever one of those
+      // failed, which is exactly what the gate promises not to do.
     }
     // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
     // unless all required approval decisions have been collected via the
@@ -1389,6 +1390,16 @@ class CreditApplicationService {
           }
         }
       }
+    }
+
+    // LOS-015 — Committee entry gate, deliberately last among the committee
+    // checks. Validates readiness, then freezes the assessment result and locks
+    // the memo version. Both are irreversible, so nothing that can reject the
+    // transition may run after this point: a failed entry must leave no frozen
+    // assessment and no locked memo behind. Applies to submit_to_committee and
+    // resume_committee alike (committeeEntryGate.ts).
+    if (isCommitteeEntryAction(action)) {
+      await enforceCommitteeEntryGate(id, actorId ?? null);
     }
 
     // §1.3 — E-sign document gate: block OFFER → ACCEPTED if no verified Letter of Offer

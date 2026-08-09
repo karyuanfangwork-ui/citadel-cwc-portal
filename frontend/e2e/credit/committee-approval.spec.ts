@@ -3,17 +3,12 @@
  * LOS-020/022 — E2E: committee approval inbox
  */
 import { test, expect } from '@playwright/test';
+import { login, CREDIT_APPROVER } from './support/auth';
 
-const APPROVER_EMAIL = process.env.E2E_APPROVER_USER || 'ceo@test.local';
-const APPROVER_PASS = process.env.E2E_APPROVER_PASS || 'password123';
 
 test.describe('LOS-020/022 — committee approval inbox', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(APPROVER_EMAIL);
-    await page.getByLabel(/password/i).fill(APPROVER_PASS);
-    await page.getByRole('button', { name: /sign in|log ?in/i }).click();
-    await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
+    await login(page, CREDIT_APPROVER);
   });
 
   test('My Approvals shows only actionable cases and explains exclusions', async ({ page }) => {
