@@ -8,6 +8,8 @@ import { pollPdfJob } from '../../services/pdfJob.service';
  */
 const SECTIONS = [
   { id: 'header-background', label: '1 — Header & Background' },
+  { id: 'analyst-recommendation', label: 'Analyst Recommendation' },
+  { id: 'score-explanation', label: 'Score & Rating Explanation' },
   { id: 'parties', label: '2 — Parties' },
   { id: 'facilities', label: '3 — Facilities' },
   { id: 'scoring', label: '4 — Scoring' },
@@ -20,6 +22,8 @@ const SECTIONS = [
   { id: 'risk-assessment', label: '16 — Risk Assessment' },
   { id: 'esg-assessment', label: '17 — ESG' },
   { id: 'sicr-assessment', label: '18 — SICR' },
+  { id: 'overrides-deviations', label: 'Overrides & Deviations' },
+  { id: 'evidence-index', label: 'Evidence Index' },
   { id: 'signoff', label: '19 — Signoff' },
 ] as const;
 
