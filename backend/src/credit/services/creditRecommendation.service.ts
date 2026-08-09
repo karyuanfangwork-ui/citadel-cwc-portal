@@ -178,19 +178,20 @@ class CreditRecommendationService {
         },
       });
 
+      // LOS-009: audit event inside the transaction so it commits or rolls back together
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'RECOMMENDATION_SUBMITTED',
+        authorId,
+        'submit_recommendation',
+        null,
+        null,
+        { recommendationId: id, recommendationType: existing.recommendationType, supersededId: currentSubmitted?.id ?? null },
+        tx as any,
+      );
+
       return submitted;
     });
-
-    // Audit event
-    await AuditChainService.appendEvent(
-      existing.applicationId,
-      'RECOMMENDATION_SUBMITTED',
-      authorId,
-      'submit_recommendation',
-      null,
-      null,
-      { recommendationId: id, recommendationType: existing.recommendationType, supersededId: currentSubmitted?.id ?? null },
-    );
 
     return result;
   }
