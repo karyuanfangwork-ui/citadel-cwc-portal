@@ -11,7 +11,7 @@ import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } fro
 import { getApplicationEffectiveRating } from './applicationRating.service';
 import { getLatestScoreRunAt, getLatestMaterialUpdate } from './applicationRating.service';
 import { recalcScore } from './recalc.service';
-import { freezeAssessmentResult } from './assessmentResult.service';
+import { enforceCommitteeEntryGate, isCommitteeEntryAction } from './committeeEntryGate';
 import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 
@@ -1121,9 +1121,10 @@ class CreditApplicationService {
       }
     }
 
-    // Sprint 1 hard gates: block committee submission unless scorecard, verified documents,
+    // Sprint 1 hard gates: block committee entry unless scorecard, verified documents,
     // bureau verification, and three-way signoff are complete.
-    if (action === 'submit_to_committee') {
+    // LOS-015 — both submit_to_committee and resume_committee must pass these gates.
+    if (isCommitteeEntryAction(action)) {
       const signoffs = await prisma.applicationSignoff.findMany({
         where: { applicationId: id },
         select: { role: true, signedAt: true, signedById: true },
@@ -1197,26 +1198,10 @@ class CreditApplicationService {
         }
       }
 
-      // P2.2 — Validate committee readiness BEFORE any irreversible step.
-      // A failed submission must leave no frozen assessment and no locked memo
-      // behind: the analyst has to be able to fix the blocker and retry cleanly.
-      const readiness = await validateSubmissionReadiness(id, { stage: 'committee' });
-      if (!readiness.ready) {
-        const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
-        throw Object.assign(
-          new Error(`Cannot submit to committee — ${errorMessages}`),
-          { statusCode: 400 },
-        );
-      }
-
-      // P1-5 — Freeze the assessment result so the rating / recommendation /
-      // reason-codes are immutable from this point forward.
-      await freezeAssessmentResult(id, actorId ?? 'system');
-
-      // P2.2 — Lock the latest memo version so the approval pack always
-      // references an immutable snapshot.
-      const { lockMemoVersionOnSubmission } = await import('./creditMemoVersion.service');
-      await lockMemoVersionOnSubmission(id, actorId);
+      // LOS-015 — Validate committee readiness, freeze the assessment result,
+      // and lock the memo version. Extracted to committeeEntryGate.ts so both
+      // submit_to_committee and resume_committee pass the same gate.
+      await enforceCommitteeEntryGate(id, actorId ?? null);
     }
     // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
     // unless all required approval decisions have been collected via the
@@ -1323,9 +1308,9 @@ class CreditApplicationService {
       }
     }
 
-    // Sprint 2 — SICR gate: block submit_to_committee for corporate applications
-    // if no SICR assessment exists.
-    if (action === 'submit_to_committee') {
+    // Sprint 2 — SICR gate: block committee entry for corporate applications
+    // if no SICR assessment exists. LOS-015 — applies to resume_committee too.
+    if (isCommitteeEntryAction(action)) {
       const appWithBorrowerType = await prisma.creditApplication.findUnique({
         where: { id },
         select: {
@@ -1346,10 +1331,11 @@ class CreditApplicationService {
       }
     }
 
-    // Sprint 2 — Financial statement validation: block submit_to_committee for
+    // Sprint 2 — Financial statement validation: block committee entry for
     // corporate/SME if financial statements have no line items or balance sheet
     // doesn't balance (Assets = Liabilities + Equity within tolerance).
-    if (action === 'submit_to_committee') {
+    // LOS-015 — applies to resume_committee too.
+    if (isCommitteeEntryAction(action)) {
       const appWithBp = await prisma.creditApplication.findUnique({
         where: { id },
         select: {

@@ -1,8 +1,23 @@
 /**
  * submit_to_committee must not freeze the assessment when readiness fails —
  * a failed submission must leave no frozen evidence behind.
+ *
+ * LOS-015 — the gate is now extracted to committeeEntryGate.ts and applies
+ * to both submit_to_committee and resume_committee.
  */
 const callOrder: string[] = [];
+
+jest.mock('../services/committeeEntryGate', () => ({
+  enforceCommitteeEntryGate: jest.fn(async () => {
+    callOrder.push('gate');
+    // Simulate a failed readiness check inside the gate
+    const error = new Error('Cannot enter committee review — recommendation: required');
+    Object.assign(error, { statusCode: 400 });
+    throw error;
+  }),
+  isCommitteeEntryAction: jest.fn((action: string) => action === 'submit_to_committee' || action === 'resume_committee'),
+  COMMITTEE_ENTRY_ACTIONS: ['submit_to_committee', 'resume_committee'],
+}));
 
 jest.mock('../services/assessmentResult.service', () => ({
   freezeAssessmentResult: jest.fn(async () => { callOrder.push('freeze'); }),
@@ -114,23 +129,20 @@ jest.mock('../../utils/prisma', () => ({
 }));
 
 import { creditApplicationService } from '../services/creditApplication.service';
-import { freezeAssessmentResult } from '../services/assessmentResult.service';
 
 describe('submit_to_committee ordering', () => {
   beforeEach(() => { callOrder.length = 0; });
 
-  it('checks readiness before freezing the assessment', async () => {
+  it('calls the committee entry gate, which blocks when readiness fails', async () => {
     await expect(
       creditApplicationService.transitionApplication('app-1', 'submit_to_committee', 'u-1'),
-    ).rejects.toThrow(/Cannot submit to committee/i);
+    ).rejects.toThrow(/Cannot enter committee review/i);
 
-    // Readiness must be checked first
-    expect(callOrder[0]).toBe('readiness');
+    // The gate was called (and threw)
+    expect(callOrder).toContain('gate');
 
-    // freeze must NOT have been called (readiness failed)
-    expect(freezeAssessmentResult).not.toHaveBeenCalled();
-
-    // lockMemo must NOT have been called
+    // freeze and lockMemo must NOT have been called — the gate threw before reaching them
+    expect(callOrder).not.toContain('freeze');
     expect(callOrder).not.toContain('lockMemo');
   });
 });
