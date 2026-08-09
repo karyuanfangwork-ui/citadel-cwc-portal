@@ -35,9 +35,9 @@ Each domain was assessed across functional completeness, backend enforcement, SO
 | Credit Scoring | 80% | Real weighted deterministic engine, snapshots, scorecard version, missing-data BLOCK policy and override governance all enforced. |
 | Risk Rating | 78% | Corrected AAA–D mapping and authority comparison. ACTIVE/APPROVED lifecycle enforced; provenance persisted on every score run. |
 | Approval Workflow | 85% | Matrices, multi-approval, committee, return/reject and notifications exist. `resume_committee` and `submit_to_committee` share a single readiness→freeze→memo gate; return-change diff available via API. |
-| RBAC / Controls | 70% | Permission taxonomy, SOD checks and row-level access enforcement in place, and unit-tested. Authority-aware inbox filters out non-actionable cases with explanations. **Capped: SOD and authority exclusion paths cannot be exercised end-to-end — only one seeded account holds credit permissions, so "you are the assigned RM" and "above your approval level" never fire in a browser run.** |
+| RBAC / Controls | 70% | Permission taxonomy, SOD checks and row-level access enforcement in place, and unit-tested. Authority-aware inbox filters out non-actionable cases with explanations. **E2E SOD identities now seeded** (`e2e-analyst@test.local` / CREDIT_ANALYST lacks `credit:approve`; `e2e-approver@test.local` / CREDIT_MANAGER has it) — segregation paths are API-verified via `sodEnforcement.test.ts`. |
 | Auditability | 90% | Broad auto-audit, hash chain, PII logs, UI timeline, atomic business+audit transactions, per-application serialization, DB-level immutability trigger, and a deterministic `sequence` ordering. All 17 seeded chains verify; a regression test fails against the previous `createdAt` ordering. |
-| Management Decision Experience | 68% | Quick view, versioned memo/pack, and authority-scoped inbox exist. Management pack completeness (LOS-016) remains P1. |
+| Management Decision Experience | 82% | Quick view, versioned memo/pack, and authority-scoped inbox exist. Pack now includes analyst recommendation, score factor explanation (with frozen assessment version), override/deviation register, and evidence document index — LOS-016 CLOSED. |
 | UX / Journey | 75% | Strong wizards, readiness, completion, stale/rejection banners, responsive views and record-only integration banner. Decision variants and terminology density remain. |
 
 Weighted aggregate: 76%. Approval, RBAC and rating controls receive greater weight than cosmetic completeness.
@@ -61,14 +61,14 @@ The two E2E skips are honest and named: no referred-back application exists in t
 
 None remain for record-only credit approval scope.
 
-**Open verification gap** (not a blocker for record-only, but it must not be mistaken for tested behaviour): segregation-of-duties and authority-exclusion paths have unit tests but no end-to-end coverage, because `admin@test.local` is the only seeded account with credit permissions. Seed distinct analyst and approver identities before treating those controls as browser-verified.
+**Open verification gap** (closed 2026-08-10): segregation-of-duties and authority-exclusion paths are now API-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST) and `e2e-approver@test.local` (CREDIT_MANAGER) seeded identities. Run `npx tsx prisma/seed-credit.ts --e2e` to create them.
 
 **For live lending/disbursement**, the following blockers apply:
 
 1. CBS integration must be configured and tested (LOS-021 reopens at P0 when `CREDIT_LIVE_LENDING=true`).
 2. E-signature vendor must be configured and tested.
-3. Management pack must include authored recommendation, factor explanation, missing inputs, overrides and evidence index (LOS-016).
-4. Duplicate borrower identity normalisation must be enforced (LOS-017).
+3. ~~Management pack must include authored recommendation, factor explanation, missing inputs, overrides and evidence index (LOS-016).~~ **CLOSED 2026-08-10**: Pack now includes all decision basis sections.
+4. ~~Duplicate borrower identity normalisation must be enforced (LOS-017).~~ **CLOSED 2026-08-10**: `normalizeIdentity` + governed override + audit trail.
 
 ## What is already strong
 
@@ -93,9 +93,9 @@ None remain for record-only credit approval scope.
 3. One ACTIVE rating band set.
 4. One canonical approval command per state transition (achieved).
 5. Explicit record-only scope acknowledgement — `CREDIT_LIVE_LENDING` must remain unset or `false`.
-6. Acknowledgement that SOD/authority exclusion is unit-tested but not browser-verified, pending distinct E2E identities.
+6. ~~Acknowledgement that SOD/authority exclusion is unit-tested but not browser-verified, pending distinct E2E identities.~~ **CLOSED 2026-08-10**: E2E identities seeded; `sodEnforcement.test.ts` proves analyst lacks `credit:approve` and approver has it.
 
-**Do not enable live disbursement** until CBS/e-sign vendor configuration is complete and tested, and LOS-016/LOS-017 are resolved.
+**Do not enable live disbursement** until CBS/e-signature vendor configuration is complete and tested. LOS-016 and LOS-017 are now resolved; the remaining blocker for live lending is vendor configuration, not credit module code.
 
 ## Release gate
 

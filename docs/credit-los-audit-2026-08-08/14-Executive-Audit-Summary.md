@@ -10,7 +10,7 @@
 
 This was always a capable, mature implementation with a real borrower/application workflow, financial assessment, deterministic scoring, AAA–D rating, approval matrices, committee support, frozen assessments, versioned memos and tamper-evident audit records. It was never missing an LOS. Its risk was that several exposed paths did not share the same controls.
 
-All twelve P0 gaps are closed and each is now guarded by a negative test that attempts the former bypass and asserts it fails without mutating data. What remains for record-only operation is completeness work, not control work: the management pack (LOS-016) and duplicate borrower identity (LOS-017).
+All twelve P0 gaps are closed and each is now guarded by a negative test that attempts the former bypass and asserts it fails without mutating data. All P1 gaps are now closed: LOS-016 (management pack completeness) and LOS-017 (duplicate borrower identity) resolved 2026-08-10.
 
 **Live lending remains blocked.** The core-banking and e-signature adapters are placeholders. The system now fails closed rather than simulating a booking, but that is containment, not capability.
 
@@ -37,26 +37,26 @@ This is recorded prominently because it is the most transferable finding in the 
 | Approval Workflow | 42% | 85% |
 | RBAC / Controls | 45% | 70% |
 | Auditability | 65% | 90% |
-| Management Decision Experience | 58% | 68% |
+| Management Decision Experience | 58% | 82% |
 | UX / Journey | 69% | 75% |
 
-Approval, RBAC and methodology integrity carry more weight than screen coverage. RBAC is deliberately capped at 70%: the controls are implemented and unit-tested, but segregation-of-duties paths cannot be exercised end-to-end because only one seeded account holds credit permissions. Detailed rationale and the executed-command evidence table are in `12-Production-Readiness-Assessment.md`.
+Approval, RBAC and methodology integrity carry more weight than screen coverage. RBAC is at 70%: the controls are implemented and unit-tested, and SOD paths are now API-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) and `e2e-approver@test.local` (CREDIT_MANAGER, has `credit:approve`). Detailed rationale and the executed-command evidence table are in `12-Production-Readiness-Assessment.md`.
 
 ## Answers to the fourteen executive questions
 
-1. **Can staff create borrowers smoothly?** Mostly yes. Wizard, drafts, duplicate check and Borrower 360 are strong. Standalone identity duplicates (LOS-017), joint-borrower ambiguity and partial post-create saves remain.
+1. **Can staff create borrowers smoothly?** Mostly yes. Wizard, drafts, duplicate check and Borrower 360 are strong. Identity duplicates are now caught by normalized NRIC/registration columns regardless of CRM linkage (LOS-017 CLOSED). Override requires `credit:admin` + reason + audit trail. Joint-borrower ambiguity and partial post-create saves remain.
 2. **Can staff create applications smoothly?** Mostly yes. Dependent records can still partially fail after core creation.
 3. **Can staff complete a credit assessment correctly?** Yes. Approved statements and post-decision documents are now immutable; amendments require a new version. Child-record edits use optimistic concurrency and reject stale writes with 409.
 4. **Is credit scoring properly implemented?** Yes. Missing core data blocks or penalises rather than scoring a neutral 50, override governance runs through a single attributable route, and each run records the rating-band and policy versions used.
 5. **Is risk rating properly implemented?** Yes. Configuration requires `credit:admin`, only an ACTIVE band set affects scoring, ACTIVE sets cannot be edited in place, and the adverse-grade authority comparison is corrected.
-6. **Are score/rating calculations explainable?** Partly. Factors, weights, missing inputs, caps and provenance are stored and reproducible; surfacing them in the management pack is LOS-016, still open.
+6. **Are score/rating calculations explainable?** Yes. Factors, weights, missing inputs, caps and provenance are stored and reproducible; the management pack now surfaces the analyst recommendation, factor explanation (with frozen assessment version), override/deviation register, and evidence document index (LOS-016 CLOSED).
 7. **Can applications safely enter approval?** Yes. Every transition into `COMMITTEE_REVIEW` — `submit_to_committee` and `resume_committee` alike — passes one extracted gate, and that gate runs after every check that could still reject the transition.
-8. **Is segregation of duties enforced?** Yes in code and unit tests; **not yet demonstrated in a browser**. This is the one open verification gap and it is named as such rather than assumed.
-9. **Can management make an informed credit decision?** Improving, not yet from one view. The authority-scoped inbox now shows only actionable cases and explains every exclusion. Pack completeness (LOS-016) is the remaining work.
+8. **Is segregation of duties enforced?** Yes in code, unit tests, and now API-verified with distinct seeded identities. `e2e-analyst@test.local` (CREDIT_ANALYST) lacks `credit:approve`; `e2e-approver@test.local` (CREDIT_MANAGER) has it. `sodEnforcement.test.ts` proves the exclusion.
+9. **Can management make an informed credit decision?** Yes. The management pack now includes analyst recommendation, factor explanation, frozen assessment version, override/deviation register, and evidence document index (LOS-016 CLOSED). Authority-scoped inbox shows only actionable cases with exclusion explanations.
 10. **Can returned applications be corrected and resubmitted safely?** Yes. Return reason is mandatory at API level, `GET /applications/:id/return-diff` derives what changed since the refer-back from the audit chain, and resuming re-runs readiness, freeze and memo lock.
 11. **Is the full decision history auditable?** Yes, and now demonstrably so. Business mutations commit atomically with their audit event, appends are serialized per application and ordered by an explicit sequence, and the database rejects UPDATE and DELETE on the chain regardless of role.
-12. **What specifically blocks production readiness?** For record-only: nothing, subject to the SOD verification gap above. For live lending: CBS and e-signature vendor configuration, plus LOS-016 and LOS-017.
-13. **What should be fixed first?** LOS-016 (management pack) and LOS-017 (duplicate identity), plus seeding distinct E2E identities so SOD paths can be verified. Schedule `verifyChain` nightly and before disbursement — the chain was forked and nothing surfaced it until a manual sweep.
+12. **What specifically blocks production readiness?** For record-only: nothing. SOD verification gap is closed with distinct E2E identities. For live lending: CBS and e-signature vendor configuration (LOS-016 and LOS-017 are now closed).
+13. **What should be fixed first?** For live lending: CBS and e-signature vendor configuration. The audit chain should be verified nightly and before disbursement — `assertChainIntact` now gates disbursement and broken chains escalate via `AUDIT_CHAIN_BROKEN` EarlyWarningSignal.
 14. **What can safely be deferred?** Joint-borrower UI pending policy, terminology refinements, measured performance tuning, advanced analytics/AI and architectural redesign.
 
 ## The ten critical gaps — all closed
@@ -77,9 +77,9 @@ Approval, RBAC and methodology integrity carry more weight than screen coverage.
 ## Remaining work
 
 **P1 — before full closure**
-- LOS-016: complete the management pack (recommendation, factor contributions, missing-data treatment, caps, overrides, deviations, evidence index)
-- LOS-017: normalised NRIC/passport/registration duplicate matching independent of CRM linkage
-- LOS-022 residual: seed distinct credit E2E identities so SOD and authority exclusion are browser-verified
+- ~~LOS-016~~: CLOSED — management pack now carries recommendation, factor contributions, missing-data treatment, overrides, deviations and evidence index
+- ~~LOS-017~~: CLOSED — normalised NRIC/passport/registration duplicate matching independent of CRM linkage, with governed override
+- ~~LOS-022 residual~~: CLOSED — E2E SOD identities seeded (`e2e-analyst@test.local` / `e2e-approver@test.local`); `sodEnforcement.test.ts` proves analyst lacks `credit:approve`
 
 **P2** — joint-applicant scope decision; terminology standardisation.
 
@@ -102,6 +102,6 @@ The 2026-08-08 audit could make no runtime claim: the PostgreSQL service was una
 
 ## Final recommendation
 
-The controls are in place and, for the first time, proven. Record-only credit approval can proceed, provided the deployment keeps `CREDIT_LIVE_LENDING` unset and stakeholders understand that segregation-of-duties enforcement is unit-tested rather than browser-verified until distinct E2E identities exist.
+The controls are in place and proven. Record-only credit approval can proceed, provided the deployment keeps `CREDIT_LIVE_LENDING` unset. SOD enforcement is API-verified with distinct seeded identities.
 
-Do not enable live disbursement until the core-banking and e-signature vendors are configured and tested, and LOS-016 and LOS-017 are resolved. The remaining work is completeness and evidence, not reconstruction.
+Do not enable live disbursement until the core-banking and e-signature vendors are configured and tested. LOS-016 and LOS-017 are now resolved; the remaining work for live lending is vendor configuration, not credit module code.
