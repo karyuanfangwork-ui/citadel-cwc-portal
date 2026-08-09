@@ -239,25 +239,30 @@ export async function lockMemoVersion(
     throw new AppError(`Memo version ${latest.versionNumber} is already locked.`, 409);
   }
 
-  const locked = await prisma.creditMemoVersion.update({
-    where: { id: latest.id },
-    data: {
-      isLocked: true,
-      lockedAt: new Date(),
-      lockedById: userId,
-    },
-  });
+  const locked = await prisma.$transaction(async (tx) => {
+    const result = await tx.creditMemoVersion.update({
+      where: { id: latest.id },
+      data: {
+        isLocked: true,
+        lockedAt: new Date(),
+        lockedById: userId,
+      },
+    });
 
-  // P2.2e — Audit event for memo version lock
-  await AuditChainService.appendEvent(
-    applicationId,
-    'MEMO_VERSION_LOCKED',
-    userId,
-    'lock_memo_version',
-    null,
-    null,
-    { versionNumber: locked.versionNumber, memoVersionId: locked.id },
-  );
+    // P2.2e — Audit event for memo version lock
+    await AuditChainService.appendEvent(
+      applicationId,
+      'MEMO_VERSION_LOCKED',
+      userId,
+      'lock_memo_version',
+      null,
+      null,
+      { versionNumber: result.versionNumber, memoVersionId: result.id },
+      tx as any,
+    );
+
+    return result;
+  });
 
   return toDetail(locked);
 }

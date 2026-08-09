@@ -511,24 +511,29 @@ class CollateralService {
       throw new Error('Collateral is already linked to this application');
     }
 
-    const link = await prisma.collateralApplicationLink.create({
-      data: {
-        collateralId,
-        applicationId,
-        linkedById: userId,
-      } as any,
-    });
+    const link = await prisma.$transaction(async (tx) => {
+      const created = await tx.collateralApplicationLink.create({
+        data: {
+          collateralId,
+          applicationId,
+          linkedById: userId,
+        } as any,
+      });
 
-    // Audit the link on the target application
-    await AuditChainService.appendEvent(
-      applicationId,
-      'COLLATERAL_LINKED',
-      userId,
-      `Collateral ${collateralId} linked to application ${applicationId}`,
-      undefined,
-      undefined,
-      { collateralId, sourceApplicationId: collateral.facility.applicationId },
-    );
+      // Audit the link on the target application
+      await AuditChainService.appendEvent(
+        applicationId,
+        'COLLATERAL_LINKED',
+        userId,
+        `Collateral ${collateralId} linked to application ${applicationId}`,
+        undefined,
+        undefined,
+        { collateralId, sourceApplicationId: collateral.facility.applicationId },
+        tx as any,
+      );
+
+      return created;
+    });
 
     return link;
   }
@@ -545,20 +550,23 @@ class CollateralService {
       throw new Error('Link not found');
     }
 
-    await prisma.collateralApplicationLink.delete({
-      where: { id: link.id },
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.collateralApplicationLink.delete({
+        where: { id: link.id },
+      });
 
-    // Audit the unlink
-    await AuditChainService.appendEvent(
-      applicationId,
-      'COLLATERAL_UNLINKED',
-      userId,
-      `Collateral ${collateralId} unlinked from application ${applicationId}`,
-      undefined,
-      undefined,
-      { collateralId },
-    );
+      // Audit the unlink
+      await AuditChainService.appendEvent(
+        applicationId,
+        'COLLATERAL_UNLINKED',
+        userId,
+        `Collateral ${collateralId} unlinked from application ${applicationId}`,
+        undefined,
+        undefined,
+        { collateralId },
+        tx as any,
+      );
+    });
 
     return { deleted: true };
   }
