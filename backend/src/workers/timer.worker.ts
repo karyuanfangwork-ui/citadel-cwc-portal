@@ -203,6 +203,6 @@ export function startSlaTimerWorker(): Worker {
 
 export async function stopSlaTimerWorker(): Promise<void> {
   if (!worker) return;
-  await worker.close();
+  await worker.close(true);
   worker = null;
 }

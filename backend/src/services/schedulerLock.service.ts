@@ -20,9 +20,10 @@
  *   try { await doWork(); } finally { await releaseLock(lock); }
  */
 
-import Redis from 'ioredis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { createRedisClient, ensureConnected } from '../utils/redis';
+import type Redis from 'ioredis';
 
 const LOCK_PREFIX = 'scheduler:lock:';
 const DEFAULT_TTL_MS = 120_000; // 2 minutes — generous for job runtime
@@ -37,13 +38,12 @@ let redisClient: Redis | null = null;
 async function getLockClient(): Promise<Redis> {
     if (redisClient && redisClient.status === 'ready') return redisClient;
 
-    const client = new Redis(config.redis.url, {
+    const client = createRedisClient({
         maxRetriesPerRequest: 3,
         retryStrategy(times: number): number | null {
             if (times > 5) return null; // give up after 5 retries
             return Math.min(times * 200, 3000);
         },
-        lazyConnect: true,
     });
 
     client.on('error', (err) => {
@@ -57,7 +57,7 @@ async function getLockClient(): Promise<Redis> {
         logger.info('[SchedulerLock] Redis lock client connected');
     });
 
-    await client.connect();
+    await ensureConnected(client);
     redisClient = client;
     return client;
 }

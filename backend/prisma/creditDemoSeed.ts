@@ -65,7 +65,7 @@ async function seedCrmAccounts(adminId: string) {
     let existing = await findExisting(prisma.crmAccount, { name: a.name });
     if (!existing) {
       existing = await prisma.crmAccount.create({
-        data: { ...a, ownerId: adminId },
+        data: { ...a, ownerId: adminId, tenantId: DEFAULT_TENANT_ID },
       });
     }
     created.push(existing);
@@ -198,7 +198,7 @@ async function seedBorrowerProfiles(accounts: any[]) {
     let contact = await findExisting(prisma.crmContact, { accountId: acct.id, firstName, lastName });
     if (!contact) {
       contact = await prisma.crmContact.create({
-        data: { accountId: acct.id, firstName, lastName, isPrimary: true },
+        data: { accountId: acct.id, firstName, lastName, isPrimary: true, tenantId: DEFAULT_TENANT_ID },
       });
     }
 
@@ -343,6 +343,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
       try {
         app = await prisma.creditApplication.create({
           data: {
+            tenantId: DEFAULT_TENANT_ID,
             applicationNo: appNo,
             state: def.state,
             borrowerProfileId: borrower.id,
@@ -450,8 +451,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         firstWayOut: 'SALARY',
       },
     });
-    await prisma.creditFacility.create({
-      data: { applicationId: leanA.id, facilityType: 'TERM_LOAN' as any, currency: 'MYR' as any, amount: 80000, tenorMonths: 36, ratePct: 6.5, purpose: 'Home renovation', approvedAmount: 80000, approvedTenor: 36, approvedRate: 6.5 },
+    await prisma.applicationFacility.create({
+      data: { applicationId: leanA.id, facilityType: 'TERM_LOAN' as any, amount: 80000, tenorMonths: 36, ratePct: 6.5, purpose: 'Home renovation', approvedAmount: 80000, approvedTenor: 36, approvedRate: 6.5 },
     });
     await prisma.creditBureauCheck.create({
       data: { applicationId: leanA.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'High Net Worth Individual', runDate: new Date('2026-05-01'), runById: adminId, hasHits: false, findings: 'CCRIS clean — no adverse credit history. No existing credit facilities.' },
@@ -485,8 +486,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         firstWayOut: 'OPERATING_CASHFLOW',
       },
     });
-    await prisma.creditFacility.create({
-      data: { applicationId: leanB.id, facilityType: 'TERM_LOAN' as any, currency: 'MYR' as any, amount: 1200000, tenorMonths: 60, ratePct: 5.5, purpose: 'Production line upgrade', approvedAmount: 1200000, approvedTenor: 60, approvedRate: 5.5 },
+    await prisma.applicationFacility.create({
+      data: { applicationId: leanB.id, facilityType: 'TERM_LOAN' as any, amount: 1200000, tenorMonths: 60, ratePct: 5.5, purpose: 'Production line upgrade', approvedAmount: 1200000, approvedTenor: 60, approvedRate: 5.5 },
     });
     await prisma.creditBureauCheck.create({
       data: { applicationId: leanB.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-05'), runById: adminId, hasHits: true, findings: 'CCRIS shows 2 existing facilities, total outstanding RM4.8M. All facilities current. No adverse findings.' },
@@ -528,8 +529,8 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
         firstWayOut: 'PROJECT_REVENUE',
       },
     });
-    await prisma.creditFacility.create({
-      data: { applicationId: leanC.id, facilityType: 'PROJECT_FINANCE' as any, currency: 'MYR' as any, amount: 6000000, tenorMonths: 84, ratePct: 6.0, purpose: 'Greenfield factory Phase 3' },
+    await prisma.applicationFacility.create({
+      data: { applicationId: leanC.id, facilityType: 'BRIDGING' as any, amount: 6000000, tenorMonths: 84, ratePct: 6.0, purpose: 'Greenfield factory Phase 3' },
     });
     await prisma.creditBureauCheck.create({
       data: { applicationId: leanC.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-10'), runById: adminId, hasHits: true, findings: 'CCRIS shows 3 existing facilities, total outstanding RM9.8M. All current. No adverse conduct.' },

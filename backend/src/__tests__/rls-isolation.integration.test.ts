@@ -114,13 +114,20 @@ describe('Task 19: PostgreSQL RLS tenant and department isolation', () => {
     });
 
     afterAll(async () => {
-        await prisma.request.deleteMany({ where: { id: { in: [requestAId, requestBId].filter(Boolean) } } }).catch(() => undefined);
+        await withDatabaseScope(
+            { tenantId: TEST_TENANT_ID, departmentIds: [deptAId], actorId: userAId },
+            async (tx: any) => tx.request.deleteMany({ where: { id: requestAId } }),
+        ).catch(() => undefined);
+        await withDatabaseScope(
+            { tenantId: TEST_TENANT_B_ID, departmentIds: [deptBId], actorId: userBId },
+            async (tx: any) => tx.request.deleteMany({ where: { id: requestBId } }),
+        ).catch(() => undefined);
         await prisma.departmentMembership.deleteMany({ where: { userId: { in: [userAId, userBId].filter(Boolean) } } }).catch(() => undefined);
         await prisma.user.deleteMany({ where: { id: { in: [userAId, userBId].filter(Boolean) } } }).catch(() => undefined);
         await prisma.department.deleteMany({ where: { id: { in: [deptAId, deptBId].filter(Boolean) } } }).catch(() => undefined);
         await prisma.role.deleteMany({ where: { id: roleId } }).catch(() => undefined);
         await prisma.tenant.deleteMany({ where: { id: { in: [TEST_TENANT_ID, TEST_TENANT_B_ID] } } }).catch(() => undefined);
-        await prisma.$disconnect();
+        // Prisma is closed by the global Jest teardown.
     });
 
     it('denies direct SQL reads across tenant and department even when the target id is named', async () => {

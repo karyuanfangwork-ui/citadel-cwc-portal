@@ -21,6 +21,22 @@ export const attachmentScanQueue = new Queue<AttachmentScanJobData>(ATTACHMENT_S
     },
 });
 
+/** Close the BullMQ-owned attachment-scan queue connection. */
+export async function closeAttachmentScanQueue(): Promise<void> {
+    const client = attachmentScanQueue.client;
+    try {
+        await attachmentScanQueue.close();
+    } catch {
+        /* already closed */
+    } finally {
+        try {
+            (await client).disconnect();
+        } catch {
+            /* client was never initialized */
+        }
+    }
+}
+
 export async function dispatchAttachmentScan(data: AttachmentScanJobData): Promise<void> {
     const existing = await attachmentScanQueue.getJob(data.scanJobId);
     if (existing) {

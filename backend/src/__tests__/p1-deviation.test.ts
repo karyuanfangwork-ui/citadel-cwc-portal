@@ -52,7 +52,7 @@ afterAll(async () => {
   if (testApplicationId) {
     await prisma.creditApplication.delete({ where: { id: testApplicationId } }).catch(() => {});
   }
-  await prisma.$disconnect();
+  // Prisma is closed by the global Jest teardown.
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────

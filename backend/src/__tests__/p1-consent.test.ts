@@ -54,7 +54,7 @@ afterAll(async () => {
   if (testWithdrawnById) {
     await prisma.user.delete({ where: { id: testWithdrawnById } }).catch(() => {});
   }
-  await prisma.$disconnect();
+  // Prisma is closed by the global Jest teardown.
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────

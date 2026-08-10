@@ -355,7 +355,7 @@ export function startMonitorJob(cfg: JobConfig = { enabled: true, mode: 'interva
  */
 export async function stopMonitorJob() {
   try {
-    if (monitorWorker) await monitorWorker.close();
+    if (monitorWorker) await monitorWorker.close(true);
     if (monitorQueue) await monitorQueue.close();
     logger.info('[MonitorJob] Stopped monitoring queue');
   } catch (error) {

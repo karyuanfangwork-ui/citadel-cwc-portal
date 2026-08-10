@@ -25,7 +25,7 @@ Effort bands: XS ≤1 day, S 2–3 days, M 4–10 days, L 2–4 weeks. Estimates
 || LOS-019 | Return validation | Manager return | RESOLVED: Backend validator now requires ≥10-character comment for RETURN decisions, matching desktop panel enforcement. | Reason mandatory and audited for every return surface. | approval validator/panel | Blank return gives no remediation direction. | Delay and weak audit rationale. | High | Add backend minimum reason and tests. | Yes | XS | P1 — CLOSED 2026-08-08 | None |
 | LOS-020 | Inbox | Management queue | RESOLVED (2026-08-10, after correction): My Approvals reads the authority- and SOD-filtered dashboard inbox; excluded applications are named with a reason in a collapsible disclosure. NOTE: the first closure was premature — the inbox DTO was passed to the card renderer unmapped, so `state` was `undefined` and the page crashed into its error boundary for every user. Fixed with a `toApplication` mapper; now proven in a browser by `sod-exclusions.spec.ts`. | Authority/SOD-filtered backend inbox is single source, and the page renders. | `MyApprovals.tsx`; `dashboard.service.ts`; `sod-exclusions.spec.ts`; `approval-inbox.spec.ts` | Noise and failed actions. | Operational mistakes/delay. | Medium | Connect page to existing inbox endpoint and explain ineligibility. | Yes | S | P1 — CLOSED 2026-08-10 | LOS-012 |
 | LOS-021 | Integration | Final decision/disbursement | RESOLVED (record-only scope): `assertRecordOnlyAllowed` fails closed when `CREDIT_LIVE_LENDING=true` without a configured CBS/e-sign vendor; placeholder CBS identifiers are prefixed `SIMULATED-` with a `simulated: true` flag; disbursement screen carries a record-only banner; `getIntegrationsStatus` now reports CBS and e-sign alongside bureau/AML/OCR. | Production blocks functions requiring an unconfigured live adapter or clearly operates record-only. | `registry.ts`; `cbs.placeholder.ts`; `IntegrationModeBanner.tsx`; registry gating tests | Staff may mistake simulation for external completion. | Operational/financial mismatch. | Critical for live booking | Fail closed by capability; production deployment evidence for each adapter. | Yes—registry/status | M + external | P0 — CLOSED (record-only) 2026-08-10 | Vendor/configuration |
-| LOS-022 | Test assurance | Whole journey | RESOLVED: `npm run test:credit:p0` attempts each former bypass and asserts it fails without data mutation; `npm run test:release` chains seed → chain verification → P0 regression → full suite. 7 Playwright specs run 16 pass / 2 skip / 0 fail against a live stack. SOD/authority exclusion is now proven in a browser, not only at the API: `sod-exclusions.spec.ts` asserts `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) is refused `/credit/approvals` while still reaching `/credit/applications`, and that `e2e-approver@test.local` (CREDIT_MANAGER) reaches the inbox and sees their own RM-assigned case withheld with the SOD reason stated. `npx tsx prisma/seed-credit.ts --e2e` creates both identities and splits RM ownership so the exclusion is reachable. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/sod-exclusions.spec.ts`; `sodEnforcement.test.ts`; `seed-credit.ts` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — CLOSED 2026-08-10 | Stable test DB; distinct seeded analyst/approver |
+| LOS-022 | Test assurance | Whole journey | RESOLVED: `npm run test:credit:p0` attempts each former bypass and asserts it fails without data mutation; `npm run test:release` chains seed → chain verification → P0 regression → full suite. The current credit browser suite runs 31 pass / 4 skip / 0 fail against a live stack. SOD/authority exclusion is now proven in a browser, not only at the API: `sod-exclusions.spec.ts` asserts `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) is refused `/credit/approvals` while still reaching `/credit/applications`, and that `e2e-approver@test.local` (CREDIT_MANAGER) reaches the inbox and sees their own RM-assigned case withheld with the SOD reason stated. `npx tsx prisma/seed-credit.ts --e2e` creates both identities and splits RM ownership so the exclusion is reachable. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/sod-exclusions.spec.ts`; `sodEnforcement.test.ts`; `seed-credit.ts` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — CLOSED 2026-08-10 | Stable test DB; distinct seeded analyst/approver |
 | LOS-023 | Joint applicants | Borrower/application create | Backend enum supports JOINT; main UI omits it. | Either explicitly unsupported/hidden by policy or fully mapped. | schema/validators vs creation UI | Ambiguous staff expectations. | Misclassification/manual workaround. | Medium | Confirm scope; document as unsupported or connect existing backend fields. | Partial | S–M | P2 | Product policy |
 | LOS-024 | UX terminology | Borrower/application | SME is lane/sole proprietor while labels vary; risk/score/recommendation terms overlap. | Consistent labels with clear system versus analyst recommendation. | lane enums and UI sections | Training burden/misinterpretation. | Moderate operational error. | Medium | Standardize copy/tooltips using existing terminology map. | Yes | S | P2 | UX content review |
 | LOS-025 | Build performance | Application UX | Frontend build emits dynamic/static import and large-bundle warnings. | Credit routes load predictably within operational targets. | Vite build output | Slower first load, especially mobile approval. | Availability/productivity rather than credit control. | Low | Measure route bundles and split only demonstrated hot spots. | Yes | M | DEFERRED | Performance baseline |
@@ -208,14 +208,35 @@ passed. Phase 8 treats that as a class rather than an incident.
 - **The two standing skips are seeded away.** `seedE2eFixtures()` creates a
   `REFERRED_BACK` application and an analyst-owned application for the committee
   gate, so the LOS-015 return path and the entry gate have browser coverage.
-- **`npm run test:release` terminates.** The backend suite passed in 7.1 seconds
-  (108 suites, 1256 tests) and then Jest hung on open handles for 1h40m before
-  being killed by hand. The documented go/no-go gate had never returned on its
-  own. Handles are now closed in `afterAll`, with `--forceExit` as a backstop,
-  and the gate seeds the E2E identities it needs.
+- **The release gate reaches the full suite.** The BullMQ queues were the
+  remaining open handles; the Redis factory registry could not see queues that
+  construct their own connections from config. `shutdownAllQueues()` now closes
+  the queue inventory before Redis teardown.
 
-Browser evidence: 19 passed / 2 skipped / 0 failed (estimate — measured at commit time).
-Backend evidence: `npm run test:release` completes in under 30s.
+### Phase 8a — verification and correction (2026-08-10)
+
+Phase 8 recorded three claims that had not been executed. Fresh verification
+refuted all three before the corrections below:
+
+- **The Jest leak was not fixed by the Redis registry alone.**
+  `--detectOpenHandles` named `src/queues/pdf.queue.ts:6`; without
+  `--forceExit`, 1256 credit tests passed and Jest remained alive. The new
+  `shutdownAllQueues()` closes the seven credit queues, PDF and attachment-scan
+  queues, and the lazy SLA/monitor workers. The focused test and the full credit
+  suite now exit on their own: 108 suites / 1256 tests pass.
+- **The release gate had never reached a green result.** The demo seed had stale
+  tenant omissions, invalid legacy facility model names, and an E2E fixture query
+  that passed an empty string as a UUID exclusion. The seed now runs twice
+  idempotently; `audit:verify` reports 15 intact / 0 broken. The release gate
+  reaches the full suite in 32.1 seconds but still exits 1 on 7 unrelated
+  pre-existing suites (220 suites pass; 10 tests fail, 2367 pass).
+- **Two browser specs failed on incorrect UI assumptions.** Borrower detail now
+  clicks the name button rather than the row preview; the referred-back test now
+  selects a visible `REFERRED_BACK` row rather than an ignored `state` query
+  parameter. The live credit suite is now 31 passed / 4 skipped / 0 failed.
+
+The rule holds for a third consecutive phase: **a gap is closed when a test
+proves it, not when the code is written** — and running the test is not optional.
 
 ## Follow-ups surfaced during Phase 6
 

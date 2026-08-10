@@ -98,7 +98,7 @@ afterAll(async () => {
     await prisma.userRole.deleteMany({ where: { user: { email: ADMIN_EMAIL } } }).catch(() => {});
     await prisma.role.deleteMany({ where: { name: 'CATALOG_ENT_ADMIN' } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: ADMIN_EMAIL } }).catch(() => {});
-    await prisma.$disconnect();
+    // Prisma is closed by the global Jest teardown.
 });
 
 describe('P5-02: Catalog entitlement rules', () => {

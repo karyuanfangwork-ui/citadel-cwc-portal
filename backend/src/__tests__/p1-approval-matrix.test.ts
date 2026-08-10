@@ -103,7 +103,7 @@ describe('P1-1: Enforced Approval Matrix', () => {
       if (matrixId) {
         await prisma.creditApprovalMatrix.delete({ where: { id: matrixId } }).catch(() => {});
       }
-      await prisma.$disconnect();
+      // Prisma is closed by the global Jest teardown.
     });
 
     it('can create an active approval matrix row', async () => {

@@ -67,7 +67,7 @@ afterAll(async () => {
     if (testTypeId) {
         await prisma.requestType.deleteMany({ where: { id: testTypeId } }).catch(() => {});
     }
-    await prisma.$disconnect();
+    // Prisma is closed by the global Jest teardown.
 });
 
 describe('P5-01: Catalog governance fields', () => {

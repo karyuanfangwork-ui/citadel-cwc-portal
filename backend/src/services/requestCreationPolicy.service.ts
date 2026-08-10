@@ -158,7 +158,8 @@ export async function resolveRequestCreationPolicy(
     // Confidentiality is governed by the request type's classification metadata.
     // CONFIDENTIAL and RESTRICTED types force isConfidential=true regardless
     // of any client-supplied flag. INTERNAL types respect the user's choice.
-    const isConfidential = requestType.classification === 'CONFIDENTIAL'
+    const isConfidential = serviceDesk.code === 'HR'
+        || requestType.classification === 'CONFIDENTIAL'
         || requestType.classification === 'RESTRICTED'
         || (requestType.classification === 'INTERNAL' && !!input.requestedConfidentiality);
 

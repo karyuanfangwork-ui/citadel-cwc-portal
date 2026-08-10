@@ -62,7 +62,16 @@ test.describe('Phase 8 — parameterised credit screens render', () => {
     const uncaught: string[] = [];
     page.on('pageerror', (e) => uncaught.push(e.message));
 
-    await openFirstRow(page, '/credit/borrowers', /\/credit\/borrowers\/[0-9a-f-]{36}/);
+    // Borrower rows open the quick-preview panel by design. Navigation is on
+    // the borrower name button in the first cell, which stops row bubbling.
+    await page.goto('/credit/borrowers', { waitUntil: 'domcontentloaded' });
+    const nameButton = page.locator('table tbody tr td:first-child button').first();
+    await expect(
+      nameButton,
+      'No borrower rows. Run `npx tsx prisma/seed-credit.ts --demo --e2e`.',
+    ).toBeVisible({ timeout: 15_000 });
+    await nameButton.click();
+    await expect(page).toHaveURL(/\/credit\/borrowers\/[0-9a-f-]{36}/, { timeout: 15_000 });
     await assertRendered(page, 'Borrower detail', /borrower|exposure|profile/i);
 
     expect(uncaught, `Borrower detail raised: ${uncaught.join(' | ')}`).toHaveLength(0);

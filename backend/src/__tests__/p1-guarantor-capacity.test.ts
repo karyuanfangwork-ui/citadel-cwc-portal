@@ -43,7 +43,7 @@ afterAll(async () => {
   await prisma.applicationFacility.deleteMany({ where: { applicationId: testAppId } }).catch(() => {});
   await prisma.creditApplication.deleteMany({ where: { id: testAppId } }).catch(() => {});
   await prisma.borrowerProfile.deleteMany({ where: { id: testGuarantorId } }).catch(() => {});
-  await prisma.$disconnect();
+  // Prisma is closed by the global Jest teardown.
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────

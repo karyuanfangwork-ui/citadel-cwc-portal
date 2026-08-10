@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import app from '../app';
 import { config } from '../config';
 import prisma from '../utils/prisma';
+import { withDatabaseScope } from '../lib/database-scope';
 
 const TEST_EMAIL = 'request-policy-integration@test.local';
 let authToken: string;
@@ -62,7 +63,13 @@ beforeAll(async () => {
 afterAll(async () => {
     if (createdRequestIds.length > 0) {
         await prisma.requestActivity.deleteMany({ where: { requestId: { in: createdRequestIds } } });
-        await prisma.request.deleteMany({ where: { id: { in: createdRequestIds } } });
+        const desk = await prisma.serviceDesk.findUnique({ where: { id: itDeskId }, select: { departmentId: true } });
+        if (desk?.departmentId) {
+            await withDatabaseScope(
+                { tenantId, departmentIds: [desk.departmentId], actorId: userId },
+                async (tx: any) => tx.request.deleteMany({ where: { id: { in: createdRequestIds } } }),
+            );
+        }
     }
     if (draftTypeId) {
         await prisma.requestType.deleteMany({ where: { id: draftTypeId } });

@@ -23,11 +23,41 @@ afterAll(async () => {
   }
 
   try {
+    const { shutdownAllQueues } = await import('../queues/shutdown');
+    await shutdownAllQueues();
+  } catch {
+    /* no queues loaded by this suite */
+  }
+
+  try {
+    const { disconnectSseRedis } = await import('../utils/sseClients');
+    disconnectSseRedis();
+  } catch {
+    /* SSE Redis adapter not loaded by this suite */
+  }
+
+  try {
     const { closeAllRedisClients } = await import('../utils/redis');
+    await closeAllRedisClients();
+    // Some modules start a fire-and-forget Redis connect during import. Yield
+    // once so that connect callbacks cannot recreate open sockets after the
+    // first shutdown pass.
+    await new Promise<void>((resolve) => setImmediate(resolve));
     await closeAllRedisClients();
   } catch {
     /* redis not loaded by this suite */
   }
 
   await prisma.$disconnect();
+
+  // A few auth modules create their Redis clients while their test file's
+  // afterAll hooks are still unwinding. Close once more after Prisma is down
+  // so late module-import callbacks cannot leave a TCP handle behind.
+  try {
+    const { closeAllRedisClients } = await import('../utils/redis');
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    await closeAllRedisClients();
+  } catch {
+    /* best-effort final teardown */
+  }
 });

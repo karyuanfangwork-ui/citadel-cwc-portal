@@ -22,7 +22,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
-  await prisma.$disconnect();
+  // Prisma is closed by the global Jest teardown.
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────

@@ -57,7 +57,7 @@ export const apiLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 1000 : 20,
+    max: process.env.NODE_ENV !== 'production' ? 1000 : 20,
     store: authStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     keyGenerator: (_req) => {
         // Derive key from email (if present in body) + IP.

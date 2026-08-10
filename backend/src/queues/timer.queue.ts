@@ -76,8 +76,16 @@ export function getSlaTimerQueue(): Queue {
 
 export async function closeSlaTimerQueue(): Promise<void> {
   if (!queue) return;
-  await queue.close();
-  queue = null;
+  const client = queue.client;
+  try {
+    await queue.close();
+  } finally {
+    try {
+      (await client).disconnect();
+    } finally {
+      queue = null;
+    }
+  }
 }
 
 function parseTime(value: string): { hour: number; minute: number } {

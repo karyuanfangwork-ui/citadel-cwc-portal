@@ -124,7 +124,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await cleanupTestUsers();
-  await prisma.$disconnect();
+  // Prisma is closed by the global Jest teardown.
 });
 
 afterEach(async () => {

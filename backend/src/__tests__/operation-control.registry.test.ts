@@ -212,6 +212,7 @@ describe('Operation Control Registry', () => {
     for (const op of sensitiveOps) {
       const isDelete = op.method === 'DELETE';
       const isExport = op.path.includes('/export');
+      const isFileUpload = op.path.startsWith('/files/') && op.method === 'POST';
       const isFileDownload = op.path.includes('/download') || op.path.includes('/attachments/:attachmentId');
       const isAdminDelete = op.path.startsWith('/users') && op.method === 'DELETE';
       const isDeptDelete = op.path.startsWith('/departments') && op.method === 'DELETE';
@@ -219,7 +220,7 @@ describe('Operation Control Registry', () => {
       const isAdminRead = op.authentication === 'platform-admin' && op.method === 'GET';
       const isAssetDelete = op.path.startsWith('/assets') && op.method === 'DELETE';
       expect(
-        isDelete || isExport || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete,
+        isDelete || isExport || isFileUpload || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete,
       ).toBe(true);
     }
   });

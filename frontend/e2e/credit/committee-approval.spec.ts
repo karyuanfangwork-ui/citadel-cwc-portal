@@ -38,18 +38,17 @@ test.describe('LOS-020/022 — committee approval inbox', () => {
   });
 
   test('a returned application shows what changed since it was referred back', async ({ page }) => {
-    // The seed now guarantees a REFERRED_BACK application (see seedE2eFixtures
-    // in prisma/seed-credit.ts). This test used to skip for want of one, which
-    // left the LOS-015 return path with no browser coverage at all.
-    await page.goto('/credit/applications?state=REFERRED_BACK');
+    // CreditApplicationList does not read a `state` query parameter. Select the
+    // row by the state rendered in the list so this exercises the intended fixture.
+    await page.goto('/credit/applications', { waitUntil: 'domcontentloaded' });
 
-    const firstRow = page.locator('table tbody tr').first();
+    const referredRow = page.locator('table tbody tr', { hasText: /referred back/i }).first();
     await expect(
-      firstRow,
+      referredRow,
       'No REFERRED_BACK application. Run `npx tsx prisma/seed-credit.ts --demo --e2e`.',
     ).toBeVisible({ timeout: 15_000 });
 
-    await firstRow.click();
+    await referredRow.click();
     await expect(page).toHaveURL(/\/credit\/applications\/[0-9a-f-]{36}/, { timeout: 15_000 });
     await expect(page.getByText(/returned|referred back/i).first()).toBeVisible({ timeout: 10_000 });
   });

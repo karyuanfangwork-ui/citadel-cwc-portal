@@ -56,19 +56,25 @@ const activeClients = new Set<Redis>();
  * graceful shutdown — not for request paths.
  */
 export async function closeAllRedisClients(): Promise<void> {
-  const clients = [...activeClients];
-  activeClients.clear();
-  await Promise.all(
-    clients.map(async (client) => {
-      try {
-        // quit() waits for a reply, which never arrives if Redis is unreachable.
-        // disconnect() is unconditional and is what actually clears the timer.
-        client.disconnect();
-      } catch {
-        /* already closed */
-      }
-    }),
-  );
+  // Module-level clients can finish initialization on a later event-loop turn.
+  // Drain a few turns so those late clients are closed in the same teardown.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const clients = [...activeClients];
+    activeClients.clear();
+    await Promise.all(
+      clients.map(async (client) => {
+        try {
+          // quit() waits for a reply, which never arrives if Redis is unreachable.
+          // disconnect() is unconditional and clears the reconnect timer.
+          client.disconnect();
+        } catch {
+          /* already closed */
+        }
+      }),
+    );
+    if (activeClients.size === 0) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
 }
 
 export function createRedisClient(opts?: Record<string, any>): Redis {
@@ -84,13 +90,6 @@ export function createRedisClient(opts?: Record<string, any>): Redis {
 
   client.on('ready', () => {
     logger.info('Redis client connected');
-  });
-
-  // Fire-and-forget connect — retryStrategy handles errors.
-  // We do NOT await this; modules that need Redis on first use
-  // should call `await ensureConnected(client)`.
-  client.connect().catch(() => {
-    // retryStrategy will keep trying; this catch prevents unhandled rejection
   });
 
   activeClients.add(client);

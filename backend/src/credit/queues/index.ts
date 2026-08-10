@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { createRedisClient } from '../../utils/redis';
+import { getRedisConnectionConfig } from '../../utils/redis';
 
 // BullMQ queue names cannot contain colons — use dots as namespace separator
 const QUEUE_NAMES = {
@@ -12,7 +12,7 @@ const QUEUE_NAMES = {
   NOTIFY: 'credit.notify.send',
 } as const;
 
-const connection = createRedisClient({ maxRetriesPerRequest: null });
+const connection = getRedisConnectionConfig();
 
 const defaultJobOptions = {
   removeOnComplete: 1000,
@@ -43,6 +43,29 @@ const queues = {
   [QUEUE_NAMES.AI]: aiQueue,
   [QUEUE_NAMES.NOTIFY]: notifyQueue,
 };
+
+/**
+ * Close all credit queues. The shared Redis client is owned by the Redis
+ * client registry and is closed separately by closeAllRedisClients().
+ */
+export async function closeCreditQueues(): Promise<void> {
+  await Promise.all(
+    Object.values(queues).map(async (queue) => {
+      const client = queue.client;
+      try {
+        await queue.close();
+      } catch {
+        /* already closed */
+      } finally {
+        try {
+          (await client).disconnect();
+        } catch {
+          /* client was never initialized */
+        }
+      }
+    }),
+  );
+}
 
 export async function getQueueHealth(): Promise<Record<string, any>> {
   const health: Record<string, any> = {};

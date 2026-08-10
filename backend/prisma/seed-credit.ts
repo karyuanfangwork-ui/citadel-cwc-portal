@@ -803,7 +803,9 @@ async function seedE2eFixtures() {
   // An application the analyst owns and can attempt to submit, so the committee
   // entry gate is exercised rather than skipped for want of a button.
   const submitCandidate = await prisma.creditApplication.findFirst({
-    where: { state: 'CREDIT_ASSESSMENT', id: { not: referBackCandidate?.id ?? '' } },
+    where: referBackCandidate
+      ? { state: 'CREDIT_ASSESSMENT', id: { not: referBackCandidate.id } }
+      : { state: 'CREDIT_ASSESSMENT' },
     orderBy: { applicationNo: 'asc' },
     select: { id: true, applicationNo: true },
   });

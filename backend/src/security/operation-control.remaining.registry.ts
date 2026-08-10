@@ -1092,4 +1092,79 @@ export const remainingOperationControls: OperationControl[] = [
     auditEvent: 'users.permissions.put',
     auditFindingIds: [6, 29, 35],
   },
+  {
+    method: 'GET', path: '/credit/:id/return-diff', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:read', resourcePolicy: 'credit:application:read', validation: 'uuidParams',
+    responseSchema: 'ReturnDiffDto', rateTier: 'read', auditEvent: 'credit.returnDiff.get', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/rating-bands/band-sets/validate', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:read', resourcePolicy: 'credit:rating-bands:read', validation: 'none',
+    responseSchema: 'RatingBandValidationDto', rateTier: 'read', auditEvent: 'credit.ratingBands.validate', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/security/integrations', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:read', resourcePolicy: 'credit:integrations:read', validation: 'none',
+    responseSchema: 'IntegrationStatusDto', rateTier: 'read', auditEvent: 'credit.integrations.get', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/files/download/*', owner: 'File Security', authentication: 'user',
+    coarsePermission: 'file:download', resourcePolicy: 'file:download', validation: 'pathParams',
+    responseSchema: 'Redirect', rateTier: 'sensitive', auditEvent: 'file.uploadedDownload', auditFindingIds: [7, 83, 84],
+  },
+  {
+    method: 'GET', path: '/requests/:id/available-transitions', owner: 'Requests', authentication: 'user',
+    coarsePermission: 'request:read', resourcePolicy: 'request:read', validation: 'uuidParams',
+    responseSchema: 'TransitionDto[]', rateTier: 'read', auditEvent: 'request.availableTransitions', auditFindingIds: [8, 10, 12],
+  },
+  {
+    method: 'GET', path: '/service-desks/:id/categories/:categoryId/deactivation-impact', owner: 'Catalog', authentication: 'user',
+    coarsePermission: 'admin:access', resourcePolicy: 'catalog:read', validation: 'pathParams',
+    responseSchema: 'DeactivationImpactDto', rateTier: 'read', auditEvent: 'servicedesks.categoryDeactivationImpact.get', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/service-desks/:id/deactivation-impact', owner: 'Catalog', authentication: 'user',
+    coarsePermission: 'admin:access', resourcePolicy: 'catalog:read', validation: 'pathParams',
+    responseSchema: 'DeactivationImpactDto', rateTier: 'read', auditEvent: 'servicedesks.deactivationImpact.get', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/service-desks/admin/all', owner: 'Catalog', authentication: 'user',
+    coarsePermission: 'admin:access', resourcePolicy: 'catalog:read', validation: 'none',
+    responseSchema: 'ServiceDeskDto[]', rateTier: 'read', auditEvent: 'servicedesks.adminAll.get', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/service-desks/request-types/:typeId/deactivation-impact', owner: 'Catalog', authentication: 'user',
+    coarsePermission: 'admin:access', resourcePolicy: 'catalog:read', validation: 'pathParams',
+    responseSchema: 'DeactivationImpactDto', rateTier: 'read', auditEvent: 'servicedesks.requestTypeDeactivationImpact.get', auditFindingIds: [],
+  },
+  {
+    method: 'PATCH', path: '/versions/:versionId/graph', owner: 'Workflow', authentication: 'user',
+    coarsePermission: 'workflow:manage', resourcePolicy: 'workflow:update', validation: 'pathParams',
+    responseSchema: 'WorkflowGraphDto', rateTier: 'write', auditEvent: 'workflow.graph.update', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/rating-bands/band-sets', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:create', validation: 'none',
+    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.create', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/rating-bands/band-sets/activate', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:activate', validation: 'pathParams',
+    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.activate', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/rating-bands/band-sets/approve', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:approve', validation: 'pathParams',
+    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.approve', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/rating-bands/band-sets/submit', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:submit', validation: 'pathParams',
+    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.submit', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/finance-workflow/requests/:id/reassign-group-dceo-approver', owner: 'Finance', authentication: 'user',
+    coarsePermission: 'request:approve', resourcePolicy: 'request:update', validation: 'pathParams',
+    responseSchema: 'RequestDto', rateTier: 'write', auditEvent: 'finance.groupDceoApprover.reassign', auditFindingIds: [],
+  },
 ];
