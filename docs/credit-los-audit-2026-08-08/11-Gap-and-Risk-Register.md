@@ -238,6 +238,78 @@ refuted all three before the corrections below:
 The rule holds for a third consecutive phase: **a gap is closed when a test
 proves it, not when the code is written** — and running the test is not optional.
 
+### Phase 8b — Jest teardown root cause and gate closure (2026-08-10)
+
+The Phase 8a block above is left as dated history; the figures in it
+("108 suites / 1256 tests") were the credit subset, not the full suite, and are
+superseded as current state by this entry. Full verbatim output:
+`docs/superpowers/plans/2026-08-10-credit-los-phase8b-evidence.md`.
+
+**Measured `e2afc1d` starting state.** 230 suites / 2387 tests pass, the process
+survives the run, and it holds **3 × Redis (6379) and 17 × Postgres (5432)**
+sockets. Two suites additionally failed under `--detectOpenHandles`.
+
+**Root cause — the Phase 8a closers caused the residual hang.** BullMQ's
+`queue.client` is a connection-forcing getter, not an accessor. Reading it inside
+a closer opens a Redis socket *during teardown* and races that closer's own
+`queue.close()`, producing an unhandled `Error: Connection is closed` at
+`bullmq/…/redis-connection.js:75`. That rejection aborted the suite's `afterAll`,
+which abandoned both the Redis **and** the Prisma handles for that file. Four
+closers were fixed to stop touching `queue.client` and let BullMQ close the
+connection it owns.
+
+**Second defect.** `utils/cache.ts` held a Redis client with no closer at all;
+any suite exercising a cached read leaked one socket. Given `closeCacheRedis()`
+and wired into `shutdownAllQueues()`.
+
+**Production-shutdown parity (not part of the hang).** The PDF and
+attachment-scan workers were given `stopPdfWorker()` / `stopAttachmentScanWorker()`.
+These never start under Jest and were never gate-relevant — they were a genuine
+production-shutdown gap found while auditing the teardown path.
+
+**Ruled out by measurement, not assumption.** `sseClients.ts` already closed its
+Redis adapter correctly and needed no change.
+
+**Outcome — gate closed against an amended criterion.** Natural (unforced) Jest
+exit was **not** achieved. The residual 3 Redis + 17 Postgres handles were
+measured to originate inside Prisma's query engine (17 = default pool size
+`cpus*2+1`, i.e. one pool that outlives `$disconnect()` resolving) and inside
+ioredis clients that reconnect on a later event-loop turn. `--detectOpenHandles`
+reaches the same full passing summary without naming an owner, because neither
+originates in our stack frames. The plan's natural-termination gate was therefore
+amended to: *all suites pass · build passes · lint 0 errors · gate returns on its
+own*, with `forceExit: true` set in `backend/jest.config.ts` beside a comment
+naming both sources. `--detectOpenHandles=false` was deliberately **not**
+re-added, so the leak stays observable. Final measured gate: **230/230 suites,
+2387/2387 tests, `npm run test:release` `EXITCODE=0` in 39.95s, `tsc --noEmit`
+clean, lint 0 errors / 1782 pre-existing warnings.**
+
+This is the fourth consecutive phase in which a recorded closure had not been
+verified. The rule stands, and is extended: **when the verifying command cannot
+be made to pass, amend the criterion in the open and say why — do not record the
+closure anyway.**
+
+## Open items carried out of Phase 8b
+
+These are explicitly **not** closed:
+
+- **Release-gate determinism (new, opened 2026-08-10).** 1 of 2 consecutive
+  `npm run test:release` runs failed with 2 `socket hang up` errors in
+  `src/__tests__/crm-authz.integration.test.ts` (export-job download and a
+  100-row pagination assertion); 2385 of 2387 passed. The suite passes 38/38 in
+  isolation against the same seeded state, so it is neither seed-dependent nor
+  caused by `forceExit` (which acts only after the run completes). Unexplained
+  and unfixed — a flaky release gate is a CI reliability risk.
+- **Unforced Jest process exit.** Recorded above as a non-blocking
+  test-infrastructure limitation. A plausible future fix is pinning
+  `connection_limit=1` on the test `DATABASE_URL` plus a `globalTeardown` that
+  awaits a real drain, but this is untried and speculative.
+- **Frontend / browser verification.** The Playwright credit project was not
+  re-run in Phase 8b. The 31 passed / 4 skipped / 0 failed figure is a Phase 8a
+  measurement.
+- **Deployment readiness.** No deploy or staging validation has been performed in
+  any phase to date.
+
 ## Follow-ups surfaced during Phase 6
 
 - `verifyChain` should be called as a scheduled job (e.g., nightly) and on
