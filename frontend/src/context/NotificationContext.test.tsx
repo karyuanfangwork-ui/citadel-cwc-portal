@@ -57,7 +57,9 @@ describe('NotificationContext cursor replay', () => {
     vi.clearAllMocks();
     MockEventSource.instances = [];
     (globalThis as any).EventSource = MockEventSource;
-    vi.mocked(notificationService.getUnreadCount).mockResolvedValue(0);
+    vi.mocked(notificationService.getUnreadCount)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValue(2);
     vi.mocked(notificationService.replayAfter).mockResolvedValue({ notifications: [], cursor: null });
   });
 

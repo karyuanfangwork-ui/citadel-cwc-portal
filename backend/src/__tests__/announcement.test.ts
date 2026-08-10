@@ -129,6 +129,12 @@ afterAll(async () => {
 
 afterEach(async () => {
   if (createdAnnouncementIds.length > 0) {
+    await prisma.notificationDomainEvent.deleteMany({
+      where: {
+        eventType: 'ANNOUNCEMENT_PUBLISHED',
+        resourceId: { in: createdAnnouncementIds },
+      },
+    });
     await prisma.announcementRead.deleteMany({
       where: { announcementId: { in: createdAnnouncementIds } },
     });
@@ -137,6 +143,12 @@ afterEach(async () => {
     });
     createdAnnouncementIds = [];
   }
+
+  // Announcement tests intentionally publish to seeded active users. Remove
+  // those inbox rows between tests so the suite does not pollute local data.
+  await prisma.notification.deleteMany({
+    where: { userId: { in: [adminUserId, readerUserId] } },
+  });
 });
 
 async function createAnnouncement(token: string, overrides: Record<string, unknown> = {}): Promise<request.Response> {
@@ -364,6 +376,76 @@ describe('Announcement Module', () => {
 
       expect(notifications.length).toBeGreaterThanOrEqual(1);
       expect(notifications[0].subject).toContain('Notify Test');
+    });
+
+    it('does not duplicate notifications when publishing or saving an already-published announcement', async () => {
+      await prisma.notification.deleteMany({ where: { userId: readerUserId } });
+
+      const draft = await createAnnouncement(adminToken, {
+        title: 'Idempotent Publish Test',
+        isPublished: false,
+      });
+      const id = draft.body.data.announcement.id;
+
+      const firstPublish = await request(app)
+        .patch(`/api/v1/announcements/${id}/publish`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(firstPublish.status).toBe(200);
+
+      const repeatedPublish = await request(app)
+        .patch(`/api/v1/announcements/${id}/publish`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(repeatedPublish.status).toBe(200);
+
+      const repeatedEdit = await request(app)
+        .patch(`/api/v1/announcements/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ title: 'Idempotent Publish Test Updated', isPublished: true });
+      expect(repeatedEdit.status).toBe(200);
+
+      const notifications = await prisma.notification.findMany({
+        where: { userId: readerUserId, channel: 'IN_APP', subject: { contains: 'Idempotent Publish Test' } },
+      });
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0].subject).toBe('New announcement: Idempotent Publish Test');
+
+      const deliveries = await prisma.notificationDelivery.findMany({
+        where: { event: { resourceType: 'announcement', resourceId: id }, recipientId: readerUserId, channel: 'IN_APP' },
+      });
+      expect(deliveries).toHaveLength(1);
+    });
+
+    it('does not notify users in another tenant', async () => {
+      const otherTenantId = '00000000-0000-0000-0000-000000000099';
+      const otherTenantEmail = 'test-announce-other-tenant@test.local';
+      const otherTenantSlug = 'test-announce-other-tenant';
+      await prisma.user.deleteMany({ where: { email: otherTenantEmail } });
+      await prisma.tenant.deleteMany({ where: { slug: otherTenantSlug } });
+      await prisma.tenant.create({
+        data: { id: otherTenantId, name: 'Other Test Tenant', slug: otherTenantSlug },
+      });
+      const otherTenantUser = await prisma.user.create({
+        data: {
+          email: otherTenantEmail,
+          passwordHash: await bcrypt.hash(PASSWORD, 10),
+          firstName: 'Other',
+          lastName: 'Tenant',
+          isActive: true,
+          tenantId: otherTenantId,
+        },
+      });
+
+      try {
+        await createAnnouncement(adminToken, { title: 'Tenant Scope Test' });
+        const notifications = await prisma.notification.findMany({
+          where: { userId: otherTenantUser.id, subject: { contains: 'Tenant Scope Test' } },
+        });
+        expect(notifications).toHaveLength(0);
+      } finally {
+        await prisma.notification.deleteMany({ where: { userId: otherTenantUser.id } });
+        await prisma.user.delete({ where: { id: otherTenantUser.id } });
+        await prisma.tenant.delete({ where: { id: otherTenantId } });
+      }
     });
   });
 

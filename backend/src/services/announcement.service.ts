@@ -344,10 +344,17 @@ class AnnouncementService {
       },
     });
 
-    // Broadcast SSE event if published
+    // Broadcast and notify only for a newly published announcement.
     if (data.isPublished) {
       this.broadcastNewAnnouncement(announcement.id, announcement.title, announcement.category, announcement.targetAudience);
-      await this.createNotificationsForAnnouncement(announcement.id, announcement.title, announcement.targetAudience, announcement.priority);
+      await this.createNotificationsForAnnouncement(
+        announcement.id,
+        announcement.title,
+        announcement.targetAudience,
+        announcement.priority,
+        announcement.tenantId,
+        announcement.publishedAt,
+      );
     }
 
     return announcement;
@@ -366,6 +373,10 @@ class AnnouncementService {
     expiresAt?: string | null;
     attachmentUrl?: string | null;
   }) {
+    const existing = await prisma.announcement.findUnique({
+      where: { id },
+      select: { isPublished: true, publishedAt: true },
+    });
     const updateData: any = { ...data };
     if (data.expiresAt !== undefined) {
       updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
@@ -378,7 +389,6 @@ class AnnouncementService {
 
     // Set publishedAt when transitioning to published
     if (data.isPublished === true) {
-      const existing = await prisma.announcement.findUnique({ where: { id }, select: { publishedAt: true } });
       if (!existing?.publishedAt) {
         updateData.publishedAt = new Date();
       }
@@ -399,10 +409,18 @@ class AnnouncementService {
       },
     });
 
-    // If this update publishes the announcement, create notifications
-    if (data.isPublished === true) {
+    // Notify only on a draft -> published transition. Saving an already
+    // published announcement must not notify the whole audience again.
+    if (data.isPublished === true && existing?.isPublished === false) {
       this.broadcastNewAnnouncement(announcement.id, announcement.title, announcement.category, announcement.targetAudience);
-      await this.createNotificationsForAnnouncement(announcement.id, announcement.title, announcement.targetAudience, announcement.priority);
+      await this.createNotificationsForAnnouncement(
+        announcement.id,
+        announcement.title,
+        announcement.targetAudience,
+        announcement.priority,
+        announcement.tenantId,
+        announcement.publishedAt,
+      );
     }
 
     return announcement;
@@ -411,12 +429,16 @@ class AnnouncementService {
   // ── Publish ────────────────────────────────────────────────────────────────
 
   async publishAnnouncement(id: string) {
-    const announcement = await prisma.announcement.update({
-      where: { id },
+    const transition = await prisma.announcement.updateMany({
+      where: { id, isPublished: false, deletedAt: null },
       data: {
         isPublished: true,
         publishedAt: new Date(),
       },
+    });
+
+    const announcement = await prisma.announcement.findUnique({
+      where: { id },
       include: {
         author: {
           select: { id: true, firstName: true, lastName: true, email: true },
@@ -424,10 +446,29 @@ class AnnouncementService {
       },
     });
 
+    if (!announcement) {
+      throw new Error('Announcement not found');
+    }
+
+    // updateMany is the atomic transition gate. If another request already
+    // published this announcement, return the current row without sending a
+    // second notification batch.
+    if (transition.count === 0) {
+      return announcement;
+    }
+
     this.broadcastNewAnnouncement(announcement.id, announcement.title, announcement.category, announcement.targetAudience);
-    await this.createNotificationsForAnnouncement(announcement.id, announcement.title, announcement.targetAudience, announcement.priority);
+    await this.createNotificationsForAnnouncement(
+      announcement.id,
+      announcement.title,
+      announcement.targetAudience,
+      announcement.priority,
+      announcement.tenantId,
+      announcement.publishedAt,
+    );
     return announcement;
   }
+
 
   // ── Delete ─────────────────────────────────────────────────────────────────
 
@@ -577,16 +618,24 @@ class AnnouncementService {
     title: string,
     targetAudience: string,
     priority: string,
+    tenantId: string | null,
+    publishedAt: Date | null,
   ) {
     try {
+      if (!tenantId) {
+        logger.warn(`Skipping announcement notification without tenant ${announcementId}`);
+        return;
+      }
+
       // Determine which roles should receive the notification
       const targetRoles = TARGET_AUDIENCE_ROLES[targetAudience] || [];
 
       // Find users matching the target audience
       const users = targetRoles.length === 0
-        ? await prisma.user.findMany({ where: { isActive: true }, select: { id: true, email: true, tenantId: true } })
+        ? await prisma.user.findMany({ where: { tenantId, isActive: true }, select: { id: true, email: true, tenantId: true } })
         : await prisma.user.findMany({
             where: {
+              tenantId,
               isActive: true,
               roles: {
                 some: {
@@ -599,21 +648,31 @@ class AnnouncementService {
 
       if (users.length === 0) return;
 
-      // Create in-app notifications for all target users
-      await prisma.notification.createMany({
-        data: users.map(u => ({
-          userId: u.id,
-          tenantId: u.tenantId ?? '00000000-0000-0000-0000-000000000001',
-          channel: 'IN_APP',
-          status: 'PENDING',
+      // Use the durable notification event/delivery path. The event key and
+      // delivery unique constraint make repeated publish requests idempotent.
+      const { publishDomainEvent, deliverNotification } = await import('./notification.service');
+      const publicationKey = publishedAt?.toISOString() ?? 'unknown';
+      const eventKey = `announcement:published:${announcementId}:${publicationKey}`;
+      const result = await prisma.$transaction((tx) => publishDomainEvent(tx, {
+        eventKey,
+        tenantId,
+        eventType: 'ANNOUNCEMENT_PUBLISHED',
+        classification: 'PUBLIC',
+        resourceType: 'announcement',
+        resourceId: announcementId,
+        payload: {
           subject: `New announcement: ${title}`,
           body: `A new announcement has been published: ${title}`,
-          relatedRequestId: null,
-        })),
-        skipDuplicates: true,
-      });
+        },
+        recipientIds: users.map(user => user.id),
+        channels: ['IN_APP'],
+      }));
 
-      logger.info(`Created ${users.length} notifications for announcement ${announcementId} (audience: ${targetAudience})`);
+      for (const deliveryId of result.deliveryIds) {
+        await deliverNotification(deliveryId);
+      }
+
+      logger.info(`Created ${result.deliveryIds.length} notifications for announcement ${announcementId} (audience: ${targetAudience})`);
 
       // For HIGH/CRITICAL priority, also trigger email notifications
       if (priority === 'HIGH' || priority === 'CRITICAL') {

@@ -244,19 +244,26 @@ async function materializeContent(delivery: any): Promise<MaterializedNotificati
     appUrl: variables.appUrl || config.app.url,
   };
 
+  const fallbackSubject = typeof payload.subject === 'string'
+    ? payload.subject
+    : `Notification: ${event.eventType}`;
+  const fallbackBody = typeof payload.body === 'string'
+    ? payload.body
+    : `Event: ${event.eventType}`;
+
   const pushSubject = template
     ? renderTemplate(template.pushTitle ?? template.emailSubject ?? '', enrichedVars)
-    : `Notification: ${event.eventType}`;
+    : fallbackSubject;
   const pushBodyText = template
     ? renderTemplate(template.pushBody ?? '', enrichedVars)
-    : `Event: ${event.eventType}`;
+    : fallbackBody;
 
   const emailSubject = template
     ? renderTemplate(template.emailSubject ?? '', enrichedVars)
-    : `Notification: ${event.eventType}`;
+    : fallbackSubject;
   const emailBodyHtml = template
     ? renderTemplate(template.emailBody ?? '', enrichedVars)
-    : `Event: ${event.eventType}`;
+    : fallbackBody;
 
   return { pushSubject, pushBodyText, emailSubject, emailBodyHtml, relatedRequestId, wrapInLayout };
 }

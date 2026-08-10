@@ -59,17 +59,28 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   }, []);
 
-  const applyNotification = useCallback((data: Notification) => {
+  const applyNotification = useCallback((
+    data: Notification,
+    options: { showToast: boolean } = { showToast: true },
+  ) => {
     cursorRef.current = data.id;
-    setUnreadCount((prev) => prev + 1);
     setRecentNotification(data);
-    showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
+    if (options.showToast) {
+      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
+    }
   }, [showToast]);
 
-  const replayInbox = useCallback(async () => {
+  const replayInbox = useCallback(async (showToastForReplayed: boolean) => {
     const replay = await notificationService.replayAfter(cursorRef.current);
-    replay.notifications.forEach(applyNotification);
+    replay.notifications.forEach((notification) => applyNotification(notification, {
+      // Initial replay is inbox recovery, not a stream of new events.
+      showToast: showToastForReplayed,
+    }));
     cursorRef.current = replay.cursor ?? cursorRef.current;
+    if (showToastForReplayed) {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    }
   }, [applyNotification]);
 
   // Open/close SSE stream based on auth state
@@ -85,12 +96,12 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
     const es = new EventSource(SSE_URL, { withCredentials: true });
     esRef.current = es;
 
-    replayInbox().catch(() => {});
+    replayInbox(false).catch(() => {});
 
     es.addEventListener('notification', (e: MessageEvent) => {
       const wakeup = JSON.parse(e.data) as { cursor?: string; id?: string };
       if (wakeup.cursor || wakeup.id) {
-        replayInbox().catch(() => {});
+        replayInbox(true).catch(() => {});
       }
     });
 
