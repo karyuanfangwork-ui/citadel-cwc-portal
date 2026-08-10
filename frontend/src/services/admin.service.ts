@@ -12,14 +12,14 @@ export interface CategoryData {
 export const adminService = {
     // ── User Management ──────────────────────────────────────────
 
-    async listUsers(params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean }) {
+    async listUsers(params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean; signal?: AbortSignal }) {
         const query = new URLSearchParams();
         if (params?.page) query.set('page', String(params.page));
         if (params?.limit) query.set('limit', String(params.limit));
         if (params?.search) query.set('search', params.search);
         if (params?.role) query.set('role', params.role);
         if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
-        const response = await apiClient.get(`/users?${query.toString()}`);
+        const response = await apiClient.get(`/users?${query.toString()}`, { signal: params?.signal });
         return response.data.data as { users: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
     },
 

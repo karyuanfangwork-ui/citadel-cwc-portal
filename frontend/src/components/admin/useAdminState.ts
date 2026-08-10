@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { adminService, CategoryData } from '../../services/admin.service';
@@ -210,6 +211,7 @@ export interface UseAdminStateReturn {
     // User Handlers
     fetchUsers: (page?: number, search?: string, roleFilter?: string, statusFilter?: '' | 'active' | 'disabled') => Promise<void>;
     fetchUserStats: () => Promise<void>;
+    setUserRoleFilter: (v: string) => void;
     setUserStatusFilter: (v: '' | 'active' | 'disabled') => void;
     fetchRoles: () => Promise<void>;
     handleToggleUserStatus: (user: any) => Promise<void>;
@@ -383,6 +385,8 @@ export function useAdminState(): UseAdminStateReturn {
     const [confirmDisableUser, setConfirmDisableUser] = useState<any | null>(null);
     const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; description: string }[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
+    const usersRequestControllerRef = useRef<AbortController | null>(null);
+    const usersRequestSequenceRef = useRef(0);
     const [roleModalUser, setRoleModalUser] = useState<any | null>(null);
     const [roleModalSelected, setRoleModalSelected] = useState<string[]>([]);
     const [showAgentTeamModal, setShowAgentTeamModal] = useState(false);
@@ -519,19 +523,29 @@ export function useAdminState(): UseAdminStateReturn {
     }, []);
 
     const fetchUsers = useCallback(async (page = 1, search = '', roleFilter = '', statusFilter: '' | 'active' | 'disabled' = '') => {
+        const requestSequence = ++usersRequestSequenceRef.current;
+        usersRequestControllerRef.current?.abort();
+        const controller = new AbortController();
+        usersRequestControllerRef.current = controller;
         setUsersLoading(true);
         try {
             const isActive = statusFilter === 'active' ? true : statusFilter === 'disabled' ? false : undefined;
-            const result = await adminService.listUsers({ page, limit: 15, search: search || undefined, role: roleFilter || undefined, isActive });
+            const result = await adminService.listUsers({ page, limit: 15, search: search || undefined, role: roleFilter || undefined, isActive, signal: controller.signal });
+            if (requestSequence !== usersRequestSequenceRef.current) return;
             setUsers(result.users);
             setUserPagination(result.pagination);
             setUserSearch(search);
             setUserRoleFilter(roleFilter);
+            setUserStatusFilter(statusFilter);
         } catch (err) {
+            if (requestSequence !== usersRequestSequenceRef.current || axios.isCancel(err)) return;
             console.error('Error fetching users:', err);
             showToast('error', 'Failed to load users.');
         } finally {
-            setUsersLoading(false);
+            if (requestSequence === usersRequestSequenceRef.current) {
+                usersRequestControllerRef.current = null;
+                setUsersLoading(false);
+            }
         }
     }, [showToast]);
 
@@ -1249,6 +1263,11 @@ export function useAdminState(): UseAdminStateReturn {
         fetchWorkflowTypes();
     }, [fetchServiceDesks, fetchWorkflowTypes]);
 
+    useEffect(() => () => {
+        usersRequestSequenceRef.current += 1;
+        usersRequestControllerRef.current?.abort();
+    }, []);
+
     useEffect(() => {
         if (activeTab === 'onboarding-tasks') {
             fetchTemplates();
@@ -1402,6 +1421,7 @@ export function useAdminState(): UseAdminStateReturn {
         fetchUsers,
         fetchUserStats,
         fetchRoles,
+        setUserRoleFilter,
         setUserStatusFilter,
         handleToggleUserStatus,
         handleEditUser,

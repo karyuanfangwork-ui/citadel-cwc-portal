@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { UserAccountsTab } from '../UserAccountsTab';
 
 const baseProps = {
@@ -48,6 +48,65 @@ const adminUser = {
 };
 
 describe('UserAccountsTab', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('debounces valid search input and invokes onSearch once after it settles', () => {
+    vi.useFakeTimers();
+    const onSearch = vi.fn();
+    render(<UserAccountsTab {...baseProps} onSearch={onSearch} />);
+    const input = screen.getByRole('textbox', { name: /search user accounts/i });
+
+    fireEvent.change(input, { target: { value: 'ah' } });
+    expect(onSearch).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(299));
+    expect(onSearch).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch).toHaveBeenCalledWith('ah');
+  });
+
+  it('does not issue a remote search for a one-character query', () => {
+    vi.useFakeTimers();
+    const onSearch = vi.fn();
+    render(<UserAccountsTab {...baseProps} onSearch={onSearch} />);
+    fireEvent.change(screen.getByRole('textbox', { name: /search user accounts/i }), { target: { value: 'a' } });
+
+    act(() => vi.advanceTimersByTime(300));
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(screen.getByText(/enter at least 2 characters/i)).toBeTruthy();
+  });
+
+  it('keeps existing rows visible while a background refresh is active', () => {
+    render(<UserAccountsTab {...baseProps} users={[adminUser]} usersLoading />);
+
+    expect(screen.getByText('Ahmad Razali')).toBeTruthy();
+    expect(screen.getByRole('status', { name: /refreshing users/i })).toBeTruthy();
+    expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('renders the initial loading skeleton when no rows exist', () => {
+    render(<UserAccountsTab {...baseProps} usersLoading />);
+
+    expect(screen.getByRole('status', { name: /loading users/i })).toBeTruthy();
+  });
+
+  it('does not reissue a settled search when the parent rerenders', () => {
+    vi.useFakeTimers();
+    const onSearch = vi.fn();
+    const { rerender } = render(<UserAccountsTab {...baseProps} onSearch={onSearch} />);
+    const input = screen.getByRole('textbox', { name: /search user accounts/i });
+
+    fireEvent.change(input, { target: { value: 'ah' } });
+    act(() => vi.advanceTimersByTime(300));
+    expect(onSearch).toHaveBeenCalledTimes(1);
+
+    rerender(<UserAccountsTab {...baseProps} onSearch={onSearch} />);
+    expect(onSearch).toHaveBeenCalledTimes(1);
+  });
+
   it('does NOT render an "Agent Team" column header', () => {
     render(<UserAccountsTab {...baseProps} />);
     expect(screen.queryByText(/agent team/i)).toBeNull();

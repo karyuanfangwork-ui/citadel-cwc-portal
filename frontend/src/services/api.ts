@@ -47,6 +47,9 @@ function clearRefreshLockExpiry() {
 apiClient.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
+        if (axios.isCancel(error)) {
+            return Promise.reject(error);
+        }
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
         // ── Extract user-friendly message from any error ──────────

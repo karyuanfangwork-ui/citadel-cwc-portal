@@ -263,6 +263,23 @@ if [ "$NO_SEED" = false ]; then
     else
         log "⚠️  Seed may not have completed fully — check output for errors"
     fi
+
+    # Production preserves admin-configured templates, so apply narrowly scoped
+    # rectifications explicitly after the safe seed completes.
+    log "Applying approval reminder template rectification..."
+    RECTIFY_OUTPUT=$(docker_exec "npm run prisma:rectify:approval-reminder-templates -- --apply" 2>&1) || {
+        log "❌ Approval reminder template rectification failed:"
+        echo "$RECTIFY_OUTPUT" | tail -20
+        exit 1
+    }
+    if echo "$RECTIFY_OUTPUT" | grep -q 'approval_reminder_first' && \
+       echo "$RECTIFY_OUTPUT" | grep -q 'approval_reminder_second'; then
+        log "✅ Approval reminder templates rectified"
+    else
+        log "❌ Approval reminder rectification output did not confirm both templates"
+        echo "$RECTIFY_OUTPUT" | tail -20
+        exit 1
+    fi
 else
     log "⏭️  Skipping seed (--no-seed)."
 fi

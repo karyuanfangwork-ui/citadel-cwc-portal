@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 
@@ -12,7 +12,6 @@ import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
 import { EmailNotificationsTab } from '../src/components/admin/EmailNotificationsTab';
 import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 import { EntitiesTab } from '../src/components/admin/EntitiesTab';
-import { AuditLogTab } from '../src/components/admin/AuditLogTab';
 import { SLAEscalationTab } from '../src/components/admin/SLAEscalationTab';
 import { ESMSettingsTab } from '../src/components/admin/ESMSettingsTab';
 import SchedulerSettings from '../src/components/admin/SchedulerSettings';
@@ -36,11 +35,16 @@ import { entityService, Entity } from '../src/services/entity.service';
 const AdminSettings = () => {
     const { logout } = useAuth();
     const admin = useAdminState();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
     // ── Sync tab from URL on mount ──
     useEffect(() => {
         const tabFromUrl = searchParams.get('tab');
+        if (tabFromUrl === 'audit-logs') {
+            navigate('/admin/audit', { replace: true });
+            return;
+        }
         if (tabFromUrl && ADMIN_TABS.some(t => t.id === tabFromUrl)) {
             admin.setActiveTab(tabFromUrl as any);
         }
@@ -202,8 +206,14 @@ const AdminSettings = () => {
                             entities={entities}
                             approverEntityMap={approverEntityMap}
                             onSearch={(value) => admin.fetchUsers(1, value, admin.userRoleFilter, admin.userStatusFilter)}
-                            onRoleFilter={(value) => admin.fetchUsers(1, admin.userSearch, value, admin.userStatusFilter)}
-                            onStatusFilter={(value) => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter, value)}
+                            onRoleFilter={(value) => {
+                                admin.setUserRoleFilter(value);
+                                admin.fetchUsers(1, admin.userSearch, value, admin.userStatusFilter);
+                            }}
+                            onStatusFilter={(value) => {
+                                admin.setUserStatusFilter(value);
+                                admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter, value);
+                            }}
                             onFetchUsers={(page) => admin.fetchUsers(page, admin.userSearch, admin.userRoleFilter, admin.userStatusFilter)}
                             onCreateUser={() => admin.setShowCreateUserModal(true)}
                             onImportStaff={() => admin.setShowImportStaffModal(true)}
@@ -263,7 +273,6 @@ const AdminSettings = () => {
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
                     {admin.activeTab === 'sla-escalation' && <SLAEscalationTab />}
                     {admin.activeTab === 'esm-settings' && <ESMSettingsTab />}
-                    {admin.activeTab === 'audit-logs' && <AuditLogTab />}
                     {admin.activeTab === 'scheduler' && <SchedulerSettings />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}
                     {admin.activeTab === 'email-notifications' && <EmailNotificationsTab />}

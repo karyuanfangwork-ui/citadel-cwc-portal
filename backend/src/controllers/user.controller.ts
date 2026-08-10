@@ -76,6 +76,7 @@ import {
 
 import prisma from '../utils/prisma';
 import { sanitizeUser, sanitizeUsers } from '../dtos/user.dto';
+import { parsePagination } from '../utils/pagination';
 
 function generateTemporaryPassword(): string {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -323,29 +324,36 @@ class UserController {
      */
     getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
-            page = '1',
-            limit = '10',
             search,
             department,
             isActive,
         } = req.query;
+        const { page: pageNum, limit: limitNum, skip } = parsePagination(req.query, 50);
+        const normalizedSearch = typeof search === 'string' ? search.trim() : '';
 
-        const pageNum = parseInt(page as string, 10);
-        const limitNum = parseInt(limit as string, 10);
-        const skip = (pageNum - 1) * limitNum;
+        if (normalizedSearch.length === 1) {
+            res.json({
+                status: 'success',
+                data: {
+                    users: [],
+                    pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
+                },
+            });
+            return;
+        }
 
         // Build where clause
         const where: any = {};
 
-        if (search) {
+        if (normalizedSearch) {
             where.OR = [
-                { email: { contains: search as string, mode: 'insensitive' } },
-                { firstName: { contains: search as string, mode: 'insensitive' } },
-                { lastName: { contains: search as string, mode: 'insensitive' } },
-                { department: { contains: search as string, mode: 'insensitive' } },
-                { jobTitle: { contains: search as string, mode: 'insensitive' } },
-                { entity: { code: { contains: search as string, mode: 'insensitive' } } },
-                { entity: { name: { contains: search as string, mode: 'insensitive' } } },
+                { email: { contains: normalizedSearch, mode: 'insensitive' } },
+                { firstName: { contains: normalizedSearch, mode: 'insensitive' } },
+                { lastName: { contains: normalizedSearch, mode: 'insensitive' } },
+                { department: { contains: normalizedSearch, mode: 'insensitive' } },
+                { jobTitle: { contains: normalizedSearch, mode: 'insensitive' } },
+                { entity: { code: { contains: normalizedSearch, mode: 'insensitive' } } },
+                { entity: { name: { contains: normalizedSearch, mode: 'insensitive' } } },
             ];
         }
 
@@ -384,9 +392,7 @@ class UserController {
                         select: { id: true, code: true, name: true },
                     },
                 },
-                orderBy: {
-                    createdAt: 'desc',
-                },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             }),
             prisma.user.count({ where }),
         ]);

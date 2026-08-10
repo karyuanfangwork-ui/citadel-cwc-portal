@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface UserPagination {
@@ -58,12 +58,19 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     const [searchInput, setSearchInput] = useState(userSearch);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const debouncedSearch = useDebouncedValue(searchInput, 300);
+    const onSearchRef = useRef(onSearch);
 
     useEffect(() => {
-        if (debouncedSearch !== userSearch) {
-            onSearch(debouncedSearch);
+        onSearchRef.current = onSearch;
+    }, [onSearch]);
+
+    useEffect(() => {
+        const normalizedSearch = debouncedSearch.trim();
+        if (normalizedSearch.length === 1) return;
+        if (normalizedSearch !== userSearch) {
+            onSearchRef.current(normalizedSearch);
         }
-    }, [debouncedSearch, userSearch, onSearch]);
+    }, [debouncedSearch, userSearch]);
 
     useEffect(() => {
         setSearchInput(userSearch);
@@ -96,11 +103,17 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-base">search</span>
                     <input
                         type="text"
+                        aria-label="Search user accounts"
                         placeholder="Search by name, email, entity..."
                         className="w-full pl-11 pr-5 py-[10px] bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#1D2D5E]/10 focus:border-[#1D2D5E] outline-none"
                         value={searchInput}
                         onChange={e => setSearchInput(e.target.value)}
                     />
+                    {searchInput.trim().length === 1 && (
+                        <p className="mt-1 text-xs text-[#44546f]" role="status">
+                            Enter at least 2 characters to search.
+                        </p>
+                    )}
                 </div>
                 <div className="relative">
                     <select
@@ -122,6 +135,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                         <button
                             key={val}
                             onClick={() => onStatusFilter(val)}
+                            disabled={usersLoading}
                             className={`px-3 py-[10px] transition-colors whitespace-nowrap ${
                                 userStatusFilter === val
                                     ? 'bg-[#1D2D5E] text-white'
@@ -170,7 +184,12 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
 
             {/* Table */}
             <div className="overflow-x-auto">
-                <table className="w-full text-left" role="table" aria-label="User accounts">
+                <table
+                    className="w-full text-left"
+                    role="table"
+                    aria-label="User accounts"
+                    aria-busy={usersLoading}
+                >
                     <thead className="bg-gray-50/50 border-b border-gray-100">
                         <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
                             <th className="px-5 py-3">User</th>
@@ -180,7 +199,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             <th className="px-5 py-3 text-right">Actions</th>
                         </tr>
                     </thead>
-                    {usersLoading ? (
+                    {usersLoading && users.length === 0 ? (
                         <tbody className="divide-y divide-gray-100" role="status" aria-label="Loading users">
                             {Array.from({ length: 5 }).map((_, i) => (
                                 <tr key={i} className="animate-pulse">
@@ -347,6 +366,11 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                         </tbody>
                     )}
                 </table>
+                {usersLoading && users.length > 0 && (
+                    <div className="px-5 py-2 text-xs text-[#44546f]" role="status" aria-label="Refreshing users" aria-live="polite">
+                        Updating user results…
+                    </div>
+                )}
             </div>
 
             {/* Pagination */}
@@ -358,12 +382,12 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                     <div className="flex gap-2">
                         <button
                             onClick={() => onFetchUsers(userPagination.page - 1)}
-                            disabled={userPagination.page <= 1}
+                            disabled={usersLoading || userPagination.page <= 1}
                             className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-[#44546f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                         >Previous</button>
                         <button
                             onClick={() => onFetchUsers(userPagination.page + 1)}
-                            disabled={userPagination.page >= userPagination.totalPages}
+                            disabled={usersLoading || userPagination.page >= userPagination.totalPages}
                             className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-[#44546f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                         >Next</button>
                     </div>

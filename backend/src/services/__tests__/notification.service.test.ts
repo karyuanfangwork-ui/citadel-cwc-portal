@@ -166,6 +166,66 @@ describe('notification.service durable pipeline', () => {
     }));
   });
 
+  it('renders approval reminder emails with request details instead of the event fallback', async () => {
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1',
+      tenantId: 'tenant-1',
+      recipientId: 'user-1',
+      channel: 'EMAIL',
+      status: 'PENDING',
+      attemptCount: 0,
+      event: {
+        id: 'event-1',
+        eventKey: 'event-key',
+        tenantId: 'tenant-1',
+        departmentId: null,
+        eventType: 'APPROVAL_REMINDER_FIRST',
+        classification: 'INTERNAL',
+        resourceType: 'request',
+        resourceId: 'request-1',
+        payload: {
+          variables: { hours: '24' },
+          relatedRequestId: 'request-1',
+          wrapInLayout: true,
+        },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' },
+      notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
+      pushTitle: 'Approval Reminder',
+      pushBody: 'Approval is still pending for request #{{requestId}} ({{hours}} hours).',
+      emailSubject: 'Approval Reminder — Request #{{requestId}}',
+      emailBody: 'Approval is still pending for request <strong>#{{requestId}} — {{requestTitle}}</strong> after {{hours}} hours. <a href="{{appUrl}}/request/{{requestUuid}}">Review &amp; Approve</a>',
+    });
+    mockPrisma.request.findUnique.mockResolvedValue({
+      referenceNumber: 'IT-00007',
+      summary: 'M365 License Renewal',
+      status: 'PENDING',
+      priority: 'MEDIUM',
+      requester: { firstName: 'John', lastName: 'Smith' },
+      assignedTo: null,
+      serviceDesk: { name: 'IT Support' },
+      requestType: { name: 'Software' },
+    });
+
+    await deliverNotification('delivery-email');
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      'recipient@test.local',
+      'Approval Reminder — Request #IT-00007',
+      expect.stringContaining('#IT-00007 — M365 License Renewal'),
+      { wrapInLayout: true },
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining('24 hours'),
+      expect.any(Object),
+    );
+  });
+
   it('notify compatibility wrapper publishes and drains created deliveries without fallback tenant UUID', async () => {
     await notify({ userId: 'user-1', eventType: 'REQUEST_CREATED', variables: { foo: 'bar' } });
 

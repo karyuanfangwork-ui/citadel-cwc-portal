@@ -26,6 +26,26 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "isActive": true
   },
   {
+    "name": "approval_reminder_first",
+    "eventType": "APPROVAL_REMINDER_FIRST",
+    "emailSubject": "Approval Reminder — Request #{{requestId}}",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#f6ad55;'>Approval Reminder</h2><p>Hello {{userName}},</p><p>Your approval is still pending for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Pending For</td><td style='padding:8px 12px;border:1px solid #eee;'>{{hours}} hours</td></tr></table><p>Please review this request and approve or reject it when convenient.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+    "smsBody": "",
+    "pushTitle": "Approval Reminder",
+    "pushBody": "Approval is still pending for request #{{requestId}} ({{hours}} hours).",
+    "isActive": true
+  },
+  {
+    "name": "approval_reminder_second",
+    "eventType": "APPROVAL_REMINDER_SECOND",
+    "emailSubject": "Second Approval Reminder — Request #{{requestId}}",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#e53e3e;'>Second Approval Reminder</h2><p>Hello {{userName}},</p><p>Your approval is still pending for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Pending For</td><td style='padding:8px 12px;border:1px solid #eee;'>{{hours}} hours</td></tr></table><p>Please review this request as soon as possible and approve or reject it.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+    "smsBody": "",
+    "pushTitle": "Second Approval Reminder",
+    "pushBody": "Approval is still pending for request #{{requestId}} ({{hours}} hours).",
+    "isActive": true
+  },
+  {
     "name": "comment_added",
     "eventType": "COMMENT_ADDED",
     "emailSubject": "New Comment on Request #{{requestId}}",

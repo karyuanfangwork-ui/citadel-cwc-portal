@@ -57,6 +57,7 @@ const AuditTrail: React.FC = () => {
     // Filters
     const [filterAction, setFilterAction] = useState('');
     const [filterResourceType, setFilterResourceType] = useState('');
+    const [filterResourceId, setFilterResourceId] = useState('');
     const [filterUserSearch, setFilterUserSearch] = useState('');
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
@@ -70,6 +71,7 @@ const AuditTrail: React.FC = () => {
             const params: AuditLogParams = { page, limit };
             if (filterAction) params.action = filterAction;
             if (filterResourceType) params.resourceType = filterResourceType;
+            if (filterResourceId) params.resourceId = filterResourceId;
             if (filterUserSearch) params.userId = filterUserSearch;
             if (filterStartDate) params.startDate = filterStartDate;
             if (filterEndDate) params.endDate = filterEndDate;
@@ -82,13 +84,14 @@ const AuditTrail: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [page, filterAction, filterResourceType, filterUserSearch, filterStartDate, filterEndDate]);
+    }, [page, filterAction, filterResourceType, filterResourceId, filterUserSearch, filterStartDate, filterEndDate]);
 
     useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
     const handleResetFilters = () => {
         setFilterAction('');
         setFilterResourceType('');
+        setFilterResourceId('');
         setFilterUserSearch('');
         setFilterStartDate('');
         setFilterEndDate('');
@@ -97,7 +100,18 @@ const AuditTrail: React.FC = () => {
 
     const formatDate = (d: string) => new Date(d).toLocaleString();
 
-    const hasActiveFilters = filterAction || filterResourceType || filterUserSearch || filterStartDate || filterEndDate;
+    const hasActiveFilters = filterAction || filterResourceType || filterResourceId || filterUserSearch || filterStartDate || filterEndDate;
+
+    const formatChangeValue = (value: unknown): string => {
+        if (typeof value === 'string') {
+            try {
+                return JSON.stringify(JSON.parse(value), null, 2);
+            } catch {
+                return value;
+            }
+        }
+        return JSON.stringify(value, null, 2);
+    };
 
     return (
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
@@ -125,7 +139,7 @@ const AuditTrail: React.FC = () => {
                         </button>
                     )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                     <div>
                         <label className="block text-xs font-medium text-[#5f6b7a] mb-1.5">Action</label>
                         <select
@@ -145,6 +159,16 @@ const AuditTrail: React.FC = () => {
                         >
                             {RESOURCE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-[#5f6b7a] mb-1.5">Resource ID</label>
+                        <input
+                            type="text"
+                            placeholder="Paste resource ID..."
+                            value={filterResourceId}
+                            onChange={e => { setFilterResourceId(e.target.value); setPage(1); }}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-[#5f6b7a] mb-1.5">User (User ID)</label>
@@ -265,13 +289,13 @@ const AuditTrail: React.FC = () => {
                                                     {log.oldValues && (
                                                         <div>
                                                             <div className="text-[#5f6b7a] font-sans font-semibold mb-1">Before</div>
-                                                            <pre className="text-red-700 bg-red-50 rounded-lg p-3 max-w-xs overflow-auto whitespace-pre-wrap">{(() => { try { return JSON.stringify(JSON.parse(log.oldValues), null, 2); } catch { return log.oldValues; } })()}</pre>
+                                                            <pre className="text-red-700 bg-red-50 rounded-lg p-3 max-w-xs overflow-auto whitespace-pre-wrap">{formatChangeValue(log.oldValues)}</pre>
                                                         </div>
                                                     )}
                                                     {log.newValues && (
                                                         <div>
                                                             <div className="text-[#5f6b7a] font-sans font-semibold mb-1">After</div>
-                                                            <pre className="text-green-700 bg-green-50 rounded-lg p-3 max-w-xs overflow-auto whitespace-pre-wrap">{(() => { try { return JSON.stringify(JSON.parse(log.newValues), null, 2); } catch { return log.newValues; } })()}</pre>
+                                                            <pre className="text-green-700 bg-green-50 rounded-lg p-3 max-w-xs overflow-auto whitespace-pre-wrap">{formatChangeValue(log.newValues)}</pre>
                                                         </div>
                                                     )}
                                                 </div>

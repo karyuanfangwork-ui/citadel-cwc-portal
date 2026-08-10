@@ -11,8 +11,8 @@ export interface AuditLogEntry {
     resourceId: string;
     ipAddress: string | null;
     userAgent: string | null;
-    oldValues: string | null;
-    newValues: string | null;
+    oldValues: unknown | null;
+    newValues: unknown | null;
     createdAt: string;
     user: {
         id: string;

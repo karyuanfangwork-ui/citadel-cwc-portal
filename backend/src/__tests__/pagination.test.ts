@@ -13,6 +13,14 @@ describe('parsePagination', () => {
     });
   });
 
+  it('supports a stricter endpoint-specific maximum', () => {
+    expect(parsePagination({ page: '3', limit: '999999' }, 50)).toEqual({
+      page: 3,
+      limit: 50,
+      skip: 100,
+    });
+  });
+
   it('normalizes invalid values', () => {
     expect(parsePagination({ page: '-1', limit: 'abc' })).toEqual({
       page: 1,
