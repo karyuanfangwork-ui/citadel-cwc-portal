@@ -25,14 +25,33 @@ test.describe('Approval inbox — authority scoping', () => {
     ).toHaveCount(0);
   });
 
-  test('excluded applications appear as a collapsible section', async ({ page }) => {
+  test('excluded applications, when present, are named with a reason', async ({ page }) => {
     await page.goto('/credit/approvals');
+    await expect(page.getByRole('heading', { name: /my approvals/i }).first())
+      .toBeVisible({ timeout: 10_000 });
+
+    // Previously: `if (await details.isVisible(...))` — a non-retrying guard
+    // wrapped around the only assertion, so an inbox that had stopped rendering
+    // exclusions entirely would still pass. isVisible() does not retry: on a
+    // still-loading page it answers false, every time.
+    //
+    // Admin's exclusion set depends on seed state, so this spec asserts the
+    // contract that must hold either way: zero exclusions, or exclusions that
+    // each state a reason. sod-exclusions.spec.ts covers the guaranteed case.
     const details = page.locator('details');
-    // The <details> element only renders when there are excluded apps.
-    // If no apps are excluded for this user, the section is absent — that's fine.
-    if (await details.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await details.click();
-      await expect(details.locator('li').first()).toBeVisible({ timeout: 5_000 });
+    const count = await details.count();
+
+    if (count === 0) {
+      test.skip(true, 'Admin has no excluded applications in this seed — see sod-exclusions.spec.ts');
+      return;
     }
+
+    await details.first().click();
+    const items = details.first().locator('li');
+    await expect(items.first()).toBeVisible({ timeout: 5_000 });
+    await expect(
+      items.first(),
+      'An application was withheld without stating why. LOS-020 requires the reason.',
+    ).toContainText(/authority|segregation of duties|already submitted a decision/i);
   });
 });

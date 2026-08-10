@@ -13,24 +13,44 @@ test.describe('LOS-020/022 — committee approval inbox', () => {
     await page.goto('/credit/approvals');
     await expect(page.getByRole('heading', { name: /my approvals/i }).first()).toBeVisible({ timeout: 10_000 });
 
-    // The exclusion disclosure is the LOS-020 acceptance signal
+    // The page must render its own content, not just the shell — this spec
+    // passed throughout the period when My Approvals crashed into its error
+    // boundary immediately after the heading appeared.
+    await expect(
+      page.getByText(/something went wrong/i),
+      'My Approvals crashed into its error boundary.',
+    ).toHaveCount(0);
+
+    // Previously `if (count > 0) { ...assert... }`, which passed silently
+    // whenever the disclosure was absent — including when it was absent because
+    // the page had crashed.
     const disclosure = page.getByText(/applications? not shown/i);
-    const count = await disclosure.count();
-    if (count > 0) {
-      await disclosure.first().click();
-      await expect(page.getByText(/authority|segregation of duties|already submitted a decision/i).first()).toBeVisible({ timeout: 5_000 });
+    if (await disclosure.count() === 0) {
+      test.skip(true, 'No exclusions for this identity in this seed — see sod-exclusions.spec.ts');
+      return;
     }
+
+    await disclosure.first().click();
+    await expect(
+      page.getByText(/authority|segregation of duties|already submitted a decision/i).first(),
+      'An application was withheld without stating why.',
+    ).toBeVisible({ timeout: 5_000 });
   });
 
   test('a returned application shows what changed since it was referred back', async ({ page }) => {
+    // The seed now guarantees a REFERRED_BACK application (see seedE2eFixtures
+    // in prisma/seed-credit.ts). This test used to skip for want of one, which
+    // left the LOS-015 return path with no browser coverage at all.
     await page.goto('/credit/applications?state=REFERRED_BACK');
-    const rows = page.getByRole('row');
-    const rowCount = await rows.count();
-    if (rowCount <= 1) {
-      test.skip(true, 'No referred-back application in the seed set');
-      return;
-    }
-    await rows.nth(1).click();
-    await expect(page.getByText(/returned|referred back/i).first()).toBeVisible({ timeout: 5_000 });
+
+    const firstRow = page.locator('table tbody tr').first();
+    await expect(
+      firstRow,
+      'No REFERRED_BACK application. Run `npx tsx prisma/seed-credit.ts --demo --e2e`.',
+    ).toBeVisible({ timeout: 15_000 });
+
+    await firstRow.click();
+    await expect(page).toHaveURL(/\/credit\/applications\/[0-9a-f-]{36}/, { timeout: 15_000 });
+    await expect(page.getByText(/returned|referred back/i).first()).toBeVisible({ timeout: 10_000 });
   });
 });

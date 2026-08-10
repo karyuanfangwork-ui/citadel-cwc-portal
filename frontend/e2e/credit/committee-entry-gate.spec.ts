@@ -5,7 +5,6 @@
 import { test, expect } from '@playwright/test';
 import { STATE_FILES } from './support/auth';
 
-
 test.describe('Committee entry gate', () => {
   test.use({ storageState: STATE_FILES.analyst });
 
@@ -29,7 +28,10 @@ test.describe('Committee entry gate', () => {
       .then(() => true)
       .catch(() => false);
     if (!hasBtn) {
-      // Gate not reachable from this state — pass by default
+      // Previously `return;` with the comment "pass by default" — a test that
+      // reports success without asserting anything. If the control is absent,
+      // this spec did not exercise the gate and must say so.
+      test.skip(true, 'No committee control on this draft — the entry gate was not exercised');
       return;
     }
     await committeeBtn.click();
