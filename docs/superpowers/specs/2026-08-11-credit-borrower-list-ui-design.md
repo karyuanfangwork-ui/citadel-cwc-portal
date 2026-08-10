@@ -1,8 +1,11 @@
 # Credit Assessment Borrower List UI Design
 
-**Date:** 2026-08-11  
-**Viewport:** Desktop web, 1440px primary width  
-**Primary user:** Credit Officer  
+**Date:** 2026-08-11
+
+**Viewport:** Desktop web, 1440px primary width
+
+**Primary user:** Credit Officer
+
 **Approved direction:** Operational ledger
 
 ## 1. Purpose and scope
