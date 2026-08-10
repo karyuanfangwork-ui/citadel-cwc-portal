@@ -25,6 +25,8 @@ Phase 6 was initially recorded as complete before any of its claims had been exe
 
 Phase 7 repeated the pattern on a smaller scale. LOS-022 was closed on API evidence, with the plan's browser spec unwritten. Writing it found that **My Approvals crashed into its error boundary for every user, admin included** — LOS-020 had repointed the page at the approval-inbox endpoint without mapping its DTO, and the spec meant to cover it asserted only a heading the page shell renders before the crash. Both are fixed and now browser-proven (16 pass / 2 skip / 0 fail).
 
+Phase 8 generalised the Phase 7a finding. Every credit screen now has a test proving it renders, the approval-inbox response is typed so the original DTO mismatch fails at compile time, three assertions that could not fail were removed, and the documented release gate — which passed its tests in seven seconds and then hung for over an hour without terminating — now returns.
+
 This is recorded prominently because it is the most transferable finding in the audit: *a gap is closed when a test proves it, not when the code is written* — and a test that cannot fail is not a test.
 
 ## Readiness scorecard
@@ -98,7 +100,7 @@ Executed 2026-08-10 against a seeded PostgreSQL database and a running stack:
 - Audit chain verification: **17 of 17 applications valid** (`npm run audit:verify`).
 - Frontend production build: succeeds.
 - Credit browser E2E: **10 passed, 2 skipped, 0 failed** (`npm run test:e2e:credit`). The two skips are named — no referred-back application in the seed set, and no submit-to-committee control on the selected application.
-- Release gate: `npm run test:release` chains seed → chain verification → P0 regression → full suite.
+- Release gate: `npm run test:release` chains seed → chain verification → P0 regression → full suite. It now terminates — open handles that held Jest alive for 1h40m are closed in `afterAll`, and `--forceExit` is a backstop.
 
 The 2026-08-08 audit could make no runtime claim: the PostgreSQL service was unavailable and no credit browser suite existed. Both are now addressed.
 

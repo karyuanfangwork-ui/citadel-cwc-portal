@@ -186,6 +186,37 @@ The Phase 6a rule held again, and is worth restating: **a gap is closed when a
 test proves it, not when the code is written** — and a test that cannot fail is
 not a test.
 
+### Phase 8 — render assurance and a terminating release gate (2026-08-10)
+
+Phase 7a found that a credit screen could crash for every user while its spec
+passed. Phase 8 treats that as a class rather than an incident.
+
+- **Every credit route now has a render assertion.** `render-smoke.spec.ts`
+  covers the 14 static routes and `render-smoke-detail.spec.ts` the detail and
+  mobile routes. Each asserts no uncaught exception, no error boundary, and
+  content unique to that screen — not the app shell, which renders for broken
+  routes too and is how the LOS-020 crash hid. 0 additional defects of the
+  same class were found and fixed.
+- **The approval-inbox response is typed.** `getApprovalInbox` returned `any`,
+  so rendering its DTO as a `CreditApplication` was invisible to the compiler.
+  `credit.types.ts` now defines `ApprovalInboxItem`; reintroducing the original
+  bug fails `tsc`.
+- **Three assertions that could not fail were removed.** `approval-inbox`,
+  `committee-approval` and `committee-entry-gate` each wrapped their only
+  assertion in an `if` that passed silently — one with an explicit "pass by
+  default" comment. They now assert unconditionally or skip visibly.
+- **The two standing skips are seeded away.** `seedE2eFixtures()` creates a
+  `REFERRED_BACK` application and an analyst-owned application for the committee
+  gate, so the LOS-015 return path and the entry gate have browser coverage.
+- **`npm run test:release` terminates.** The backend suite passed in 7.1 seconds
+  (108 suites, 1256 tests) and then Jest hung on open handles for 1h40m before
+  being killed by hand. The documented go/no-go gate had never returned on its
+  own. Handles are now closed in `afterAll`, with `--forceExit` as a backstop,
+  and the gate seeds the E2E identities it needs.
+
+Browser evidence: 19 passed / 2 skipped / 0 failed (estimate — measured at commit time).
+Backend evidence: `npm run test:release` completes in under 30s.
+
 ## Follow-ups surfaced during Phase 6
 
 - `verifyChain` should be called as a scheduled job (e.g., nightly) and on
