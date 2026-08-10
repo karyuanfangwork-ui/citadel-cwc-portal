@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import creditService, { CreditApplication, ApprovalDecision } from '../../src/services/credit.service';
 import { dashboardApi } from '../../src/services/credit.service';
+import type { ApprovalInboxItem } from '../../src/services/credit.types';
 import { useAuth } from '../../src/context/AuthContext';
 import { hasPermission } from '../../src/utils/permissions';
 import toast from 'react-hot-toast';
@@ -49,12 +50,23 @@ const MobileApprovalInbox: React.FC = () => {
   const fetchInbox = useCallback(async () => {
     try {
       const res = await dashboardApi.getApprovalInbox();
-      const data = res.data?.data ?? res.data ?? res;
-      const mapped: ApprovalItem[] = (data.items ?? data ?? []).map((item: any) => ({
-        application: item.application ?? item,
-        approvalId: item.approvalId ?? item.id,
-        daysWaiting: item.daysWaiting ?? Math.floor((Date.now() - new Date(item.createdAt).getTime()) / 86400000),
-        isUrgent: item.isUrgent ?? item.priority === 'URGENT',
+      const inbox = res.data.data;
+      // The inbox is bucketed by priority (high/medium/low). Flatten into a
+      // single list and map each ApprovalInboxItem into the shape MobileApprovalInbox
+      // expects — the same mapping pattern MyApprovals.tsx uses via toApplication().
+      const allItems: ApprovalInboxItem[] = [...inbox.high, ...inbox.medium, ...inbox.low];
+      const mapped: ApprovalItem[] = allItems.map((item) => ({
+        application: {
+          ...item,
+          id: item.applicationId,
+          applicationNumber: item.applicationNo,
+          state: item.currentState,
+          createdAt: item.submittedAt,
+          borrowerProfile: { name: item.borrowerName } as CreditApplication['borrowerProfile'],
+        } as unknown as CreditApplication,
+        approvalId: item.applicationId,
+        daysWaiting: item.daysWaiting,
+        isUrgent: item.urgency === 'high' || item._slaBreached === true,
       }));
       setItems(mapped);
     } catch (e) {

@@ -1,4 +1,5 @@
 import apiClient from './api';
+import type { ApprovalInbox, CreditApiResponse } from './credit.types';
 
 // ── Credit Module Types ───────────────────────────────────────
 
@@ -2384,7 +2385,10 @@ export interface MyWorkDashboard {
 
 export const dashboardApi = {
   getPipelineDashboard: (params?: { branchId?: string; assignedToMe?: boolean }) => apiClient.get('/credit/dashboard/pipeline', { params }),
-  getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
+  // Typed because this response was consumed as `any` and rendered as a
+  // CreditApplication, which crashed My Approvals for every user (LOS-020).
+  getApprovalInbox: () =>
+    apiClient.get<CreditApiResponse<ApprovalInbox>>('/credit/dashboard/approval-inbox'),
   getMyWork: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/my-work', { params }),
   getExposureDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/exposure', { params }),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),

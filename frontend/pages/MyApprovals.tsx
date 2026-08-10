@@ -4,6 +4,7 @@ import creditService, {
   CreditApplication, CreditApproval, ApplicationState, ApprovalDecision,
 } from '../src/services/credit.service';
 import { dashboardApi } from '../src/services/credit.service';
+import type { ApprovalInboxItem } from '../src/services/credit.types';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { formatCurrency, formatDate } from './credit/creditUtils';
@@ -43,22 +44,10 @@ function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: bo
  * threw on `state.replace(...)` — crashing the whole page into its error
  * boundary for every user, including admin. The endpoint was untyped (`any`),
  * so nothing flagged it at compile time.
+ *
+ * The type is now in credit.types.ts so the same DTO definition is shared with
+ * the API client, and a mismatch between the two fails at compile time.
  */
-interface ApprovalInboxItem {
-  applicationId: string;
-  applicationNo: string;
-  borrowerName: string;
-  productType: string;
-  requestedAmount: number;
-  currency: string;
-  currentState: ApplicationState;
-  urgency: string;
-  submittedAt: string;
-  daysWaiting: number;
-  riskRating?: string;
-  requestedTenor?: number;
-  _slaBreached?: boolean;
-}
 
 function toApplication(item: ApprovalInboxItem): CreditApplication {
   return {
