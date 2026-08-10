@@ -14,6 +14,7 @@ const mockPrisma = {
     createMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    updateMany: jest.fn(),
     update: jest.fn(),
   },
   notification: {
@@ -99,6 +100,7 @@ describe('notification.service durable pipeline', () => {
       recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' },
       notification: null,
     }));
+    mockPrisma.notificationDelivery.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
       pushTitle: 'Hello {{userName}}',
       pushBody: 'Body {{custom}}',
@@ -164,6 +166,15 @@ describe('notification.service durable pipeline', () => {
       where: { id: 'delivery-email' },
       data: expect.objectContaining({ status: 'RETRYING', nextAttemptAt: expect.any(Date) }),
     }));
+  });
+
+  it('does not call the provider when another worker owns the delivery lease', async () => {
+    mockPrisma.notificationDelivery.updateMany.mockResolvedValue({ count: 0 });
+
+    await deliverNotification('delivery-email');
+
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(mockPrisma.notificationDelivery.update).not.toHaveBeenCalled();
   });
 
   it('renders approval reminder emails with request details instead of the event fallback', async () => {

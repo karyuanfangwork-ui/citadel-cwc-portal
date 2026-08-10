@@ -39,6 +39,18 @@ export async function reassignToTeam(
 
   const agentName = `${agent.firstName} ${agent.lastName}`;
 
+  const currentRequest = await prisma.request.findUnique({
+    where: { id: requestId },
+    select: { assignedToId: true, assignedTeam: true },
+  });
+  const assignmentChanged = currentRequest?.assignedToId !== agent.id
+    || (currentRequest?.assignedTeam || '').trim().toUpperCase() !== team.trim().toUpperCase();
+
+  if (!assignmentChanged) {
+    logger.info(`[${prefix}] Request ${referenceNumber} is already assigned to ${agentName} (${team}); skipping duplicate notification`);
+    return;
+  }
+
   await prisma.request.update({
     where: { id: requestId },
     data: { assignedToId: agent.id, assignedTeam: team },
@@ -55,12 +67,14 @@ export async function reassignToTeam(
     },
   });
 
-  await notify({
-    userId: agent.id,
-    eventType: 'REQUEST_ASSIGNED',
-    variables: { referenceNumber, assignedToName: agentName },
-    relatedRequestId: requestId,
-  });
+  if (currentRequest?.assignedToId !== agent.id) {
+    await notify({
+      userId: agent.id,
+      eventType: 'REQUEST_ASSIGNED',
+      variables: { referenceNumber, assignedToName: agentName },
+      relatedRequestId: requestId,
+    });
+  }
 
   logger.info(`[${prefix}] Request ${referenceNumber} reassigned to ${agentName} (${team})`);
 }

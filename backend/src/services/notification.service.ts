@@ -71,6 +71,11 @@ function retryDelay(attemptCount: number): Date {
   return new Date(Date.now() + delayMs);
 }
 
+// A provider call is not transactional with the database. Hold a delivery lease
+// while it is in flight so concurrent workers cannot send the same delivery.
+// If a worker dies, the lease expires and the delivery becomes retryable.
+const DELIVERY_LEASE_MS = 10 * 60_000;
+
 function isScopedClassification(classification: NotificationClassificationName): boolean {
   return ['HR_CONFIDENTIAL', 'FINANCE_CONFIDENTIAL', 'RESTRICTED'].includes(classification);
 }
@@ -292,6 +297,23 @@ export async function deliverNotification(deliveryId: string): Promise<void> {
   if (!delivery) return;
   if (['SENT', 'CANCELLED'].includes(delivery.status)) return;
 
+  const claimed = await (prisma as any).notificationDelivery.updateMany({
+    where: {
+      id: delivery.id,
+      status: { in: ['PENDING', 'RETRYING'] },
+      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: new Date() } }],
+    },
+    data: {
+      status: 'RETRYING',
+      attemptCount: { increment: 1 },
+      nextAttemptAt: new Date(Date.now() + DELIVERY_LEASE_MS),
+    },
+  });
+
+  // Another worker owns the delivery, or it was completed while this worker
+  // was loading it. Never call the provider unless this worker acquired it.
+  if (claimed.count !== 1) return;
+
   const authorized = await isDeliveryRecipientStillAuthorized(delivery);
   if (!authorized) {
     await (prisma as any).notificationDelivery.update({
@@ -362,7 +384,6 @@ export async function deliverNotification(deliveryId: string): Promise<void> {
         where: { id: delivery.id },
         data: {
           status: 'RETRYING',
-          attemptCount: { increment: 1 },
           nextAttemptAt: retryDelay(delivery.attemptCount + 1),
           errorMessage: 'SMTP delivery failed',
         },

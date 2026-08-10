@@ -1996,6 +1996,12 @@ class RequestController {
         if (!id) throw new AppError('Request not found', 404);
         const { assignedToId } = req.body;
 
+        const existingAssignment = await prisma.request.findUnique({
+            where: { id },
+            select: { assignedToId: true },
+        });
+        const assignmentChanged = existingAssignment?.assignedToId !== (assignedToId || null);
+
         // Build update data and validate the target user if assigning
         const updateData: any = { assignedToId };
 
@@ -2044,33 +2050,37 @@ class RequestController {
             },
         });
 
-        // Create activity
-        const assigneeName = request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}`.trim() : 'agent';
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: req.user!.id,
-                authorName: 'System',
-                activityType: 'ASSIGNMENT',
-                message: `Request assigned to ${assigneeName}`,
-                isSystemGenerated: true,
-                metadata: {
-                    autoAssigned: false,
-                    assignedToId,
+        if (assignmentChanged) {
+            // Create activity only for a real assignment change.
+            const assigneeName = request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}`.trim() : 'agent';
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: req.user!.id,
+                    authorName: 'System',
+                    activityType: 'ASSIGNMENT',
+                    message: `Request assigned to ${assigneeName}`,
+                    isSystemGenerated: true,
+                    metadata: {
+                        autoAssigned: false,
+                        assignedToId,
+                    },
                 },
-            },
-        });
+            });
 
-        // Notify the assigned agent
-        await notify({
-            userId: assignedToId,
-            eventType: 'REQUEST_ASSIGNED',
-            variables: {
-                referenceNumber: request.referenceNumber,
-                summary: request.summary,
-            },
-            relatedRequestId: request.id,
-        });
+            // Notify only a newly assigned agent; unassignment has no recipient.
+            if (assignedToId) {
+                await notify({
+                    userId: assignedToId,
+                    eventType: 'REQUEST_ASSIGNED',
+                    variables: {
+                        referenceNumber: request.referenceNumber,
+                        summary: request.summary,
+                    },
+                    relatedRequestId: request.id,
+                });
+            }
+        }
 
         await auditLog(req, 'REQUEST_ASSIGNED', 'request', request.id, {
             assignedToId,
@@ -2304,7 +2314,7 @@ class RequestController {
                     }
                 }
 
-                if (assignToId) {
+                if (assignToId && currentRequest.assignedToId !== assignToId) {
                     await prisma.request.update({
                         where: { id },
                         data: { assignedToId: assignToId },
