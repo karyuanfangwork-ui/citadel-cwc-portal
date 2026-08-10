@@ -6,7 +6,7 @@
 
 **Primary user:** Credit Officer
 
-**Approved direction:** Operational ledger
+**Approved direction:** Operational ledger within the shared CWC application shell
 
 ## 1. Purpose and scope
 
@@ -18,8 +18,9 @@ Success means a user can identify the page, search for a borrower, recognize bor
 
 The screen uses a dense, trustworthy financial-operations style rather than consumer-banking aesthetics:
 
-- Deep navy persistent sidebar with clear section labels and restrained line icons.
+- Existing CWC shared white left rail, using the portal's brand tokens, icons, grouping, and collapse/pin behavior.
 - White application header and content panels on a pale neutral workspace.
+- A horizontal Credit module navigation track below the shared top header, consistent with the existing CRM and Credit layouts.
 - Existing credit-module typography direction: Geist for display labels and Inter for operational content.
 - Existing credit-module action blue `#0051D5`, dark ink, neutral borders, and compact 4–8px radii.
 - No gradients, decorative graphics, oversized typography, or visually dominant KPI cards.
@@ -27,37 +28,43 @@ The screen uses a dense, trustworthy financial-operations style rather than cons
 
 ## 3. Global application shell
 
-### Left navigation
+### Shared left rail
 
-The 232px persistent sidebar contains the product identity, the Credit Assessment module label, and these role-aware groups:
+The screen inherits the existing CWC left rail used by ESM, CRM, Credit, and the rest of the portal. It is 64px when collapsed and 240px when pinned or expanded. It contains global destinations rather than Credit page-level navigation:
+
+- Main: Dashboard, My Requests, Announcements, Approvals, Notifications, and permission-aware Support Queue
+- Service Desks: IT Support, Group HR, Group Finance, and Executive Services/ESM when enabled in shared navigation
+- Modules/Tools: IT Assets, CRM, Credit, and Knowledge Base, subject to permissions and feature flags
+- Admin: Reports, Insights, Admin Settings, Workflow Designer, Audit Trail, and Manage Announcements, subject to permissions
+
+`Credit` is the active global destination. CRM and ESM remain visible when the user can access them. The global rail does not contain Borrower List, Create Borrower, Application List, or other Credit-internal routes.
+
+### Shared top header
+
+The existing shared 56px top header contains the portal search, notification control, help affordance, and user profile menu. It remains visually secondary to page-level borrower search.
+
+### Credit module navigation
+
+A sticky 48px horizontal navigation track sits between the shared top header and the Credit workspace. It uses the existing Credit action blue and contains permission-aware module destinations:
 
 - Dashboard
 - Borrowers
-  - Borrower List
-  - Create Borrower
 - Applications
-  - Application List
-  - New Application
-- My Work
-  - My Assessments
-  - My Reviews
-  - My Approvals
+- Group Exposure
+- My Approvals when the user has `credit:approve`
+- Analysis
+- Spreading
+- Collateral
 - Reports
-- Administration
-  - Credit Policy
-  - Score Configuration
-  - Risk Rating Configuration
-  - Approval Matrix
+- More for lower-frequency or administrative destinations such as Scorecards and Risk Rating Configuration
 
-Borrower List is the active item. Administration is hidden unless the signed-in role has the required permission. Items unavailable to the user are omitted, not disabled.
-
-### Top header
-
-The 64px header contains a compact global search, notification bell with unread indicator, help affordance, and a user profile control showing the credit officer's name and role. It remains visually secondary to page-level borrower search.
+`Borrowers` is the active module item. `Create Borrower` and `New Application` remain contextual page actions rather than persistent global destinations. Administrative destinations are absent for a normal Credit Officer.
 
 ### Main workspace
 
 The workspace uses a pale neutral background, a maximum readable content width that fills the available shell, and 24px vertical rhythm. Breadcrumb, page title, subtitle, and contextual action form a single coherent page header.
+
+The corrected reference mockup shows the shared rail pinned at 240px so the cross-module hierarchy—especially ESM, CRM, and Credit—is explicit. In production, the user can collapse it to 64px when maximum table width is more valuable; this does not change the information architecture.
 
 ## 4. Borrower List composition
 
