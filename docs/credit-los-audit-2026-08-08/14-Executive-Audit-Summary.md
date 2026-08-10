@@ -23,7 +23,9 @@ Phase 6 was initially recorded as complete before any of its claims had been exe
 - The LOS-006 regression case **never executed** — it queried an enum value that does not exist.
 - The committee gate **froze the assessment before two checks that could still reject the transition**, leaving frozen state behind on failure.
 
-This is recorded prominently because it is the most transferable finding in the audit: *a gap is closed when a test proves it, not when the code is written.*
+Phase 7 repeated the pattern on a smaller scale. LOS-022 was closed on API evidence, with the plan's browser spec unwritten. Writing it found that **My Approvals crashed into its error boundary for every user, admin included** — LOS-020 had repointed the page at the approval-inbox endpoint without mapping its DTO, and the spec meant to cover it asserted only a heading the page shell renders before the crash. Both are fixed and now browser-proven (16 pass / 2 skip / 0 fail).
+
+This is recorded prominently because it is the most transferable finding in the audit: *a gap is closed when a test proves it, not when the code is written* — and a test that cannot fail is not a test.
 
 ## Readiness scorecard
 
@@ -40,7 +42,7 @@ This is recorded prominently because it is the most transferable finding in the 
 | Management Decision Experience | 58% | 82% |
 | UX / Journey | 69% | 75% |
 
-Approval, RBAC and methodology integrity carry more weight than screen coverage. RBAC is at 70%: the controls are implemented and unit-tested, and SOD paths are now API-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) and `e2e-approver@test.local` (CREDIT_MANAGER, has `credit:approve`). Detailed rationale and the executed-command evidence table are in `12-Production-Readiness-Assessment.md`.
+Approval, RBAC and methodology integrity carry more weight than screen coverage. RBAC is at 70%: the controls are implemented and unit-tested, and SOD paths are API- and browser-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) and `e2e-approver@test.local` (CREDIT_MANAGER, has `credit:approve`). Detailed rationale and the executed-command evidence table are in `12-Production-Readiness-Assessment.md`.
 
 ## Answers to the fourteen executive questions
 
@@ -51,7 +53,7 @@ Approval, RBAC and methodology integrity carry more weight than screen coverage.
 5. **Is risk rating properly implemented?** Yes. Configuration requires `credit:admin`, only an ACTIVE band set affects scoring, ACTIVE sets cannot be edited in place, and the adverse-grade authority comparison is corrected.
 6. **Are score/rating calculations explainable?** Yes. Factors, weights, missing inputs, caps and provenance are stored and reproducible; the management pack now surfaces the analyst recommendation, factor explanation (with frozen assessment version), override/deviation register, and evidence document index (LOS-016 CLOSED).
 7. **Can applications safely enter approval?** Yes. Every transition into `COMMITTEE_REVIEW` — `submit_to_committee` and `resume_committee` alike — passes one extracted gate, and that gate runs after every check that could still reject the transition.
-8. **Is segregation of duties enforced?** Yes in code, unit tests, and now API-verified with distinct seeded identities. `e2e-analyst@test.local` (CREDIT_ANALYST) lacks `credit:approve`; `e2e-approver@test.local` (CREDIT_MANAGER) has it. `sodEnforcement.test.ts` proves the exclusion.
+8. **Is segregation of duties enforced?** Yes in code, unit tests, at the API, and now in a browser. `e2e-analyst@test.local` (CREDIT_ANALYST) lacks `credit:approve`; `e2e-approver@test.local` (CREDIT_MANAGER) has it. `sodEnforcement.test.ts` proves the API exclusion; `sod-exclusions.spec.ts` proves the analyst is refused the approval inbox and that the approver's own RM-assigned case is withheld with the reason stated.
 9. **Can management make an informed credit decision?** Yes. The management pack now includes analyst recommendation, factor explanation, frozen assessment version, override/deviation register, and evidence document index (LOS-016 CLOSED). Authority-scoped inbox shows only actionable cases with exclusion explanations.
 10. **Can returned applications be corrected and resubmitted safely?** Yes. Return reason is mandatory at API level, `GET /applications/:id/return-diff` derives what changed since the refer-back from the audit chain, and resuming re-runs readiness, freeze and memo lock.
 11. **Is the full decision history auditable?** Yes, and now demonstrably so. Business mutations commit atomically with their audit event, appends are serialized per application and ordered by an explicit sequence, and the database rejects UPDATE and DELETE on the chain regardless of role.

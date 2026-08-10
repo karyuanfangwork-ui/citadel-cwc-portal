@@ -40,6 +40,38 @@ export const CREDIT_APPROVER = {
   password: process.env.E2E_APPROVER_PASS || 'password123',
 };
 
+/**
+ * LOS-022 residual — dedicated segregation-of-duties identities.
+ *
+ * CREDIT_ANALYST and CREDIT_APPROVER above both resolve to admin@test.local,
+ * which holds every credit permission. That is fine for the journey specs, but
+ * it makes segregation unprovable: one account cannot demonstrate that a role
+ * WITHOUT credit:approve is turned away.
+ *
+ * These two are separate accounts with deliberately different permission sets,
+ * seeded by `npx tsx prisma/seed-credit.ts --e2e`:
+ *
+ *   e2e-analyst@test.local   CREDIT_ANALYST  credit:read, credit:write, credit:export
+ *   e2e-approver@test.local  CREDIT_MANAGER  credit:read, credit:write, credit:approve, credit:export
+ *
+ * They are kept separate from CREDIT_ANALYST/CREDIT_APPROVER rather than
+ * replacing them so that adding SOD coverage cannot destabilise the five specs
+ * that already pass with the admin session.
+ *
+ * Password is abc@123 — the seed hashes that, NOT the password123 used by the
+ * older @test.local accounts. Two password families coexist in this seed; using
+ * the wrong one yields a 401 that looks like a missing account.
+ */
+export const SOD_ANALYST = {
+  email: process.env.E2E_SOD_ANALYST_USER || 'e2e-analyst@test.local',
+  password: process.env.E2E_SOD_ANALYST_PASS || 'abc@123',
+};
+
+export const SOD_APPROVER = {
+  email: process.env.E2E_SOD_APPROVER_USER || 'e2e-approver@test.local',
+  password: process.env.E2E_SOD_APPROVER_PASS || 'abc@123',
+};
+
 export const NON_CREDIT_USER = {
   email: process.env.E2E_NON_CREDIT_USER || 'user@helpdesk.com',
   password: process.env.E2E_NON_CREDIT_PASS || 'abc@123',
@@ -59,6 +91,8 @@ export const STATE_FILES = {
   analyst: 'e2e/.auth/credit-analyst.json',
   approver: 'e2e/.auth/credit-approver.json',
   nonCredit: 'e2e/.auth/non-credit.json',
+  sodAnalyst: 'e2e/.auth/sod-analyst.json',
+  sodApprover: 'e2e/.auth/sod-approver.json',
 } as const;
 
 export async function login(page: Page, user: Credentials): Promise<void> {

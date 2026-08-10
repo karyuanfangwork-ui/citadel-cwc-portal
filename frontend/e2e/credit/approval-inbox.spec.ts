@@ -15,6 +15,14 @@ test.describe('Approval inbox — authority scoping', () => {
   test('shows the approval inbox without server error', async ({ page }) => {
     await page.goto('/credit/approvals');
     await expect(page.locator('h1, h2, h3').first()).toContainText(/approval/i, { timeout: 10_000 });
+
+    // A heading alone proved nothing: the page rendered its shell, then the
+    // card list threw in StateBadge and React swapped the body for the error
+    // boundary. This spec passed for weeks against a page no user could use.
+    await expect(
+      page.getByText(/something went wrong/i),
+      'The inbox crashed into its error boundary after rendering the heading.',
+    ).toHaveCount(0);
   });
 
   test('excluded applications appear as a collapsible section', async ({ page }) => {

@@ -20,6 +20,8 @@ The Phase 6 closures were asserted before any of them had been run against a dat
 | LOS-022 closed — 6 browser specs cover the credit journeys | **All 6 specs ran unauthenticated and passed anyway.** They waited for `**/dashboard**`, a URL the app never navigates to, and swallowed the timeout. Four further defects sat behind that: wrong password family, an account with no credit permissions, non-retrying visibility guards that skipped tests on a populated page, and a route that does not exist. | Fixed — 10 pass / 2 skip / 0 fail against a running stack. |
 | LOS-006 covered by the P0 regression suite | The test queried `FinancialStatus` with `'SUBMITTED'`, which is not a member of the enum, so it threw instead of asserting. | Fixed. |
 | LOS-015 gate applied to committee entry | Correct, but the gate ran *before* the SICR and balance-sheet checks. A failing check therefore left a frozen assessment and locked memo behind — the exact outcome the gate documents itself as preventing. | Fixed — gate runs last. |
+| LOS-020 closed — My Approvals reads the authority-aware inbox | **The page crashed into its error boundary for every user, admin included.** The inbox returns its own summary DTO (`applicationId`/`currentState`/flat `borrowerName`); the rows were rendered unmapped, so `state` was `undefined` and `StateBadge` threw on `state.replace(...)`. The endpoint is untyped (`any`), so TypeScript caught nothing, and `approval-inbox.spec` asserted only a heading the shell renders *before* the crash. Found 2026-08-10 while writing the LOS-022 browser spec. | Fixed — `toApplication` mapper at the fetch boundary; spec now asserts the error boundary is absent. |
+| LOS-022 closed — SOD proven with distinct identities | Proven at the API only. The plan's browser spec was never written, and the `--e2e` seed made the exclusion unreachable: every committee application's RM was the analyst, who cannot open the inbox at all. | Fixed — `sod-exclusions.spec.ts` added; seed splits RM ownership. 16 pass / 2 skip / 0 fail. |
 
 The lesson is recorded here deliberately: **a gap is closed when a test proves it, not when the code is written.** Every P0 closure now has a corresponding negative test in `creditP0Regression.test.ts`.
 
@@ -35,7 +37,7 @@ Each domain was assessed across functional completeness, backend enforcement, SO
 | Credit Scoring | 80% | Real weighted deterministic engine, snapshots, scorecard version, missing-data BLOCK policy and override governance all enforced. |
 | Risk Rating | 78% | Corrected AAA–D mapping and authority comparison. ACTIVE/APPROVED lifecycle enforced; provenance persisted on every score run. |
 | Approval Workflow | 85% | Matrices, multi-approval, committee, return/reject and notifications exist. `resume_committee` and `submit_to_committee` share a single readiness→freeze→memo gate; return-change diff available via API. |
-| RBAC / Controls | 70% | Permission taxonomy, SOD checks and row-level access enforcement in place, and unit-tested. Authority-aware inbox filters out non-actionable cases with explanations. **E2E SOD identities now seeded** (`e2e-analyst@test.local` / CREDIT_ANALYST lacks `credit:approve`; `e2e-approver@test.local` / CREDIT_MANAGER has it) — segregation paths are API-verified via `sodEnforcement.test.ts`. |
+| RBAC / Controls | 70% | Permission taxonomy, SOD checks and row-level access enforcement in place, and unit-tested. Authority-aware inbox filters out non-actionable cases with explanations. **E2E SOD identities seeded and browser-verified** (`e2e-analyst@test.local` / CREDIT_ANALYST lacks `credit:approve`; `e2e-approver@test.local` / CREDIT_MANAGER has it) — segregation is API-verified via `sodEnforcement.test.ts` and browser-verified via `sod-exclusions.spec.ts`, which proves the analyst is refused the inbox and the approver's own RM-assigned case is withheld with the reason stated. |
 | Auditability | 90% | Broad auto-audit, hash chain, PII logs, UI timeline, atomic business+audit transactions, per-application serialization, DB-level immutability trigger, and a deterministic `sequence` ordering. All 17 seeded chains verify; a regression test fails against the previous `createdAt` ordering. |
 | Management Decision Experience | 82% | Quick view, versioned memo/pack, and authority-scoped inbox exist. Pack now includes analyst recommendation, score factor explanation (with frozen assessment version), override/deviation register, and evidence document index — LOS-016 CLOSED. |
 | UX / Journey | 75% | Strong wizards, readiness, completion, stale/rejection banners, responsive views and record-only integration banner. Decision variants and terminology density remain. |
@@ -53,7 +55,7 @@ Executed 2026-08-10 against a seeded PostgreSQL database and a running dev stack
 | `npm run audit:verify` | 15 intact, 0 broken |
 | independent `verifyChain` sweep | 17 of 17 applications valid |
 | `npm run build` (frontend) | succeeds |
-| `npx playwright test --project=credit` | 10 passed, 2 skipped, 0 failed |
+| `npx playwright test --project=credit` | 16 passed, 2 skipped, 0 failed |
 
 The two E2E skips are honest and named: no referred-back application exists in the seed set, and the application the analyst spec selects has no submit-to-committee control. Both would be removed by a purpose-built E2E fixture.
 
@@ -61,7 +63,7 @@ The two E2E skips are honest and named: no referred-back application exists in t
 
 None remain for record-only credit approval scope.
 
-**Open verification gap** (closed 2026-08-10): segregation-of-duties and authority-exclusion paths are now API-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST) and `e2e-approver@test.local` (CREDIT_MANAGER) seeded identities. Run `npx tsx prisma/seed-credit.ts --e2e` to create them.
+**Open verification gap** (closed 2026-08-10): segregation-of-duties and authority-exclusion paths are API- *and* browser-verified with distinct `e2e-analyst@test.local` (CREDIT_ANALYST) and `e2e-approver@test.local` (CREDIT_MANAGER) seeded identities. Run `npx tsx prisma/seed-credit.ts --demo --e2e` to create them and split RM ownership so the exclusion path is reachable.
 
 **For live lending/disbursement**, the following blockers apply:
 

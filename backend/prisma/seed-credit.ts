@@ -720,15 +720,48 @@ async function seedE2eIdentities() {
     create: { userId: e2eApprover.id, roleId: managerRole.id },
   });
 
-  // Make the analyst the RM on committee-stage applications so the SOD exclusion
-  // fires when the analyst opens the approvals inbox.
-  const updated = await prisma.creditApplication.updateMany({
+  // Distribute RM ownership of the committee-stage applications across the two
+  // identities. This split is what makes the SOD exclusion observable:
+  //
+  //   - The approver is made RM on exactly ONE application. Because they also
+  //     hold credit:approve they can open the inbox, and that one application
+  //     must appear under "not shown" with the "you are the assigned RM"
+  //     reason. Without this, `excluded` is empty and the exclusion path is
+  //     unreachable in a browser.
+  //   - Every other committee-stage application goes to the analyst, so the
+  //     approver still has actionable work to contrast against.
+  //
+  // Note the analyst can never see the inbox themselves — /credit/approvals is
+  // guarded by credit:approve, which CREDIT_ANALYST does not hold. That denial
+  // is itself a segregation assertion, covered by sod-exclusions.spec.ts.
+  const committeeApps = await prisma.creditApplication.findMany({
     where: { state: 'COMMITTEE_REVIEW' },
-    data: { assignedRmId: e2eAnalyst.id },
+    select: { id: true, applicationNo: true },
+    orderBy: { applicationNo: 'asc' },
   });
-  console.log(`  ✅ E2E Analyst: ${e2eAnalyst.email} (CREDIT_ANALYST — credit:read, credit:write, credit:export)`);
-  console.log(`  ✅ E2E Approver: ${e2eApprover.email} (CREDIT_MANAGER — credit:read, credit:write, credit:approve)`);
-  console.log(`  ✅ Assigned ${updated.count} COMMITTEE_REVIEW application(s) to analyst as RM`);
+
+  if (committeeApps.length === 0) {
+    console.log('  ⚠️  No COMMITTEE_REVIEW applications found — run with --demo first, or the SOD spec will have nothing to assert on.');
+  } else {
+    const [approverOwned, ...analystOwned] = committeeApps;
+
+    await prisma.creditApplication.update({
+      where: { id: approverOwned.id },
+      data: { assignedRmId: e2eApprover.id },
+    });
+
+    if (analystOwned.length > 0) {
+      await prisma.creditApplication.updateMany({
+        where: { id: { in: analystOwned.map((a) => a.id) } },
+        data: { assignedRmId: e2eAnalyst.id },
+      });
+    }
+
+    console.log(`  ✅ E2E Analyst: ${e2eAnalyst.email} (CREDIT_ANALYST — credit:read, credit:write, credit:export)`);
+    console.log(`  ✅ E2E Approver: ${e2eApprover.email} (CREDIT_MANAGER — credit:read, credit:write, credit:approve)`);
+    console.log(`  ✅ Approver is RM on ${approverOwned.applicationNo} (must be SOD-excluded from their own inbox)`);
+    console.log(`  ✅ Analyst is RM on ${analystOwned.length} other COMMITTEE_REVIEW application(s)`);
+  }
 }
 
 async function seedDemo() {

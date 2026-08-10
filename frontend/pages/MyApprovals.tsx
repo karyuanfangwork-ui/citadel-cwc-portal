@@ -31,6 +31,50 @@ function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: bo
   return { level: 'normal', text: `${remaining}d left`, color: '#16a34a', icon: 'check_circle' };
 }
 
+/**
+ * The approval-inbox endpoint returns its own summary DTO, not a
+ * `CreditApplication`. The field names differ in three places that matter:
+ * `applicationId` not `id`, `applicationNo` not `applicationNumber`,
+ * `currentState` not `state`, and `borrowerName` is a flat string rather than a
+ * nested profile.
+ *
+ * When LOS-020 repointed this page at the inbox, the rows were fed to the card
+ * renderer unmapped. `app.state` was therefore `undefined`, and `StateBadge`
+ * threw on `state.replace(...)` — crashing the whole page into its error
+ * boundary for every user, including admin. The endpoint was untyped (`any`),
+ * so nothing flagged it at compile time.
+ */
+interface ApprovalInboxItem {
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  productType: string;
+  requestedAmount: number;
+  currency: string;
+  currentState: ApplicationState;
+  urgency: string;
+  submittedAt: string;
+  daysWaiting: number;
+  riskRating?: string;
+  requestedTenor?: number;
+  _slaBreached?: boolean;
+}
+
+function toApplication(item: ApprovalInboxItem): CreditApplication {
+  return {
+    ...item,
+    id: item.applicationId,
+    applicationNumber: item.applicationNo,
+    state: item.currentState,
+    // The cards date off createdAt; the inbox only knows when it was submitted.
+    createdAt: item.submittedAt,
+    // getBorrowerDisplayName reads a profile object. The inbox has already
+    // resolved the display name, so carry it through in the shape the helper
+    // expects rather than reaching back to the API for the full profile.
+    borrowerProfile: { name: item.borrowerName } as CreditApplication['borrowerProfile'],
+  } as unknown as CreditApplication;
+}
+
 const MyApprovals: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -61,7 +105,9 @@ const MyApprovals: React.FC = () => {
       // cases the user could not approve, producing failed actions.
       const res = await dashboardApi.getApprovalInbox();
       const inbox = res.data.data;
-      setApplications([...inbox.high, ...inbox.medium, ...inbox.low]);
+      setApplications(
+        [...inbox.high, ...inbox.medium, ...inbox.low].map(toApplication),
+      );
       setExcluded(inbox.excluded ?? []);
     } catch (e) {
       console.error(e);

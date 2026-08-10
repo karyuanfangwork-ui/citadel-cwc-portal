@@ -23,9 +23,9 @@ Effort bands: XS ≤1 day, S 2–3 days, M 4–10 days, L 2–4 weeks. Estimates
 | LOS-017 | Duplicate borrower | Borrower create | RESOLVED: `checkDuplicateEnhanced` now queries the profile's own `nricPassportNormalized` and `registrationNumberNormalized` columns (step 3, before name check). `normalizeIdentity` strips spaces/hyphens and uppercases. Schema columns added and maintained on create/update. Override requires `credit:admin` permission, ≥20-char reason, and creates an audit record listing suppressed matches. | Server normalizes and uniquely checks identifiers regardless of CRM linkage; override is governed and audited. | `borrowerProfile.service.ts`; `identityNormalization.ts`; `borrowerProfile.validator.ts` | Duplicate customer records/exposure split. | Incomplete aggregate exposure and KYC history. | High | Normalize/hash identifier lookup; add conditional unique strategy and governed override. | Yes | M | P1 — CLOSED 2026-08-10 | Data cleanup |
 | LOS-018 | Child concurrency | Assessment edits | RESOLVED: `assertVersionMatch` on financial statement, collateral, risk assessment and document edit endpoints compares `updatedAt` timestamps and returns 409 on stale writes; `expectedUpdatedAt` is optional for backward compatibility. | Detect conflicting edits and prevent last-write loss. | `optimisticConcurrency.ts`; service/validator changes | Analysts overwrite each other. | Incorrect assessment basis. | Medium | Add version/updatedAt preconditions for high-risk child mutations. | Yes | M | P1 — CLOSED 2026-08-10 | API contract |
 || LOS-019 | Return validation | Manager return | RESOLVED: Backend validator now requires ≥10-character comment for RETURN decisions, matching desktop panel enforcement. | Reason mandatory and audited for every return surface. | approval validator/panel | Blank return gives no remediation direction. | Delay and weak audit rationale. | High | Add backend minimum reason and tests. | Yes | XS | P1 — CLOSED 2026-08-08 | None |
-| LOS-020 | Inbox | Management queue | RESOLVED: My Approvals now reads the authority- and SOD-filtered dashboard inbox; excluded applications are named with a reason in a collapsible disclosure section. | Authority/SOD-filtered backend inbox is single source. | `MyApprovals.tsx`; `dashboard.service.ts`; inbox tests | Noise and failed actions. | Operational mistakes/delay. | Medium | Connect page to existing inbox endpoint and explain ineligibility. | Yes | S | P1 — CLOSED 2026-08-10 | LOS-012 |
+| LOS-020 | Inbox | Management queue | RESOLVED (2026-08-10, after correction): My Approvals reads the authority- and SOD-filtered dashboard inbox; excluded applications are named with a reason in a collapsible disclosure. NOTE: the first closure was premature — the inbox DTO was passed to the card renderer unmapped, so `state` was `undefined` and the page crashed into its error boundary for every user. Fixed with a `toApplication` mapper; now proven in a browser by `sod-exclusions.spec.ts`. | Authority/SOD-filtered backend inbox is single source, and the page renders. | `MyApprovals.tsx`; `dashboard.service.ts`; `sod-exclusions.spec.ts`; `approval-inbox.spec.ts` | Noise and failed actions. | Operational mistakes/delay. | Medium | Connect page to existing inbox endpoint and explain ineligibility. | Yes | S | P1 — CLOSED 2026-08-10 | LOS-012 |
 | LOS-021 | Integration | Final decision/disbursement | RESOLVED (record-only scope): `assertRecordOnlyAllowed` fails closed when `CREDIT_LIVE_LENDING=true` without a configured CBS/e-sign vendor; placeholder CBS identifiers are prefixed `SIMULATED-` with a `simulated: true` flag; disbursement screen carries a record-only banner; `getIntegrationsStatus` now reports CBS and e-sign alongside bureau/AML/OCR. | Production blocks functions requiring an unconfigured live adapter or clearly operates record-only. | `registry.ts`; `cbs.placeholder.ts`; `IntegrationModeBanner.tsx`; registry gating tests | Staff may mistake simulation for external completion. | Operational/financial mismatch. | Critical for live booking | Fail closed by capability; production deployment evidence for each adapter. | Yes—registry/status | M + external | P0 — CLOSED (record-only) 2026-08-10 | Vendor/configuration |
-| LOS-022 | Test assurance | Whole journey | RESOLVED: `npm run test:credit:p0` attempts each former bypass and asserts it fails without data mutation; `npm run test:release` chains seed → chain verification → P0 regression → full suite. 6 Playwright specs run 10 pass / 2 skip / 0 fail against a live stack. SOD/authority exclusion paths now verifiable with seeded `e2e-analyst@test.local` (CREDIT_ANALYST: no approve permission) and `e2e-approver@test.local` (CREDIT_MANAGER: has approve). `npx tsx prisma/seed-credit.ts --e2e` creates both identities. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/`; `sodEnforcement.test.ts`; `seed-credit.ts` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — CLOSED 2026-08-10 | Stable test DB; distinct seeded analyst/approver |
+| LOS-022 | Test assurance | Whole journey | RESOLVED: `npm run test:credit:p0` attempts each former bypass and asserts it fails without data mutation; `npm run test:release` chains seed → chain verification → P0 regression → full suite. 7 Playwright specs run 16 pass / 2 skip / 0 fail against a live stack. SOD/authority exclusion is now proven in a browser, not only at the API: `sod-exclusions.spec.ts` asserts `e2e-analyst@test.local` (CREDIT_ANALYST, no `credit:approve`) is refused `/credit/approvals` while still reaching `/credit/applications`, and that `e2e-approver@test.local` (CREDIT_MANAGER) reaches the inbox and sees their own RM-assigned case withheld with the SOD reason stated. `npx tsx prisma/seed-credit.ts --e2e` creates both identities and splits RM ownership so the exclusion is reachable. | Seeded, repeatable individual/SME/corporate/control E2E release suite. | `creditP0Regression.test.ts`; `frontend/e2e/credit/sod-exclusions.spec.ts`; `sodEnforcement.test.ts`; `seed-credit.ts` | Defects emerge only during staff use. | Control-path regressions undetected. | High | Add focused browser/API tests from report 10; make DB service part of CI. | Yes—fixtures/tests | L | P1 — CLOSED 2026-08-10 | Stable test DB; distinct seeded analyst/approver |
 | LOS-023 | Joint applicants | Borrower/application create | Backend enum supports JOINT; main UI omits it. | Either explicitly unsupported/hidden by policy or fully mapped. | schema/validators vs creation UI | Ambiguous staff expectations. | Misclassification/manual workaround. | Medium | Confirm scope; document as unsupported or connect existing backend fields. | Partial | S–M | P2 | Product policy |
 | LOS-024 | UX terminology | Borrower/application | SME is lane/sole proprietor while labels vary; risk/score/recommendation terms overlap. | Consistent labels with clear system versus analyst recommendation. | lane enums and UI sections | Training burden/misinterpretation. | Moderate operational error. | Medium | Standardize copy/tooltips using existing terminology map. | Yes | S | P2 | UX content review |
 | LOS-025 | Build performance | Application UX | Frontend build emits dynamic/static import and large-bundle warnings. | Credit routes load predictably within operational targets. | Vite build output | Slower first load, especially mobile approval. | Availability/productivity rather than credit control. | Low | Measure route bundles and split only demonstrated hot spots. | Yes | M | DEFERRED | Performance baseline |
@@ -153,6 +153,38 @@ which invalidated a closure:
 
 Standing rule from this phase: **a gap is closed when a test proves it, not
 when the code is written.**
+
+### Phase 7a — verification and correction (2026-08-10)
+
+Phase 7 closed LOS-022 on API-level evidence only; the plan's browser spec
+(`sod-exclusions.spec.ts`) was never written. Writing it found a defect that
+invalidated the LOS-020 closure:
+
+- **My Approvals crashed into its error boundary for every user, admin
+  included.** LOS-020 repointed the page at the approval-inbox endpoint, but
+  the inbox returns its own summary DTO — `applicationId`/`applicationNo`/
+  `currentState`, and a flat `borrowerName` — and the rows were passed to the
+  card renderer unmapped. `app.state` was `undefined`, so `StateBadge` threw on
+  `state.replace(...)`. The endpoint is untyped (`any`) in `credit.service.ts`,
+  so TypeScript did not catch it. Fixed with a `toApplication` mapper at the
+  fetch boundary.
+- **The spec that should have caught it could not fail.** `approval-inbox.spec`
+  asserted a heading matched `/approval/i` — which the page shell renders
+  before the crash — and guarded the exclusion assertion behind a
+  non-retrying `isVisible()` inside an `if`. Both are the Phase 6a
+  anti-patterns. It now also asserts the error boundary is absent.
+- The SOD exclusion path was **unreachable by construction**: the `--e2e` seed
+  assigned every `COMMITTEE_REVIEW` application's RM to the analyst, who cannot
+  open the inbox at all (the route requires `credit:approve`, which
+  `CREDIT_ANALYST` does not hold). The seed now makes the approver RM on
+  exactly one application, so `excluded` is non-empty for someone who can
+  actually see it.
+
+Browser evidence: 16 passed / 2 skipped / 0 failed, up from 10 / 2 / 0.
+
+The Phase 6a rule held again, and is worth restating: **a gap is closed when a
+test proves it, not when the code is written** — and a test that cannot fail is
+not a test.
 
 ## Follow-ups surfaced during Phase 6
 

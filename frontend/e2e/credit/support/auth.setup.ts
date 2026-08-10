@@ -1,5 +1,13 @@
 import { test as setup } from '@playwright/test';
-import { login, CREDIT_ANALYST, CREDIT_APPROVER, NON_CREDIT_USER, STATE_FILES } from './auth';
+import {
+  login,
+  CREDIT_ANALYST,
+  CREDIT_APPROVER,
+  NON_CREDIT_USER,
+  SOD_ANALYST,
+  SOD_APPROVER,
+  STATE_FILES,
+} from './auth';
 
 /**
  * LOS-022 — Authenticate once per role and persist the session.
@@ -24,4 +32,17 @@ setup('authenticate credit approver', async ({ page }) => {
 setup('authenticate non-credit user', async ({ page }) => {
   await login(page, NON_CREDIT_USER);
   await page.context().storageState({ path: STATE_FILES.nonCredit });
+});
+
+// LOS-022 residual — the two identities that actually differ in permissions.
+// Seeded by `npx tsx prisma/seed-credit.ts --e2e`; if these setups fail with a
+// 401, that seed has not been run against this database.
+setup('authenticate SOD analyst', async ({ page }) => {
+  await login(page, SOD_ANALYST);
+  await page.context().storageState({ path: STATE_FILES.sodAnalyst });
+});
+
+setup('authenticate SOD approver', async ({ page }) => {
+  await login(page, SOD_APPROVER);
+  await page.context().storageState({ path: STATE_FILES.sodApprover });
 });
