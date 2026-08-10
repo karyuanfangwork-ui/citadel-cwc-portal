@@ -32,7 +32,7 @@
     "audit:verify": "tsx prisma/rehash-audit-chain.ts --verify",
     "audit:rehash": "tsx prisma/rehash-audit-chain.ts",
     "prisma:reset": "prisma migrate reset",
-    "test": "jest",
+    "test": "jest --forceExit --detectOpenHandles=false",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:credit:p0": "jest src/credit/__tests__/creditP0Regression.test.ts src/credit/__tests__/auditImmutability.test.ts src/credit/__tests__/auditChainOrdering.test.ts src/credit/__tests__/committeeEntryGate.test.ts --runInBand",
@@ -48,7 +48,7 @@
     "smoke:attachment-scanner": "ATTACHMENT_SCAN_QUEUE_NAME=attachment.malware-scan.smoke tsx scripts/smoke-attachment-scanner.ts",
     "audit:reseal": "tsx prisma/reseal-audit-chain.ts",
     "audit:reseal:dry": "tsx prisma/reseal-audit-chain.ts --dry-run",
-    "test:release": "npm run prisma:seed:credit -- --demo && npm run audit:verify && npm run test:credit:p0 && npm test"
+    "test:release": "npm run prisma:seed:credit -- --demo --e2e && npm run audit:verify && npm run test:credit:p0 && npm test"
   },
   "keywords": [
     "help-desk",

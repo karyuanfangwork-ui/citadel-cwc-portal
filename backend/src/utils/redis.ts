@@ -39,6 +39,38 @@ const COMMON_OPTS = {
  *   const redis = createRedisClient();                              // default opts
  *   const redis = createRedisClient({ maxRetriesPerRequest: null }); // for BullMQ
  */
+/**
+ * Every client this factory hands out.
+ *
+ * Nine modules call createRedisClient() at import time and none of them export
+ * the result, so before this registry existed there was no way to close them.
+ * Combined with a retryStrategy that retries forever, that kept the Node event
+ * loop alive: `npx jest src/credit` passed 1256 tests in 7.1 seconds and then
+ * hung for 1h40m until it was killed by hand. `npm run test:release` ends in
+ * `&& npm test`, so the release gate never returned.
+ */
+const activeClients = new Set<Redis>();
+
+/**
+ * Close every client this factory created. Intended for test teardown and
+ * graceful shutdown — not for request paths.
+ */
+export async function closeAllRedisClients(): Promise<void> {
+  const clients = [...activeClients];
+  activeClients.clear();
+  await Promise.all(
+    clients.map(async (client) => {
+      try {
+        // quit() waits for a reply, which never arrives if Redis is unreachable.
+        // disconnect() is unconditional and is what actually clears the timer.
+        client.disconnect();
+      } catch {
+        /* already closed */
+      }
+    }),
+  );
+}
+
 export function createRedisClient(opts?: Record<string, any>): Redis {
   const options = { ...COMMON_OPTS, ...opts };
   const client = new Redis(config.redis.url, options);
@@ -60,6 +92,8 @@ export function createRedisClient(opts?: Record<string, any>): Redis {
   client.connect().catch(() => {
     // retryStrategy will keep trying; this catch prevents unhandled rejection
   });
+
+  activeClients.add(client);
 
   return client;
 }
