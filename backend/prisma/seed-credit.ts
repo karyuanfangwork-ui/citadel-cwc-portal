@@ -764,6 +764,61 @@ async function seedE2eIdentities() {
   }
 }
 
+// Phase 8 — fixtures for the two E2E paths that could only be skipped.
+//
+// Two control paths the audit spent two phases correcting had no browser
+// coverage because the seed contained nothing to exercise them: the LOS-015
+// return/resume gate needs a REFERRED_BACK application, and the committee entry
+// gate needs an application the analyst can actually attempt to submit.
+//
+// This deliberately does NOT touch CA-2026-00005, the single COMMITTEE_REVIEW
+// application that seedE2eIdentities assigns to the approver as RM. That
+// assignment is what makes the SOD exclusion observable in sod-exclusions.spec.ts.
+async function seedE2eFixtures() {
+  console.log('🧪 Seeding E2E control-path fixtures...');
+
+  const analyst = await prisma.user.findUnique({ where: { email: 'e2e-analyst@test.local' } });
+  if (!analyst) {
+    console.log('  ⚠️  e2e-analyst@test.local not found — run with --e2e so identities are seeded first.');
+    return;
+  }
+
+  // A referred-back application, so the return-diff path is reachable.
+  const referBackCandidate = await prisma.creditApplication.findFirst({
+    where: { state: { in: ['CREDIT_ASSESSMENT', 'UNDERWRITING'] } },
+    orderBy: { applicationNo: 'desc' },
+    select: { id: true, applicationNo: true },
+  });
+
+  if (!referBackCandidate) {
+    console.log('  ⚠️  No CREDIT_ASSESSMENT/UNDERWRITING application to refer back — run --demo first.');
+  } else {
+    await prisma.creditApplication.update({
+      where: { id: referBackCandidate.id },
+      data: { state: 'REFERRED_BACK', assignedRmId: analyst.id },
+    });
+    console.log(`  ✅ ${referBackCandidate.applicationNo} → REFERRED_BACK (analyst as RM)`);
+  }
+
+  // An application the analyst owns and can attempt to submit, so the committee
+  // entry gate is exercised rather than skipped for want of a button.
+  const submitCandidate = await prisma.creditApplication.findFirst({
+    where: { state: 'CREDIT_ASSESSMENT', id: { not: referBackCandidate?.id ?? '' } },
+    orderBy: { applicationNo: 'asc' },
+    select: { id: true, applicationNo: true },
+  });
+
+  if (!submitCandidate) {
+    console.log('  ⚠️  No spare CREDIT_ASSESSMENT application for the committee-gate fixture.');
+  } else {
+    await prisma.creditApplication.update({
+      where: { id: submitCandidate.id },
+      data: { assignedRmId: analyst.id },
+    });
+    console.log(`  ✅ ${submitCandidate.applicationNo} assigned to analyst for the committee-gate spec`);
+  }
+}
+
 async function seedDemo() {
   console.log('🎬 Seeding credit demo data...');
   const { seedCreditDemo } = await import('./creditDemoSeed');
@@ -807,6 +862,7 @@ async function main() {
     if (shouldRun(flags.policyLimits))   await seedPolicyLimits();
     if (shouldRun(flags.scoring))        await seedScoringGovernance();
     if (shouldRun(flags.e2e))            await seedE2eIdentities();
+    if (shouldRun(flags.e2e))            await seedE2eFixtures();
     if (shouldRun(flags.demo))          await seedDemo();
 
     console.log('\n✅ Done.');
