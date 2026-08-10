@@ -13,8 +13,11 @@ interface PdfJobData {
   userId?: string;  // P01 Task 4: user-scoped job result keys
 }
 
+let worker: Worker<PdfJobData> | null = null;
+
 export function startPdfWorker(): Worker<PdfJobData> {
-  const worker = new Worker<PdfJobData>(
+  if (worker) return worker;
+  worker = new Worker<PdfJobData>(
     'pdf.generation',
     async (job: Job<PdfJobData>) => {
       const { html, s3Key, userId } = job.data;
@@ -45,4 +48,16 @@ export function startPdfWorker(): Worker<PdfJobData> {
 
   logger.info(`[PdfWorker] Started (concurrency: ${PDF_WORKER_CONCURRENCY})`);
   return worker;
+}
+
+/** Stop the PDF worker and release the connection BullMQ owns. */
+export async function stopPdfWorker(): Promise<void> {
+  if (!worker) return;
+  try {
+    await worker.close(true);
+  } catch {
+    /* already closed */
+  } finally {
+    worker = null;
+  }
 }

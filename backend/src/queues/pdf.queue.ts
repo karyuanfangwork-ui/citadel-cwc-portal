@@ -13,18 +13,11 @@ export const pdfQueue = new Queue(PDF_QUEUE_NAME, {
   },
 });
 
-/** Close the BullMQ-owned PDF queue connection. */
+/** Close the PDF queue. BullMQ owns the connection, so close() is sufficient. */
 export async function closePdfQueue(): Promise<void> {
-  const client = pdfQueue.client;
   try {
     await pdfQueue.close();
   } catch {
     /* already closed */
-  } finally {
-    try {
-      (await client).disconnect();
-    } catch {
-      /* client was never initialized */
-    }
   }
 }

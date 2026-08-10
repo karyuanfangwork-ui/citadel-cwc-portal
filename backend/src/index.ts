@@ -4,8 +4,8 @@ import { logger } from './utils/logger';
 import { initScheduler, shutdownScheduler } from './services/scheduler.service';
 import { initSseRedis, disconnectSseRedis } from './utils/sseClients';
 import { startWorkflowEngine } from './services/crm-workflow.service';
-import { startPdfWorker } from './workers/pdf.worker';
-import { startAttachmentScanWorker } from './workers/attachmentScan.worker';
+import { startPdfWorker, stopPdfWorker } from './workers/pdf.worker';
+import { startAttachmentScanWorker, stopAttachmentScanWorker } from './workers/attachmentScan.worker';
 import { startNotificationWorker } from './workers/notification.worker';
 import { attachmentScanQueue } from './queues/attachmentScan.queue';
 import { startAttachmentLifecycleReconciler } from './services/attachmentLifecycleReconciler.service';
@@ -20,8 +20,6 @@ dotenv.config();
 
 const PORT = config.port;
 let isShuttingDown = false;
-let pdfWorker: ReturnType<typeof startPdfWorker> | null = null;
-let attachmentScanWorker: ReturnType<typeof startAttachmentScanWorker> = null;
 let notificationWorker: ReturnType<typeof startNotificationWorker> | null = null;
 let stopAttachmentReconciler: (() => void) | null = null;
 
@@ -38,10 +36,10 @@ const server = app.listen(PORT, () => {
     startWorkflowEngine();
 
     // Start PDF generation worker (BullMQ)
-    pdfWorker = startPdfWorker();
+    startPdfWorker();
 
     // Start governed malware scanning and quarantine worker (BullMQ)
-    attachmentScanWorker = startAttachmentScanWorker();
+    startAttachmentScanWorker();
     stopAttachmentReconciler = startAttachmentLifecycleReconciler();
 
     // Start durable notification delivery worker (BullMQ)
@@ -69,8 +67,8 @@ const gracefulShutdown = (signal: string, error?: unknown, exitCode = 0) => {
     stopAttachmentReconciler?.();
 
     const workerShutdown = Promise.allSettled([
-        pdfWorker?.close(),
-        attachmentScanWorker?.close(),
+        stopPdfWorker(),
+        stopAttachmentScanWorker(),
         notificationWorker?.close(),
         attachmentScanQueue.close(),
     ]);

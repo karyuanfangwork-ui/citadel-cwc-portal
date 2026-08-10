@@ -90,13 +90,16 @@ export async function markTerminalScanFailure(job: Job<AttachmentScanJobData>): 
     });
 }
 
+let worker: Worker<AttachmentScanJobData> | null = null;
+
 export function startAttachmentScanWorker(): Worker<AttachmentScanJobData> | null {
     if (!config.attachmentScanner.enabled) {
         logger.warn('[AttachmentScanner] Worker disabled; new attachments remain fail-closed');
         return null;
     }
 
-    const worker = new Worker<AttachmentScanJobData>(
+    if (worker) return worker;
+    worker = new Worker<AttachmentScanJobData>(
         ATTACHMENT_SCAN_QUEUE_NAME,
         async (job) => processAttachmentScan(job.data),
         {
@@ -114,4 +117,16 @@ export function startAttachmentScanWorker(): Worker<AttachmentScanJobData> | nul
     });
     logger.info(`[AttachmentScanner] Started (concurrency: ${config.attachmentScanner.concurrency})`);
     return worker;
+}
+
+/** Stop the attachment-scan worker and release the connection BullMQ owns. */
+export async function stopAttachmentScanWorker(): Promise<void> {
+    if (!worker) return;
+    try {
+        await worker.close(true);
+    } catch {
+        /* already closed */
+    } finally {
+        worker = null;
+    }
 }

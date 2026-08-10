@@ -76,15 +76,12 @@ export function getSlaTimerQueue(): Queue {
 
 export async function closeSlaTimerQueue(): Promise<void> {
   if (!queue) return;
-  const client = queue.client;
   try {
     await queue.close();
+  } catch {
+    /* already closed */
   } finally {
-    try {
-      (await client).disconnect();
-    } finally {
-      queue = null;
-    }
+    queue = null;
   }
 }
 

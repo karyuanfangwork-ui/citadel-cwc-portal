@@ -11,10 +11,10 @@ jest.mock('puppeteer', () => ({
 }));
 
 afterAll(async () => {
-  // The tests were never the slow part: 108 suites and 1256 tests pass in about
-  // seven seconds. Jest then sat on open handles for 1h40m. Close them in
-  // dependency order and tolerate absence — not every suite imports every
-  // subsystem, and a teardown that throws is worse than one that no-ops.
+  // Close background subsystems in dependency order and tolerate absence — not
+  // every suite imports every subsystem, and a teardown that throws is worse
+  // than one that no-ops. An aborted afterAll abandons this file's Redis and
+  // Prisma handles, which is what kept Jest alive before Phase 8b.
   try {
     const { shutdownScheduler } = await import('../services/scheduler.service');
     await shutdownScheduler();
@@ -38,26 +38,14 @@ afterAll(async () => {
 
   try {
     const { closeAllRedisClients } = await import('../utils/redis');
-    await closeAllRedisClients();
-    // Some modules start a fire-and-forget Redis connect during import. Yield
-    // once so that connect callbacks cannot recreate open sockets after the
-    // first shutdown pass.
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    // closeAllRedisClients() drains five event-loop turns internally, which
+    // covers module-level clients that finish connecting on a later turn.
+    // Phase 8b: one pass is enough now that queue closers no longer force
+    // connections during teardown.
     await closeAllRedisClients();
   } catch {
     /* redis not loaded by this suite */
   }
 
   await prisma.$disconnect();
-
-  // A few auth modules create their Redis clients while their test file's
-  // afterAll hooks are still unwinding. Close once more after Prisma is down
-  // so late module-import callbacks cannot leave a TCP handle behind.
-  try {
-    const { closeAllRedisClients } = await import('../utils/redis');
-    await new Promise<void>((resolve) => setTimeout(resolve, 25));
-    await closeAllRedisClients();
-  } catch {
-    /* best-effort final teardown */
-  }
 });

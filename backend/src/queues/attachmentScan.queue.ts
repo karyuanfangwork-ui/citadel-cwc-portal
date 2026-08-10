@@ -21,19 +21,12 @@ export const attachmentScanQueue = new Queue<AttachmentScanJobData>(ATTACHMENT_S
     },
 });
 
-/** Close the BullMQ-owned attachment-scan queue connection. */
+/** Close the attachment-scan queue. BullMQ owns the connection, so close() is sufficient. */
 export async function closeAttachmentScanQueue(): Promise<void> {
-    const client = attachmentScanQueue.client;
     try {
         await attachmentScanQueue.close();
     } catch {
         /* already closed */
-    } finally {
-        try {
-            (await client).disconnect();
-        } catch {
-            /* client was never initialized */
-        }
     }
 }
 

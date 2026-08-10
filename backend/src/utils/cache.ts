@@ -130,3 +130,31 @@ export async function cacheSetJSON<T>(key: string, value: T, ttlSec: number): Pr
     logger.warn('Cache: JSON stringify failed', { key, error: String(err) });
   }
 }
+
+/**
+ * Close the cache Redis client.
+ *
+ * This client is created directly rather than through createRedisClient(), so
+ * it is not in the shared client registry and closeAllRedisClients() cannot
+ * reach it. Reset the lazy-connection state so the module remains reusable
+ * after teardown.
+ */
+export async function closeCacheRedis(): Promise<void> {
+  if (!redis) {
+    connectAttempted = false;
+    redisAvailable = false;
+    return;
+  }
+
+  try {
+    // disconnect() is unconditional and clears reconnect timers, unlike quit()
+    // which can wait for a reply if Redis is already unreachable.
+    redis.disconnect();
+  } catch {
+    /* already closed */
+  }
+
+  redis = null;
+  redisAvailable = false;
+  connectAttempted = false;
+}

@@ -16,6 +16,10 @@ export async function shutdownAllQueues(): Promise<void> {
       const m = await import('./attachmentScan.queue');
       return m.closeAttachmentScanQueue();
     }],
+    ['cache redis', async () => {
+      const m = await import('../utils/cache');
+      return m.closeCacheRedis();
+    }],
     ['sla timer queue', async () => {
       const m = await import('./timer.queue');
       return m.closeSlaTimerQueue();

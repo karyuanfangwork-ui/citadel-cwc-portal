@@ -45,23 +45,19 @@ const queues = {
 };
 
 /**
- * Close all credit queues. The shared Redis client is owned by the Redis
- * client registry and is closed separately by closeAllRedisClients().
+ * Close all credit queues.
+ *
+ * Each Queue is constructed with a connection config object, so BullMQ builds
+ * and owns its own ioredis instance — queue.close() disposes of it. Do not read
+ * queue.client: that getter forces a connection during teardown.
  */
 export async function closeCreditQueues(): Promise<void> {
   await Promise.all(
     Object.values(queues).map(async (queue) => {
-      const client = queue.client;
       try {
         await queue.close();
       } catch {
         /* already closed */
-      } finally {
-        try {
-          (await client).disconnect();
-        } catch {
-          /* client was never initialized */
-        }
       }
     }),
   );
