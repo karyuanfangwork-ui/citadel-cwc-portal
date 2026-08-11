@@ -173,6 +173,7 @@ model User {
   // CRM Relations
   crmOwnedAccounts                     CrmAccount[]                  @relation("CrmAccountOwner")
   crmOwnedLeads                        CrmLead[]                     @relation("CrmLeadOwner")
+  crmLeadDocuments                     CrmLeadDocument[]             @relation("CrmLeadDocumentUploader")
   crmOwnedOpportunities                CrmOpportunity[]              @relation("CrmOpportunityOwner")
   crmActivities                        CrmActivity[]                 @relation("CrmActivityUser")
   crmNotes                             CrmNote[]                     @relation("CrmNoteAuthor")
@@ -2640,9 +2641,12 @@ model CrmLead {
   contactEmail String? @map("contact_email") @db.VarChar(255)
   contactPhone String? @map("contact_phone") @db.VarChar(50)
   companyName  String? @map("company_name") @db.VarChar(255)
+  industry     String? @db.VarChar(255)
+  address      String? @db.Text
 
   estimatedValue Decimal? @map("estimated_value") @db.Decimal(15, 2)
   description    String?  @db.Text
+  remark        String?  @db.Text
   lostReason     String?  @map("lost_reason") @db.Text
 
   // Conversion tracking
@@ -2670,6 +2674,7 @@ model CrmLead {
   contact      CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
   activities   CrmActivity[] @relation("ActivityLead")
   notes        CrmNote[]     @relation("NoteLead")
+  documents    CrmLeadDocument[]
   territory    CrmTerritory? @relation("LeadTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
   customFields Json?         @map("custom_fields")
 
@@ -2681,6 +2686,32 @@ model CrmLead {
   @@index([tenantId])
   @@index([tenantId, status]) // P2-08: composite for lead pipeline queries
   @@map("crm_leads")
+}
+
+// CRM Lead Documents — PDF supporting documents attached to a lead
+model CrmLeadDocument {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String?   @map("tenant_id") @db.Uuid
+  leadId          String    @map("lead_id") @db.Uuid
+  uploadedById    String    @map("uploaded_by_id") @db.Uuid
+  fileName        String    @map("file_name") @db.VarChar(255)
+  storageKey      String    @map("storage_key") @db.VarChar(500)
+  mimeType        String    @map("mime_type") @db.VarChar(100)
+  fileSize        Int       @map("file_size")
+  contentHash     String    @map("content_hash") @db.Char(64)
+  scanStatus      String    @default("PENDING") @map("scan_status") @db.VarChar(20)
+  scanCompletedAt DateTime? @map("scan_completed_at") @db.Timestamp(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamp(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  lead       CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation("CrmLeadDocumentUploader", fields: [uploadedById], references: [id])
+
+  @@index([leadId, deletedAt])
+  @@index([tenantId])
+  @@index([uploadedById])
+  @@map("crm_lead_documents")
 }
 
 // CRM Lead Scoring Rules

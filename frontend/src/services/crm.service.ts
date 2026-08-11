@@ -49,7 +49,8 @@ export interface CrmLead {
   id: string; title: string; status: LeadStatus; source: LeadSource;
   accountId: string | null; contactId: string | null; ownerId: string;
   contactName: string | null; contactEmail: string | null; contactPhone: string | null;
-  companyName: string | null; estimatedValue: number | null; description: string | null;
+  companyName: string | null; industry: string | null; address: string | null;
+  estimatedValue: number | null; description: string | null; remark: string | null;
   followUpDate: string | null; followUpNote: string | null;
   lostReason: string | null; convertedAt: string | null; convertedToOppId: string | null;
   // AI scoring fields
@@ -186,6 +187,16 @@ export interface CrmNote {
   leadId: string | null; opportunityId: string | null;
   isPinned: boolean; createdAt: string; updatedAt: string;
   author?: UserRef;
+}
+
+export interface CrmLeadDocument {
+  id: string; leadId: string; fileName: string; mimeType: 'application/pdf';
+  fileSize: number; scanStatus: string; scanCompletedAt: string | null;
+  createdAt: string; uploadedBy?: UserRef;
+}
+
+export interface CrmLeadDocumentList {
+  documents: CrmLeadDocument[]; count: number; maxCount: number;
 }
 
 export interface Pagination { page: number; limit: number; total: number; totalPages: number; }
@@ -553,6 +564,30 @@ const crmService = {
   },
   async deleteNote(id: string) { await api.delete(`/crm/notes/${id}`); },
 
+  // Lead documents
+  async listLeadDocuments(leadId: string) {
+    const res = await api.get(`/crm/leads/${leadId}/documents`);
+    return res.data.data as CrmLeadDocumentList;
+  },
+  async uploadLeadDocuments(leadId: string, files: File[], onUploadProgress?: (progress: number) => void) {
+    const formData = new FormData();
+    files.forEach(file => formData.append('documents', file));
+    const res = await api.post(`/crm/leads/${leadId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: event => {
+        if (event.total) onUploadProgress?.(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+    return res.data.data as CrmLeadDocumentList;
+  },
+  async deleteLeadDocument(leadId: string, documentId: string) {
+    await api.delete(`/crm/leads/${leadId}/documents/${documentId}`);
+  },
+  async downloadLeadDocument(leadId: string, documentId: string) {
+    const res = await api.get(`/crm/leads/${leadId}/documents/${documentId}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
+
   // Trust Products
   async listTrustProducts(params?: Record<string, string>) {
     const res = await api.get('/crm/trust-products', { params });
@@ -840,7 +875,7 @@ const crmService = {
   },
   async executeImport(jobId: string) {
     const res = await api.post(`/crm/import/${jobId}/execute`);
-    return res.data.data as { importedRows: number; failedRows: number; errors: Array<{ row: number; error: string }> };
+    return res.data.data as { importedRows: number; duplicateRows: number; failedRows: number; errors: Array<{ row: number; error: string }> };
   },
   async getImportStatus(jobId: string) {
     const res = await api.get(`/crm/import/${jobId}/status`);

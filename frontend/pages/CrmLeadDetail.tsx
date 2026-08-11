@@ -11,6 +11,7 @@ import { hasPermission } from '../src/utils/permissions';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import CrmLeadDocuments from '../src/components/crm/CrmLeadDocuments';
 import { useAnalyzeNote, useDraftMessage, useLeadSummary, useLeadScore, useNextBestAction } from '../src/hooks/useCrmAi';
 import { INDUSTRY_OPTIONS, INDUSTRY_LABELS, fetchIndustryOptions } from '../src/components/crm/crmConstants';
 
@@ -287,7 +288,9 @@ const CrmLeadDetail = () => {
       contactEmail: lead.contactEmail ?? '',
       contactPhone: lead.contactPhone ?? '',
       companyName: lead.companyName ?? '',
-      industry: (lead.account as any)?.industry ?? '',
+      industry: lead.industry ?? (lead.account as any)?.industry ?? '',
+      address: lead.address ?? '',
+      remark: lead.remark ?? '',
       source: lead.source ?? 'OTHER',
       estimatedValue: lead.estimatedValue ?? '',
       description: lead.description ?? '',
@@ -312,11 +315,9 @@ const CrmLeadDetail = () => {
         else payload[k] = v;
       }
       // Clear fields intentionally set to empty
-      for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'description', 'followUpNote']) {
+      for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'industry', 'address', 'remark', 'description', 'followUpNote']) {
         if (editForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
       }
-      // Industry lives on CrmAccount, not CrmLead — always send it so the backend can update/create the account
-      payload.industry = editForm.industry ?? '';
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
       await crmService.updateLead(id, payload);
       setShowEdit(false);
@@ -399,6 +400,9 @@ const CrmLeadDetail = () => {
   };
   const priorityDotClass = (priority?: string) =>
     priority === 'high' ? 'bg-[#ba1a1a]' : priority === 'medium' ? 'bg-amber-500' : 'bg-[#45464d]';
+  const leadIndustryOptions = editForm.industry && !industryOptions.some(o => o.value === editForm.industry)
+    ? [{ value: editForm.industry, label: editForm.industry }, ...industryOptions]
+    : industryOptions;
 
   return (
     <>
@@ -875,7 +879,7 @@ const CrmLeadDetail = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Industry</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{(lead.account as any)?.industry ? INDUSTRY_LABELS[(lead.account as any).industry] || (lead.account as any).industry.replace(/_/g, ' ') : 'Not specified'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.industry || (lead.account as any)?.industry ? INDUSTRY_LABELS[lead.industry || (lead.account as any).industry] || (lead.industry || (lead.account as any).industry).replace(/_/g, ' ') : 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Lead Source</p>
@@ -894,6 +898,10 @@ const CrmLeadDetail = () => {
                   <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.companyName || 'Not specified'}</p>
                 </div>
                 <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Address</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30] whitespace-pre-wrap">{lead.address || 'Not specified'}</p>
+                </div>
+                <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Date</p>
                   <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.followUpDate ? formatDate(lead.followUpDate) : 'No follow-up scheduled'}</p>
                 </div>
@@ -908,6 +916,12 @@ const CrmLeadDetail = () => {
                       }}
                     >{lead.followUpNote}</ReactMarkdown>
                   </div>
+                </div>
+              ) : null}
+              {lead.remark ? (
+                <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Remark</p>
+                  <p className="text-[13px] leading-relaxed text-[#45464d] whitespace-pre-wrap">{lead.remark}</p>
                 </div>
               ) : null}
               {lead.lostReason ? (
@@ -1117,6 +1131,7 @@ const CrmLeadDetail = () => {
       {/* Notes tab */}
       {activeTab === 'notes' && (
         <div className="space-y-3">
+          {lead && <CrmLeadDocuments leadId={lead.id} canWrite={hasPermission(user, 'crm:write')} />}
           {notes.length === 0 && <p className="text-[#45464d] text-sm">No notes yet. Click "Add Note" to add one.</p>}
           {notes.map((n: CrmNote) => (
             <div key={n.id} className={`bg-white border rounded-xl p-4 ${n.isPinned ? 'border-amber-300' : 'border-[#e2e8f0]'}`}>
@@ -1447,10 +1462,15 @@ const CrmLeadDetail = () => {
                   <select value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
                     className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Not specified</option>
-                    {industryOptions.map(o => (
+                    {leadIndustryOptions.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Address</label>
+                  <textarea rows={2} value={editForm.address ?? ''} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                    className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1511,6 +1531,11 @@ const CrmLeadDetail = () => {
               <div>
                 <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Qualification Notes</label>
                 <textarea rows={5} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Remark</label>
+                <textarea rows={3} value={editForm.remark ?? ''} onChange={e => setEditForm(f => ({ ...f, remark: e.target.value }))}
                   className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
               </div>
               <div className="flex justify-end gap-3 pt-2">

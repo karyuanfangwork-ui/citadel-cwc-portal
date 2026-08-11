@@ -20,9 +20,10 @@ const signToken = (userId: string, email: string) =>
 function makeCsvBuffer(rows: Record<string, string>[]): Buffer {
   if (rows.length === 0) throw new Error('rows must not be empty');
   const headers = Object.keys(rows[0]);
+  const escape = (value: string) => /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
   const lines = [
     headers.join(','),
-    ...rows.map((row) => headers.map((header) => row[header] ?? '').join(',')),
+    ...rows.map((row) => headers.map((header) => escape(row[header] ?? '')).join(',')),
   ];
   return Buffer.from(lines.join('\n'), 'utf-8');
 }
@@ -547,12 +548,18 @@ describe('Import pipeline - full happy path', () => {
         'Contact Name': 'Alice Import',
         'Contact Email': `alice-${suffix}@import.test`,
         'Company Name': `Import Co A ${suffix}`,
+        Industry: 'Financial Services',
+        Address: 'Level 10, Import Tower\nKuala Lumpur',
+        Remark: `Priority prospect ${suffix}`,
       },
       {
         Title: `Imported Lead B ${suffix}`,
         'Contact Name': 'Bob Import',
         'Contact Email': `bob-${suffix}@import.test`,
         'Company Name': `Import Co B ${suffix}`,
+        Industry: 'Technology',
+        Address: 'Cyberjaya',
+        Remark: `Follow up next week ${suffix}`,
       },
     ]);
 
@@ -580,6 +587,9 @@ describe('Import pipeline - full happy path', () => {
           'Contact Name': 'contactName',
           'Contact Email': 'contactEmail',
           'Company Name': 'companyName',
+          Industry: 'industry',
+          Address: 'address',
+          Remark: 'remark',
         },
       });
 
@@ -596,6 +606,60 @@ describe('Import pipeline - full happy path', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.importedRows).toBeGreaterThan(0);
     expect(res.body.data.failedRows).toBe(0);
+
+    const importedLead = await prisma.crmLead.findFirst({
+      where: { title: `Imported Lead A ${suffix}` },
+    });
+    expect(importedLead).toMatchObject({
+      industry: 'Financial Services',
+      address: 'Level 10, Import Tower\nKuala Lumpur',
+      remark: `Priority prospect ${suffix}`,
+      description: null,
+    });
+  });
+
+  it('skips duplicate leads when the same file is imported again', async () => {
+    const csvBuffer = makeCsvBuffer([
+      {
+        Title: `Imported Lead A ${suffix}`,
+        'Contact Name': 'Alice Import',
+        'Contact Email': `alice-${suffix}@import.test`,
+        'Company Name': `Import Co A ${suffix}`,
+        Industry: 'Financial Services',
+      },
+      {
+        Title: `Imported Lead B ${suffix}`,
+        'Contact Name': 'Bob Import',
+        'Contact Email': `bob-${suffix}@import.test`,
+        'Company Name': `Import Co B ${suffix}`,
+        Industry: 'Technology',
+      },
+    ]);
+    const uploadRes = await request(app)
+      .post('/api/v1/crm/import/upload')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('entity', 'LEAD')
+      .attach('file', csvBuffer, { filename: `leads-repeat-${suffix}.csv`, contentType: 'text/csv' });
+    expect(uploadRes.status).toBe(200);
+
+    const repeatedJobId = uploadRes.body.data.jobId;
+    const mappingRes = await request(app)
+      .post(`/api/v1/crm/import/${repeatedJobId}/mapping`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ columnMapping: { Title: 'title', 'Contact Name': 'contactName', 'Contact Email': 'contactEmail', 'Company Name': 'companyName', Industry: 'industry' } });
+    expect(mappingRes.status).toBe(200);
+
+    const executeRes = await request(app)
+      .post(`/api/v1/crm/import/${repeatedJobId}/execute`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(executeRes.status).toBe(200);
+    expect(executeRes.body.data).toMatchObject({ importedRows: 0, duplicateRows: 2, failedRows: 0 });
+    expect(executeRes.body.data.errors).toHaveLength(0);
+
+    const matchingLeads = await prisma.crmLead.findMany({
+      where: { title: { in: [`Imported Lead A ${suffix}`, `Imported Lead B ${suffix}`] } },
+    });
+    expect(matchingLeads).toHaveLength(2);
   });
 
   it('returns COMPLETED status after execution', async () => {

@@ -27,6 +27,9 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'contactEmail', label: 'Contact Email', required: false, type: 'string' },
     { key: 'contactPhone', label: 'Contact Phone', required: false, type: 'string' },
     { key: 'companyName', label: 'Company Name', required: false, type: 'string' },
+    { key: 'industry', label: 'Industry', required: false, type: 'string' },
+    { key: 'address', label: 'Address', required: false, type: 'string' },
+    { key: 'remark', label: 'Remark', required: false, type: 'string' },
     { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'], default: 'OTHER' },
     { key: 'estimatedValue', label: 'Estimated Value', required: false, type: 'number' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
@@ -75,7 +78,8 @@ const EXPORT_COLUMN_ALIASES: Record<string, Record<string, string>> = {
   LEAD: {
     id: 'Lead ID', title: 'Title', status: 'Status', source: 'Source',
     contactName: 'Contact Name', contactEmail: 'Contact Email', contactPhone: 'Contact Phone',
-    companyName: 'Company Name', estimatedValue: 'Estimated Value', description: 'Description',
+    companyName: 'Company Name', industry: 'Industry', address: 'Address', remark: 'Remark',
+    estimatedValue: 'Estimated Value', description: 'Description',
     ownerId: 'Owner ID', createdAt: 'Created At', updatedAt: 'Updated At',
     owner_id: 'Owner ID', owner_firstName: 'Owner First Name', owner_lastName: 'Owner Last Name', owner_email: 'Owner Email',
   },
@@ -121,6 +125,29 @@ const EXPORT_EXCLUDE_FIELDS: Record<string, string[]> = {
 
 const MAX_ROWS = 10000;
 
+function normalizeIdentityValue(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizePhone(value: unknown): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function leadDuplicateKey(data: Record<string, unknown>): string | null {
+  const email = normalizeIdentityValue(data.contactEmail);
+  if (email) return `email:${email}`;
+
+  const phone = normalizePhone(data.contactPhone);
+  const company = normalizeIdentityValue(data.companyName);
+  if (phone && company) return `phone-company:${phone}:${company}`;
+
+  const title = normalizeIdentityValue(data.title);
+  const contactName = normalizeIdentityValue(data.contactName);
+  if (title && company && contactName) return `title-company-contact:${title}:${company}:${contactName}`;
+
+  return null;
+}
+
 // ============================================================================
 // IMPORT SERVICE
 // ============================================================================
@@ -153,6 +180,7 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'subject': 'title', 'dealname': 'name', 'opportunityname': 'name',
         'dealvalue': 'value', 'amount': 'value', 'revenue': 'annualRevenue',
         'estimatedvalue': 'estimatedValue', 'leadvalue': 'estimatedValue',
+        'remarks': 'remark', 'note': 'remark', 'notes': 'remark',
         'closingdate': 'expectedCloseDate', 'closedate': 'expectedCloseDate',
         'industrytype': 'industry', 'companysize': 'companySize', 'employees': 'companySize',
         'accounttype': 'accountType', 'type': 'accountType', 'customertype': 'accountType',
@@ -160,7 +188,7 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'regno': 'registrationNumber', 'registrationno': 'registrationNumber', 'regnumber': 'registrationNumber',
         'taxno': 'taxNumber', 'taxid': 'taxNumber',
         'bankacc': 'bankAccount', 'bankaccountno': 'bankAccount',
-        'addressline': 'address', 'street': 'address',
+        'addressline': 'address', 'registeredaddress': 'address', 'street': 'address',
         'leadsource': 'source',
         'jobtitle': 'jobTitle', 'position': 'jobTitle', 'role': 'jobTitle',
         'nric': 'nricPassport', 'passport': 'nricPassport',
@@ -289,11 +317,12 @@ export async function validateImportMapping(
   return { valid: errors.length < rawData.length * 0.5, errors: errors.slice(0, 50), warnings };
 }
 
-export async function executeImport(jobId: string, userId: string): Promise<{ importedRows: number; failedRows: number; errors: { row: number; error: string }[] }> {
+export async function executeImport(jobId: string, userId: string): Promise<{ importedRows: number; duplicateRows: number; failedRows: number; errors: { row: number; error: string }[] }> {
   const job = await prisma.crmImportJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error('Import job not found');
   if (job.createdBy !== userId) throw new Error('Not authorized');
   if (job.status === 'IMPORTING') throw new Error('Import is already in progress');
+  if (job.status === 'COMPLETED' || job.status === 'FAILED') throw new Error('Import job has already been processed');
 
   await prisma.crmImportJob.update({ where: { id: jobId }, data: { status: 'IMPORTING' } });
 
@@ -301,8 +330,21 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
   const columnMapping = (job.columnMapping as Record<string, string>) || {};
   const fields = ENTITY_FIELDS[job.entity as keyof typeof ENTITY_FIELDS] || [];
   let importedRows = 0;
+  let duplicateRows = 0;
   let failedRows = 0;
   const allErrors: { row: number; error: string }[] = [];
+
+  const existingLeadKeys = new Set<string>();
+  if (job.entity === 'LEAD') {
+    const existingLeads = await prisma.crmLead.findMany({
+      where: { ownerId: userId, deletedAt: null },
+      select: { title: true, contactName: true, contactEmail: true, contactPhone: true, companyName: true },
+    });
+    for (const lead of existingLeads) {
+      const key = leadDuplicateKey(lead);
+      if (key) existingLeadKeys.add(key);
+    }
+  }
 
   // Get default pipeline for opportunities
   let defaultPipeline: { id: string; stages: { id: string; name: string; displayOrder: number }[] } | null = null;
@@ -347,7 +389,12 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
       }
 
       switch (job.entity) {
-        case 'LEAD':
+        case 'LEAD': {
+          const duplicateKey = leadDuplicateKey(data);
+          if (duplicateKey && existingLeadKeys.has(duplicateKey)) {
+            duplicateRows++;
+            continue;
+          }
           await prisma.crmLead.create({
             data: {
               title: String(data.title || 'Imported Lead'),
@@ -355,14 +402,19 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
               contactEmail: data.contactEmail ? String(data.contactEmail) : null,
               contactPhone: data.contactPhone ? String(data.contactPhone) : null,
               companyName: data.companyName ? String(data.companyName) : null,
+              industry: data.industry ? String(data.industry).trim() : null,
+              address: data.address ? String(data.address) : null,
               source: (data.source as LeadSource) || LeadSource.OTHER,
               estimatedValue: data.estimatedValue ? Number(data.estimatedValue) : undefined,
               description: data.description ? String(data.description) : null,
+              remark: data.remark ? String(data.remark) : null,
               ownerId: userId,
               status: 'NEW',
             },
           });
+          if (duplicateKey) existingLeadKeys.add(duplicateKey);
           break;
+        }
         case 'CONTACT': {
           let accountId = data.accountId ? String(data.accountId) : null;
           if (!accountId) {
@@ -468,7 +520,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
   await prisma.crmImportJob.update({
     where: { id: jobId },
     data: {
-      status: importedRows > 0 ? 'COMPLETED' : 'FAILED',
+      status: rawData.length > 0 && failedRows < rawData.length ? 'COMPLETED' : 'FAILED',
       importedRows,
       failedRows,
       errorReport: allErrors.length > 0 ? (allErrors as any) : undefined,
@@ -476,7 +528,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
     },
   });
 
-  return { importedRows, failedRows, errors: allErrors.slice(0, 50) };
+  return { importedRows, duplicateRows, failedRows, errors: allErrors.slice(0, 50) };
 }
 
 export async function getImportStatus(jobId: string, userId: string) {

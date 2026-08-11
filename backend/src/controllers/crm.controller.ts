@@ -25,6 +25,7 @@ import * as anomalyService from '../services/crm-anomaly.service';
 import * as customFieldsService from '../services/crm-custom-fields.service';
 import * as duplicateService from '../services/crm-duplicate.service';
 import { broadcast } from '../utils/sseClients';
+import * as leadDocumentService from '../services/crm-lead-document.service';
 
 import prisma from '../utils/prisma';
 
@@ -636,24 +637,9 @@ class CrmController {
     });
     if (!existing) throw new AppError('Lead not found', 404);
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
-    const { followUpDate, industry, ...rest } = req.body;
+    const { followUpDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
-    // Handle industry — stored on CrmAccount, not CrmLead
-    if (industry !== undefined) {
-      delete data.industry; // Don't try to write industry to CrmLead
-      if (existing.accountId) {
-        // Update existing account's industry
-        await prisma.crmAccount.update({ where: { id: existing.accountId }, data: { industry: industry || null } });
-      } else if (industry) {
-        // No account yet — create one from the lead's company name
-        const accountName = rest.companyName || existing.companyName || existing.contactName || 'Unnamed Account';
-        const account = await prisma.crmAccount.create({
-          data: { name: accountName, industry, ownerId: existing.ownerId, tenantId: existing.tenantId },
-        });
-        data.accountId = account.id;
-      }
-    }
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect }, account: { select: { id: true, name: true, industry: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
@@ -689,6 +675,44 @@ class CrmController {
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmLead', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Lead deleted' });
     broadcast('crm_update', { type: 'lead.deleted', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
+  });
+
+  listLeadDocuments = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const data = await leadDocumentService.listLeadDocuments(req.params.id as string, visibleOwnerIds);
+    res.json({ status: 'success', data });
+  });
+
+  uploadLeadDocuments = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const files = Array.isArray(req.files) ? req.files as Express.Multer.File[] : [];
+    const data = await leadDocumentService.uploadLeadDocuments(req.params.id as string, req.user!.id, files, visibleOwnerIds);
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmLeadDocument', resourceId: req.params.id as string, newValues: { fileCount: files.length } } });
+    res.status(201).json({ status: 'success', data });
+    broadcast('crm_update', { type: 'lead.documents.created', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
+  });
+
+  downloadLeadDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const { document, stream } = await leadDocumentService.getLeadDocumentStream(req.params.id as string, req.params.documentId as string, visibleOwnerIds);
+    const safeFileName = document.fileName.replace(/[\\"\r\n]/g, '_');
+    res.status(200);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', document.fileSize);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(502);
+      res.end();
+    });
+    stream.pipe(res);
+  });
+
+  deleteLeadDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const document = await leadDocumentService.deleteLeadDocument(req.params.id as string, req.params.documentId as string, visibleOwnerIds);
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmLeadDocument', resourceId: document.id } });
+    res.json({ status: 'success', message: 'Document deleted' });
+    broadcast('crm_update', { type: 'lead.documents.deleted', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== OPPORTUNITIES ========

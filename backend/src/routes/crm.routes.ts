@@ -128,7 +128,21 @@ router.get('/audit/:entityType/:entityId', requirePermission('crm:read'), crmCon
 
 // ======== IMPORT / EXPORT ========
 import multer from 'multer';
+import path from 'path';
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+const leadDocumentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    const validPdf = file.mimetype === 'application/pdf' && path.extname(file.originalname).toLowerCase() === '.pdf';
+    if (!validPdf) return cb(new Error('Only PDF documents are allowed'));
+    cb(null, true);
+  },
+});
+router.get('/leads/:id/documents', requirePermission('crm:read'), crmController.listLeadDocuments);
+router.post('/leads/:id/documents', requirePermission('crm:write'), leadDocumentUpload.array('documents', 5), crmController.uploadLeadDocuments);
+router.get('/leads/:id/documents/:documentId/download', requirePermission('crm:read'), crmController.downloadLeadDocument);
+router.delete('/leads/:id/documents/:documentId', requirePermission('crm:write'), crmController.deleteLeadDocument);
 router.post('/import/upload', requirePermission('crm:admin'), importUpload.single('file'), crmController.uploadImportFile);
 router.get('/import/field-definitions', requirePermission('crm:read'), crmController.getFieldDefinitions);
 router.get('/import/template', requirePermission('crm:read'), crmController.downloadImportTemplate);

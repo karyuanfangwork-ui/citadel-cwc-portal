@@ -77,7 +77,7 @@ const CrmImportExport = () => {
   const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ importedRows: number; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -542,7 +542,7 @@ const CrmImportExport = () => {
                   <h3 className="text-base font-bold text-text-primary">Import Complete</h3>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-4 gap-4 mb-4">
                   <div className="bg-emerald-50 rounded-cwc-lg p-4 text-center">
                     <div className="text-2xl font-bold text-emerald-600">{importResult.importedRows}</div>
                     <div className="text-xs text-emerald-700 font-medium">Imported</div>
@@ -550,6 +550,10 @@ const CrmImportExport = () => {
                   <div className={`rounded-cwc-lg p-4 text-center ${importResult.failedRows > 0 ? 'bg-red-50' : 'bg-bg-subtle'}`}>
                     <div className={`text-2xl font-bold ${importResult.failedRows > 0 ? 'text-red-600' : 'text-text-secondary'}`}>{importResult.failedRows}</div>
                     <div className="text-xs text-text-secondary font-medium">Failed</div>
+                  </div>
+                  <div className={`rounded-cwc-lg p-4 text-center ${importResult.duplicateRows > 0 ? 'bg-amber-50' : 'bg-bg-subtle'}`}>
+                    <div className={`text-2xl font-bold ${importResult.duplicateRows > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>{importResult.duplicateRows}</div>
+                    <div className="text-xs text-text-secondary font-medium">Duplicates skipped</div>
                   </div>
                   <div className="bg-bg-subtle rounded-cwc-lg p-4 text-center">
                     <div className="text-2xl font-bold text-text-primary">{totalRows}</div>
