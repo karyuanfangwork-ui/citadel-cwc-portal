@@ -17,7 +17,6 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   { to: '/my-requests',   label: 'My Requests',   icon: 'assignment',      group: 'primary', show: true },
   { to: '/announcements', label: 'Announcements', icon: 'campaign',        group: 'primary', show: true },
   { to: '/approvals',     label: 'Approvals',     icon: 'approval',        group: 'primary', show: hasAnyPermission(user, ['request:approve', 'credit:approve']) },
-  { to: '/inbox',         label: 'Notifications', icon: 'notifications',   group: 'primary', show: true },
   { to: '/agent',         label: 'Support Queue', icon: 'support_agent',   group: 'primary', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
 
   // ── Service Desks ─────────────────────────────────────────────────
@@ -30,7 +29,7 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   // ── Tools ─────────────────────────────────────────────────────────
   { to: '/assets', label: 'IT Assets',     icon: 'devices',      group: 'tools', show: hasAnyPermission(user, ['asset:read']) },
   { to: '/crm',    label: 'CRM',           icon: 'group',        group: 'tools', show: hasAnyPermission(user, ['crm:read']) },
-  { to: '/esm',    label: 'Executive Services', icon: 'business_center', group: 'tools', show: true },
+  { to: '/esm',    label: 'Executive Services', icon: 'business_center', group: 'service-desks', show: true },
   { to: '/credit', label: 'Credit',        icon: 'account_balance', group: 'tools', show: hasAnyPermission(user, ['credit:read']) },
   { to: '/kb',     label: 'Knowledge Base', icon: 'menu_book',   group: 'tools', show: isFeatureEnabled('kb') },
 

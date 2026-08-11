@@ -14,7 +14,7 @@ describe('shared portal navigation', () => {
     const links = buildNavLinks(user(['crm:read', 'credit:read']));
     expect(links.find((link) => link.to === '/esm')).toMatchObject({
       label: 'Executive Services',
-      group: 'tools',
+      group: 'service-desks',
       show: true,
     });
     expect(links.find((link) => link.to === '/crm')).toMatchObject({ show: true });
@@ -29,6 +29,11 @@ describe('shared portal navigation', () => {
     const paths = buildNavLinks(user(['credit:read', 'credit:create'])).map((link) => link.to);
     expect(paths).not.toContain('/credit/borrowers');
     expect(paths).not.toContain('/credit/borrowers/new');
+  });
+
+  it('keeps notifications out of the global rail because the header bell is the access point', () => {
+    const paths = buildNavLinks(user()).map((link) => link.to);
+    expect(paths).not.toContain('/inbox');
   });
 
   it('shows My Approvals only with credit:approve', () => {

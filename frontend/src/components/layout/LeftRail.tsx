@@ -58,26 +58,6 @@ export default function LeftRail({ navLinks, isActive, className = '' }: LeftRai
 
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto py-2" aria-label="Main navigation">
-        {/* New Request CTA */}
-        <div className="px-2 pb-1">
-          <Link
-            to="/it"
-            title="New Request"
-            className={`flex items-center gap-2 rounded-cwc-md bg-brand-700 text-white text-sm font-bold h-9 transition-colors hover:bg-brand-800 ${
-              expanded ? 'px-3' : 'px-0 justify-center'
-            }`}
-          >
-            <span className="material-symbols-outlined text-lg flex-shrink-0">add_circle</span>
-            <span
-              className={`whitespace-nowrap overflow-hidden transition-all duration-200 ${
-                expanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
-              }`}
-            >
-              New Request
-            </span>
-          </Link>
-        </div>
-
         {groups.map((group) => {
           const links = visibleLinks.filter((l) => l.group === group);
           if (links.length === 0) return null;
