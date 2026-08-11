@@ -12,9 +12,9 @@ interface CreditNavItem {
 
 /** All nav items in desired display order. The component will show as many as fit, overflow goes into "More". */
 const ALL_ITEMS: CreditNavItem[] = [
-  { to: '/credit', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/credit/borrowers', label: 'Borrowers', icon: 'person' },
-  { to: '/credit/applications', label: 'Applications', icon: 'description' },
+  { to: '/credit', label: 'Dashboard', icon: 'dashboard', permission: 'credit:read' },
+  { to: '/credit/borrowers', label: 'Borrowers', icon: 'person', permission: 'credit:read' },
+  { to: '/credit/applications', label: 'Applications', icon: 'description', permission: 'credit:read' },
   { to: '/credit/group-exposure', label: 'Group Exposure', icon: 'scatter_plot', permission: 'credit:read' },
   { to: '/credit/approvals', label: 'My Approvals', icon: 'approval', permission: 'credit:approve' },
   { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
@@ -46,6 +46,15 @@ const CreditNav: React.FC = () => {
 
   // Close dropdown on route change
   useEffect(() => { setOpen(false); }, [location.pathname]);
+
+  // Escape closes the overflow menu without moving focus away from the nav.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   const isActive = (path: string) => {
     if (path === '/credit') return location.pathname === '/credit';
@@ -150,6 +159,7 @@ const CreditNav: React.FC = () => {
             key={item.to}
             to={item.to}
             ref={(node) => itemRef(node, item.to)}
+            aria-current={isActive(item.to) ? 'page' : undefined}
             className={linkCls(isActive(item.to))}
             style={{ textDecoration: 'none' }}
           >
@@ -162,6 +172,9 @@ const CreditNav: React.FC = () => {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setOpen(v => !v)}
+              aria-haspopup="menu"
+              aria-expanded={open}
+              aria-controls="credit-nav-more-menu"
               className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 overflowHasActive
                   ? 'text-[#0052cc] border-[#0052cc]'
@@ -176,11 +189,13 @@ const CreditNav: React.FC = () => {
             </button>
 
             {open && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg py-1 z-[70]">
+              <div id="credit-nav-more-menu" role="menu" className="absolute right-0 top-full mt-1 w-48 bg-white border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg py-1 z-[70]">
                 {overflowItems.map(item => (
                   <Link
                     key={item.to}
                     to={item.to}
+                    role="menuitem"
+                    aria-current={isActive(item.to) ? 'page' : undefined}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                       isActive(item.to)
                         ? 'text-[#0052cc] bg-blue-50'

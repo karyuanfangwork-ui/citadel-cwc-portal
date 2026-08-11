@@ -21,6 +21,7 @@ export interface AuthRequest extends Request {
         permissions: string[];
         agentTeam?: string | null;
         departmentIds?: string[];
+        branchId?: string | null;
         tenantId?: string;
         entityId?: string | null; // P5-02: catalog entitlement filtering
         // P1-8 — MFA fields for requireMfa middleware
@@ -122,6 +123,7 @@ export const authenticate = async (
             permissions,
             agentTeam: user.agentTeam,
             departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
+            branchId: user.branchId,
             tenantId: user.tenantId ?? undefined,
             entityId: user.entityId ?? undefined, // P5-02
             // P1-8 — MFA fields for requireMfa middleware
@@ -231,6 +233,7 @@ export const optionalAuth = async (
                 permissions,
                 agentTeam: user.agentTeam,
                 departmentIds: user.departmentMemberships.map((membership) => membership.departmentId),
+                branchId: user.branchId,
                 tenantId: user.tenantId ?? undefined,
             };
         }
@@ -368,6 +371,7 @@ export const sseAuth = async (
             executiveRole: user.executiveRole,
             permissions,
             agentTeam: user.agentTeam,
+            branchId: user.branchId,
             tenantId: user.tenantId ?? undefined,
         };
         req.jti = decoded.jti;

@@ -3,6 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, branchApi, Branch } from '../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
+import { useAuth } from '../../src/context/AuthContext';
+import { hasPermission } from '../../src/utils/permissions';
+import AttentionStrip from '../../src/components/credit/dashboard/AttentionStrip';
+import PriorityWorkQueue from '../../src/components/credit/dashboard/PriorityWorkQueue';
+import NextActionsPanel from '../../src/components/credit/dashboard/NextActionsPanel';
+import OperationalAlerts from '../../src/components/credit/dashboard/OperationalAlerts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,11 +65,22 @@ interface PipelineStateCount {
   avgDaysInState: number;
 }
 
+interface SlaBreachItem {
+  id: string;
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  currentState: string;
+  breachedAt: string;
+  daysOverdue: number;
+  policyName: string;
+}
+
 interface PipelineDashboard {
   states: PipelineStateCount[];
   totalApplications: number;
   slaBreachCount: number;
-  slaBreaches: any[];
+  slaBreaches: SlaBreachItem[];
 }
 
 interface MyWorkItem {
@@ -79,15 +96,18 @@ interface MyWorkItem {
   entityType: string | null;
   slaRemainingHours: number | null;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  currentTask: string;
+  nextAction: { label: string; route: string };
 }
 
 interface MyWorkDashboard {
   myApprovalCount: number;
   myAssignedCount: number;
   mySlaBreaches: number;
-  mySlaBreachItems: any[];
+  mySlaBreachItems: SlaBreachItem[];
   recentAssigned: MyWorkItem[];
   recentApprovals: MyWorkItem[];
+  attention: { overdue: number; dueSoon: number; informationRequired: number; returned: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +496,9 @@ const TeamPerformance: React.FC<{ data: TeamPerformanceResult | null; loading: b
 
 const CreditDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreate = hasPermission(user, 'credit:create');
+  const canAdminister = hasPermission(user, 'credit:admin');
   const [workQueue, setWorkQueue] = useState<WorkQueueResult | null>(null);
   const [alerts, setAlerts] = useState<DashboardAlerts | null>(null);
   const [activity, setActivity] = useState<ActivityFeedResult | null>(null);
@@ -501,7 +524,7 @@ const CreditDashboard: React.FC = () => {
       dashboardApi.getWorkQueue(branchParam),
       dashboardApi.getAlerts(branchParam),
       dashboardApi.getActivityFeed({ ...branchParam, limit: 20 }),
-      dashboardApi.getTeamPerformance(branchParam),
+      canAdminister ? dashboardApi.getTeamPerformance(branchParam) : Promise.resolve(null),
       dashboardApi.getPipelineDashboard(branchParam),
       dashboardApi.getMyWork(branchParam),
     ])
@@ -509,7 +532,7 @@ const CreditDashboard: React.FC = () => {
         setWorkQueue(wqRes.data?.data ?? wqRes.data ?? wqRes);
         setAlerts(alertsRes.data?.data ?? alertsRes.data ?? alertsRes);
         setActivity(actRes.data?.data ?? actRes.data ?? actRes);
-        setTeamPerf(tpRes.data?.data ?? tpRes.data ?? tpRes);
+        setTeamPerf(tpRes ? (tpRes.data?.data ?? tpRes.data ?? tpRes) : null);
         setPipeline(pipeRes.data?.data ?? pipeRes.data ?? pipeRes);
         setMyWork(workRes.data?.data ?? workRes.data ?? workRes);
       })
@@ -519,7 +542,7 @@ const CreditDashboard: React.FC = () => {
         setError(err.message ?? 'Failed to load dashboard');
       })
       .finally(() => setLoading(false));
-  }, [branchFilter]);
+  }, [branchFilter, canAdminister]);
 
   useEffect(() => {
     fetchAll();
@@ -572,9 +595,8 @@ const CreditDashboard: React.FC = () => {
     );
   }
 
-  const buckets = workQueue?.buckets ?? [];
-  const findBucket = (key: string) => buckets.find(b => b.key === key);
   const myAssigned = myWork?.recentAssigned ?? [];
+  const attention = myWork?.attention ?? { overdue: 0, dueSoon: 0, informationRequired: 0, returned: 0 };
 
   return (
     <div className="credit-module" style={{ padding: '24px 32px 64px' }}>
@@ -611,7 +633,7 @@ const CreditDashboard: React.FC = () => {
               ))}
             </select>
           )}
-          <button
+          {canCreate && <button
             onClick={() => navigate('/credit/applications/new')}
             style={{
               fontFamily: 'var(--cr-font-display)',
@@ -630,17 +652,11 @@ const CreditDashboard: React.FC = () => {
           >
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
             New Application
-          </button>
+          </button>}
         </div>
       </div>
 
-      {/* ── KPI Cards Row ── */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-        {(['pendingReview', 'inProgress', 'pendingDocs', 'returned', 'overdue', 'pendingApproval'] as const).map(key => {
-          const bucket = findBucket(key) ?? { key, label: key, count: 0, slaCompliancePct: null, states: [] };
-          return <KpiCard key={key} bucket={bucket} isCritical={key === 'overdue'} />;
-        })}
-      </div>
+      <AttentionStrip attention={attention} />
 
       {/* ── Pipeline Funnel ── */}
       <div
@@ -665,150 +681,20 @@ const CreditDashboard: React.FC = () => {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {/* Left column — 2/3 width */}
         <div style={{ flex: '2 1 600px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* My Assigned Applications Table */}
-          <div
-            style={{
-              background: 'var(--cr-surface-container-lowest)',
-              border: '1px solid var(--cr-outline-variant)',
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--cr-outline-variant)' }}>
-              <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
-                My Assigned Applications
-              </h2>
-              <Link to="/credit/applications?assignedToMe=true" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
-                View All
-              </Link>
-            </div>
+          <PriorityWorkQueue items={myAssigned} formatAmount={formatMYR} stateLabels={STATE_LABELS} formatSla={formatSlaRemaining} />
+          <NextActionsPanel items={myAssigned} />
 
-            {myAssigned.length === 0 ? (
-              <div style={{ padding: 32, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--cr-outline-variant)', marginBottom: 8 }}>inbox</span>
-                <p style={{ fontSize: 13 }}>No applications assigned to you</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: 'var(--cr-surface-container-low)' }}>
-                      {['App ID', 'Borrower', 'Product', 'Amount', 'Status', 'SLA', 'Priority', ''].map(h => (
-                        <th
-                          key={h}
-                          style={{
-                            textAlign: h === 'Amount' ? 'right' : 'left',
-                            padding: '8px 12px',
-                            fontFamily: 'var(--cr-font-display)',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            color: 'var(--cr-on-surface-variant)',
-                            borderBottom: '1px solid var(--cr-outline-variant)',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myAssigned.map((app, i) => {
-                      const slaCol = SLA_STATUS_COLORS[app.slaStatus] ?? SLA_STATUS_COLORS.OK;
-                      const prioCol = PRIORITY_COLORS[app.priority] ?? PRIORITY_COLORS.LOW;
-                      return (
-                        <tr
-                          key={app.id}
-                          onClick={() => navigate(`/credit/applications/${app.id}`)}
-                          style={{
-                            cursor: 'pointer',
-                            background: i % 2 === 1 ? 'var(--cr-surface-container-low)' : 'transparent',
-                            borderBottom: '1px solid var(--cr-outline-variant)',
-                          }}
-                        >
-                          <td style={{ padding: '8px 12px', fontFamily: 'var(--cr-font-display)', fontWeight: 600, color: 'var(--cr-secondary)', whiteSpace: 'nowrap' }}>
-                            {app.applicationNo}
-                          </td>
-                          <td style={{ padding: '8px 12px', color: 'var(--cr-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
-                            {app.borrowerName}
-                          </td>
-                          <td style={{ padding: '8px 12px', color: 'var(--cr-on-surface-variant)', whiteSpace: 'nowrap' }}>
-                            {app.productType}
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--cr-on-surface)', whiteSpace: 'nowrap' }}>
-                            {formatMYR(app.requestedAmount)}
-                          </td>
-                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                            <span
-                              className="cr-status-pill"
-                              style={{ background: slaCol.bg, color: slaCol.text }}
-                            >
-                              {STATE_LABELS[app.state] ?? app.state}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 12, color: slaCol.text, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatSlaRemaining(app.slaRemainingHours)}
-                          </td>
-                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: prioCol.dot }} />
-                              <span style={{ fontSize: 12, color: prioCol.text, fontWeight: 600 }}>{app.priority}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--cr-on-surface-variant)' }}>chevron_right</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Alert Tiles */}
-          <div style={{ display: 'flex', gap: 12 }}>
-            {alerts && (
-              <>
-                <AlertTile
-                  title="High DSR"
-                  icon="trending_up"
-                  count={alerts.highDsr.count}
-                  description={`cases exceeding ${alerts.highDsr.thresholdPct}% DSR threshold. Manual override required.`}
-                  actionLabel="View Cases"
-                  filterUrl={alerts.highDsr.filterUrl}
-                  variant="danger"
-                />
-                <AlertTile
-                  title="Expired Bureau"
-                  icon="schedule"
-                  count={alerts.expiredBureau.count}
-                  description={`bureau reports older than ${alerts.expiredBureau.maxAgeDays} days need refresh.`}
-                  actionLabel="Refresh All"
-                  filterUrl={alerts.expiredBureau.filterUrl}
-                  variant="warning"
-                />
-                <AlertTile
-                  title="AML Review"
-                  icon="shield"
-                  count={alerts.amlReview.count}
-                  description="high-risk matches detected in AML screening."
-                  actionLabel="Open AML Case"
-                  filterUrl={alerts.amlReview.filterUrl}
-                  variant="info"
-                />
-              </>
-            )}
-          </div>
+          {alerts && <OperationalAlerts alerts={[
+            { title: 'High DSR', icon: 'trending_up', count: alerts.highDsr.count, description: `Cases exceeding ${alerts.highDsr.thresholdPct}% DSR threshold. Manual override required.`, actionLabel: 'View Cases', filterUrl: alerts.highDsr.filterUrl, variant: 'danger' },
+            { title: 'Expired Bureau', icon: 'schedule', count: alerts.expiredBureau.count, description: `Bureau reports older than ${alerts.expiredBureau.maxAgeDays} days need refresh.`, actionLabel: 'Refresh All', filterUrl: alerts.expiredBureau.filterUrl, variant: 'warning' },
+            { title: 'AML Review', icon: 'shield', count: alerts.amlReview.count, description: 'High-risk matches detected in AML screening.', actionLabel: 'Open AML Case', filterUrl: alerts.amlReview.filterUrl, variant: 'info' },
+          ]} />}
         </div>
 
         {/* Right column — 1/3 width */}
         <div style={{ flex: '1 1 320px', minWidth: 300, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Team Performance */}
-          <div
+          {canAdminister && <div
             style={{
               background: 'var(--cr-surface-container-lowest)',
               border: '1px solid var(--cr-outline-variant)',
@@ -820,7 +706,7 @@ const CreditDashboard: React.FC = () => {
               Team Performance
             </h2>
             <TeamPerformance data={teamPerf} loading={false} />
-          </div>
+          </div>}
 
           {/* Recent Activities */}
           <div

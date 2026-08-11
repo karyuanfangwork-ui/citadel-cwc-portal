@@ -122,11 +122,11 @@ router.get(
 /**
  * GET /credit/dashboard/team-performance
  * Dashboard cockpit — SLA compliance, approval turnaround, bottleneck stage
- * Requires: credit:read
+ * Requires: credit:admin
  */
 router.get(
   '/team-performance',
-  requirePermission('credit:read'),
+  requirePermission('credit:admin'),
   dashboardController.getTeamPerformance,
 );
 

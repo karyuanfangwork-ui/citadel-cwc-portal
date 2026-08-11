@@ -2,8 +2,32 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { borrowerProfileService } from '../services/borrowerProfile.service';
+import { borrowerOnboardingService } from '../services/borrowerOnboarding.service';
+import type { BorrowerListQuery } from '../validators/borrowerList.validator';
+
+type ScopedBorrowerListQuery = Omit<BorrowerListQuery, 'branchId'> & { branchId?: string | null };
+
+export function scopeOperationalBorrowerQuery(
+  query: ScopedBorrowerListQuery,
+  user: { permissions?: string[]; branchId?: string | null } | undefined,
+): ScopedBorrowerListQuery {
+  if (user?.permissions?.includes('credit:admin')) return query;
+  return { ...query, branchId: user?.branchId ?? null };
+}
 
 class BorrowerProfileController {
+  operationalStats = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const query = scopeOperationalBorrowerQuery(req.query as unknown as ScopedBorrowerListQuery, req.user);
+    const stats = await borrowerProfileService.getOperationalBorrowerStats(query);
+    res.json({ status: 'success', data: stats });
+  });
+
+  operationalList = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const query = scopeOperationalBorrowerQuery(req.query as unknown as ScopedBorrowerListQuery, req.user);
+    const result = await borrowerProfileService.listOperationalBorrowers(query);
+    res.json({ status: 'success', data: result });
+  });
+
   /**
    * GET /borrowers/stats — Aggregate borrower counts for KPI cards
    */
@@ -36,6 +60,12 @@ class BorrowerProfileController {
     }
 
     const result = await borrowerProfileService.checkDuplicate({ ssm, nric });
+    res.json({ status: 'success', data: result });
+  });
+
+  identityCheck = asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.user?.id) throw new AppError('Unauthenticated', 401);
+    const result = await borrowerProfileService.identityCheck({ ...req.body, requestedById: req.user.id });
     res.json({ status: 'success', data: result });
   });
 
@@ -108,13 +138,21 @@ class BorrowerProfileController {
     }
 
     try {
-      const profile = await borrowerProfileService.createBorrowerProfile(req.body, {
+      const idempotencyKey = req.body.idempotencyKey;
+      const create = () => borrowerProfileService.createBorrowerProfile(req.body, {
         overrideDuplicate,
         overrideReason: req.body.overrideReason,
+        duplicateExceptionId: req.body.duplicateExceptionId,
         userId: req.user?.id,
         userPermissions: (req.user as any)?.permissions ?? [],
       });
-      res.status(201).json({ status: 'success', data: { profile } });
+      if (!idempotencyKey || !userId) {
+        const profile = await create();
+        res.status(201).json({ status: 'success', data: { profile } });
+        return;
+      }
+      const onboarding = await borrowerOnboardingService.run(userId, idempotencyKey, create);
+      res.status(201).json({ status: 'success', data: { profile: { id: onboarding.borrowerId, borrowerNumber: onboarding.borrowerNumber }, onboarding } });
     } catch (err: any) {
       if (err instanceof AppError && err.statusCode === 409) {
         // Duplicate detected — return conflict with details

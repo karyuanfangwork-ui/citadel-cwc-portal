@@ -7,6 +7,7 @@ import prisma from '../../utils/prisma';
 import { getIntegrationsStatus } from '../adapters/registry';
 
 // Sprint 1 — Borrower + Documents
+import borrowerDuplicateExceptionRoutes from './borrowerDuplicateException.routes';
 import borrowerProfileRoutes from './borrowerProfile.routes';
 import directorRoutes from './director.routes';
 import fatcaCrsRoutes from './fatcaCrs.routes';
@@ -213,7 +214,8 @@ router.get('/health', requirePermission('credit:read'), async (_req: Request, re
   });
 });
 
-// Sprint 1 — Borrower Profile routes
+// Sprint 1 — Borrower + Documents
+router.use('/borrowers/duplicate-exceptions', borrowerDuplicateExceptionRoutes);
 router.use('/borrowers', borrowerProfileRoutes);
 
 // Directors, Shareholders, UBOs — nested under /borrowers

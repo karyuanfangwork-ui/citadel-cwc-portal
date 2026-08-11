@@ -1,311 +1,58 @@
 import React from 'react';
-import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
+import type { BorrowerListItem } from '@/src/types/credit-ui.types';
+import { formatMyr } from '@/src/lib/credit/formatters';
+import BorrowerStatusBadge from './BorrowerStatusBadge';
 
-type BorrowerType = 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
-type RiskRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'CC' | 'C' | 'D' | 'NR';
-
-export interface BorrowerProfileRow {
-  id: string;
-  borrowerType: BorrowerType;
-  name?: string | null;
-  creditRiskRating: RiskRating | null;
-  amlRiskTier: 'LOW' | 'MEDIUM' | 'HIGH' | null;
-  exposureLimit: string | number | null;
-  totalExposure: string | number | null;
-  isActive: boolean;
-  isSanctionedEntity: boolean;
-  createdAt: string;
-  account?: { id: string; name: string; industry?: string | null } | null;
-  contact?: { id: string; firstName: string; lastName: string } | null;
-}
+export type BorrowerProfileRow = BorrowerListItem;
 
 interface BorrowerDataTableProps {
   profiles: BorrowerProfileRow[];
   loading: boolean;
+  sortBy: string;
+  sortDirection: 'asc' | 'desc';
+  canCreate: boolean;
+  canWrite: boolean;
+  onSort: (field: 'name' | 'segment' | 'activeApplicationCount' | 'totalExposure' | 'status' | 'updatedAt') => void;
   onRowClick: (id: string) => void;
   onNameClick: (id: string) => void;
+  onActiveApplicationsClick: (id: string) => void;
   onActionClick: (id: string, action: string) => void;
 }
 
-// ── Helpers ──
+const label = (value: string | null | undefined) => value ? value.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : '—';
+const typeLabel = (row: BorrowerProfileRow) => row.segment ? label(row.segment) : label(row.legalType);
+const headers: Array<{ key?: 'name' | 'segment' | 'activeApplicationCount' | 'totalExposure' | 'status' | 'updatedAt'; label: string }> = [
+  { label: 'Borrower ID' }, { key: 'name', label: 'Borrower' }, { key: 'segment', label: 'Type / Segment' }, { label: 'NRIC / Registration No.' }, { label: 'Contact' }, { label: 'Relationship Owner' }, { key: 'activeApplicationCount', label: 'Active Applications' }, { key: 'totalExposure', label: 'Total Exposure' }, { key: 'status', label: 'Status' }, { key: 'updatedAt', label: 'Last Updated' }, { label: 'Action' },
+];
 
-const displayName = (p: BorrowerProfileRow) => getBorrowerDisplayName(p);
-
-const formatCurrency = (val: string | number | null | undefined) => {
-  if (val == null) return '—';
-  const num = typeof val === 'string' ? parseFloat(val) : val;
-  if (isNaN(num)) return '—';
-  return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(num);
-};
-
-const TYPE_BADGE: Record<BorrowerType, { label: string; bg: string; text: string }> = {
-  CORPORATE: { label: 'Corporate', bg: '#3b82f620', text: '#2563eb' },
-  INDIVIDUAL: { label: 'Individual', bg: '#a855f720', text: '#7e22ce' },
-  SOLE_PROPRIETOR: { label: 'Sole Prop.', bg: '#f59e0b20', text: '#d97706' },
-};
-
-const RATING_BAR: Record<string, { color: string; pct: number }> = {
-  AAA: { color: '#16a34a', pct: 100 },
-  AA:  { color: '#16a34a', pct: 90 },
-  A:   { color: '#16a34a', pct: 80 },
-  BBB: { color: '#0051d5', pct: 65 },
-  BB:  { color: '#0051d5', pct: 55 },
-  B:   { color: '#d97706', pct: 40 },
-  CCC: { color: '#d97706', pct: 30 },
-  CC:  { color: '#ba1a1a', pct: 20 },
-  C:   { color: '#ba1a1a', pct: 15 },
-  D:   { color: '#ba1a1a', pct: 5 },
-};
-
-const PSEUDO_CIF = (id: string) => `CIF-${id.slice(0, 8).toUpperCase()}`;
-
-// ── Component ──
-
-const BorrowerDataTable: React.FC<BorrowerDataTableProps> = ({ profiles, loading, onRowClick, onNameClick, onActionClick }) => {
+const BorrowerDataTable: React.FC<BorrowerDataTableProps> = ({ profiles, loading, sortBy, sortDirection, canCreate, canWrite, onSort, onRowClick, onNameClick, onActiveApplicationsClick, onActionClick }) => {
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
-
-  if (loading) {
-    return (
-      <div style={{ overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)' }}>
-              {['Borrower Name', 'CIF Number', 'Type', 'Risk Rating', 'Exposure', 'Status', 'Actions'].map(h => (
-                <th key={h} style={{
-                  padding: '12px 16px', textAlign: 'left',
-                  fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
-                  fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                  color: 'var(--cr-on-surface-variant, #45464d)',
-                  letterSpacing: 'var(--cr-tracking-label, 0.05em)',
-                  borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                  borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[0, 1, 2, 3, 4].map(i => (
-              <tr key={i}>
-                {[180, 100, 80, 100, 100, 70, 40].map((w, j) => (
-                  <td key={j} style={{ padding: '12px 16px' }}>
-                    <div style={{ height: 12, width: w, background: 'var(--cr-surface-container-high, #e6e8ea)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (profiles.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--cr-outline, #76777d)', display: 'block', marginBottom: '12px' }}>person</span>
-        <p style={{ fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)', fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)' }}>No borrower profiles yet</p>
-        <p style={{ fontSize: 'var(--cr-text-body-md, 14px)', color: 'var(--cr-on-surface-variant, #45464d)' }}>Create your first borrower profile to start credit processing</p>
-      </div>
-    );
-  }
+  if (loading) return <div role="status" aria-label="Loading borrowers" style={{ padding: 16 }}>{[1, 2, 3, 4, 5].map((row) => <div key={row} style={{ height: 48, marginBottom: 8, borderRadius: 6, background: '#e6e8ea', animation: 'pulse 1.5s ease-in-out infinite' }} />)}</div>;
+  if (profiles.length === 0) return <div style={{ padding: '48px 24px', textAlign: 'center' }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 44, color: '#76777d' }}>person_search</span><p style={{ fontWeight: 700 }}>No borrowers found</p><p style={{ color: '#45464d' }}>Try changing your search or filters.</p></div>;
 
   return (
-    <div style={{ overflow: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)' }}>
-            <th style={{
-              padding: '12px 16px', textAlign: 'left', width: '250px',
-              fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
-              fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-              color: 'var(--cr-on-surface-variant, #45464d)',
-              letterSpacing: 'var(--cr-tracking-label, 0.05em)',
-              borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
-              borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
-            }}>Borrower Name</th>
-            {['CIF Number', 'Type', 'Risk Rating', 'Exposure', 'Status', 'Actions'].map(h => (
-              <th key={h} style={{
-                padding: '12px 16px', textAlign: h === 'Exposure' ? 'right' : 'left',
-                fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
-                fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                color: 'var(--cr-on-surface-variant, #45464d)',
-                letterSpacing: 'var(--cr-tracking-label, 0.05em)',
-                borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
-              }}>{h}</th>
-            ))}
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1080 }}>
+        <thead><tr style={{ background: '#f2f4f6' }}>{headers.map((header) => <th key={header.label} scope="col" style={{ padding: '11px 12px', textAlign: header.key === 'totalExposure' ? 'right' : 'left', fontSize: 11, color: '#45464d', whiteSpace: 'nowrap' }}>{header.key ? <button type="button" aria-label={`Sort by ${header.label}`} onClick={() => onSort(header.key!)} style={{ border: 0, background: 'transparent', padding: 0, color: 'inherit', fontWeight: 700, cursor: 'pointer' }}>{header.label}{sortBy === header.key && <span aria-hidden="true"> {sortDirection === 'asc' ? '↑' : '↓'}</span>}</button> : header.label}</th>)}</tr></thead>
+        <tbody>{profiles.map((row) => (
+          <tr key={row.id} onClick={() => onRowClick(row.id)} style={{ borderBottom: '1px solid #e1e2e6', cursor: 'pointer' }}>
+            <td style={{ padding: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{row.borrowerNumber || '—'}</td>
+            <td style={{ padding: '12px' }}><button type="button" onClick={(event) => { event.stopPropagation(); onNameClick(row.id); }} style={{ border: 0, background: 'transparent', color: '#0051d5', fontWeight: 700, padding: 0, cursor: 'pointer', textAlign: 'left' }}>{row.name}</button></td>
+            <td style={{ padding: '12px' }}><span style={{ fontWeight: 600 }}>{typeLabel(row)}</span><div style={{ color: '#64748b', fontSize: 11 }}>{label(row.legalType)}</div></td>
+            <td style={{ padding: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{row.maskedIdentifier || '—'}</td>
+            <td style={{ padding: '12px' }}>{row.primaryContact || '—'}</td>
+            <td style={{ padding: '12px' }}>{row.relationshipOwner?.name || 'Unassigned'}</td>
+            <td style={{ padding: '12px', fontVariantNumeric: 'tabular-nums' }}><button type="button" onClick={(event) => { event.stopPropagation(); onActiveApplicationsClick(row.id); }} style={{ border: 0, background: 'transparent', color: '#0051d5', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{row.activeApplicationCount.toLocaleString()}</button></td>
+            <td style={{ padding: '12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatMyr(row.totalExposure)}</td>
+            <td style={{ padding: '12px' }}><BorrowerStatusBadge status={row.status} /></td>
+            <td style={{ padding: '12px', whiteSpace: 'nowrap', color: '#45464d' }}>{new Date(row.updatedAt).toLocaleDateString('en-GB')}</td>
+            <td style={{ padding: '12px', position: 'relative' }}><button type="button" aria-label={`Actions for ${row.name}`} aria-expanded={openMenuId === row.id} onClick={(event) => { event.stopPropagation(); setOpenMenuId(openMenuId === row.id ? null : row.id); }} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 4 }}><span className="material-symbols-outlined" aria-hidden="true">more_vert</span></button>{openMenuId === row.id && <div role="menu" style={{ position: 'absolute', right: 8, top: '100%', zIndex: 10, minWidth: 170, background: '#fff', border: '1px solid #c6c6cd', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}><button role="menuitem" type="button" onClick={() => { setOpenMenuId(null); onActionClick(row.id, 'view'); }} style={menuStyle}>Open 360 View</button>{canCreate && <button role="menuitem" type="button" onClick={() => { setOpenMenuId(null); onActionClick(row.id, 'newApp'); }} style={menuStyle}>New Application</button>}{canWrite && <button role="menuitem" type="button" onClick={() => { setOpenMenuId(null); onActionClick(row.id, 'edit'); }} style={menuStyle}>Edit Borrower</button>}</div>}</td>
           </tr>
-        </thead>
-        <tbody style={{
-          fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-          fontSize: 'var(--cr-text-body-sm, 13px)',
-          color: 'var(--cr-on-surface, #191c1e)',
-        }}>
-          {profiles.map(p => {
-            const name = displayName(p);
-            const typeBadge = TYPE_BADGE[p.borrowerType] || TYPE_BADGE.CORPORATE;
-            const ratingInfo = p.creditRiskRating ? RATING_BAR[p.creditRiskRating] : null;
-            const industry = p.account?.industry || null;
-
-            return (
-              <tr
-                key={p.id}
-                onClick={() => onRowClick(p.id)}
-                style={{
-                  cursor: 'pointer',
-                  transition: 'background-color 0.12s',
-                  borderBottom: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-low, #f2f4f6)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                {/* Borrower Name */}
-                <td style={{ padding: '12px 16px' }}>
-                  <div>
-                    <button
-                      onClick={e => { e.stopPropagation(); onNameClick(p.id); }}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                        fontWeight: 600, color: 'var(--cr-secondary, #0051d5)',
-                        fontSize: 'var(--cr-text-body-sm, 13px)',
-                        fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                      }}
-                    >{name}</button>
-                    {industry && (
-                      <div style={{ fontSize: '11px', color: 'var(--cr-on-surface-variant, #45464d)', marginTop: '2px' }}>{industry}</div>
-                    )}
-                  </div>
-                </td>
-
-                {/* CIF Number */}
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{
-                    fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                    fontSize: 'var(--cr-text-body-sm, 13px)',
-                    color: 'var(--cr-on-surface-variant, #45464d)',
-                    letterSpacing: '0.02em',
-                  }}>{PSEUDO_CIF(p.id)}</span>
-                </td>
-
-                {/* Type */}
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    backgroundColor: typeBadge.bg,
-                    color: typeBadge.text,
-                  }}>{typeBadge.label}</span>
-                </td>
-
-                {/* Risk Rating */}
-                <td style={{ padding: '12px 16px' }}>
-                  {p.creditRiskRating ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '64px', height: '6px',
-                        backgroundColor: 'var(--cr-surface-container-high, #e6e8ea)',
-                        borderRadius: '9999px', overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          height: '100%',
-                          width: `${ratingInfo?.pct ?? 50}%`,
-                          backgroundColor: ratingInfo?.color ?? 'var(--cr-outline, #76777d)',
-                          borderRadius: '9999px',
-                          transition: 'width 0.3s',
-                        }} />
-                      </div>
-                      <span style={{
-                        fontSize: 'var(--cr-text-label-md, 12px)',
-                        fontWeight: 600,
-                        color: ratingInfo?.color ?? 'var(--cr-on-surface-variant, #45464d)',
-                      }}>{p.creditRiskRating}</span>
-                    </div>
-                  ) : (
-                    <span style={{ color: 'var(--cr-outline, #76777d)' }}>—</span>
-                  )}
-                </td>
-
-                {/* Exposure (right-aligned) */}
-                <td style={{ padding: '12px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  <div style={{ fontWeight: 600 }}>{formatCurrency(p.totalExposure)}</div>
-                  {p.exposureLimit && (
-                    <div style={{ fontSize: '11px', color: 'var(--cr-on-surface-variant, #45464d)' }}>
-                      Limit: {formatCurrency(p.exposureLimit)}
-                    </div>
-                  )}
-                </td>
-
-                {/* Status */}
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    backgroundColor: p.isActive ? '#22c55e20' : '#6b728020',
-                    color: p.isActive ? '#16a34a' : '#6b7280',
-                  }}>{p.isActive ? 'Active' : 'Inactive'}</span>
-                </td>
-
-                {/* Actions (kebab) */}
-                <td style={{ padding: '12px 16px', position: 'relative' }}>
-                  <button
-                    onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === p.id ? null : p.id); }}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-                      borderRadius: 'var(--cr-radius, 0.25rem)',
-                      color: 'var(--cr-on-surface-variant, #45464d)',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>more_vert</span>
-                  </button>
-                  {openMenuId === p.id && (
-                    <div style={{
-                      position: 'absolute', right: '16px', top: '100%', zIndex: 40,
-                      backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-                      border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                      borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                      minWidth: '160px',
-                    }}>
-                      {[
-                        { action: 'view', label: 'Open 360 View', icon: 'visibility' },
-                        { action: 'newApp', label: 'New Application', icon: 'note_add' },
-                        { action: 'edit', label: 'Edit Borrower', icon: 'edit' },
-                      ].map(item => (
-                        <button
-                          key={item.action}
-                          onClick={e => { e.stopPropagation(); setOpenMenuId(null); onActionClick(p.id, item.action); }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                            padding: '10px 14px',
-                            fontSize: 'var(--cr-text-body-md, 14px)',
-                            fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                            color: 'var(--cr-on-surface, #191c1e)',
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            textAlign: 'left',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-low, #f2f4f6)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--cr-on-surface-variant, #45464d)' }}>{item.icon}</span>
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
+        ))}</tbody>
       </table>
     </div>
   );
 };
 
+const menuStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '9px 12px', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer' };
 export default BorrowerDataTable;

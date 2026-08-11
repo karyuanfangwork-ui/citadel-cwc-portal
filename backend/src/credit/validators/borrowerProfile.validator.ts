@@ -11,6 +11,7 @@ const decimalField = z.union([z.string(), z.number()]).optional().nullable();
 
 export const createBorrowerProfileSchema = z.object({
   body: z.object({
+    idempotencyKey: z.string().min(16).max(160).optional(),
     borrowerType: borrowerTypeEnum.default('CORPORATE'),
     name: z.string().max(255).optional().nullable(),
     accountId: z.string().uuid().optional().nullable(),
@@ -62,6 +63,7 @@ export const createBorrowerProfileSchema = z.object({
     // §2.3 Duplicate override — admin can set true to bypass duplicate check
     overrideDuplicate: z.boolean().default(false).optional(),
     overrideReason: z.string().max(2000).optional(),
+    duplicateExceptionId: z.string().uuid().optional(),
   }).superRefine((data, ctx) => {
     // Type-conditional mandatory field enforcement
     const isIndividual = data.borrowerType === 'INDIVIDUAL';

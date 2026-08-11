@@ -47,6 +47,8 @@ export interface MyWorkItem {
   // Dashboard cockpit additions
   slaRemainingHours: number | null;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  currentTask: string;
+  nextAction: { label: string; route: string };
 }
 
 export interface MyWorkDashboardResult {
@@ -56,6 +58,12 @@ export interface MyWorkDashboardResult {
   mySlaBreachItems: SlaBreachItem[];
   recentAssigned: MyWorkItem[];
   recentApprovals: MyWorkItem[];
+  attention: {
+    overdue: number;
+    dueSoon: number;
+    informationRequired: number;
+    returned: number;
+  };
 }
 
 export interface ApprovalInboxItem {
@@ -232,6 +240,30 @@ function classifyUrgency(daysWaiting: number): 'HIGH' | 'MEDIUM' | 'LOW' {
   if (daysWaiting >= 5) return 'HIGH';
   if (daysWaiting >= 3) return 'MEDIUM';
   return 'LOW';
+}
+
+const OPERATIONAL_GUIDANCE: Record<string, { currentTask: string; actionLabel: string }> = {
+  DRAFT: { currentTask: 'Complete application', actionLabel: 'Continue application' },
+  SUBMITTED: { currentTask: 'Perform initial review', actionLabel: 'Start review' },
+  KYC_REVIEW: { currentTask: 'Complete KYC review', actionLabel: 'Review KYC' },
+  COMPLIANCE_HOLD: { currentTask: 'Collect required information', actionLabel: 'Review information request' },
+  KYC_APPROVED: { currentTask: 'Prepare assessment', actionLabel: 'Start assessment' },
+  KYC_REJECTED: { currentTask: 'Resolve returned items', actionLabel: 'Review returned items' },
+  REFERRED_BACK: { currentTask: 'Resolve returned items', actionLabel: 'Review returned items' },
+  UNDERWRITING: { currentTask: 'Complete underwriting', actionLabel: 'Continue underwriting' },
+  CREDIT_ASSESSMENT: { currentTask: 'Complete credit assessment', actionLabel: 'Continue assessment' },
+  COMMITTEE_REVIEW: { currentTask: 'Complete approval review', actionLabel: 'Review approval' },
+};
+
+export function getOperationalGuidance(state: string, applicationId: string) {
+  const guidance = OPERATIONAL_GUIDANCE[state];
+  return {
+    currentTask: guidance?.currentTask ?? 'Review application',
+    nextAction: {
+      label: guidance?.actionLabel ?? 'Open application',
+      route: `/credit/applications/${applicationId}`,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -519,6 +551,7 @@ class DashboardService {
         requestedAmount,
         slaStatus,
       });
+      const guidance = getOperationalGuidance(app.state as string, app.id);
 
       return {
         id: app.id,
@@ -533,6 +566,7 @@ class DashboardService {
         entityType: bp?.borrowerType ?? null,
         slaRemainingHours,
         priority,
+        ...guidance,
       };
     };
 
@@ -551,13 +585,23 @@ class DashboardService {
       };
     });
 
+    const recentAssigned = myAssigned.map(toMyWorkItem);
+    const recentApprovals = myApprovals.map(toMyWorkItem);
+    const attention = {
+      overdue: myBreaches.length,
+      dueSoon: [...recentAssigned, ...recentApprovals].filter(item => item.slaStatus === 'WARNING').length,
+      informationRequired: [...recentAssigned, ...recentApprovals].filter(item => item.state === 'COMPLIANCE_HOLD').length,
+      returned: [...recentAssigned, ...recentApprovals].filter(item => item.state === 'KYC_REJECTED' || item.state === 'REFERRED_BACK').length,
+    };
+
     return {
       myApprovalCount,
       myAssignedCount,
       mySlaBreaches: myBreaches.length,
       mySlaBreachItems,
-      recentAssigned: myAssigned.map(toMyWorkItem),
-      recentApprovals: myApprovals.map(toMyWorkItem),
+      recentAssigned,
+      recentApprovals,
+      attention,
     };
   }
 

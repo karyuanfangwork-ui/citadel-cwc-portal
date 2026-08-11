@@ -1,5 +1,16 @@
 import apiClient from './api';
 import type { ApprovalInbox, CreditApiResponse } from './credit.types';
+import type {
+  BorrowerListQuery,
+  BorrowerListResponse,
+  BorrowerStatsResponse,
+  DuplicateExceptionDecision,
+  DuplicateExceptionInput,
+  DuplicateExceptionRequest,
+  DuplicateExceptionQueueResponse,
+  DuplicateIdentityResult,
+  IdentityCheckInput,
+} from '@/src/types/credit-ui.types';
 
 // ── Credit Module Types ───────────────────────────────────────
 
@@ -279,6 +290,7 @@ export interface Borrower360Summary {
 }
 
 export interface CreateBorrowerProfilePayload {
+  idempotencyKey?: string;
   borrowerType: 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
   name: string;
   accountId?: string | null;
@@ -309,6 +321,19 @@ export interface CreateBorrowerProfilePayload {
   employer?: string | null;
   annualTurnover?: string | null;
   sicCode?: string | null;
+}
+
+export interface BorrowerOnboardingStage {
+  name: 'PROFILE' | 'INCOME' | 'KYC' | 'AML' | 'DOCUMENTS';
+  status: 'COMPLETED' | 'FAILED' | 'NOT_REQUIRED';
+  message?: string;
+}
+
+export interface BorrowerOnboardingResult {
+  borrowerId: string;
+  borrowerNumber: string;
+  status: 'COMPLETED' | 'REQUIRES_FOLLOW_UP';
+  stages: BorrowerOnboardingStage[];
 }
 
 export interface DuplicateMatch {
@@ -1064,7 +1089,10 @@ const creditService = {
 
   async createBorrowerProfile(data: CreateBorrowerProfilePayload) {
     const res = await apiClient.post('/credit/borrowers', data);
-    return res.data.data.profile as BorrowerProfile;
+    return {
+      ...(res.data.data.profile as BorrowerProfile),
+      onboarding: res.data.data.onboarding as BorrowerOnboardingResult | undefined,
+    };
   },
 
   async checkDuplicateBorrower(params: { ssm?: string; nric?: string }): Promise<{ exists: boolean; borrowerId?: string }> {
@@ -1116,6 +1144,47 @@ const creditService = {
   async getBorrowerStats() {
     const res = await apiClient.get('/credit/borrowers/stats');
     return res.data.data as { total: number; active: number; pendingKyc: number; watchlist: number };
+  },
+
+  async getOperationalBorrowerStats() {
+    const res = await apiClient.get('/credit/borrowers/operational-stats');
+    return res.data.data as BorrowerStatsResponse;
+  },
+
+  /** Operational borrower list contract for the Credit module shell. */
+  async listBorrowers(query: BorrowerListQuery = {}, signal?: AbortSignal): Promise<BorrowerListResponse> {
+    const res = await apiClient.get('/credit/borrowers/operational', { params: query, signal });
+    return res.data.data as BorrowerListResponse;
+  },
+
+  async getBorrowerOperationalStats(): Promise<BorrowerStatsResponse> {
+    const res = await apiClient.get('/credit/borrowers/operational-stats');
+    return res.data.data as BorrowerStatsResponse;
+  },
+
+  async checkBorrowerIdentity(input: IdentityCheckInput & { draftId: string }): Promise<DuplicateIdentityResult> {
+    const res = await apiClient.post('/credit/borrowers/identity-check', input);
+    return res.data.data as DuplicateIdentityResult;
+  },
+
+  async requestDuplicateException(input: DuplicateExceptionInput): Promise<DuplicateExceptionRequest> {
+    const res = await apiClient.post('/credit/borrowers/duplicate-exceptions', input);
+    return res.data.data as DuplicateExceptionRequest;
+  },
+
+  async getDuplicateException(id: string): Promise<DuplicateExceptionRequest> {
+    const res = await apiClient.get(`/credit/borrowers/duplicate-exceptions/${id}`);
+    return res.data.data as DuplicateExceptionRequest;
+  },
+
+  async listPendingDuplicateExceptions(page = 1, limit = 25): Promise<DuplicateExceptionQueueResponse> {
+    const res = await apiClient.get('/credit/borrowers/duplicate-exceptions/pending', { params: { page, limit } });
+    return res.data.data as DuplicateExceptionQueueResponse;
+  },
+
+  async decideDuplicateException(id: string, input: DuplicateExceptionDecision): Promise<DuplicateExceptionRequest> {
+    const res = await apiClient.post(`/credit/borrowers/duplicate-exceptions/${id}/decision`, input);
+    return res.data.data as DuplicateExceptionRequest;
   },
 
   // Director / Shareholder / UBO CRUD on borrower profile

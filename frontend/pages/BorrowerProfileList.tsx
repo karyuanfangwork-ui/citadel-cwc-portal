@@ -1,390 +1,96 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import creditService, { Pagination } from '../src/services/credit.service';
+import creditService from '../src/services/credit.service';
+import type { BorrowerListItem, BorrowerListQuery, BorrowerListResponse, BorrowerStatsResponse } from '../src/types/credit-ui.types';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import BorrowerKpiCards from '../src/components/credit/borrowers/BorrowerKpiCards';
 import BorrowerFilterBar, { BorrowerFilterState } from '../src/components/credit/borrowers/BorrowerFilterBar';
-import BorrowerDataTable, { BorrowerProfileRow } from '../src/components/credit/borrowers/BorrowerDataTable';
+import BorrowerDataTable from '../src/components/credit/borrowers/BorrowerDataTable';
 import BorrowerQuickPreview from '../src/components/credit/borrowers/BorrowerQuickPreview';
 
-const BORROWER_DRAFT_KEY = 'createBorrowerDraft';
+const parsePage = (value: string | null, fallback: number) => { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; };
+const parseLimit = (value: string | null) => { const parsed = Number(value); return [20, 40, 60, 100].includes(parsed) ? parsed : 20; };
 
 const BorrowerProfileList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
-  const accountIdFilter = searchParams.get('accountId') || '';
-
-  const [profiles, setProfiles] = useState<BorrowerProfileRow[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
-  const [loading, setLoading] = useState(true);
-  const [selectedBorrower, setSelectedBorrower] = useState<BorrowerProfileRow | null>(null);
-
-  const [filters, setFilters] = useState<BorrowerFilterState>({
-    search: '',
-    typeFilter: '',
-    statusFilter: '',
-    riskFilter: '',
-  });
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const canCreate = hasPermission(user, 'credit:create');
+  const canWrite = hasPermission(user, 'credit:write');
+  const queryState = useMemo(() => ({
+    search: searchParams.get('q') || '',
+    segment: searchParams.get('segment') || '',
+    status: searchParams.get('status') || '',
+    activeApplication: searchParams.get('activeApplication') || '',
+    sort: searchParams.get('sort') || 'updatedAt',
+    direction: searchParams.get('direction') === 'asc' ? 'asc' as const : 'desc' as const,
+    page: parsePage(searchParams.get('page'), 1),
+    limit: parseLimit(searchParams.get('limit')),
+  }), [searchParams]);
+  const [searchDraft, setSearchDraft] = useState(queryState.search);
+  const [response, setResponse] = useState<BorrowerListResponse>({ items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }, appliedSort: { field: 'updatedAt', direction: 'desc' } });
+  const [stats, setStats] = useState<BorrowerStatsResponse>({ total: 0, active: 0, individual: 0, sme: 0, corporate: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedBorrower, setSelectedBorrower] = useState<BorrowerListItem | null>(null);
 
-  // Draft detection — show resume banner if a saved draft exists
-  const [hasDraft, setHasDraft] = useState(false);
-  const [draftInfo, setDraftInfo] = useState<{ name: string; step: number; savedAt: string } | null>(null);
-
+  useEffect(() => setSearchDraft(queryState.search), [queryState.search]);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(BORROWER_DRAFT_KEY);
-      if (saved) {
-        const draft = JSON.parse(saved);
-        const name = draft?.formData?.name || 'Untitled';
-        const step = typeof draft?.currentStep === 'number' ? draft.currentStep : 0;
-        setDraftInfo({ name, step, savedAt: new Date().toISOString() });
-        setHasDraft(true);
-      }
-    } catch { /* ignore */ }
-  }, []);
+    const timer = window.setTimeout(() => {
+      if (searchDraft === queryState.search) return;
+      const next = new URLSearchParams(searchParams);
+      if (searchDraft.trim()) next.set('q', searchDraft.trim()); else next.delete('q');
+      next.set('page', '1');
+      setSearchParams(next, { replace: true });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft, queryState.search, searchParams, setSearchParams]);
 
-  const handleDiscardDraft = useCallback(() => {
-    localStorage.removeItem(BORROWER_DRAFT_KEY);
-    setHasDraft(false);
-    setDraftInfo(null);
-  }, []);
+  const fetchBorrowers = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true); setError(null);
+    const query: BorrowerListQuery = {
+      page: queryState.page,
+      limit: queryState.limit,
+      search: queryState.search || undefined,
+      segment: (queryState.segment || undefined) as BorrowerListQuery['segment'],
+      status: (queryState.status || undefined) as BorrowerListQuery['status'],
+      hasActiveApplication: queryState.activeApplication === '' ? undefined : queryState.activeApplication === 'true',
+      sortBy: queryState.sort as BorrowerListQuery['sortBy'],
+      sortDirection: queryState.direction,
+    };
+    try { const result = await creditService.listBorrowers(query, signal); if (!signal?.aborted) setResponse(result); } catch (err: any) { if (!signal?.aborted && err?.code !== 'ERR_CANCELED' && err?.name !== 'CanceledError') setError('Unable to load borrowers.'); }
+    finally { if (!signal?.aborted) setLoading(false); }
+  }, [queryState]);
 
-  // KPI data — populated from /borrowers/stats endpoint
-  const [kpiData, setKpiData] = useState({ total: 0, active: 0, pendingKyc: 0, watchlist: 0 });
+  useEffect(() => { const controller = new AbortController(); void fetchBorrowers(controller.signal); return () => controller.abort(); }, [fetchBorrowers]);
+  useEffect(() => { creditService.getOperationalBorrowerStats().then(setStats).catch(() => undefined); }, []);
 
-  const fetchProfiles = useCallback(async (page = 1) => {
-    try {
-      setLoading(true);
-      const data = await creditService.listBorrowerProfiles({
-        page,
-        limit: 20,
-        search: filters.search || undefined,
-        borrowerType: filters.typeFilter || undefined,
-        accountId: accountIdFilter || undefined,
-      });
-      setProfiles((data.profiles as unknown) as BorrowerProfileRow[]);
-      setPagination(data.pagination);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.search, filters.typeFilter, accountIdFilter]);
-
-  // Fetch KPI stats
-  useEffect(() => {
-    creditService.getBorrowerStats()
-      .then(stats => setKpiData(stats))
-      .catch(() => { /* KPI non-critical, silently fail */ });
-  }, []);
-
-  useEffect(() => { fetchProfiles(); }, [fetchProfiles]);
-
-  const handleRowClick = (id: string) => {
-    // On desktop xl+: select for quick preview; on smaller: navigate
-    const borrower = profiles.find(p => p.id === id);
-    if (borrower) setSelectedBorrower(borrower);
+  const updateParams = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
+    setSearchParams(next, { replace: true });
   };
-
-  const handleNameClick = (id: string) => {
-    navigate(`/credit/borrowers/${id}`);
+  const filters: BorrowerFilterState = { search: searchDraft, segmentFilter: queryState.segment, statusFilter: queryState.status, activeApplicationFilter: queryState.activeApplication };
+  const updateFilters = (next: BorrowerFilterState) => {
+    setSearchDraft(next.search);
+    updateParams({ segment: next.segmentFilter || null, status: next.statusFilter || null, activeApplication: next.activeApplicationFilter || null, page: '1' });
   };
+  const onSort = (field: NonNullable<BorrowerListQuery['sortBy']>) => updateParams({ sort: field, direction: queryState.sort === field && queryState.direction === 'asc' ? 'desc' : 'asc', page: '1' });
+  const goToPage = (page: number) => updateParams({ page: String(page) });
+  const pageNumbers = Array.from({ length: Math.min(response.pagination.totalPages, 7) }, (_, index) => index + 1);
 
-  const handleActionClick = (id: string, action: string) => {
-    switch (action) {
-      case 'view':
-      case 'edit':
-        navigate(`/credit/borrowers/${id}`);
-        break;
-      case 'newApp':
-        navigate(`/credit/applications/new?borrowerId=${id}`);
-        break;
-    }
-  };
-
-  const handleOpen360 = (id: string) => {
-    navigate(`/credit/borrowers/${id}`);
-  };
-
-  const handleNewApp = (id: string) => {
-    navigate(`/credit/applications/new?borrowerId=${id}`);
-  };
-
-  // Export not yet implemented — placeholder removed until backend endpoint exists (P0.3)
-  // When implementing: call credit.service.ts borrowerExport API → download CSV/Excel
-  const handleExport = undefined;
-
-  // Pagination helpers
-  const currentPage = pagination.page;
-  const totalPages = pagination.totalPages;
-  const totalItems = pagination.total;
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * 20 + 1;
-  const endItem = Math.min(currentPage * 20, totalItems);
-
-  const getPageNumbers = (): (number | '...')[] => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages: (number | '...')[] = [1];
-    if (currentPage > 3) pages.push('...');
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-      pages.push(i);
-    }
-    if (currentPage < totalPages - 2) pages.push('...');
-    pages.push(totalPages);
-    return pages;
-  };
-
-  return (
-    <>
-      <div style={{ padding: '24px 32px 48px' }}>
-        {/* ── Header ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: '4px' }}>
-              <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }}>Credit</Link>
-              <span>/</span>
-              <span style={{ fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>Borrower Management</span>
-            </div>
-            <h1 style={{
-              fontSize: 'var(--cr-text-headline-lg, 24px)',
-              lineHeight: 'var(--cr-leading-headline-lg, 32px)',
-              fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
-              fontWeight: 700,
-              color: 'var(--cr-on-surface, #191c1e)',
-              letterSpacing: 'var(--cr-tracking-headline-lg, -0.01em)',
-              margin: 0,
-            }}>Borrower Management</h1>
-          </div>
-          {canCreate && (
-            <button
-              onClick={() => navigate('/credit/borrowers/new')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 16px',
-                backgroundColor: 'var(--cr-primary, #000000)',
-                color: 'var(--cr-on-primary, #ffffff)',
-                border: 'none', borderRadius: 'var(--cr-radius, 0.25rem)',
-                fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                fontSize: 'var(--cr-text-label-md, 12px)',
-                fontWeight: 600,
-                letterSpacing: 'var(--cr-tracking-label, 0.05em)',
-                cursor: 'pointer',
-                transition: 'background-color 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.85)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--cr-primary, #000000)'; }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-              New Borrower
-            </button>
-          )}
-        </div>
-
-        {/* ── Draft Resume Banner ── */}
-        {hasDraft && draftInfo && canCreate && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '12px 16px',
-              marginBottom: 16,
-              backgroundColor: 'rgba(0, 81, 213, 0.06)',
-              border: '1px solid rgba(0, 81, 213, 0.2)',
-              borderRadius: 'var(--cr-radius, 0.25rem)',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--cr-secondary, #0051d5)' }}>
-              draft
-            </span>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)' }}>
-                Unsaved draft: "{draftInfo.name}"
-              </span>
-              <span style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', marginLeft: 8 }}>
-                (Step {draftInfo.step + 1} of 8)
-              </span>
-            </div>
-            <button
-              onClick={() => navigate('/credit/borrowers/new')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '6px 14px',
-                backgroundColor: 'var(--cr-secondary, #0051d5)',
-                color: 'var(--cr-on-secondary, #ffffff)',
-                border: 'none', borderRadius: 'var(--cr-radius, 0.25rem)',
-                fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
-                fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit_note</span>
-              Resume Draft
-            </button>
-            <button
-              onClick={handleDiscardDraft}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '6px 14px',
-                backgroundColor: 'transparent',
-                color: 'var(--cr-on-surface-variant, #45464d)',
-                border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                borderRadius: 'var(--cr-radius, 0.25rem)',
-                fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
-              Discard
-            </button>
-          </div>
-        )}
-
-        {/* ── Account filter banner ── */}
-        {accountIdFilter && (
-          <div style={{
-            backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
-            borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-            padding: '12px 16px', marginBottom: '16px',
-            display: 'flex', alignItems: 'center', gap: '12px',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>filter_alt</span>
-            <span style={{ fontSize: 'var(--cr-text-body-md, 14px)', color: '#1e40af' }}>Filtered by account</span>
-            <Link to={`/crm/accounts/${accountIdFilter}`} style={{ fontSize: 'var(--cr-text-body-md, 14px)', fontWeight: 600, color: '#1d4ed8', textDecoration: 'underline' }}>View Account</Link>
-            <Link to="/credit/borrowers" style={{ marginLeft: 'auto', fontSize: 'var(--cr-text-label-md, 12px)', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>Clear filter</Link>
-          </div>
-        )}
-
-        {/* ── KPI Cards ── */}
-        <BorrowerKpiCards total={kpiData.total} active={kpiData.active} pendingKyc={kpiData.pendingKyc} watchlist={kpiData.watchlist} />
-
-        {/* ── Master-detail layout ── */}
-        <div style={{ display: 'flex', gap: '0', alignItems: 'flex-start' }}>
-          {/* ── Left: Main content ── */}
-          <div style={{ flex: '1', minWidth: 0 }}>
-            {/* ── Filter Bar ── */}
-            <BorrowerFilterBar filters={filters} onFilterChange={setFilters} onExport={handleExport} />
-
-            {/* ── Data Table ── */}
-            <div style={{
-              backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-              border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              overflow: 'hidden',
-            }}>
-              <BorrowerDataTable
-                profiles={profiles}
-                loading={loading}
-                onRowClick={handleRowClick}
-                onNameClick={handleNameClick}
-                onActionClick={handleActionClick}
-              />
-
-              {/* ── Pagination Footer ── */}
-              {totalPages > 0 && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderTop: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                  backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-                }}>
-                  <span style={{
-                    fontSize: 'var(--cr-text-body-sm, 13px)',
-                    fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                    color: 'var(--cr-on-surface-variant, #45464d)',
-                  }}>
-                    Showing {startItem} to {endItem} of {totalItems.toLocaleString()} entries
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      onClick={() => fetchProfiles(Math.max(1, currentPage - 1))}
-                      disabled={currentPage <= 1}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                        borderRadius: 'var(--cr-radius, 0.25rem)',
-                        backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-                        color: 'var(--cr-on-surface-variant, #45464d)',
-                        cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage <= 1 ? 0.5 : 1,
-                        display: 'flex', alignItems: 'center',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
-                    </button>
-                    {getPageNumbers().map((p, i) =>
-                      p === '...' ? (
-                        <span key={`ellipsis-${i}`} style={{ padding: '4px 8px', color: 'var(--cr-on-surface-variant, #45464d)' }}>…</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => fetchProfiles(p)}
-                          style={{
-                            padding: '4px 12px',
-                            border: p === currentPage ? '1px solid var(--cr-secondary, #0051d5)' : '1px solid var(--cr-outline-variant, #c6c6cd)',
-                            borderRadius: 'var(--cr-radius, 0.25rem)',
-                            backgroundColor: p === currentPage ? 'var(--cr-secondary, #0051d5)' : 'var(--cr-surface-container-lowest, #ffffff)',
-                            color: p === currentPage ? 'var(--cr-on-secondary, #ffffff)' : 'var(--cr-on-surface, #191c1e)',
-                            fontSize: 'var(--cr-text-body-sm, 13px)',
-                            fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-                            cursor: 'pointer',
-                          }}
-                        >{p}</button>
-                      )
-                    )}
-                    <button
-                      onClick={() => fetchProfiles(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage >= totalPages}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-                        borderRadius: 'var(--cr-radius, 0.25rem)',
-                        backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-                        color: 'var(--cr-on-surface-variant, #45464d)',
-                        cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
-                        opacity: currentPage >= totalPages ? 0.5 : 1,
-                        display: 'flex', alignItems: 'center',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Right: Quick-preview drawer (xl+ only) ── */}
-          {selectedBorrower && (
-            <div style={{
-              width: '400px',
-              flexShrink: 0,
-              marginLeft: '16px',
-              backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-              border: '1px solid var(--cr-outline-variant, #c6c6cd)',
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              overflow: 'hidden',
-              position: 'sticky',
-              top: '24px',
-              alignSelf: 'flex-start',
-            }}>
-              <BorrowerQuickPreview
-                borrower={selectedBorrower}
-                onClose={() => setSelectedBorrower(null)}
-                onOpen360={handleOpen360}
-                onNewApp={handleNewApp}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-    </>
-  );
+  return <div style={{ padding: '24px 32px 48px' }}>
+    <div style={{ marginBottom: 20 }}><div style={{ display: 'flex', gap: 8, color: '#45464d', fontSize: 13 }}><Link to="/credit">Credit</Link><span>/</span><strong>Borrowers</strong></div><h1 style={{ margin: '6px 0 2px', fontSize: 26 }}>Borrower Management</h1><p style={{ margin: 0, color: '#64748b' }}>Search, review, and manage borrower relationships across the credit lifecycle.</p></div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}><strong>{response.pagination.total.toLocaleString()} borrowers</strong>{canCreate && <button type="button" onClick={() => navigate('/credit/borrowers/new')} style={{ padding: '9px 14px', border: 0, borderRadius: 6, background: '#000', color: '#fff', cursor: 'pointer' }}>+ Create Borrower</button>}</div>
+    <BorrowerKpiCards {...stats} />
+    <BorrowerFilterBar filters={filters} onFilterChange={updateFilters} />
+    <div style={{ background: '#fff', border: '1px solid #c6c6cd', borderRadius: 8, overflow: 'hidden' }}>
+      {error ? <div role="alert" style={{ padding: 32, textAlign: 'center' }}><p>{error}</p><button type="button" onClick={() => void fetchBorrowers()}>Retry</button></div> : <BorrowerDataTable profiles={response.items} loading={loading} sortBy={queryState.sort} sortDirection={queryState.direction} canCreate={canCreate} canWrite={canWrite} onSort={onSort} onRowClick={(id) => setSelectedBorrower(response.items.find((item) => item.id === id) || null)} onNameClick={(id) => navigate(`/credit/borrowers/${id}`)} onActiveApplicationsClick={(id) => navigate(`/credit/applications?borrowerId=${encodeURIComponent(id)}&status=active`)} onActionClick={(id, action) => action === 'newApp' ? navigate(`/credit/applications/new?borrowerId=${encodeURIComponent(id)}`) : navigate(`/credit/borrowers/${id}`)} />}
+      {!loading && !error && response.pagination.totalPages > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderTop: '1px solid #e1e2e6' }}><span style={{ color: '#64748b', fontSize: 13 }}>Page {response.pagination.page} of {response.pagination.totalPages}</span><div style={{ display: 'flex', gap: 4 }}><button type="button" disabled={queryState.page <= 1} onClick={() => goToPage(queryState.page - 1)}>Previous</button>{pageNumbers.map((page) => <button type="button" key={page} aria-current={page === queryState.page ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}<button type="button" disabled={queryState.page >= response.pagination.totalPages} onClick={() => goToPage(queryState.page + 1)}>Next</button></div></div>}
+    </div>
+    {selectedBorrower && <aside style={{ position: 'fixed', right: 24, top: 96, width: 360, maxWidth: 'calc(100vw - 48px)', background: '#fff', border: '1px solid #c6c6cd', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.16)', zIndex: 30 }}><BorrowerQuickPreview borrower={selectedBorrower} onClose={() => setSelectedBorrower(null)} onOpen360={(id) => navigate(`/credit/borrowers/${id}`)} onNewApp={(id) => navigate(`/credit/applications/new?borrowerId=${encodeURIComponent(id)}`)} /></aside>}
+  </div>;
 };
 
 export default BorrowerProfileList;

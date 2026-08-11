@@ -1,9 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import creditService, { BorrowerSearchResult } from '../../../services/credit.service';
+import type { DuplicateIdentityResult } from '../../../types/credit-ui.types';
 
 interface DuplicateCheckStepProps {
   onUseExisting: (borrowerId: string) => void;
   onProceed: () => void;
+  onIdentityCheck?: (identifier: string) => Promise<void>;
+  identityResult?: DuplicateIdentityResult | null;
+  identityChecking?: boolean;
+  identityError?: string | null;
+  canProceed?: boolean;
+  onRequestException?: (input: { category: string; justification: string }) => Promise<void>;
+  exceptionRequesting?: boolean;
 }
 
 const BORROWER_TYPE_LABELS: Record<string, string> = {
@@ -13,11 +21,13 @@ const BORROWER_TYPE_LABELS: Record<string, string> = {
   JOINT: 'Joint',
 };
 
-const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, onProceed }) => {
+const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, onProceed, onIdentityCheck, identityResult, identityChecking, identityError, canProceed = true, onRequestException, exceptionRequesting }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BorrowerSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [exceptionCategory, setExceptionCategory] = useState('DISTINCT PERSON');
+  const [exceptionJustification, setExceptionJustification] = useState('');
 
   const handleSearch = useCallback(async () => {
     const q = query.trim();
@@ -126,14 +136,35 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
         </button>
       </div>
 
+      {onIdentityCheck && (
+        <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 6, background: '#f8fafc' }}>
+          <strong>Governed identity check</strong>
+          <p style={{ margin: '4px 0 10px', fontSize: 13, color: '#45464d' }}>Run the server-side fingerprint check before continuing. Raw identity values are not returned or stored in the browser.</p>
+          <button type="button" onClick={() => void onIdentityCheck(query.trim())} disabled={identityChecking || query.trim().length < 4} style={searchBtnStyle}>{identityChecking ? 'Checking…' : 'Check Identity'}</button>
+          {identityError && <p role="alert" style={{ color: '#b42318', marginBottom: 0 }}>{identityError}</p>}
+          {identityResult?.exactMatch && identityResult.match && (
+            <div role="alert" style={{ marginTop: 12, padding: 12, background: '#fff4e5', border: '1px solid #f2c078', borderRadius: 6 }}>
+              <strong>Possible exact match: {identityResult.match.name}</strong>
+              <div>{identityResult.match.borrowerNumber} · {identityResult.match.maskedIdentifier}</div>
+              {identityResult.exceptionRequestId ? <p style={{ marginBottom: 0 }}>Exception request status: {identityResult.exceptionStatus || 'PENDING'}. Continue only after approval.</p> : onRequestException && <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700 }}>Exception category<input value={exceptionCategory} onChange={e => setExceptionCategory(e.target.value)} style={{ display: 'block', width: '100%', marginTop: 4, padding: 6 }} /></label>
+                <label style={{ display: 'block', marginTop: 8, fontSize: 12, fontWeight: 700 }}>Justification<textarea value={exceptionJustification} onChange={e => setExceptionJustification(e.target.value)} minLength={20} rows={3} style={{ display: 'block', width: '100%', marginTop: 4, padding: 6 }} /></label>
+                <button type="button" onClick={() => void onRequestException({ category: exceptionCategory, justification: exceptionJustification })} disabled={exceptionRequesting || exceptionJustification.trim().length < 20} style={{ ...searchBtnStyle, marginTop: 8, backgroundColor: '#b54708' }}>{exceptionRequesting ? 'Requesting…' : 'Request Duplicate Exception'}</button>
+              </div>}
+            </div>
+          )}
+          {identityResult && !identityResult.exactMatch && <p style={{ color: '#067647', marginBottom: 0 }}>No exact identity match found. You may continue.</p>}
+        </div>
+      )}
+
       {/* Results */}
       {hasSearched && !searching && results.length === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px', backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', border: '1px solid var(--cr-outline-variant, #c6c6cd)' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 40, color: 'var(--cr-secondary, #0051d5)' }}>search_off</span>
           <p style={{ fontSize: 'var(--cr-text-body-md, 14px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)', margin: 0 }}>No matches found</p>
           <p style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', margin: 0 }}>This appears to be a new borrower. Proceed to create a new profile.</p>
-          <button onClick={onProceed} style={{ ...searchBtnStyle, backgroundColor: 'var(--cr-secondary, #0051d5)' }}>
-            Proceed to Create
+          <button onClick={onProceed} disabled={!canProceed} style={{ ...searchBtnStyle, backgroundColor: 'var(--cr-secondary, #0051d5)', opacity: canProceed ? 1 : 0.5 }}>
+            Continue after identity check
             <span className="material-symbols-outlined" style={{ fontSize: 16, marginLeft: 4 }}>arrow_forward</span>
           </button>
         </div>
@@ -195,6 +226,7 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={onProceed}
+            disabled={!canProceed}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -207,10 +239,11 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
               color: 'var(--cr-on-surface-variant, #45464d)',
               border: '1px solid var(--cr-outline-variant, #c6c6cd)',
               borderRadius: 'var(--cr-radius, 0.25rem)',
-              cursor: 'pointer',
+              cursor: canProceed ? 'pointer' : 'not-allowed',
+              opacity: canProceed ? 1 : 0.5,
             }}
           >
-            Skip & Proceed
+            {canProceed ? 'Continue after identity check' : 'Complete identity check to continue'}
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
           </button>
         </div>

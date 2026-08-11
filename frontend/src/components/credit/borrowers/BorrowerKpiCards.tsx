@@ -1,115 +1,30 @@
 import React from 'react';
 
-interface BorrowerKpiCardsProps {
+export interface BorrowerKpiData {
   total: number;
-  active: number | null;
-  pendingKyc: number | null;
-  watchlist: number | null;
+  active: number;
+  individual: number;
+  sme: number;
+  corporate: number;
 }
 
-const CARDS = [
-  {
-    key: 'total' as const,
-    label: 'Total Borrowers',
-    icon: 'groups',
-    iconColor: 'var(--cr-secondary, #0051d5)',
-    bgWatermark: 'var(--cr-surface-container, #eceef0)',
-  },
-  {
-    key: 'active' as const,
-    label: 'Active Borrowers',
-    icon: 'check_circle',
-    iconColor: '#16a34a',
-    bgWatermark: '#f0fdf4',
-  },
-  {
-    key: 'pendingKyc' as const,
-    label: 'Pending KYC',
-    icon: 'pending_actions',
-    iconColor: '#d97706',
-    bgWatermark: '#fffbeb',
-  },
-  {
-    key: 'watchlist' as const,
-    label: 'Watchlist',
-    icon: 'warning',
-    iconColor: 'var(--cr-error, #ba1a1a)',
-    bgWatermark: 'var(--cr-error-container, #ffdad6)',
-    borderOverride: 'var(--cr-error-container, #ffdad6)',
-  },
-] as const;
+const CARDS: Array<{ key: keyof BorrowerKpiData; label: string; icon: string; color: string }> = [
+  { key: 'total', label: 'Total borrowers', icon: 'groups', color: '#0051d5' },
+  { key: 'active', label: 'Active borrowers', icon: 'check_circle', color: '#15803d' },
+  { key: 'individual', label: 'Individual', icon: 'person', color: '#7e22ce' },
+  { key: 'sme', label: 'SME', icon: 'storefront', color: '#b45309' },
+  { key: 'corporate', label: 'Corporate', icon: 'business', color: '#0369a1' },
+];
 
-const BorrowerKpiCards: React.FC<BorrowerKpiCardsProps> = ({ total, active, pendingKyc, watchlist }) => {
-  const values = { total, active, pendingKyc, watchlist };
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4, 1fr)',
-      gap: 'var(--cr-gap, 16px)',
-      marginBottom: 'var(--cr-gap, 16px)',
-    }}>
-      {CARDS.map((card) => {
-        const val = values[card.key];
-        const isError = card.key === 'watchlist';
-        return (
-          <div
-            key={card.key}
-            style={{
-              backgroundColor: 'var(--cr-surface-container-lowest, #ffffff)',
-              border: `1px solid ${isError ? card.borderOverride : 'var(--cr-outline-variant, #c6c6cd)'}`,
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              padding: '16px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Label row */}
-            <div style={{
-              fontSize: 'var(--cr-text-body-sm, 13px)',
-              lineHeight: 'var(--cr-leading-body-sm, 18px)',
-              fontFamily: 'var(--cr-font-body, Inter, system-ui, sans-serif)',
-              color: 'var(--cr-on-surface-variant, #45464d)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: card.iconColor }}>
-                {card.icon}
-              </span>
-              {card.label}
-            </div>
-            {/* Value */}
-            <div style={{
-              fontSize: 'var(--cr-text-display, 36px)',
-              lineHeight: 'var(--cr-leading-display, 44px)',
-              fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
-              fontWeight: 'var(--cr-fw-display, 700)',
-              color: 'var(--cr-on-surface, #191c1e)',
-              letterSpacing: 'var(--cr-tracking-display, -0.02em)',
-            }}>
-              {val !== null ? val.toLocaleString() : '—'}
-            </div>
-            {/* Background watermark icon */}
-            <div style={{
-              position: 'absolute',
-              bottom: '-12px',
-              right: '-8px',
-              color: card.bgWatermark,
-              pointerEvents: 'none',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '80px', fontVariationSettings: "'FILL' 1" }}>
-                {card.icon}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
+const BorrowerKpiCards: React.FC<BorrowerKpiData> = (data) => (
+  <div aria-label="Borrower summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+    {CARDS.map((card) => (
+      <div key={card.key} style={{ minWidth: 0, padding: '12px 16px', background: '#fff', border: '1px solid #c6c6cd', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#45464d', fontSize: 12 }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16, color: card.color }}>{card.icon}</span>{card.label}</div>
+        <div style={{ marginTop: 4, color: '#191c1e', fontSize: 24, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{data[card.key].toLocaleString()}</div>
+      </div>
+    ))}
+  </div>
+);
 
 export default BorrowerKpiCards;

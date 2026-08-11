@@ -73,6 +73,7 @@ const ESM_SKIP_FILES = new Set(['index', 'resume.controller']);
 // Parent prefix is '/credit'; sub-mounts are appended.
 const CREDIT_SUB_MOUNTS: Record<string, string> = {
   'borrowerProfile.routes': '/borrowers',
+  'borrowerDuplicateException.routes': '/borrowers/duplicate-exceptions',
   'director.routes': '/borrowers',
   'fatcaCrs.routes': '/borrowers',
   'shareholder.routes': '/borrowers',

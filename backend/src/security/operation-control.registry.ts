@@ -7916,7 +7916,7 @@ export const operationControls: OperationControl[] = [
     path: '/credit/dashboard/team-performance',
     owner: 'Credit',
     authentication: 'user',
-    coarsePermission: 'credit:read',
+    coarsePermission: 'credit:admin',
     resourcePolicy: 'credit:dashboard:list',
     validation: 'none',
     responseSchema: 'CreditDto[]',
@@ -10614,6 +10614,27 @@ export const operationControls: OperationControl[] = [
     rateTier: 'read',
     auditEvent: 'credit.webhook.list',
     auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/borrowers/duplicate-exceptions', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:create', resourcePolicy: 'credit:duplicateException:request', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'sensitive', auditEvent: 'credit.duplicateException.request', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/borrowers/duplicate-exceptions/pending', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:approve', resourcePolicy: 'credit:duplicateException:queue', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.duplicateException.queue', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/borrowers/identity-check', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:create', resourcePolicy: 'credit:borrower:identityCheck', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'sensitive', auditEvent: 'credit.borrower.identityCheck', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/borrowers/duplicate-exceptions/:id', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:duplicateException:read', validation: 'uuidParams', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.duplicateException.read', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/borrowers/duplicate-exceptions/:id/decision', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:approve', resourcePolicy: 'credit:duplicateException:decision', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'sensitive', auditEvent: 'credit.duplicateException.decision', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/borrowers/operational-stats', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:borrower:operationalStats', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.borrower.operationalStats', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/borrowers/operational', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:borrower:operationalList', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.borrower.operationalList', auditFindingIds: [],
   },
   ...remainingOperationControls,
 ];

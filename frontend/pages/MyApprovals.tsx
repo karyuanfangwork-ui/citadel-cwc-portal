@@ -13,6 +13,7 @@ import RiskBadge from '../src/components/credit/RiskBadge';
 import ApprovalQuickView from '../src/components/credit/ApprovalQuickView';
 import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import { useIsMobile } from '../src/hooks/useIsMobile';
+import DuplicateExceptionQueue from '../src/components/credit/approvals/DuplicateExceptionQueue';
 
 function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: boolean): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string; icon: string } {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
@@ -238,6 +239,7 @@ const MyApprovals: React.FC = () => {
   return (
     <>
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+        {canApprove && <DuplicateExceptionQueue />}
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
           <div>

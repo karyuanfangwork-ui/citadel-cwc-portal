@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
+import creditService, { BorrowerOnboardingStage, CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
 import { useDuplicateCheck } from '../src/hooks/useDuplicateCheck';
+import type { DuplicateIdentityResult } from '../src/types/credit-ui.types';
 import { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
 import TopBar from '../src/components/credit/create-borrower/TopBar';
 import DuplicateCheckStep from '../src/components/credit/create-borrower/DuplicateCheckStep';
@@ -26,6 +27,22 @@ const SEGMENT_LABELS: Record<BorrowerType, string> = {
 };
 
 const DRAFT_KEY = 'createBorrowerDraft';
+const ONBOARDING_KEY = 'createBorrowerOnboardingKey';
+
+function newIdempotencyKey(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `borrower-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function normalizeWizardStep(step: number): number {
+  if (step <= 0) return 0;
+  if (step <= 2) return 1;
+  if (step === 3) return 2;
+  if (step === 4) return 3;
+  if (step <= 6) return 4;
+  return 5;
+}
 
 const CreateBorrowerPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,21 +71,44 @@ const CreateBorrowerPage: React.FC = () => {
   // ── Load draft on mount ──
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [hadSavedDraft, setHadSavedDraft] = useState(false);
+  const [serverDraftId, setServerDraftId] = useState<string | null>(null);
+  const [onboardingKey] = useState(() => localStorage.getItem(ONBOARDING_KEY) || newIdempotencyKey());
+  const [identityResult, setIdentityResult] = useState<DuplicateIdentityResult | null>(null);
+  const [identityValue, setIdentityValue] = useState('');
+  const [identityChecking, setIdentityChecking] = useState(false);
+  const [exceptionRequesting, setExceptionRequesting] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const draft = JSON.parse(saved);
-        if (draft.formData) {
-          setFormData({ ...initialFormData(), ...draft.formData });
-          setHadSavedDraft(true);
+    let mounted = true;
+    void (async () => {
+      let hasServerDraft = false;
+      try {
+        const serverDraft = await creditService.getApplicationDraft();
+        if (mounted && serverDraft) {
+          hasServerDraft = true;
+          setServerDraftId(serverDraft.id);
+          const payload = serverDraft.payload as { formData?: Partial<FormData>; currentStep?: number; onboardingKey?: string };
+          if (payload.formData) {
+            setFormData({ ...initialFormData(), ...payload.formData });
+            setHadSavedDraft(true);
+          }
+          if (typeof payload.currentStep === 'number') setCurrentStep(normalizeWizardStep(payload.currentStep));
+          if (payload.onboardingKey) localStorage.setItem(ONBOARDING_KEY, payload.onboardingKey);
         }
-        if (typeof draft.currentStep === 'number') setCurrentStep(draft.currentStep);
-      }
-    } catch { /* ignore corrupt draft */ }
-    // Mark draft load as complete even if no draft was found,
-    // so the save effect below can start persisting.
-    setDraftLoaded(true);
+      } catch { /* fall back to the existing local draft */ }
+      try {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved && mounted) {
+          const draft = JSON.parse(saved);
+          if (!hasServerDraft && draft.formData) setFormData({ ...initialFormData(), ...draft.formData });
+          if (!hasServerDraft && typeof draft.currentStep === 'number') setCurrentStep(normalizeWizardStep(draft.currentStep));
+          if (draft.formData) setHadSavedDraft(true);
+          if (draft.onboardingKey) localStorage.setItem(ONBOARDING_KEY, draft.onboardingKey);
+        }
+      } catch { /* ignore corrupt draft */ }
+      if (mounted) setDraftLoaded(true);
+    })();
+    return () => { mounted = false; };
   }, []);
 
   // ── Show toast when a saved draft is restored ──
@@ -83,8 +123,13 @@ const CreateBorrowerPage: React.FC = () => {
     if (!draftLoaded) return; // Don't save until draft load attempt is done
     // Don't persist File objects in localStorage
     const storable = { ...formData, documents: [] };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep }));
-  }, [formData, currentStep, draftLoaded]);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep, onboardingKey }));
+    localStorage.setItem(ONBOARDING_KEY, onboardingKey);
+    const timer = window.setTimeout(() => {
+      void creditService.saveApplicationDraft({ formData: storable, currentStep, onboardingKey }).then((draft) => setServerDraftId(draft.id)).catch(() => undefined);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [formData, currentStep, draftLoaded, onboardingKey]);
 
   // ── Handlers ──
 
@@ -115,6 +160,9 @@ const CreateBorrowerPage: React.FC = () => {
       contactId: null,
     }));
     resetDupCheck();
+    setIdentityResult(null);
+    setIdentityValue('');
+    setIdentityError(null);
   }, [resetDupCheck]);
 
   const runDuplicateCheckCb = useCallback(() => {
@@ -123,15 +171,54 @@ const CreateBorrowerPage: React.FC = () => {
     void runDuplicateCheck(isIndividual ? { nric: identifier } : { ssm: identifier });
   }, [isIndividual, formData.nric, formData.ssm, runDuplicateCheck]);
 
+  const runIdentityCheck = useCallback(async (identifier: string) => {
+    if (!serverDraftId) {
+      setIdentityError('Saving the secure server draft… please try the identity check again.');
+      return;
+    }
+    if (!identifier.trim()) return;
+    setIdentityChecking(true);
+    setIdentityError(null);
+    setIdentityValue(identifier.trim());
+    try {
+      const segment = formData.borrowerType === 'SOLE_PROPRIETOR' ? 'SME' : formData.borrowerType === 'CORPORATE' ? 'CORPORATE' : 'INDIVIDUAL';
+      const identifierType = segment === 'CORPORATE' || segment === 'SME' ? 'BUSINESS_REGISTRATION' : 'NRIC';
+      setIdentityResult(await creditService.checkBorrowerIdentity({ draftId: serverDraftId, segment, identifier, identifierType }));
+    } catch (e: any) {
+      setIdentityResult(null);
+      setIdentityError(e?.response?.data?.message || 'Identity check failed.');
+    } finally {
+      setIdentityChecking(false);
+    }
+  }, [formData.borrowerType, serverDraftId]);
+
+  const requestIdentityException = useCallback(async (input: { category: string; justification: string }) => {
+    if (!serverDraftId || !identityResult?.match) return;
+    setExceptionRequesting(true);
+    try {
+      const segment = formData.borrowerType === 'SOLE_PROPRIETOR' ? 'SME' : formData.borrowerType === 'CORPORATE' ? 'CORPORATE' : 'INDIVIDUAL';
+      const exception = await creditService.requestDuplicateException({ draftId: serverDraftId, matchedBorrowerId: identityResult.match.borrowerId, segment, identityValue, ...input });
+      setIdentityResult(prev => prev ? { ...prev, exceptionRequestId: exception.id, exceptionStatus: exception.status } : prev);
+      toast.success('Duplicate exception request submitted for approval');
+    } catch (e: any) {
+      setIdentityError(e?.response?.data?.message || 'Could not request duplicate exception.');
+    } finally {
+      setExceptionRequesting(false);
+    }
+  }, [formData.borrowerType, identityResult, identityValue, serverDraftId]);
+
+  const identityCanProceed = Boolean(identityResult && (!identityResult.exactMatch || identityResult.exceptionStatus === 'APPROVED'));
+
   const handleStepClick = useCallback((stepIndex: number) => {
     setCurrentStep(stepIndex);
   }, []);
 
   const handleSaveDraft = useCallback(() => {
     const storable = { ...formData, documents: [] };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: storable, currentStep, onboardingKey }));
+    void creditService.saveApplicationDraft({ formData: storable, currentStep, onboardingKey }).then((draft) => setServerDraftId(draft.id)).catch(() => undefined);
     toast.success('Draft saved');
-  }, [formData, currentStep]);
+  }, [formData, currentStep, onboardingKey]);
 
   const handleValidate = useCallback(() => {
     const isInd = formData.borrowerType === 'INDIVIDUAL';
@@ -161,49 +248,43 @@ const CreateBorrowerPage: React.FC = () => {
     }
   }, [formData]);
 
-  // ── Post-create orchestration (best-effort, non-blocking) ──
+  // ── Post-create orchestration with explicit recoverable outcomes ──
 
-  const runPostCreateSteps = useCallback(async (borrowerId: string) => {
-    const tasks: Promise<void>[] = [];
+  const runPostCreateSteps = useCallback(async (borrowerId: string): Promise<BorrowerOnboardingStage[]> => {
+    const stages: BorrowerOnboardingStage[] = [{ name: 'PROFILE', status: 'COMPLETED' }];
+    const run = async (name: BorrowerOnboardingStage['name'], task: Promise<unknown>) => {
+      try {
+        await task;
+        stages.push({ name, status: 'COMPLETED' });
+      } catch (e: any) {
+        stages.push({ name, status: 'FAILED', message: e?.response?.data?.message || 'Follow-up action failed.' });
+      }
+    };
 
-    // Income
     if (formData.monthlyGrossIncome) {
       const gross = Number(formData.monthlyGrossIncome) + Number(formData.fixedAllowances || 0);
-      tasks.push(
-        creditService.putIncome(borrowerId, {
-          employmentType: formData.employmentType || undefined,
-          employerName: formData.employerName || undefined,
-          monthlyGrossIncome: gross,
-          existingLoanCommitment: Number(formData.existingCommitments) || 0,
-        }).then(() => undefined)
-      );
-    }
+      await run('INCOME', creditService.putIncome(borrowerId, {
+        employmentType: formData.employmentType || undefined,
+        employerName: formData.employerName || undefined,
+        monthlyGrossIncome: gross,
+        existingLoanCommitment: Number(formData.existingCommitments) || 0,
+      }));
+    } else stages.push({ name: 'INCOME', status: 'NOT_REQUIRED' });
 
-    // KYC
-    if (formData.kycVerified) {
-      tasks.push(creditService.runKyc(borrowerId).then(() => undefined));
-    }
+    if (formData.kycVerified) await run('KYC', creditService.runKyc(borrowerId));
+    else stages.push({ name: 'KYC', status: 'NOT_REQUIRED' });
 
-    // AML
     if (formData.amlResult !== 'not_started') {
-      tasks.push(
-        creditService.runAml(borrowerId, {
-          result: formData.amlResult.toUpperCase(),
-          notes: formData.amlNotes || undefined,
-        }).then(() => undefined)
-      );
-    }
+      await run('AML', creditService.runAml(borrowerId, {
+        result: formData.amlResult.toUpperCase(),
+        notes: formData.amlNotes || undefined,
+      }));
+    } else stages.push({ name: 'AML', status: 'NOT_REQUIRED' });
 
-    // Documents
-    for (const doc of formData.documents) {
-      tasks.push(creditService.uploadBorrowerDocument(borrowerId, doc.file, doc.documentClass).then(() => undefined));
-    }
-
-    const results = await Promise.allSettled(tasks);
-    const failures = results.filter(r => r.status === 'rejected');
-    if (failures.length > 0) {
-      toast.success('Borrower created. Some post-create steps failed — complete them on the profile page.');
-    }
+    if (formData.documents.length > 0) {
+      for (const doc of formData.documents) await run('DOCUMENTS', creditService.uploadBorrowerDocument(borrowerId, doc.file, doc.documentClass));
+    } else stages.push({ name: 'DOCUMENTS', status: 'NOT_REQUIRED' });
+    return stages;
   }, [formData]);
 
   const handleSubmit = useCallback(async (overrideDuplicate = false) => {
@@ -216,6 +297,7 @@ const CreateBorrowerPage: React.FC = () => {
       const addressString = addressParts.length > 0 ? addressParts.join(', ') : undefined;
 
       const payload: CreateBorrowerProfilePayload = {
+        idempotencyKey: onboardingKey,
         borrowerType: formData.borrowerType,
         name: formData.name || null,
         accountId: formData.accountId,
@@ -247,11 +329,13 @@ const CreateBorrowerPage: React.FC = () => {
       const profile = await creditService.createBorrowerProfile(payload);
 
       // Post-create orchestration (best-effort)
-      await runPostCreateSteps(profile.id);
+      const stages = await runPostCreateSteps(profile.id);
+      const requiresFollowUp = stages.some(stage => stage.status === 'FAILED');
 
       localStorage.removeItem(DRAFT_KEY);
-      toast.success('Borrower created successfully');
-      navigate(`/credit/borrowers/${profile.id}`);
+      localStorage.removeItem(ONBOARDING_KEY);
+      toast.success(requiresFollowUp ? 'Borrower created; onboarding requires follow-up.' : 'Borrower created successfully');
+      navigate(`/credit/borrowers/${profile.id}`, { state: { onboarding: { borrowerId: profile.id, status: requiresFollowUp ? 'REQUIRES_FOLLOW_UP' : 'COMPLETED', stages } } });
     } catch (e: any) {
       if (e?.response?.status === 409) {
         const conflicts: DuplicateMatch[] = e?.response?.data?.data?.duplicates ?? e?.response?.data?.data ?? [];
@@ -291,19 +375,22 @@ const CreateBorrowerPage: React.FC = () => {
     switch (currentStep) {
       case 0:
         return (
-          <DuplicateCheckStep
-            onUseExisting={(borrowerId) => navigate(`/credit/borrowers/${borrowerId}`)}
-            onProceed={() => { setCompletedSteps(prev => new Set(prev).add(0)); setCurrentStep(1); }}
-          />
+          <>
+            <DuplicateCheckStep
+              onUseExisting={(borrowerId) => navigate(`/credit/borrowers/${borrowerId}`)}
+              onProceed={() => { setCompletedSteps(prev => new Set(prev).add(0)); setCurrentStep(1); }}
+              onIdentityCheck={runIdentityCheck}
+              identityResult={identityResult}
+              identityChecking={identityChecking}
+              identityError={identityError}
+              canProceed={identityCanProceed}
+              onRequestException={requestIdentityException}
+              exceptionRequesting={exceptionRequesting}
+            />
+            <BorrowerTypeStep value={formData.borrowerType} onChange={handleBorrowerTypeChange} />
+          </>
         );
       case 1:
-        return (
-          <BorrowerTypeStep
-            value={formData.borrowerType}
-            onChange={handleBorrowerTypeChange}
-          />
-        );
-      case 2:
         return (
           <BasicInfoStep
             formData={formData}
@@ -313,35 +400,28 @@ const CreateBorrowerPage: React.FC = () => {
             onDuplicateCheck={runDuplicateCheckCb}
           />
         );
-      case 3:
+      case 2:
         return (
           <ContactInfoStep
             formData={formData}
             onFormDataChange={handleFormDataChange}
           />
         );
-      case 4:
+      case 3:
         return (
           <EmploymentFinancialsStep
             formData={formData}
             onFormDataChange={handleFormDataChange}
           />
         );
+      case 4:
+        return (
+          <>
+            <ComplianceChecksStep formData={formData} onFormDataChange={handleFormDataChange} />
+            <DocumentUploadStep formData={formData} onFormDataChange={handleFormDataChange} />
+          </>
+        );
       case 5:
-        return (
-          <ComplianceChecksStep
-            formData={formData}
-            onFormDataChange={handleFormDataChange}
-          />
-        );
-      case 6:
-        return (
-          <DocumentUploadStep
-            formData={formData}
-            onFormDataChange={handleFormDataChange}
-          />
-        );
-      case 7:
         return (
           <ReviewStep
             formData={formData}

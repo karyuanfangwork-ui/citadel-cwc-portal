@@ -13,6 +13,8 @@ import {
 import { encryptBorrowerFields, decryptBorrowerFields } from '../middleware/fieldEncryption.middleware';
 import { borrowerCreditDataController } from '../controllers/borrowerCreditData.controller';
 import { borrowerScoringController } from '../controllers/borrowerScoring.controller';
+import { borrowerListQuerySchema } from '../validators/borrowerList.validator';
+import { identityCheckSchema } from '../validators/identityCheck.validator';
 
 const router = Router();
 
@@ -21,6 +23,20 @@ router.use(authenticate);
 
 // §2.9 — Decrypt encrypted fields on all GET responses
 router.use(decryptBorrowerFields());
+
+router.get(
+  '/operational-stats',
+  requirePermission('credit:read'),
+  validate(borrowerListQuerySchema),
+  borrowerProfileController.operationalStats,
+);
+
+router.get(
+  '/operational',
+  requirePermission('credit:read'),
+  validate(borrowerListQuerySchema),
+  borrowerProfileController.operationalList,
+);
 
 router.get(
   '/stats',
@@ -48,6 +64,13 @@ router.get(
   '/check-duplicate',
   requirePermission('credit:read'),
   borrowerProfileController.checkDuplicate,
+);
+
+router.post(
+  '/identity-check',
+  requirePermission('credit:create'),
+  validate(identityCheckSchema),
+  borrowerProfileController.identityCheck,
 );
 
 /**

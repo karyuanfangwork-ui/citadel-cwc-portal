@@ -30,6 +30,7 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   // ── Tools ─────────────────────────────────────────────────────────
   { to: '/assets', label: 'IT Assets',     icon: 'devices',      group: 'tools', show: hasAnyPermission(user, ['asset:read']) },
   { to: '/crm',    label: 'CRM',           icon: 'group',        group: 'tools', show: hasAnyPermission(user, ['crm:read']) },
+  { to: '/esm',    label: 'Executive Services', icon: 'business_center', group: 'tools', show: true },
   { to: '/credit', label: 'Credit',        icon: 'account_balance', group: 'tools', show: hasAnyPermission(user, ['credit:read']) },
   { to: '/kb',     label: 'Knowledge Base', icon: 'menu_book',   group: 'tools', show: isFeatureEnabled('kb') },
 

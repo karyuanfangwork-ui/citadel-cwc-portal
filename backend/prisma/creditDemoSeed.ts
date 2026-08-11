@@ -5,6 +5,8 @@ import {
   AccountClassification,
   AccountStrategy,
   BorrowerType,
+  BorrowerSegment,
+  BorrowerLifecycleStatus,
   CreditProductType,
   FacilityType,
   CurrencyCode,
@@ -77,7 +79,7 @@ async function seedCrmAccounts(adminId: string) {
 // ---------------------------------------------------------------------------
 // 2. Borrower Profiles (5) with Directors, Shareholders, UBOs — ALL fields
 // ---------------------------------------------------------------------------
-async function seedBorrowerProfiles(accounts: any[]) {
+async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: string) {
   const corporateAccounts = accounts.filter((a: any) => a.accountType === 'CORPORATE');
   const individualAccounts = accounts.filter((a: any) => a.accountType === 'INDIVIDUAL');
   const profiles: any[] = [];
@@ -223,6 +225,26 @@ async function seedBorrowerProfiles(accounts: any[]) {
       });
     }
     profiles.push(bp);
+  }
+
+  // Operational borrower fields are demo-safe and idempotent. Existing
+  // borrower numbers are preserved after a production backfill.
+  for (let index = 0; index < profiles.length; index++) {
+    const profile = profiles[index];
+    const segment = profile.borrowerType === BorrowerType.INDIVIDUAL || profile.borrowerType === BorrowerType.JOINT
+      ? BorrowerSegment.INDIVIDUAL
+      : profile.borrowerType === BorrowerType.SOLE_PROPRIETOR
+        ? BorrowerSegment.SME
+        : BorrowerSegment.CORPORATE;
+    await prisma.borrowerProfile.update({
+      where: { id: profile.id },
+      data: {
+        borrowerNumber: profile.borrowerNumber ?? `BRW-${String(index + 1).padStart(6, '0')}`,
+        segment,
+        lifecycleStatus: profile.isActive ? BorrowerLifecycleStatus.ACTIVE : BorrowerLifecycleStatus.INACTIVE,
+        relationshipOwnerId: profile.relationshipOwnerId ?? relationshipOwnerId ?? null,
+      },
+    });
   }
 
   console.log(`  ✅ ${profiles.length} borrower profiles (with all fields)`);
@@ -1766,7 +1788,7 @@ export async function seedCreditDemo(adminId: string, analystId: string) {
   console.log('\n🏦 Seeding Credit Module demo data...');
 
   const accounts = await seedCrmAccounts(adminId);
-  const profiles = await seedBorrowerProfiles(accounts);
+  const profiles = await seedBorrowerProfiles(accounts, adminId);
   await seedRelatedPartyGroups(profiles);
   const apps = await seedCreditApplications(profiles, adminId, analystId);
   await seedDocuments(apps, profiles, adminId);

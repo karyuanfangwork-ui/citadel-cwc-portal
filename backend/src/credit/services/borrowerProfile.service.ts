@@ -2,8 +2,28 @@ import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { maskNric } from '../utils/maskNric';
+import { maskPrimaryContact } from '../utils/maskContact';
 import { PiiReadLogService } from './piiReadLog.service';
 import { normalizeIdentity } from '../utils/identityNormalization';
+import { formatBorrowerNumber, mapBorrowerLifecycle, mapBorrowerSegment } from '../utils/borrowerOperational';
+import { borrowerDuplicateExceptionService, computeDuplicateIdentityFingerprint } from './borrowerDuplicateException.service';
+import type { BorrowerListQuery } from '../validators/borrowerList.validator';
+
+type ScopedBorrowerListQuery = Omit<BorrowerListQuery, 'branchId'> & { branchId?: string | null };
+
+export function getOperationalBorrowerOrderBy(sortBy: BorrowerListQuery['sortBy'], sortDirection: BorrowerListQuery['sortDirection']) {
+  if (sortBy === 'name') return { name: sortDirection };
+  if (sortBy === 'segment') return { segment: sortDirection };
+  if (sortBy === 'status') return { lifecycleStatus: sortDirection };
+  if (sortBy === 'totalExposure') return { totalExposure: sortDirection };
+  return { updatedAt: sortDirection };
+}
+
+export function getAppliedOperationalSort(sortBy: BorrowerListQuery['sortBy'], sortDirection: BorrowerListQuery['sortDirection']) {
+  return sortBy === 'activeApplicationCount'
+    ? { field: 'updatedAt', direction: sortDirection, fallback: 'activeApplicationCount is computed from non-terminal applications and is not database-sortable' }
+    : { field: sortBy, direction: sortDirection };
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,6 +77,7 @@ export interface CreateBorrowerProfileData {
   annualIncomeEncrypted?: string | null;
   netWorthEncrypted?: string | null;
   sourceOfWealthEncrypted?: string | null;
+  duplicateExceptionId?: string;
 }
 
 export interface UpdateBorrowerProfileData {
@@ -133,6 +154,122 @@ export interface DuplicateMatch {
 // ---------------------------------------------------------------------------
 
 class BorrowerProfileService {
+  /** Purpose-built operational borrower projection for the production list. */
+  async listOperationalBorrowers(query: ScopedBorrowerListQuery) {
+    const {
+      page,
+      limit,
+      search,
+      segment,
+      status,
+      relationshipOwnerId,
+      hasActiveApplication,
+      branchId,
+      sortBy,
+      sortDirection,
+    } = query;
+    const activeStates = { notIn: ['REJECTED', 'CLOSED', 'WITHDRAWN'] as any[] };
+    const where: Prisma.BorrowerProfileWhereInput = {
+      deletedAt: null,
+      ...(segment ? { segment: segment as any } : {}),
+      ...(status ? { lifecycleStatus: status as any } : {}),
+      ...(relationshipOwnerId ? { relationshipOwnerId } : {}),
+      ...(branchId !== undefined ? { branchId } : {}),
+      ...(hasActiveApplication === undefined ? {} : {
+        applications: hasActiveApplication ? { some: { deletedAt: null, state: activeStates } } : { none: { deletedAt: null, state: activeStates } },
+      }),
+    };
+
+    if (search) {
+      const normalized = normalizeIdentity(search);
+      where.OR = [
+        { borrowerNumber: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { registrationNumber: { contains: search, mode: 'insensitive' } },
+        { nricPassport: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        ...(normalized ? [
+          { registrationNumberNormalized: { contains: normalized } },
+          { nricPassportNormalized: { contains: normalized } },
+        ] : []),
+      ];
+    }
+
+    const orderBy = getOperationalBorrowerOrderBy(sortBy, sortDirection);
+    const appliedSort = getAppliedOperationalSort(sortBy, sortDirection);
+    const skip = (page - 1) * limit;
+    const [profiles, total] = await Promise.all([
+      prisma.borrowerProfile.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        select: {
+          id: true,
+          borrowerNumber: true,
+          name: true,
+          borrowerType: true,
+          segment: true,
+          lifecycleStatus: true,
+          nricPassport: true,
+          phone: true,
+          email: true,
+          totalExposure: true,
+          updatedAt: true,
+          relationshipOwner: { select: { id: true, firstName: true, lastName: true } },
+          applications: { where: { deletedAt: null }, select: { state: true } },
+        },
+      }),
+      prisma.borrowerProfile.count({ where }),
+    ]);
+
+    const items = profiles.map((profile) => {
+      const activeApplicationCount = profile.applications.filter((application) => !['REJECTED', 'CLOSED', 'WITHDRAWN'].includes(application.state)).length;
+      return {
+        id: profile.id,
+        borrowerNumber: profile.borrowerNumber ?? '',
+        name: profile.name ?? 'Unnamed borrower',
+        segment: profile.segment,
+        legalType: profile.borrowerType,
+        maskedIdentifier: profile.nricPassport ? maskNric(profile.nricPassport) : null,
+        primaryContact: maskPrimaryContact(profile.phone, profile.email),
+        relationshipOwner: profile.relationshipOwner ? {
+          id: profile.relationshipOwner.id,
+          name: `${profile.relationshipOwner.firstName} ${profile.relationshipOwner.lastName}`.trim(),
+        } : null,
+        activeApplicationCount,
+        totalExposure: profile.totalExposure == null ? 0 : Number(profile.totalExposure),
+        status: profile.lifecycleStatus,
+        updatedAt: profile.updatedAt.toISOString(),
+      };
+    });
+
+    return {
+      items,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      appliedSort,
+    };
+  }
+
+  async getOperationalBorrowerStats(options: Pick<ScopedBorrowerListQuery, 'segment' | 'status' | 'relationshipOwnerId' | 'branchId'> = {}) {
+    const where: Prisma.BorrowerProfileWhereInput = {
+      deletedAt: null,
+      ...(options.segment ? { segment: options.segment as any } : {}),
+      ...(options.status ? { lifecycleStatus: options.status as any } : {}),
+      ...(options.relationshipOwnerId ? { relationshipOwnerId: options.relationshipOwnerId } : {}),
+      ...(options.branchId !== undefined ? { branchId: options.branchId } : {}),
+    };
+    const [total, active, individual, sme, corporate] = await Promise.all([
+      prisma.borrowerProfile.count({ where }),
+      prisma.borrowerProfile.count({ where: { ...where, lifecycleStatus: 'ACTIVE' as any } }),
+      prisma.borrowerProfile.count({ where: { ...where, segment: 'INDIVIDUAL' as any } }),
+      prisma.borrowerProfile.count({ where: { ...where, segment: 'SME' as any } }),
+      prisma.borrowerProfile.count({ where: { ...where, segment: 'CORPORATE' as any } }),
+    ]);
+    return { total, active, individual, sme, corporate };
+  }
+
   /**
    * GET /borrowers/stats — Aggregate counts for KPI cards
    */
@@ -382,6 +519,42 @@ class BorrowerProfileService {
     return { duplicates };
   }
 
+  async identityCheck(input: {
+    draftId: string;
+    requestedById: string;
+    segment: 'INDIVIDUAL' | 'SME' | 'CORPORATE';
+    identifier: string;
+    identifierType: 'NRIC' | 'PASSPORT' | 'BUSINESS_REGISTRATION';
+  }) {
+    const normalized = normalizeIdentity(input.identifier);
+    if (!normalized) throw new AppError('A valid identity value is required', 400);
+    const field = input.identifierType === 'BUSINESS_REGISTRATION'
+      ? 'registrationNumberNormalized'
+      : 'nricPassportNormalized';
+    const matches = await prisma.borrowerProfile.findMany({
+      where: { deletedAt: null, segment: input.segment as any, [field]: normalized },
+      select: { id: true, borrowerNumber: true, name: true },
+      take: 10,
+    });
+    const match = matches[0];
+    const fingerprint = computeDuplicateIdentityFingerprint(input.segment, input.identifier);
+    const exception = await prisma.borrowerDuplicateException.findFirst({
+      where: { draftId: input.draftId, requestedById: input.requestedById, identityFingerprint: fingerprint, status: { in: ['PENDING', 'APPROVED'] } },
+      select: { id: true, status: true },
+    });
+    return {
+      exactMatch: Boolean(match),
+      match: match ? {
+        borrowerId: match.id,
+        borrowerNumber: match.borrowerNumber,
+        name: match.name || 'Unknown',
+        maskedIdentifier: maskNric(input.identifier),
+      } : null,
+      exceptionRequestId: exception?.id ?? null,
+      exceptionStatus: exception?.status ?? null,
+    };
+  }
+
   /**
    * List borrower profiles with pagination and filters.
    */
@@ -503,7 +676,7 @@ class BorrowerProfileService {
    * and throws 409 if duplicates are found.
    * If overrideDuplicate is true, skips the duplicate check (admin override).
    */
-  async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; overrideReason?: string; userId?: string; userPermissions?: string[] }) {
+  async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; overrideReason?: string; duplicateExceptionId?: string; userId?: string; userPermissions?: string[] }) {
     if (!data.name?.trim()) {
       throw new Error('Borrower name is required');
     }
@@ -540,12 +713,16 @@ class BorrowerProfileService {
       registrationNumber: data.registrationNumber,
     });
 
-    if (!overrideDuplicate && duplicateCheck.duplicates.length > 0) {
+    const duplicateExceptionId = options?.duplicateExceptionId ?? data.duplicateExceptionId;
+    if (!overrideDuplicate && duplicateCheck.duplicates.length > 0 && !duplicateExceptionId) {
       throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
     }
 
-    const createData: Prisma.BorrowerProfileCreateInput = {
+    const buildCreateData = (borrowerNumber: string): Prisma.BorrowerProfileCreateInput => ({
       borrowerType: data.borrowerType as any,
+      borrowerNumber,
+      segment: mapBorrowerSegment(data.borrowerType) as any,
+      lifecycleStatus: mapBorrowerLifecycle(true) as any,
       name: data.name ?? undefined,
       ...(data.accountId && { account: { connect: { id: data.accountId } } }),
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
@@ -592,15 +769,38 @@ class BorrowerProfileService {
       sourceOfWealthEncrypted: data.sourceOfWealthEncrypted ?? undefined,
       annualIncomeEncrypted: data.annualIncomeEncrypted ?? undefined,
       netWorthEncrypted: data.netWorthEncrypted ?? undefined,
-    };
+    });
 
-    const profile = await prisma.borrowerProfile.create({
-      data: createData,
+    const createProfile = async (db: any) => {
+      const sequenceRows = await db.$queryRaw<Array<{ value: bigint | number }>>`SELECT nextval('borrower_number_seq') AS value`;
+      const sequenceValue = Number(sequenceRows[0]?.value);
+      return db.borrowerProfile.create({
+      data: buildCreateData(formatBorrowerNumber(sequenceValue)),
       include: {
         account: { select: { id: true, name: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
       },
-    });
+      });
+    };
+
+    const profile = duplicateExceptionId
+      ? await prisma.$transaction(async (tx) => {
+        if (!options?.userId) throw new AppError('Authenticated user is required to consume a duplicate exception', 401);
+        const matched = duplicateCheck.duplicates.find((duplicate) => duplicate.matchField.includes('NRIC') || duplicate.matchField.includes('Registration'));
+        if (!matched) throw new AppError('A duplicate exception can only be consumed for an exact identity match', 409);
+        const identityValue = data.borrowerType === 'INDIVIDUAL' ? data.nricPassport : data.registrationNumber;
+        if (!identityValue) throw new AppError('Identity value is required to consume a duplicate exception', 400);
+        const created = await createProfile(tx);
+        await borrowerDuplicateExceptionService.consumeApproved(tx, {
+          id: duplicateExceptionId,
+          requesterId: options.userId,
+          matchedBorrowerId: matched.borrowerId,
+          segment: mapBorrowerSegment(data.borrowerType),
+          identityValue,
+        });
+        return created;
+      })
+      : await prisma.$transaction(async (tx) => createProfile(tx));
 
     // Audit log for admin override of duplicate detection
     if (overrideDuplicate && options?.userId) {
