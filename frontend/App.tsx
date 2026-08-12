@@ -260,8 +260,8 @@ const AppShell = () => {
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
               <Route path="/insights" element={<ProtectedRoute requirePermission="report:read"><Insights /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
-              <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
-              <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute requirePermission="kb:manage"><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute requirePermission="kb:manage"><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute><ApprovalCenter /></ProtectedRoute>} />
               <Route path="/inbox" element={<ProtectedRoute><UnifiedInbox /></ProtectedRoute>} />
               <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />

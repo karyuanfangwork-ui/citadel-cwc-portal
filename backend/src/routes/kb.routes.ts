@@ -1,29 +1,29 @@
 import { Router } from 'express';
 import { kbController } from '../controllers/kb.controller';
-import { authenticate, requirePermission, optionalAuth } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 
 /**
  * @route   GET /api/v1/kb/articles
  * @desc    Get all published articles
- * @access  Public
+ * @access  Private (Knowledge Base managers only)
  */
-router.get('/articles', optionalAuth, kbController.getAllArticles);
+router.get('/articles', authenticate, requirePermission('kb:manage'), kbController.getAllArticles);
 
 /**
  * @route   GET /api/v1/kb/articles/:slug
  * @desc    Get article by slug
- * @access  Public
+ * @access  Private (Knowledge Base managers only)
  */
-router.get('/articles/:slug', optionalAuth, kbController.getArticleBySlug);
+router.get('/articles/:slug', authenticate, requirePermission('kb:manage'), kbController.getArticleBySlug);
 
 /**
  * @route   POST /api/v1/kb/articles/:id/helpful
  * @desc    Mark article as helpful/not helpful
- * @access  Public
+ * @access  Private (Knowledge Base managers only)
  */
-router.post('/articles/:id/helpful', kbController.markHelpful);
+router.post('/articles/:id/helpful', authenticate, requirePermission('kb:manage'), kbController.markHelpful);
 
 // Admin/Agent routes
 router.use(authenticate, requirePermission('kb:manage'));

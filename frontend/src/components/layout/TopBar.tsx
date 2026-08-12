@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/context/AuthContext';
 import NotificationDropdown from '@/src/components/NotificationDropdown';
 import type { NavLinkConfig } from './navConfig';
+import { hasPermission } from '@/src/utils/permissions';
 
 /** Map role strings to display labels and badge colors */
 const ROLE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
@@ -108,9 +109,11 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex gap-2">
             <NotificationDropdown />
-            <button aria-label="Open help center" title="Help center" onClick={() => navigate('/kb')} className="hidden sm:flex items-center justify-center rounded-cwc-md h-9 w-9 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
-              <span className="material-symbols-outlined">help</span>
-            </button>
+            {hasPermission(user, 'kb:manage') && (
+              <button aria-label="Open help center" title="Help center" onClick={() => navigate('/kb')} className="hidden sm:flex items-center justify-center rounded-cwc-md h-9 w-9 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
+                <span className="material-symbols-outlined">help</span>
+              </button>
+            )}
           </div>
 
           {isAuthenticated && user && (

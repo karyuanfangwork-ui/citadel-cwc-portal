@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { adminService } from '../../services/admin.service';
 import { hasPermission } from '../../utils/permissions';
@@ -21,6 +21,26 @@ interface Role {
 
 type MatrixState = Record<string, Set<string>>; // roleId → Set<permissionId>
 
+type PermissionMode = 'role' | 'compare';
+
+function formatRoleName(name: string): string {
+    return name.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()).replace(/_/g, ' ');
+}
+
+function formatPermissionLabel(permission: Permission): string {
+    const action = permission.action.toLowerCase();
+    const labels: Record<string, string> = {
+        read: 'View',
+        write: 'Create and edit',
+        delete: 'Delete',
+        import: 'Import',
+        export: 'Export',
+        approve: 'Approve',
+        manage: 'Manage',
+    };
+    return `${labels[action] ?? formatRoleName(permission.action)} ${formatRoleName(permission.resource)}`;
+}
+
 function groupByResource(permissions: Permission[]): Record<string, Permission[]> {
     return permissions.reduce<Record<string, Permission[]>>((acc, p) => {
         (acc[p.resource] = acc[p.resource] || []).push(p);
@@ -30,7 +50,7 @@ function groupByResource(permissions: Permission[]): Record<string, Permission[]
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
     return ReactDOM.createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" role="presentation" onClick={onClose}>
             {children}
         </div>,
         document.body
@@ -67,6 +87,10 @@ export const PermissionsTab: React.FC = () => {
 
     // ── Filter state ──
     const [permSearch, setPermSearch] = useState('');
+    const [resourceFilter, setResourceFilter] = useState('');
+    const [permissionStatus, setPermissionStatus] = useState<'all' | 'granted' | 'not-granted'>('all');
+    const [mode, setMode] = useState<PermissionMode>('role');
+    const [selectedRoleId, setSelectedRoleId] = useState('');
     const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
 
     const toggleRoleVisibility = (roleId: string) => {
@@ -94,6 +118,7 @@ export const PermissionsTab: React.FC = () => {
             const data = await adminService.listPermissions();
             setPermissions(data.permissions);
             setRoles(data.roles);
+            setSelectedRoleId(current => current && data.roles.some(role => role.id === current) ? current : (data.roles[0]?.id ?? ''));
             const m: MatrixState = {};
             data.roles.forEach(r => { m[r.id] = new Set(); });
             data.permissions.forEach(p => {
@@ -168,14 +193,16 @@ export const PermissionsTab: React.FC = () => {
     };
 
     // ── Save role permissions ──
-    const save = async (roleId: string) => {
+    const save = async (roleId: string): Promise<boolean> => {
         setSaving(prev => new Set(prev).add(roleId));
         try {
             await adminService.updateRolePermissions(roleId, Array.from(matrix[roleId]));
             setDirty(prev => { const n = new Set(prev); n.delete(roleId); return n; });
             showToast('success', 'Permissions saved');
+            return true;
         } catch {
             showToast('error', 'Failed to save permissions');
+            return false;
         } finally {
             setSaving(prev => { const n = new Set(prev); n.delete(roleId); return n; });
         }
@@ -183,7 +210,13 @@ export const PermissionsTab: React.FC = () => {
 
     // ── Save all dirty roles in parallel ──
     const saveAll = async () => {
-        await Promise.all(Array.from(dirty).map(roleId => save(roleId)));
+        const results = await Promise.all(Array.from(dirty).map(roleId => save(roleId)));
+        const failedCount = results.filter(result => !result).length;
+        if (failedCount > 0) {
+            showToast('error', `${failedCount} role${failedCount > 1 ? 's' : ''} failed to save. Review and retry.`);
+        } else if (results.length > 1) {
+            showToast('success', `${results.length} roles saved`);
+        }
     };
 
     // ── Create Role ──
@@ -322,6 +355,8 @@ export const PermissionsTab: React.FC = () => {
     };
 
     const visibleRoles = roles.filter(r => !hiddenRoles.has(r.id));
+    const selectedRole = roles.find(role => role.id === selectedRoleId) ?? roles[0];
+    const resourceOptions = useMemo(() => Array.from(new Set(permissions.map(permission => permission.resource))).sort(), [permissions]);
     const filteredPermissions = permSearch.trim()
         ? permissions.filter(p =>
             p.action.toLowerCase().includes(permSearch.toLowerCase()) ||
@@ -329,9 +364,52 @@ export const PermissionsTab: React.FC = () => {
             (p.description ?? '').toLowerCase().includes(permSearch.toLowerCase())
           )
         : permissions;
-    const grouped = groupByResource(filteredPermissions);
+    const scopedPermissions = filteredPermissions.filter(permission => {
+        const matchesResource = !resourceFilter || permission.resource === resourceFilter;
+        const granted = selectedRole ? matrix[selectedRole.id]?.has(permission.id) ?? false : false;
+        const matchesStatus = permissionStatus === 'all'
+            || (permissionStatus === 'granted' && granted)
+            || (permissionStatus === 'not-granted' && !granted);
+        return matchesResource && matchesStatus;
+    });
+    const grouped = groupByResource(mode === 'role' ? scopedPermissions : filteredPermissions.filter(permission => !resourceFilter || permission.resource === resourceFilter));
     const resources = Object.keys(grouped).sort();
     const dirtyCount = dirty.size;
+    const displayedRoles = mode === 'role'
+        ? (selectedRole ? [selectedRole] : [])
+        : visibleRoles;
+
+    const toggleAllForSelectedRole = () => {
+        if (!canAdminSettings || !selectedRole) return;
+        const targetPermissions = scopedPermissions;
+        const allGranted = targetPermissions.length > 0 && targetPermissions.every(permission => matrix[selectedRole.id]?.has(permission.id));
+        setMatrix(prev => {
+            const next = { ...prev, [selectedRole.id]: new Set(prev[selectedRole.id]) };
+            targetPermissions.forEach(permission => {
+                if (allGranted) next[selectedRole.id].delete(permission.id);
+                else next[selectedRole.id].add(permission.id);
+            });
+            return next;
+        });
+        setDirty(prev => new Set(prev).add(selectedRole.id));
+    };
+
+    const togglePermissionForRole = (roleId: string, permId: string) => {
+        if (!canAdminSettings) return;
+        setMatrix(prev => {
+            const next = { ...prev, [roleId]: new Set(prev[roleId]) };
+            if (next[roleId].has(permId)) next[roleId].delete(permId);
+            else next[roleId].add(permId);
+            return next;
+        });
+        setDirty(prev => new Set(prev).add(roleId));
+    };
+
+    const discardSelectedRole = async () => {
+        if (!selectedRole || !dirty.has(selectedRole.id)) return;
+        await load();
+        showToast('success', `${formatRoleName(selectedRole.name)} changes discarded`);
+    };
 
     if (loading) {
         return (
@@ -355,7 +433,7 @@ export const PermissionsTab: React.FC = () => {
                 <div>
                     <h2 className="text-xl font-black text-[#101418] tracking-tight">Permission Matrix</h2>
                     <p className="text-sm text-[#44546f] mt-1">
-                        Toggle permissions per role. Click <strong>Save</strong> after editing a column, or <strong>Save All</strong> for all changes.
+                        Select a role to edit without horizontal scrolling, or switch to comparison mode to review multiple roles.
                     </p>
                 </div>
                 {canAdminSettings && (
@@ -403,56 +481,38 @@ export const PermissionsTab: React.FC = () => {
                 </div>
             )}
 
-            {/* Roles list bar */}
-            <div className="bg-white rounded-xl border border-[#e8eaf0] p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#44546f] text-lg">shield</span>
-                    <h3 className="text-sm font-black text-[#101418] uppercase tracking-wider">Roles ({roles.length})</h3>
-                    <span className="text-xs text-[#8993a4]">— click a role to hide/show its column</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {roles.map(role => (
-                        <div
-                            key={role.id}
-                            onClick={() => toggleRoleVisibility(role.id)}
-                            title={role.description ? `${role.name}: ${role.description}` : 'Click to hide column'}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer select-none ${
-                                hiddenRoles.has(role.id)
-                                    ? 'bg-white border-[#c1c7d0] text-[#8993a4] line-through opacity-50'
-                                    : dirty.has(role.id)
-                                    ? 'bg-amber-50 border-amber-300 text-amber-800'
-                                    : 'bg-[#f0f2f5] border-[#e8eaf0] text-[#101418]'
-                            }`}
-                        >
-                            <span>{role.name}</span>
-                            {canAdminSettings && !hiddenRoles.has(role.id) && (
-                                <>
-                                    <button
-                                        onClick={e => { e.stopPropagation(); openEditRole(role); }}
-                                        className="text-[#44546f] hover:text-[#0052cc] transition-colors"
-                                        title="Edit role"
-                                    >
-                                        <span className="material-symbols-outlined text-xs">edit</span>
-                                    </button>
-                                    <button
-                                        onClick={e => { e.stopPropagation(); openDeleteConfirm('role', role.id, role.name); }}
-                                        className="text-[#44546f] hover:text-red-600 transition-colors"
-                                        title="Delete role"
-                                    >
-                                        <span className="material-symbols-outlined text-xs">close</span>
-                                    </button>
-                                </>
-                            )}
+            {/* Editing mode and role navigation */}
+            <div className="bg-white rounded-xl border border-[#e8eaf0] p-4 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex rounded-lg border border-[#e8eaf0] bg-[#f7f8fa] p-1" role="tablist" aria-label="Permission editing mode">
+                        <button type="button" onClick={() => setMode('role')} aria-selected={mode === 'role'} className={`px-3 py-2 rounded-md text-xs font-bold transition-colors ${mode === 'role' ? 'bg-white text-[#0052cc] shadow-sm' : 'text-[#44546f]'}`}>Edit by role</button>
+                        <button type="button" onClick={() => setMode('compare')} aria-selected={mode === 'compare'} className={`px-3 py-2 rounded-md text-xs font-bold transition-colors ${mode === 'compare' ? 'bg-white text-[#0052cc] shadow-sm' : 'text-[#44546f]'}`}>Compare roles</button>
+                    </div>
+                    {mode === 'role' && selectedRole && (
+                        <div className="text-xs text-[#44546f]">
+                            {matrix[selectedRole.id]?.size ?? 0} of {permissions.length} permissions granted
                         </div>
-                    ))}
+                    )}
                 </div>
-                {hiddenRoles.size > 0 && (
-                    <button
-                        onClick={() => setHiddenRoles(new Set())}
-                        className="text-xs font-semibold text-[#0052cc] hover:underline"
-                    >
-                        Show all {hiddenRoles.size} hidden role{hiddenRoles.size > 1 ? 's' : ''}
-                    </button>
+                {mode === 'role' ? (
+                    <div className="flex flex-wrap items-end gap-3">
+                        <label className="flex-1 min-w-[240px]">
+                            <span className="block text-xs font-black uppercase tracking-wider text-[#44546f] mb-1.5">Role to edit</span>
+                            <select value={selectedRole?.id ?? ''} onChange={event => setSelectedRoleId(event.target.value)} className="w-full px-3 py-2.5 border border-[#e8eaf0] rounded-lg text-sm font-semibold text-[#101418] bg-white focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none">
+                                {roles.map(role => <option key={role.id} value={role.id}>{formatRoleName(role.name)} ({role.name})</option>)}
+                            </select>
+                        </label>
+                        {selectedRole && <div className="flex-1 min-w-[240px] pb-1"><div className="text-sm font-black text-[#101418]">{formatRoleName(selectedRole.name)}</div><div className="text-xs text-[#44546f]">{selectedRole.description || 'No role description provided.'}</div></div>}
+                        {canAdminSettings && selectedRole && <div className="flex gap-2 pb-0.5"><button type="button" onClick={toggleAllForSelectedRole} className="px-3 py-2 text-xs font-bold text-[#0052cc] border border-[#0052cc] rounded-lg hover:bg-[#0052cc]/5">{scopedPermissions.length > 0 && scopedPermissions.every(permission => matrix[selectedRole.id]?.has(permission.id)) ? 'Remove visible' : 'Grant visible'}</button><button type="button" onClick={discardSelectedRole} disabled={!dirty.has(selectedRole.id)} className="px-3 py-2 text-xs font-bold text-[#44546f] border border-[#e8eaf0] rounded-lg hover:bg-gray-50 disabled:opacity-40">Discard role changes</button></div>}
+                    </div>
+                ) : (
+                    <div>
+                        <div className="text-xs font-black uppercase tracking-wider text-[#44546f] mb-2">Roles shown in comparison</div>
+                        <div className="flex flex-wrap gap-2">
+                            {roles.map(role => <button type="button" key={role.id} onClick={() => toggleRoleVisibility(role.id)} aria-pressed={!hiddenRoles.has(role.id)} className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${hiddenRoles.has(role.id) ? 'bg-white border-[#c1c7d0] text-[#8993a4] line-through opacity-60' : 'bg-[#f0f2f5] border-[#e8eaf0] text-[#101418]'}`}>{formatRoleName(role.name)}</button>)}
+                        </div>
+                        {hiddenRoles.size > 0 && <button type="button" onClick={() => setHiddenRoles(new Set())} className="mt-2 text-xs font-semibold text-[#0052cc] hover:underline">Show all {hiddenRoles.size} hidden role{hiddenRoles.size > 1 ? 's' : ''}</button>}
+                    </div>
                 )}
             </div>
 
@@ -478,6 +538,14 @@ export const PermissionsTab: React.FC = () => {
                         {filteredPermissions.length} result{filteredPermissions.length !== 1 ? 's' : ''}
                     </span>
                 )}
+                <label className="text-xs font-semibold text-[#44546f]">Resource
+                    <select value={resourceFilter} onChange={event => setResourceFilter(event.target.value)} className="ml-2 px-2.5 py-2 border border-[#e8eaf0] rounded-lg bg-white text-sm font-normal text-[#101418]">
+                        <option value="">All resources</option>{resourceOptions.map(resource => <option key={resource} value={resource}>{formatRoleName(resource)}</option>)}
+                    </select>
+                </label>
+                {mode === 'role' && <label className="text-xs font-semibold text-[#44546f]">Status
+                    <select value={permissionStatus} onChange={event => setPermissionStatus(event.target.value as typeof permissionStatus)} className="ml-2 px-2.5 py-2 border border-[#e8eaf0] rounded-lg bg-white text-sm font-normal text-[#101418]"><option value="all">All</option><option value="granted">Granted</option><option value="not-granted">Not granted</option></select>
+                </label>}
             </div>
 
             {/* Permission Matrix Table */}
@@ -488,18 +556,20 @@ export const PermissionsTab: React.FC = () => {
                             <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-[#44546f] w-56 sticky left-0 bg-[#f7f8fa] z-30 border-r border-[#e8eaf0]">
                                 Permission
                             </th>
-                            {visibleRoles.map(role => (
+                            {displayedRoles.map(role => (
                                 <th key={role.id} className="px-4 py-4 text-center min-w-[100px] bg-[#f7f8fa]" title={role.description ?? undefined}>
                                     <div className="flex flex-col items-center gap-1.5">
-                                        <span className="text-xs font-black uppercase tracking-widest text-[#101418]">{role.name}</span>
+                                        <span className="text-xs font-black tracking-wide text-[#101418]">{formatRoleName(role.name)}</span>
+                                        <span className="text-[10px] text-[#8993a4] font-mono">{role.name}</span>
                                         {canAdminSettings && (
                                             <button
-                                                onClick={() => toggleAllForRole(role.id)}
+                                                onClick={() => mode === 'role' ? toggleAllForSelectedRole() : toggleAllForRole(role.id)}
                                                 className="text-[#8993a4] hover:text-[#0052cc] transition-colors"
-                                                title={permissions.every(p => matrix[role.id]?.has(p.id)) ? 'Deselect all' : 'Select all'}
+                                                aria-label={mode === 'role' ? 'Grant or remove visible permissions' : `${permissions.every(p => matrix[role.id]?.has(p.id)) ? 'Remove all permissions from' : 'Grant all permissions to'} ${formatRoleName(role.name)}`}
+                                                title={mode === 'role' ? 'Grant or remove visible permissions' : permissions.every(p => matrix[role.id]?.has(p.id)) ? 'Remove all permissions' : 'Grant all permissions'}
                                             >
                                                 <span className="material-symbols-outlined text-sm">
-                                                    {permissions.every(p => matrix[role.id]?.has(p.id)) ? 'remove_done' : 'done_all'}
+                                                    {(mode === 'role' ? scopedPermissions : permissions).every(p => matrix[role.id]?.has(p.id)) ? 'remove_done' : 'done_all'}
                                                 </span>
                                             </button>
                                         )}
@@ -522,10 +592,10 @@ export const PermissionsTab: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {resources.length === 0 && permSearch && (
+                        {resources.length === 0 && (permSearch || resourceFilter || permissionStatus !== 'all') && (
                             <tr>
-                                <td colSpan={visibleRoles.length + 1} className="px-6 py-12 text-center text-sm text-[#44546f]">
-                                    No permissions match "<strong>{permSearch}</strong>"
+                                <td colSpan={displayedRoles.length + 1} className="px-6 py-12 text-center text-sm text-[#44546f]">
+                                    No permissions match the current filters.
                                 </td>
                             </tr>
                         )}
@@ -533,7 +603,7 @@ export const PermissionsTab: React.FC = () => {
                             <React.Fragment key={resource}>
                                 <tr className="bg-[#f0f2f5]">
                                     <td
-                                        colSpan={visibleRoles.length + 1}
+                                        colSpan={displayedRoles.length + 1}
                                         className="px-6 py-2 text-xs font-black uppercase tracking-widest text-[#44546f] sticky left-0 z-10 bg-[#f0f2f5]"
                                     >
                                         {resource}
@@ -555,12 +625,13 @@ export const PermissionsTab: React.FC = () => {
                                                 {canAdminSettings && (
                                                     <div className="flex items-center gap-1 flex-shrink-0">
                                                         <button
-                                                            onClick={() => toggleAllForPermission(perm.id)}
+                                                            onClick={() => mode === 'role' && selectedRole ? togglePermissionForRole(selectedRole.id, perm.id) : toggleAllForPermission(perm.id)}
                                                             className="text-[#8993a4] hover:text-[#0052cc] transition-colors"
-                                                            title={roles.every(r => matrix[r.id]?.has(perm.id)) ? 'Remove from all roles' : 'Grant to all roles'}
+                                                            aria-label={mode === 'role' && selectedRole ? `${matrix[selectedRole.id]?.has(perm.id) ? 'Remove' : 'Grant'} ${formatPermissionLabel(perm)} for ${formatRoleName(selectedRole.name)}` : `${roles.every(r => matrix[r.id]?.has(perm.id)) ? 'Remove' : 'Grant'} ${formatPermissionLabel(perm)} for all roles`}
+                                                            title={mode === 'role' ? 'Toggle permission for selected role' : roles.every(r => matrix[r.id]?.has(perm.id)) ? 'Remove from all roles' : 'Grant to all roles'}
                                                         >
                                                             <span className="material-symbols-outlined text-xs">
-                                                                {roles.every(r => matrix[r.id]?.has(perm.id)) ? 'remove_done' : 'done_all'}
+                                                                {mode === 'role' ? (selectedRole && matrix[selectedRole.id]?.has(perm.id) ? 'remove_done' : 'done_all') : (roles.every(r => matrix[r.id]?.has(perm.id)) ? 'remove_done' : 'done_all')}
                                                             </span>
                                                         </button>
                                                         <button
@@ -574,7 +645,7 @@ export const PermissionsTab: React.FC = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        {visibleRoles.map(role => {
+                                        {displayedRoles.map(role => {
                                             const checked = matrix[role.id]?.has(perm.id) ?? false;
                                             return (
                                                 <td key={role.id} className={`px-4 py-3 text-center ${dirty.has(role.id) ? 'bg-amber-50/40' : ''}`}>
@@ -586,7 +657,8 @@ export const PermissionsTab: React.FC = () => {
                                                                 ? 'bg-[#0052cc] border-[#0052cc] text-white'
                                                                 : 'border-[#c1c7d0] bg-white hover:border-[#0052cc]'
                                                         } ${!canAdminSettings ? 'cursor-not-allowed opacity-50' : ''}`}
-                                                        aria-label={`${checked ? 'Remove' : 'Add'} ${perm.name} for ${role.name}`}
+                                                        aria-pressed={checked}
+                                                        aria-label={`${checked ? 'Remove' : 'Grant'} ${formatPermissionLabel(perm)} for ${formatRoleName(role.name)}`}
                                                     >
                                                         {checked && (
                                                             <span className="material-symbols-outlined text-xs leading-none">check</span>
@@ -602,6 +674,21 @@ export const PermissionsTab: React.FC = () => {
                     </tbody>
                 </table>
             </div>
+
+            {mode === 'role' && selectedRole && canAdminSettings && (
+                <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-white/95 backdrop-blur border border-[#e8eaf0] rounded-xl shadow-lg">
+                    <div className="text-sm text-[#44546f]">
+                        {dirty.has(selectedRole.id) ? <><strong className="text-amber-700">Unsaved changes</strong> for {formatRoleName(selectedRole.name)}</> : <>All changes saved for {formatRoleName(selectedRole.name)}</>}
+                    </div>
+                    <div className="flex gap-2">
+                        <button type="button" onClick={discardSelectedRole} disabled={!dirty.has(selectedRole.id)} className="px-4 py-2 text-sm font-bold text-[#44546f] border border-[#e8eaf0] rounded-lg hover:bg-gray-50 disabled:opacity-40">Discard</button>
+                        <button type="button" onClick={() => save(selectedRole.id)} disabled={!dirty.has(selectedRole.id) || saving.has(selectedRole.id)} className="flex items-center gap-1.5 px-5 py-2 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-[#003d99] disabled:opacity-40">
+                            {saving.has(selectedRole.id) && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
+                            Save changes
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <p className="text-xs text-[#44546f]">
                 Role names follow UPPERCASE_SNAKE_CASE convention. New roles appear as columns in the matrix — assign permissions by toggling cells.

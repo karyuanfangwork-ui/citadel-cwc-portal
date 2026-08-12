@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { stripHtml } from '../src/utils/format';
 import { requestService } from '../src/services/request.service';
@@ -455,7 +456,7 @@ const Dashboard = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Can't find what you're looking for?</span>
         {[
-          { icon: 'menu_book', label: 'Browse Knowledge Base', to: '/kb' },
+          ...(hasPermission(user, 'kb:manage') ? [{ icon: 'menu_book', label: 'Browse Knowledge Base', to: '/kb' }] : []),
         ].map(btn => (
           <button key={btn.label} onClick={btn.to ? () => navigate(btn.to) : undefined} style={{
             display: 'flex', alignItems: 'center', gap: 'var(--space-2)',

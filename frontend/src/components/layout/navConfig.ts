@@ -31,7 +31,8 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   { to: '/crm',    label: 'CRM',           icon: 'group',        group: 'tools', show: hasAnyPermission(user, ['crm:read']) },
   { to: '/esm',    label: 'Executive Services', icon: 'business_center', group: 'service-desks', show: true },
   { to: '/credit', label: 'Credit',        icon: 'account_balance', group: 'tools', show: hasAnyPermission(user, ['credit:read']) },
-  { to: '/kb',     label: 'Knowledge Base', icon: 'menu_book',   group: 'tools', show: isFeatureEnabled('kb') },
+  // Knowledge Base is restricted to users explicitly granted KB management.
+  { to: '/kb',     label: 'Knowledge Base', icon: 'menu_book',   group: 'tools', show: isFeatureEnabled('kb') && hasPermission(user, 'kb:manage') },
 
   // ── Admin ─────────────────────────────────────────────────────────
   { to: '/reports',             label: 'Reports',              icon: 'assessment', group: 'admin', show: hasPermission(user, 'report:read') },

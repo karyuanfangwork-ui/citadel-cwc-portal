@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import searchService, { SearchResult } from '../src/services/search.service';
 import { stripHtml } from '../src/utils/format';
+import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
 
 const typeIcon: Record<string, string> = {
   request: 'confirmation_number',
@@ -18,6 +20,7 @@ const typeLabel: Record<string, string> = {
 const SearchResults: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const query = searchParams.get('q') ?? '';
 
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -51,7 +54,7 @@ const SearchResults: React.FC = () => {
             meta: { ref: r.referenceNumber, status: r.status, desk: r.serviceDesk?.name || '' },
           })));
         }
-        if (data?.articles && import.meta.env.DEV) {
+        if (data?.articles && hasPermission(user, 'kb:manage')) {
           flat.push(...data.articles.map((a: any) => ({
             type: 'article' as const,
             id: a.id,
@@ -75,7 +78,7 @@ const SearchResults: React.FC = () => {
       })
       .catch(() => setResults([]))
       .finally(() => setLoading(false));
-  }, [query]);
+  }, [query, user]);
 
   const filteredResults = useMemo(() => {
     if (activeFilter === 'all') return results;

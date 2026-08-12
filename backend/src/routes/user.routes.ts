@@ -153,7 +153,7 @@ router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
  * @desc    Replace a role's permissions atomically
  * @access  Private (admin:settings)
  */
-router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
+router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), requireMfa, userController.updateRolePermissions);
 
 /**
  * @route   GET /api/v1/users/permissions/all

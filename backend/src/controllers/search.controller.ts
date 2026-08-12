@@ -48,19 +48,21 @@ class SearchController {
                     serviceDesk: true,
                 },
             }),
-            // Search KB articles — department-scoped via policy
-            prisma.knowledgeBaseArticle.findMany({
-                where: {
-                    isPublished: true,
-                    deletedAt: null,
-                    ...(kbVisible.AND || kbVisible.OR ? kbVisible : {}),
-                    OR: [
-                        { title: { contains: searchTerm, mode: 'insensitive' } },
-                        { content: { contains: searchTerm, mode: 'insensitive' } },
-                    ],
-                },
-                take: limitNum,
-            }),
+            // Search KB articles only for users authorized to access the KB.
+            req.user!.permissions.includes('kb:manage')
+                ? prisma.knowledgeBaseArticle.findMany({
+                    where: {
+                        isPublished: true,
+                        deletedAt: null,
+                        ...(kbVisible.AND || kbVisible.OR ? kbVisible : {}),
+                        OR: [
+                            { title: { contains: searchTerm, mode: 'insensitive' } },
+                            { content: { contains: searchTerm, mode: 'insensitive' } },
+                        ],
+                    },
+                    take: limitNum,
+                })
+                : Promise.resolve([]),
             // Search users (admin/agent only) — no department filter needed
             req.user!.roles.includes('ADMIN') || req.user!.roles.includes('AGENT')
                 ? prisma.user.findMany({
@@ -165,6 +167,13 @@ class SearchController {
     });
 
     searchArticles = asyncHandler(async (req: AuthRequest, res: Response) => {
+        if (!req.user!.permissions.includes('kb:manage')) {
+            return res.json({
+                status: 'success',
+                data: { articles: [], pagination: { page: 1, limit: 0, total: 0, totalPages: 0 } },
+            });
+        }
+
         const { q, page = '1', limit = '10' } = req.query;
 
         const pageNum = parseInt(page as string, 10);

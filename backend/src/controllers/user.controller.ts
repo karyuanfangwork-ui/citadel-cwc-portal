@@ -705,18 +705,45 @@ class UserController {
         const roleId = req.params.roleId as string;
         const { permissionIds } = req.body as { permissionIds: string[] };
 
-        if (!Array.isArray(permissionIds)) {
-            throw new AppError('permissionIds must be an array', 400);
+        if (!Array.isArray(permissionIds) || permissionIds.some(permissionId => typeof permissionId !== 'string')) {
+            throw new AppError('permissionIds must be an array of strings', 400);
         }
 
-        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        const uniquePermissionIds = [...new Set(permissionIds)];
+
+        const [role, currentAssignments, requestedPermissions] = await Promise.all([
+            prisma.role.findUnique({
+                where: { id: roleId },
+                include: { permissions: { select: { permissionId: true } } },
+            }),
+            prisma.rolePermission.findMany({
+                where: { roleId },
+                select: { permissionId: true },
+            }),
+            prisma.permission.findMany({
+                where: { id: { in: uniquePermissionIds } },
+                select: { id: true },
+            }),
+        ]);
         if (!role) throw new AppError('Role not found', 404);
+
+        const existingPermissionIds = new Set(requestedPermissions.map(permission => permission.id));
+        const invalidPermissionIds = uniquePermissionIds.filter(permissionId => !existingPermissionIds.has(permissionId));
+        if (invalidPermissionIds.length > 0) {
+            throw new AppError(`Unknown permission ID(s): ${invalidPermissionIds.join(', ')}`, 400);
+        }
+
+        const oldPermissionIds = currentAssignments.map(assignment => assignment.permissionId);
+        const oldPermissionSet = new Set(oldPermissionIds);
+        const newPermissionSet = new Set(uniquePermissionIds);
+        const addedPermissionIds = uniquePermissionIds.filter(permissionId => !oldPermissionSet.has(permissionId));
+        const removedPermissionIds = oldPermissionIds.filter(permissionId => !newPermissionSet.has(permissionId));
 
         await prisma.$transaction([
             prisma.rolePermission.deleteMany({ where: { roleId } }),
-            ...(permissionIds.length > 0
+            ...(uniquePermissionIds.length > 0
                 ? [prisma.rolePermission.createMany({
-                    data: permissionIds.map(pid => ({ roleId, permissionId: pid })),
+                    data: uniquePermissionIds.map(permissionId => ({ roleId, permissionId })),
                     skipDuplicates: true,
                 })]
                 : []),
@@ -725,7 +752,16 @@ class UserController {
         // Invalidate all RBAC cache — role permission changes affect every user with this role
         await permissionService.invalidateAllPermissionsCache();
 
-        res.json({ status: 'success', data: { roleId, permissionIds } });
+        await auditLog(req, 'ROLE_PERMISSIONS_UPDATED', 'role', roleId, {
+            roleName: role.name,
+            permissionCount: uniquePermissionIds.length,
+            addedPermissionIds,
+            removedPermissionIds,
+        }, {
+            permissionIds: oldPermissionIds,
+        });
+
+        res.json({ status: 'success', data: { roleId, permissionIds: uniquePermissionIds, addedPermissionIds, removedPermissionIds } });
     });
 
     /**
