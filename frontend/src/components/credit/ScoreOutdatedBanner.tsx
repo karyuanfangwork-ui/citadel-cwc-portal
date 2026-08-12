@@ -42,9 +42,9 @@ const ScoreOutdatedBanner: React.FC<ScoreOutdatedBannerProps> = ({ applicationId
       const freshStatus = await scoreStatusApi.getStatus(applicationId);
       setStatus(freshStatus);
       if (!freshStatus.isOutdated) {
-        toast.success('Score updated', `New rating: ${freshStatus.lastScoreRunAt ? 'rescored' : 'complete'}`);
+        toast.success(`Score updated — New rating: ${freshStatus.lastScoreRunAt ? 'rescored' : 'complete'}`);
       } else {
-        toast.success('Rescore triggered', 'Score run created — refresh to see updated results.');
+        toast.success('Rescore triggered — Score run created; refresh to see updated results.');
       }
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to trigger rescore'));

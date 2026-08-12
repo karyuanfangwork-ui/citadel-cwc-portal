@@ -219,8 +219,10 @@ describe('Operation Control Registry', () => {
       const isPrivilegeOp = op.path.includes('/roles') || op.path.includes('/password');
       const isAdminRead = op.authentication === 'platform-admin' && op.method === 'GET';
       const isAssetDelete = op.path.startsWith('/assets') && op.method === 'DELETE';
+      const isCreditSensitiveOp = op.path.startsWith('/credit/borrowers/duplicate-exceptions')
+        || op.path === '/credit/borrowers/identity-check';
       expect(
-        isDelete || isExport || isFileUpload || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete,
+        isDelete || isExport || isFileUpload || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete || isCreditSensitiveOp,
       ).toBe(true);
     }
   });

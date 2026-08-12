@@ -34,14 +34,20 @@ const fmtVal = (v: unknown): string => {
 
 /** Parse oldValues / newValues JSON and compute diff entries */
 const computeDiff = (
-  oldRaw: string | null,
-  newRaw: string | null,
+  oldRaw: unknown | null,
+  newRaw: unknown | null,
 ): Array<{ key: string; oldVal: string; newVal: string; type: 'added' | 'removed' | 'changed' }> => {
   let oldObj: Record<string, unknown> = {};
   let newObj: Record<string, unknown> = {};
 
-  try { if (oldRaw) oldObj = JSON.parse(oldRaw); } catch { /* ignore */ }
-  try { if (newRaw) newObj = JSON.parse(newRaw); } catch { /* ignore */ }
+  try {
+    if (typeof oldRaw === 'string') oldObj = JSON.parse(oldRaw);
+    else if (oldRaw && typeof oldRaw === 'object') oldObj = oldRaw as Record<string, unknown>;
+  } catch { /* ignore */ }
+  try {
+    if (typeof newRaw === 'string') newObj = JSON.parse(newRaw);
+    else if (newRaw && typeof newRaw === 'object') newObj = newRaw as Record<string, unknown>;
+  } catch { /* ignore */ }
 
   const allKeys = Array.from(new Set([...Object.keys(oldObj), ...Object.keys(newObj)])).sort();
   const result: Array<{ key: string; oldVal: string; newVal: string; type: 'added' | 'removed' | 'changed' }> = [];

@@ -8,7 +8,6 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-// @ts-expect-error — jsdom doesn't type or implement ResizeObserver
 global.ResizeObserver = ResizeObserverStub;
 
 Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
