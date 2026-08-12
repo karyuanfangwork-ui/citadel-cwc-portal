@@ -5,6 +5,8 @@ import CrmLeads from '../../pages/CrmLeads';
 
 const mockListLeads = vi.fn();
 const mockListCrmUsers = vi.fn();
+const mockRequestExport = vi.fn();
+const mockDownloadExport = vi.fn();
 
 vi.mock('../services/crm.service', () => ({
   default: {
@@ -13,6 +15,8 @@ vi.mock('../services/crm.service', () => ({
     updateLead: vi.fn(),
     deleteLead: vi.fn(),
     createLead: vi.fn(),
+    requestExport: (...args: unknown[]) => mockRequestExport(...args),
+    downloadExport: (...args: unknown[]) => mockDownloadExport(...args),
   },
 }));
 
@@ -44,6 +48,8 @@ const renderPage = () =>
 describe('CrmLeads', () => {
   beforeEach(() => {
     mockListCrmUsers.mockResolvedValue([]);
+    mockRequestExport.mockResolvedValue({ jobId: 'export-1' });
+    mockDownloadExport.mockResolvedValue(undefined);
     mockListLeads.mockResolvedValue({
       leads: [
         {
@@ -98,6 +104,24 @@ describe('CrmLeads', () => {
       const metricCard = metricLabel.parentElement;
       expect(metricCard).not.toBeNull();
       expect(within(metricCard as HTMLElement).getByText('20')).toBeInTheDocument();
+    });
+  });
+
+  it('requests and downloads a lead export using the active filters', async () => {
+    renderPage();
+
+    const exportButton = await screen.findByRole('button', { name: /export leads/i });
+    exportButton.click();
+
+    await waitFor(() => {
+      expect(mockRequestExport).toHaveBeenCalledWith('LEAD', expect.objectContaining({
+        search: undefined,
+        status: undefined,
+        source: undefined,
+        ownerId: undefined,
+        filter: undefined,
+      }));
+      expect(mockDownloadExport).toHaveBeenCalledWith('export-1');
     });
   });
 });

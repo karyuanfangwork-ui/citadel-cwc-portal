@@ -9,6 +9,7 @@ import EmptyState from '../src/components/ui/EmptyState';
 import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
 import LeadsTable, { SortConfig } from '../src/components/crm/LeadsTable';
+import DateInput from '../src/components/crm/DateInput';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
@@ -69,6 +70,7 @@ const CrmLeads = () => {
   const [form, setForm] = useState<Partial<CrmLead>>({});
   const [saving, setSaving] = useState(false);
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const forceCreateRef = useRef(false);
   const [editingItem, setEditingItem] = useState<CrmLead | null>(null);
@@ -284,6 +286,25 @@ const CrmLeads = () => {
         forceCreateRef.current = false;
       }
     } finally { setSaving(false); }
+  };
+
+  const handleExport = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      const { jobId } = await crmService.requestExport('LEAD', {
+        search: search || undefined,
+        status: statusFilter || undefined,
+        source: sourceFilter || undefined,
+        ownerId: ownerIdParam || undefined,
+        filter: filterParam || undefined,
+      });
+      await crmService.downloadExport(jobId);
+    } catch (error) {
+      console.error('Failed to export leads', error);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const openEdit = (lead: CrmLead) => {
@@ -520,8 +541,8 @@ const CrmLeads = () => {
                   <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
                   </button>
-                  <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="Export">
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
+                  <button onClick={handleExport} disabled={exporting} className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors disabled:opacity-50" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: exporting ? 'wait' : 'pointer' }} title={exporting ? 'Exporting...' : 'Export'} aria-label={exporting ? 'Exporting leads' : 'Export leads'}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{exporting ? 'progress_activity' : 'download'}</span>
                   </button>
                 </div>
               </div>
@@ -1031,10 +1052,9 @@ const CrmLeads = () => {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Date</label>
-                        <input
-                          type="date"
+                        <DateInput
                           value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''}
-                          onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value || undefined }))}
+                          onChange={value => setForm(prev => ({ ...prev, followUpDate: value || undefined }))}
                           className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
                           style={{ fontFamily: 'Inter, sans-serif' }}
                         />
@@ -1208,7 +1228,7 @@ const CrmLeads = () => {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Date</label>
-                      <input type="date" value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''} onChange={e => setForm(prev => ({ ...prev, followUpDate: e.target.value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
+                      <DateInput value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''} onChange={value => setForm(prev => ({ ...prev, followUpDate: value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
                     </div>
                     <div className="md:col-span-2 flex flex-col gap-1.5">
                       <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Note</label>

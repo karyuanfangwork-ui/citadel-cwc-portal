@@ -1,4 +1,4 @@
-import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
+import { resolveVisibleOwnerIds, applyOwnerScope, applyUserScope } from '../services/crm-scope.service';
 
 const baseUser = (over: Partial<any> = {}) => ({
   id: 'u-me',
@@ -59,5 +59,18 @@ describe('applyOwnerScope', () => {
       deletedAt: null,
       ownerId: { in: ['a', 'b'] },
     });
+  });
+});
+
+describe('applyUserScope', () => {
+  it('adds an ID filter for non-admin owner lookups', () => {
+    expect(applyUserScope({ isActive: true }, ['u-me', 'u-report'])).toEqual({
+      isActive: true,
+      id: { in: ['u-me', 'u-report'] },
+    });
+  });
+
+  it('leaves admin owner lookups unrestricted', () => {
+    expect(applyUserScope({ isActive: true }, null)).toEqual({ isActive: true });
   });
 });

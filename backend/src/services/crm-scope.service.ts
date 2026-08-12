@@ -79,3 +79,15 @@ export function applyOwnerScope<T extends Record<string, any>>(
   if (visibleOwnerIds === null) return where;
   return { ...where, ownerId: { in: visibleOwnerIds } };
 }
+
+/**
+ * Applies the same visibility scope to user lookups used by CRM owner pickers.
+ * Admins remain unrestricted; other users only receive permitted owner IDs.
+ */
+export function applyUserScope<T extends Record<string, any>>(
+  where: T,
+  visibleOwnerIds: string[] | null,
+): T {
+  if (visibleOwnerIds === null) return where;
+  return { ...where, id: { in: visibleOwnerIds } };
+}

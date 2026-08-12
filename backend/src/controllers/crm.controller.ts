@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { respondOrCsv } from '../utils/csv-response';
 import { parsePagination } from '../utils/pagination';
-import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
+import { resolveVisibleOwnerIds, applyOwnerScope, applyUserScope } from '../services/crm-scope.service';
 import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
 import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
@@ -1618,9 +1618,10 @@ class CrmController {
   });
 
   // ======== CRM USERS (for owner dropdown) ========
-  listCrmUsers = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  listCrmUsers = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const users = await prisma.user.findMany({
-      where: {
+      where: applyUserScope({
         isActive: true,
         roles: {
           some: {
@@ -1629,7 +1630,7 @@ class CrmController {
             },
           },
         },
-      },
+      }, visibleOwnerIds),
       select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true },
       orderBy: { firstName: 'asc' },
     });

@@ -945,10 +945,20 @@ const crmService = {
   },
   async downloadExport(jobId: string) {
     const res = await api.get(`/crm/export/${jobId}/download`, { responseType: 'blob' });
+    const now = new Date();
+    const timestamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('') + '_' + [
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
     const url = window.URL.createObjectURL(res.data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `crm_export_${jobId}.csv`;
+    a.download = `crm_leads_export_${timestamp}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
