@@ -149,6 +149,7 @@ beforeAll(async () => {
     },
   });
   otherOwnersLeadId = otherLead.id;
+  await prisma.crmLead.update({ where: { id: otherLead.id }, data: { ruleScore: 999 } });
 
   const otherDuplicateLead = await prisma.crmLead.create({
     data: {
@@ -426,6 +427,15 @@ describe('CRM direct read authorization', () => {
     expect(res.body.data.contacts).toHaveLength(0);
     expect(res.body.data.leads).toHaveLength(0);
     expect(res.body.data.opportunities).toHaveLength(0);
+  });
+
+  it('does not surface another owner lead in the dashboard hot leads widget', async () => {
+    const res = await request(app)
+      .get('/api/v1/crm/dashboard')
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.hotLeads.map((lead: { id: string }) => lead.id)).not.toContain(otherOwnersLeadId);
   });
 
   it('caps list page size at 100', async () => {

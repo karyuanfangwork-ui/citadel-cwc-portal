@@ -18,6 +18,7 @@ import {
   createQuotaSchema, updateQuotaSchema,
   createWorkflowSchema, updateWorkflowSchema,
   createCustomFieldSchema, updateCustomFieldSchema,
+  salesHierarchyManagerSchema,
 } from '../validators/crm.validator';
 
 const router = Router();
@@ -37,6 +38,8 @@ router.get('/customers/stats', requirePermission('crm:read'), crmController.getC
 
 // ======== TEAM PERFORMANCE ========
 router.get('/team-performance', requirePermission('crm:admin'), crmController.getTeamPerformance);
+router.get('/sales-hierarchy', requirePermission('crm:admin'), crmController.getSalesHierarchy);
+router.put('/sales-hierarchy/reps/:repId/manager', requirePermission('crm:admin'), validate(salesHierarchyManagerSchema), crmController.updateSalesRepManager);
 
 // ======== MY STATS (Self-Service Rep Stats) ========
 router.get('/my-stats', requirePermission('crm:read'), crmController.getMyStats);

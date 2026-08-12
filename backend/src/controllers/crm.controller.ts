@@ -26,6 +26,7 @@ import * as customFieldsService from '../services/crm-custom-fields.service';
 import * as duplicateService from '../services/crm-duplicate.service';
 import { broadcast } from '../utils/sseClients';
 import * as leadDocumentService from '../services/crm-lead-document.service';
+import * as crmHierarchyService from '../services/crm-hierarchy.service';
 
 import prisma from '../utils/prisma';
 
@@ -190,18 +191,28 @@ function assertCanAssignOwner(
 class CrmController {
   // ======== DASHBOARD ========
   getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.query.myDeals === 'true' ? req.user!.id : undefined;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const scope = {
+      currentUserId: req.user!.id,
+      visibleOwnerIds,
+      myDeals: req.query.myDeals === 'true',
+    };
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
     const dateTo   = req.query.dateTo   ? new Date(req.query.dateTo as string)   : undefined;
-    const stats = await crmService.getDashboardStats(userId, dateFrom, dateTo);
+    const stats = await crmService.getDashboardStats(scope, dateFrom, dateTo);
     res.json({ status: 'success', data: stats });
   });
 
   exportDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.query.myDeals === 'true' ? req.user!.id : undefined;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const scope = {
+      currentUserId: req.user!.id,
+      visibleOwnerIds,
+      myDeals: req.query.myDeals === 'true',
+    };
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
     const dateTo   = req.query.dateTo   ? new Date(req.query.dateTo as string)   : undefined;
-    const csv = await crmService.exportDashboardCsv(userId, dateFrom, dateTo);
+    const csv = await crmService.exportDashboardCsv(scope, dateFrom, dateTo);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="crm-dashboard.csv"');
     res.send(csv);
@@ -1158,6 +1169,20 @@ class CrmController {
     }));
 
     res.json({ status: 'success', data: { agents: teamStats } });
+  });
+
+  getSalesHierarchy = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const hierarchy = await crmHierarchyService.getSalesHierarchy(req.user!.tenantId ?? null);
+    res.json({ status: 'success', data: hierarchy });
+  });
+
+  updateSalesRepManager = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const updated = await crmHierarchyService.updateSalesRepManager(
+      String(req.params.repId),
+      req.body.managerId ?? null,
+      { id: req.user!.id, email: req.user!.email, tenantId: req.user!.tenantId ?? null },
+    );
+    res.json({ status: 'success', data: { assignment: updated } });
   });
 
   // ======== MY STATS (Self-Service Rep Stats) ========

@@ -12,6 +12,15 @@ export const paginationSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
+export const salesHierarchyManagerSchema = z.object({
+  body: z.object({
+    managerId: z.string().uuid().nullable(),
+  }),
+  params: z.object({
+    repId: z.string().uuid(),
+  }),
+});
+
 export const uuidParam = z.object({
   id: z.string().uuid(),
 });

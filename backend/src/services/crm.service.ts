@@ -10,12 +10,35 @@ import prisma from '../utils/prisma';
 // DASHBOARD STATISTICS
 // ============================================================================
 
+export interface CrmDashboardScope {
+  currentUserId: string;
+  visibleOwnerIds: string[] | null;
+  myDeals?: boolean;
+}
+
 export async function getDashboardStats(
-  userId?: string,
+  scope: CrmDashboardScope,
   dateFrom?: Date,
   dateTo?: Date,
 ) {
-  const ownerFilter = userId ? { ownerId: userId } : {};
+  const effectiveOwnerIds = scope.myDeals ? [scope.currentUserId] : scope.visibleOwnerIds;
+  const scopedOwnerIds = effectiveOwnerIds ?? [];
+  const ownerFilter = effectiveOwnerIds === null ? {} : { ownerId: { in: scopedOwnerIds } };
+  const contactOwnerFilter = effectiveOwnerIds === null
+    ? {}
+    : { account: { ownerId: { in: scopedOwnerIds } } };
+  const activityOwnerFilter = effectiveOwnerIds === null
+    ? {}
+    : {
+        OR: [
+          { userId: { in: scopedOwnerIds } },
+          { account: { ownerId: { in: scopedOwnerIds } } },
+          { contact: { account: { ownerId: { in: scopedOwnerIds } } } },
+          { lead: { ownerId: { in: scopedOwnerIds } } },
+          { opportunity: { ownerId: { in: scopedOwnerIds } } },
+        ],
+      };
+  const ownerScopedActivityFilter = effectiveOwnerIds === null ? {} : activityOwnerFilter;
   const now = dateTo ?? new Date();
   const windowStart = dateFrom ?? new Date(now.getTime() - 30 * 86400_000);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -52,7 +75,7 @@ export async function getDashboardStats(
     inProgressTasksRaw,
   ] = await Promise.all([
     prisma.crmAccount.count({ where: { isActive: true, deletedAt: null, ...ownerFilter } }),
-    prisma.crmContact.count({ where: { isActive: true, deletedAt: null } }),
+    prisma.crmContact.count({ where: { isActive: true, deletedAt: null, ...contactOwnerFilter } }),
     prisma.crmLead.count({ where: { status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, createdAt: { gte: windowStart, lte: now }, ...ownerFilter } }),
     prisma.crmOpportunity.count({ where: { deletedAt: null, createdAt: { gte: windowStart, lte: now }, ...ownerFilter } }),
     prisma.crmOpportunity.aggregate({
@@ -77,7 +100,7 @@ export async function getDashboardStats(
     prisma.crmActivity.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
-      where: userId ? { userId } : {},
+      where: ownerScopedActivityFilter,
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
         account: { select: { id: true, name: true } },
@@ -208,7 +231,7 @@ export async function getDashboardStats(
       where: {
         activityType: 'MEETING',
         scheduledAt: { gte: todayStart, lt: todayEnd },
-        ...ownerFilter,
+        ...ownerScopedActivityFilter,
       },
     }),
     // 4. Next upcoming meeting (today or future)
@@ -216,7 +239,7 @@ export async function getDashboardStats(
       where: {
         activityType: 'MEETING',
         scheduledAt: { gte: todayStart },
-        ...ownerFilter,
+        ...ownerScopedActivityFilter,
       },
       orderBy: { scheduledAt: 'asc' },
       select: {
@@ -239,10 +262,10 @@ export async function getDashboardStats(
       },
     }),
     // 6. Current user's quota for this month
-    userId
+    effectiveOwnerIds !== null
       ? prisma.crmQuota.findFirst({
           where: {
-            userId,
+            userId: scope.currentUserId,
             periodType: 'MONTHLY',
             period: now.toISOString().slice(0, 7), // "2026-06"
           },
@@ -270,7 +293,7 @@ export async function getDashboardStats(
         activityType: 'TASK',
         completedAt: null,
         scheduledAt: { lt: now },
-        ...ownerFilter,
+        ...ownerScopedActivityFilter,
       },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
@@ -289,7 +312,7 @@ export async function getDashboardStats(
         activityType: 'TASK',
         completedAt: null,
         scheduledAt: { gte: now },
-        ...ownerFilter,
+        ...ownerScopedActivityFilter,
       },
       orderBy: { scheduledAt: 'asc' },
       take: 10,
@@ -521,11 +544,11 @@ export async function getDashboardStats(
 // ============================================================================
 
 export async function exportDashboardCsv(
-  userId?: string,
+  scope: CrmDashboardScope,
   dateFrom?: Date,
   dateTo?: Date,
 ): Promise<string> {
-  const stats = await getDashboardStats(userId, dateFrom, dateTo);
+  const stats = await getDashboardStats(scope, dateFrom, dateTo);
 
   const kpiRows = [
     ['Metric', 'Value'],

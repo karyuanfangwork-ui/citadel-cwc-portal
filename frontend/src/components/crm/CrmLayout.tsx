@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
   { to: '/crm/quotas', label: 'Quotas', icon: 'flag', permission: 'crm:read' },
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin', admin: true },
+  { to: '/crm/sales-hierarchy', label: 'Sales Hierarchy', icon: 'account_tree', permission: 'crm:admin', admin: true },
   { to: '/crm/territories', label: 'Territories', icon: 'map', permission: 'crm:admin', admin: true },
   { to: '/crm/workflows', label: 'Workflows', icon: 'account_tree', permission: 'crm:admin', admin: true },
   { to: '/crm/anomalies', label: 'AI Alerts', icon: 'psychology', permission: 'crm:admin', admin: true },

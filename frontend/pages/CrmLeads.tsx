@@ -439,7 +439,7 @@ const CrmLeads = () => {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             <div className="bg-white p-4 border border-[#e2e8f0] rounded-lg hover:border-[#006a61] hover:-translate-y-0.5 transition-all duration-200 cursor-default">
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#45464d' }}>My Leads</p>
-              <p style={{ fontSize: 24, fontWeight: 600, color: '#0b1c30', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{leads.length}</p>
+              <p style={{ fontSize: 24, fontWeight: 600, color: '#0b1c30', fontFamily: 'Inter, sans-serif', marginTop: 4 }}>{pagination.total}</p>
             </div>
             <div className="bg-white p-4 border-l-4 border-l-[#ba1a1a] border-y border-r border-[#e2e8f0] rounded-lg hover:-translate-y-0.5 transition-all duration-200 cursor-default">
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#ba1a1a' }}>Hot Leads</p>

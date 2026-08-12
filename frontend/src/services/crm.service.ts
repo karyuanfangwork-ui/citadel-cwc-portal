@@ -12,6 +12,50 @@ export interface UserRef { id: string; firstName: string; lastName: string; emai
 
 export interface CrmUser { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null; jobTitle?: string | null; department?: string | null; }
 
+export interface SalesHierarchyUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+  jobTitle: string | null;
+  department: string | null;
+  isActive: boolean;
+  roles: string[];
+  managerId: string | null;
+  territories: Array<{ id: string; name: string }>;
+  leadCount: number;
+  opportunityCount: number;
+}
+
+export interface SalesHierarchyManager extends SalesHierarchyUser {
+  directReports: SalesHierarchyUser[];
+  indirectReportCount: number;
+}
+
+export interface SalesHierarchy {
+  managers: SalesHierarchyManager[];
+  unassignedReps: SalesHierarchyUser[];
+  invalidAssignments: Array<{
+    representative: SalesHierarchyUser;
+    managerId: string | null;
+    reason: string;
+    reasonLabel: string;
+  }>;
+  managerOptions: SalesHierarchyUser[];
+  summary: {
+    managerCount: number;
+    activeManagerCount: number;
+    inactiveManagerCount: number;
+    salesRepCount: number;
+    activeSalesRepCount: number;
+    inactiveSalesRepCount: number;
+    assignedRepCount: number;
+    unassignedRepCount: number;
+    invalidAssignmentCount: number;
+  };
+}
+
 export interface CrmAccount {
   id: string; name: string; industry: string | null; companySize: string | null;
   website: string | null; phone: string | null; email: string | null;
@@ -410,6 +454,16 @@ const crmService = {
   async getTeamPerformance() {
     const res = await api.get('/crm/team-performance');
     return res.data.data as { agents: TeamPerformance[] };
+  },
+
+  async getSalesHierarchy() {
+    const res = await api.get('/crm/sales-hierarchy');
+    return res.data.data as SalesHierarchy;
+  },
+
+  async updateSalesRepManager(repId: string, managerId: string | null) {
+    const res = await api.put(`/crm/sales-hierarchy/reps/${repId}/manager`, { managerId });
+    return res.data.data.assignment as { id: string; managerId: string | null };
   },
 
   // CRM Users (for owner dropdown)

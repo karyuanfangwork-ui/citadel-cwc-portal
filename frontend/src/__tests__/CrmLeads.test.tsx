@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmLeads from '../../pages/CrmLeads';
@@ -73,5 +73,31 @@ describe('CrmLeads', () => {
     expect(screen.getByRole('button', { name: /new lead/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/search lead name, company or id/i)).toBeInTheDocument();
     expect(screen.getByTestId('leads-table')).toBeInTheDocument();
+  });
+
+  it('uses the filtered total for the My Leads metric instead of the current page length', async () => {
+    mockListLeads.mockResolvedValueOnce({
+      leads: [
+        {
+          id: 'lead-1',
+          title: 'ACME Expansion',
+          status: 'NEW',
+          source: 'REFERRAL',
+          createdAt: '2026-06-14T00:00:00.000Z',
+          updatedAt: '2026-06-14T00:00:00.000Z',
+          followUpDate: null,
+        },
+      ],
+      pagination: { page: 1, limit: 20, total: 20, totalPages: 1 },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      const metricLabel = screen.getAllByText('My Leads', { exact: true })[1];
+      const metricCard = metricLabel.parentElement;
+      expect(metricCard).not.toBeNull();
+      expect(within(metricCard as HTMLElement).getByText('20')).toBeInTheDocument();
+    });
   });
 });

@@ -77,6 +77,7 @@ import {
 import prisma from '../utils/prisma';
 import { sanitizeUser, sanitizeUsers } from '../dtos/user.dto';
 import { parsePagination } from '../utils/pagination';
+import { validateManagerAssignment } from '../services/crm-hierarchy.service';
 
 function generateTemporaryPassword(): string {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -417,6 +418,10 @@ class UserController {
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole, entityId } = req.body;
+
+        if (managerId !== undefined) {
+            await validateManagerAssignment(id, managerId ?? null, req.user!.tenantId ?? null);
+        }
 
         // Email update logic
         if (email) {
