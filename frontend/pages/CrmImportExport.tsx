@@ -45,12 +45,20 @@ const CrmImportExport = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canImport = (user?.permissions || []).includes('crm:import');
+  const canExport = (user?.permissions || []).includes('crm:export');
+
 
   // ── Tab state ──
   const [tab, setTab] = useState<'import' | 'export'>(() => {
     const param = searchParams.get('tab');
-    return param === 'export' ? 'export' : 'import';
+    return param === 'export' && canExport ? 'export' : canImport ? 'import' : 'export';
   });
+
+  useEffect(() => {
+    if (tab === 'import' && !canImport && canExport) setTab('export');
+    if (tab === 'export' && !canExport && canImport) setTab('import');
+  }, [tab, canImport, canExport]);
 
   // ── Import state ──
   const [entity, setEntity] = useState<EntityType>(() => {
@@ -90,18 +98,18 @@ const CrmImportExport = () => {
 
   // ── Load field definitions when entity changes ──
   useEffect(() => {
-    if (tab === 'import') {
+    if (tab === 'import' && canImport) {
       crmService.getFieldDefinitions(entity).then(res => {
         setFieldDefs(res.fields);
       }).catch(() => {});
     }
-  }, [entity, tab]);
+  }, [entity, tab, canImport]);
 
   // ── Load histories ──
   useEffect(() => {
-    crmService.getImportHistory().then(res => setImportHistory(res.jobs)).catch(() => {});
-    crmService.getExportHistory().then(res => setExportHistory(res.jobs)).catch(() => {});
-  }, []);
+    if (canImport) crmService.getImportHistory().then(res => setImportHistory(res.jobs)).catch(() => {});
+    if (canExport) crmService.getExportHistory().then(res => setExportHistory(res.jobs)).catch(() => {});
+  }, [canImport, canExport]);
 
   // ── Drag & drop handlers ──
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
@@ -237,7 +245,7 @@ const CrmImportExport = () => {
 
         {/* ── Tabs ── */}
         <div className="flex gap-1 p-1 bg-bg-subtle rounded-cwc-lg mb-6">
-          {(['import', 'export'] as const).map(t => (
+          {(['import', 'export'] as const).filter(t => t === 'import' ? canImport : canExport).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}

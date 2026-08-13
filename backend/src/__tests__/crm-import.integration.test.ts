@@ -36,7 +36,7 @@ beforeAll(async () => {
   });
 
   const basePerms = await Promise.all(
-    ['crm:read', 'crm:write', 'crm:delete'].map((name) =>
+    ['crm:read', 'crm:write', 'crm:delete', 'crm:import', 'crm:export'].map((name) =>
       prisma.permission.upsert({
         where: { name },
         update: {},
@@ -674,7 +674,7 @@ describe('Import pipeline - full happy path', () => {
 });
 
 describe('Import pipeline - authorization', () => {
-  it('returns 403 when a non-admin user uploads a file', async () => {
+  it('allows a sales rep with crm:import to upload without crm:admin', async () => {
     const csvBuffer = makeCsvBuffer([
       { Title: `Blocked Lead ${suffix}`, 'Contact Name': 'Blocked', 'Company Name': `Blocked Co ${suffix}` },
     ]);
@@ -685,7 +685,8 @@ describe('Import pipeline - authorization', () => {
       .field('entity', 'LEAD')
       .attach('file', csvBuffer, { filename: `blocked-${suffix}.csv`, contentType: 'text/csv' });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.data.jobId).toBeDefined();
   });
 
   it('returns an error when a different admin user accesses another admin job', async () => {

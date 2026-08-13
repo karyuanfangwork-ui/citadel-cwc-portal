@@ -146,16 +146,16 @@ router.get('/leads/:id/documents', requirePermission('crm:read'), crmController.
 router.post('/leads/:id/documents', requirePermission('crm:write'), leadDocumentUpload.array('documents', 5), crmController.uploadLeadDocuments);
 router.get('/leads/:id/documents/:documentId/download', requirePermission('crm:read'), crmController.downloadLeadDocument);
 router.delete('/leads/:id/documents/:documentId', requirePermission('crm:write'), crmController.deleteLeadDocument);
-router.post('/import/upload', requirePermission('crm:admin'), importUpload.single('file'), crmController.uploadImportFile);
+router.post('/import/upload', requirePermission('crm:import'), importUpload.single('file'), crmController.uploadImportFile);
 router.get('/import/field-definitions', requirePermission('crm:read'), crmController.getFieldDefinitions);
 router.get('/import/template', requirePermission('crm:read'), crmController.downloadImportTemplate);
-router.post('/import/:id/mapping', requirePermission('crm:admin'), crmController.validateImportMapping);
-router.post('/import/:id/execute', requirePermission('crm:admin'), crmController.executeImport);
-router.get('/import/:id/status', requirePermission('crm:admin'), crmController.getImportStatus);
-router.get('/import/history', requirePermission('crm:admin'), crmController.getImportHistory);
-router.post('/export', requirePermission('crm:read'), crmController.requestExport);
-router.get('/export/:id/download', requirePermission('crm:read'), crmController.downloadExport);
-router.get('/export/history', requirePermission('crm:read'), crmController.getExportHistory);
+router.post('/import/:id/mapping', requirePermission('crm:import'), crmController.validateImportMapping);
+router.post('/import/:id/execute', requirePermission('crm:import'), crmController.executeImport);
+router.get('/import/:id/status', requirePermission('crm:import'), crmController.getImportStatus);
+router.get('/import/history', requirePermission('crm:import'), crmController.getImportHistory);
+router.post('/export', requirePermission('crm:export'), crmController.requestExport);
+router.get('/export/:id/download', requirePermission('crm:export'), crmController.downloadExport);
+router.get('/export/history', requirePermission('crm:export'), crmController.getExportHistory);
 
 // ======== TERRITORIES ========
 router.get('/territories', requirePermission('crm:read'), crmController.listTerritories);

@@ -122,7 +122,7 @@ const CrmGuide = () => {
                 { section: 'Team', path: '/crm/team', purpose: 'Manager view — performance, reassignment (admin only)' },
                 { section: 'Reports', path: '/crm/reports', purpose: 'Performance analytics and team metrics' },
                 { section: 'Guide', path: '/crm/guide', purpose: 'This user guide' },
-                { section: 'Import/Export', path: '/crm/import-export', purpose: 'Bulk data via CSV/Excel (admin only)' },
+                { section: 'Import/Export', path: '/crm/import-export', purpose: 'Bulk data via CSV/Excel (requires CRM import/export permissions)' },
                 { section: 'Territories', path: '/crm/territories', purpose: 'Geographic sales territories (admin only)' },
                 { section: 'Quotas', path: '/crm/quotas', purpose: 'Sales targets and attainment tracking' },
                 { section: 'Workflows', path: '/crm/workflows', purpose: 'Automated rules triggered by CRM events (admin only)' },
@@ -763,7 +763,7 @@ const CrmGuide = () => {
       </Section>
 
       {/* ────── Import & Export ────── */}
-      <Section id="import-export" title="Import & Export (Admin)">
+      <Section id="import-export" title="Import & Export">
         <p className="text-text-secondary text-sm leading-relaxed mb-4">
           The <Link to="/crm/import-export" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Import/Export</Link> page lets you move CRM data in and out via bulk file operations.
         </p>

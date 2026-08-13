@@ -8,6 +8,7 @@ interface NavItem {
   label: string;
   icon: string;
   permission?: string;
+  anyPermission?: string[];
   admin?: boolean;
 }
 
@@ -26,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm/custom-fields', label: 'Custom Fields', icon: 'tune', permission: 'crm:admin', admin: true },
   { to: '/crm/duplicates', label: 'Duplicates', icon: 'content_copy', permission: 'crm:admin', admin: true },
   { to: '/crm/industry-options', label: 'Industry Options', icon: 'business', permission: 'crm:admin', admin: true },
-  { to: '/crm/import-export', label: 'Import / Export', icon: 'swap_horiz', permission: 'crm:admin', admin: true },
+  { to: '/crm/import-export', label: 'Import / Export', icon: 'swap_horiz', anyPermission: ['crm:import', 'crm:export'] },
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
 ];
 
@@ -55,7 +56,10 @@ const CrmLayout: React.FC = () => {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
-  const visibleItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(user, item.permission));
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    (!item.permission || hasPermission(user, item.permission)) &&
+    (!item.anyPermission || item.anyPermission.some((permission) => hasPermission(user, permission)))
+  );
   const mainItems = visibleItems.filter((item) => !item.admin);
   const adminItems = visibleItems.filter((item) => item.admin);
   const [moreOpen, setMoreOpen] = useState(false);
