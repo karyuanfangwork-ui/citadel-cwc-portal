@@ -16,18 +16,19 @@ interface FieldDef {
   label: string;
   required: boolean;
   type: 'string' | 'number' | 'date' | 'enum' | 'boolean';
+  maxLength?: number;
   enumValues?: string[];
   default?: unknown;
 }
 
 const ENTITY_FIELDS: Record<string, FieldDef[]> = {
   LEAD: [
-    { key: 'title', label: 'Title', required: true, type: 'string' },
-    { key: 'contactName', label: 'Contact Name', required: true, type: 'string' },
-    { key: 'contactEmail', label: 'Contact Email', required: false, type: 'string' },
-    { key: 'contactPhone', label: 'Contact Phone', required: false, type: 'string' },
-    { key: 'companyName', label: 'Company Name', required: false, type: 'string' },
-    { key: 'industry', label: 'Industry', required: false, type: 'string' },
+    { key: 'title', label: 'Title', required: true, type: 'string', maxLength: 255 },
+    { key: 'contactName', label: 'Contact Name', required: true, type: 'string', maxLength: 200 },
+    { key: 'contactEmail', label: 'Contact Email', required: false, type: 'string', maxLength: 255 },
+    { key: 'contactPhone', label: 'Contact Phone', required: false, type: 'string', maxLength: 50 },
+    { key: 'companyName', label: 'Company Name', required: false, type: 'string', maxLength: 255 },
+    { key: 'industry', label: 'Industry', required: false, type: 'string', maxLength: 255 },
     { key: 'address', label: 'Address', required: false, type: 'string' },
     { key: 'remark', label: 'Remark', required: false, type: 'string' },
     { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'], default: 'OTHER' },
@@ -287,7 +288,7 @@ export async function validateImportMapping(
     }
   }
 
-  for (let i = 0; i < Math.min(rawData.length, 100); i++) {
+  for (let i = 0; i < rawData.length; i++) {
     const row = rawData[i];
     for (const [header, fieldKey] of Object.entries(columnMapping)) {
       if (!fieldKey) continue;
@@ -297,6 +298,14 @@ export async function validateImportMapping(
 
       if (fieldDef.required && (!value || String(value).trim() === '')) {
         errors.push({ row: i + 1, field: fieldDef.label, error: 'Required field is empty' });
+      }
+
+      if (value && fieldDef.maxLength && String(value).length > fieldDef.maxLength) {
+        errors.push({
+          row: i + 1,
+          field: fieldDef.label,
+          error: `Value is ${String(value).length} characters; maximum is ${fieldDef.maxLength}`,
+        });
       }
 
       if (value && fieldDef.type === 'number' && isNaN(Number(value))) {
@@ -386,6 +395,16 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
         }
 
         data[fieldKey] = value;
+      }
+
+      // Mapping validation is optional in the UI, so enforce database-backed
+      // string limits again immediately before persistence. This turns a
+      // vague Prisma P2000 error into a row/field-specific import error.
+      for (const fieldDef of fields) {
+        const value = data[fieldDef.key];
+        if (value && fieldDef.maxLength && String(value).length > fieldDef.maxLength) {
+          throw new Error(`${fieldDef.label} exceeds the maximum length of ${fieldDef.maxLength} characters`);
+        }
       }
 
       switch (job.entity) {
