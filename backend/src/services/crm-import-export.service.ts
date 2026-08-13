@@ -326,7 +326,13 @@ export async function validateImportMapping(
   return { valid: errors.length < rawData.length * 0.5, errors: errors.slice(0, 50), warnings };
 }
 
-export async function executeImport(jobId: string, userId: string): Promise<{ importedRows: number; duplicateRows: number; failedRows: number; errors: { row: number; error: string }[] }> {
+export async function executeImport(jobId: string, userId: string): Promise<{
+  importedRows: number;
+  duplicateRows: number;
+  duplicateDetails: { row: number; matchedBy: string }[];
+  failedRows: number;
+  errors: { row: number; error: string }[];
+}> {
   const job = await prisma.crmImportJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error('Import job not found');
   if (job.createdBy !== userId) throw new Error('Not authorized');
@@ -340,6 +346,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
   const fields = ENTITY_FIELDS[job.entity as keyof typeof ENTITY_FIELDS] || [];
   let importedRows = 0;
   let duplicateRows = 0;
+  const duplicateDetails: { row: number; matchedBy: string }[] = [];
   let failedRows = 0;
   const allErrors: { row: number; error: string }[] = [];
 
@@ -412,6 +419,15 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
           const duplicateKey = leadDuplicateKey(data);
           if (duplicateKey && existingLeadKeys.has(duplicateKey)) {
             duplicateRows++;
+            duplicateDetails.push({
+              // rawData starts after the spreadsheet header row.
+              row: i + 2,
+              matchedBy: duplicateKey.startsWith('email:')
+                ? 'Contact Email'
+                : duplicateKey.startsWith('phone-company:')
+                  ? 'Contact Phone + Company Name'
+                  : 'Title + Company Name + Contact Name',
+            });
             continue;
           }
           await prisma.crmLead.create({
@@ -547,7 +563,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{ im
     },
   });
 
-  return { importedRows, duplicateRows, failedRows, errors: allErrors.slice(0, 50) };
+  return { importedRows, duplicateRows, duplicateDetails, failedRows, errors: allErrors.slice(0, 50) };
 }
 
 export async function getImportStatus(jobId: string, userId: string) {

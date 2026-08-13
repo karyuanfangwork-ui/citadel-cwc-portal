@@ -929,7 +929,13 @@ const crmService = {
   },
   async executeImport(jobId: string) {
     const res = await api.post(`/crm/import/${jobId}/execute`);
-    return res.data.data as { importedRows: number; duplicateRows: number; failedRows: number; errors: Array<{ row: number; error: string }> };
+    return res.data.data as {
+      importedRows: number;
+      duplicateRows: number;
+      duplicateDetails: Array<{ row: number; matchedBy: string }>;
+      failedRows: number;
+      errors: Array<{ row: number; error: string }>;
+    };
   },
   async getImportStatus(jobId: string) {
     const res = await api.get(`/crm/import/${jobId}/status`);

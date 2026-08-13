@@ -28,7 +28,7 @@ vi.mock('../context/AuthContext', () => ({
     user: {
       id: 'user-1',
       email: 'admin@test.local',
-      permissions: ['crm:read', 'crm:write', 'crm:admin'],
+      permissions: ['crm:read', 'crm:write', 'crm:admin', 'crm:import', 'crm:export'],
     },
   }),
 }));

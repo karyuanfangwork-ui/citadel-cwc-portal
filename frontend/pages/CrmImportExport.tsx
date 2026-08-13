@@ -85,7 +85,7 @@ const CrmImportExport = () => {
   const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; duplicateDetails: Array<{ row: number; matchedBy: string }>; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -577,6 +577,22 @@ const CrmImportExport = () => {
                     {importResult.errors.length > 20 && (
                       <p className="text-sm text-red-600 font-medium mt-1">…and {importResult.errors.length - 20} more errors</p>
                     )}
+                  </div>
+                )}
+
+                {importResult.duplicateDetails.length > 0 && (
+                  <div className="rounded-cwc-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-4">
+                    <p className="text-sm font-semibold text-amber-900">Duplicate rows skipped</p>
+                    <p className="text-sm text-amber-800 mt-1">
+                      Spreadsheet rows {importResult.duplicateDetails.map((duplicate) => duplicate.row).join(', ')} were skipped because they matched an earlier or existing Lead.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {importResult.duplicateDetails.map((duplicate) => (
+                        <span key={duplicate.row} className="inline-flex items-center rounded-full bg-white border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900">
+                          Row {duplicate.row}: {duplicate.matchedBy}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
 

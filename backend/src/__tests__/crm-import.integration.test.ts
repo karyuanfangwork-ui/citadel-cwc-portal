@@ -653,7 +653,15 @@ describe('Import pipeline - full happy path', () => {
       .post(`/api/v1/crm/import/${repeatedJobId}/execute`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(executeRes.status).toBe(200);
-    expect(executeRes.body.data).toMatchObject({ importedRows: 0, duplicateRows: 2, failedRows: 0 });
+    expect(executeRes.body.data).toMatchObject({
+      importedRows: 0,
+      duplicateRows: 2,
+      duplicateDetails: [
+        { row: 2, matchedBy: 'Contact Email' },
+        { row: 3, matchedBy: 'Contact Email' },
+      ],
+      failedRows: 0,
+    });
     expect(executeRes.body.data.errors).toHaveLength(0);
 
     const matchingLeads = await prisma.crmLead.findMany({
