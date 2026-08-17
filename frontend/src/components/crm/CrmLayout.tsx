@@ -27,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/crm/custom-fields', label: 'Custom Fields', icon: 'tune', permission: 'crm:admin', admin: true },
   { to: '/crm/duplicates', label: 'Duplicates', icon: 'content_copy', permission: 'crm:admin', admin: true },
   { to: '/crm/industry-options', label: 'Industry Options', icon: 'business', permission: 'crm:admin', admin: true },
-  { to: '/crm/import-export', label: 'Import / Export', icon: 'swap_horiz', anyPermission: ['crm:import', 'crm:export'] },
+  { to: '/crm/import-export', label: 'Import / Export', icon: 'swap_horiz', anyPermission: ['crm:import', 'crm:export', 'crm:admin'], admin: true },
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
 ];
 
