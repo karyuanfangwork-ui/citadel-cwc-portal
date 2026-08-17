@@ -11,6 +11,47 @@ import type { BorrowerListQuery } from '../validators/borrowerList.validator';
 
 type ScopedBorrowerListQuery = Omit<BorrowerListQuery, 'branchId'> & { branchId?: string | null };
 
+// ---------------------------------------------------------------------------
+// Data-quality projection
+// ---------------------------------------------------------------------------
+
+export type DataQuality = 'COMPLETE' | 'INCOMPLETE';
+export type MissingField = 'name' | 'identifier' | 'contact' | 'segment' | 'owner';
+
+export interface DataQualityResult {
+  dataQuality: DataQuality;
+  missingFields: MissingField[];
+}
+
+/**
+ * Derive the data-quality state of an operational borrower record.
+ * A record is INCOMPLETE when any minimum operational field is absent.
+ * Missing fields are returned in a deterministic, stable order.
+ * This function performs presence checks only — it never exposes raw PII values.
+ */
+export function deriveBorrowerDataQuality(fields: {
+  name: string | null | undefined;
+  nricPassport: string | null | undefined;
+  registrationNumber: string | null | undefined;
+  phone: string | null | undefined;
+  email: string | null | undefined;
+  segment: string | null | undefined;
+  relationshipOwnerId: string | null | undefined;
+}): DataQualityResult {
+  const missingFields: MissingField[] = [];
+
+  if (!fields.name || fields.name.trim() === '') missingFields.push('name');
+  if (!fields.nricPassport && !fields.registrationNumber) missingFields.push('identifier');
+  if (!fields.phone && !fields.email) missingFields.push('contact');
+  if (!fields.segment) missingFields.push('segment');
+  if (!fields.relationshipOwnerId) missingFields.push('owner');
+
+  return {
+    dataQuality: missingFields.length === 0 ? 'COMPLETE' : 'INCOMPLETE',
+    missingFields,
+  };
+}
+
 export function getOperationalBorrowerOrderBy(sortBy: BorrowerListQuery['sortBy'], sortDirection: BorrowerListQuery['sortDirection']) {
   if (sortBy === 'name') return { name: sortDirection };
   if (sortBy === 'segment') return { segment: sortDirection };
@@ -213,6 +254,7 @@ class BorrowerProfileService {
           segment: true,
           lifecycleStatus: true,
           nricPassport: true,
+          registrationNumber: true,
           phone: true,
           email: true,
           totalExposure: true,
@@ -226,13 +268,22 @@ class BorrowerProfileService {
 
     const items = profiles.map((profile) => {
       const activeApplicationCount = profile.applications.filter((application) => !['REJECTED', 'CLOSED', 'WITHDRAWN'].includes(application.state)).length;
+      const { dataQuality, missingFields } = deriveBorrowerDataQuality({
+        name: profile.name,
+        nricPassport: profile.nricPassport,
+        registrationNumber: profile.registrationNumber,
+        phone: profile.phone,
+        email: profile.email,
+        segment: profile.segment,
+        relationshipOwnerId: profile.relationshipOwner?.id,
+      });
       return {
         id: profile.id,
         borrowerNumber: profile.borrowerNumber ?? '',
         name: profile.name ?? 'Unnamed borrower',
         segment: profile.segment,
         legalType: profile.borrowerType,
-        maskedIdentifier: profile.nricPassport ? maskNric(profile.nricPassport) : null,
+        maskedIdentifier: profile.nricPassport ? maskNric(profile.nricPassport) : (profile.registrationNumber ? `***${profile.registrationNumber.slice(-4)}` : null),
         primaryContact: maskPrimaryContact(profile.phone, profile.email),
         relationshipOwner: profile.relationshipOwner ? {
           id: profile.relationshipOwner.id,
@@ -241,6 +292,8 @@ class BorrowerProfileService {
         activeApplicationCount,
         totalExposure: profile.totalExposure == null ? 0 : Number(profile.totalExposure),
         status: profile.lifecycleStatus,
+        dataQuality,
+        missingFields,
         updatedAt: profile.updatedAt.toISOString(),
       };
     });

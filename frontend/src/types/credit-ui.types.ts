@@ -4,6 +4,9 @@ export type BorrowerSegment = 'INDIVIDUAL' | 'SME' | 'CORPORATE';
 export type BorrowerLifecycleStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 export type CreditTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
+export type BorrowerDataQuality = 'COMPLETE' | 'INCOMPLETE';
+export type BorrowerMissingField = 'name' | 'identifier' | 'contact' | 'segment' | 'owner';
+
 export interface BorrowerListItem {
   id: string;
   borrowerNumber: string;
@@ -16,6 +19,8 @@ export interface BorrowerListItem {
   activeApplicationCount: number;
   totalExposure: number;
   status: BorrowerLifecycleStatus | null;
+  dataQuality: BorrowerDataQuality;
+  missingFields: BorrowerMissingField[];
   updatedAt: string;
 }
 

@@ -18,7 +18,7 @@ vi.mock('../../../context/AuthContext', () => ({
 import BorrowerProfileList from '../../../../pages/BorrowerProfileList';
 
 const borrower = {
-  id: 'borrower-1', borrowerNumber: 'BRW-000001', name: 'Ahmad Enterprise', segment: 'SME', legalType: 'CORPORATE', maskedIdentifier: '******-10-1234', primaryContact: 'a***@example.test', relationshipOwner: { id: 'rm-1', name: 'Relationship Manager' }, activeApplicationCount: 2, totalExposure: 45000, status: 'ACTIVE', updatedAt: '2026-08-11T00:00:00.000Z',
+  id: 'borrower-1', borrowerNumber: 'BRW-000001', name: 'Ahmad Enterprise', segment: 'SME', legalType: 'CORPORATE', maskedIdentifier: '******-10-1234', primaryContact: 'a***@example.test', relationshipOwner: { id: 'rm-1', name: 'Relationship Manager' }, activeApplicationCount: 2, totalExposure: 45000, status: 'ACTIVE', dataQuality: 'COMPLETE' as const, missingFields: [] as string[], updatedAt: '2026-08-11T00:00:00.000Z',
 };
 
 const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
@@ -47,7 +47,7 @@ describe('BorrowerProfileList', () => {
   it('keeps active application count as an accessible navigation action', async () => {
     render(<MemoryRouter><BorrowerProfileList /><LocationProbe /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: /2 active applications/i }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('borrowerId=borrower-1'));
     expect(screen.getByTestId('location')).toHaveTextContent('status=active');
   });
