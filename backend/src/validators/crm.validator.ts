@@ -227,6 +227,11 @@ const activityBodySchema = z.object({
   scheduledAt: z.string().optional(),
   completedAt: z.string().optional(),
   durationMinutes: z.coerce.number().int().nonnegative().optional(),
+  callCategory: z.enum(['NEW_CALL', 'FOLLOW_UP_CALL']).optional(),
+  callOutcome: z.enum(['ANSWERED', 'NO_ANSWER', 'NOT_INTERESTED', 'WRONG_NUMBER', 'NOT_REACHABLE', 'INTERESTED']).optional(),
+  emailOutcome: z.enum(['SENT', 'BOUNCED', 'REPLIED', 'RESEND_REQUIRED']).optional(),
+  meetingOutcome: z.enum(['ARRANGED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).optional(),
+  engagementOutcome: z.enum(['INTERESTED', 'NOT_INTERESTED', 'PENDING']).optional(),
   metadata: z.record(z.any()).optional(),
 });
 

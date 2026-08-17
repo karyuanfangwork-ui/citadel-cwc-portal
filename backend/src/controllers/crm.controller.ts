@@ -15,6 +15,7 @@ import { trackFieldChanges } from '../services/crm-field-change.service';
 import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
 import { buildMatchFields } from '../services/crm-duplicate.service';
 import crmReportsService from '../services/crm-reports.service';
+import { getDailyOperationalReport } from '../services/crm-daily-report.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
 import * as importExportService from '../services/crm-import-export.service';
@@ -1504,6 +1505,28 @@ class CrmController {
     respondOrCsv(res, report, 'activity-summary.csv',
       ['date', 'calls', 'emails', 'meetings', 'notes'], d => d.daily ?? d,
       req.query.format as string);
+  });
+
+  getDailyOperationalReport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const requestedOwnerId = req.query.ownerId as string | undefined;
+    if (requestedOwnerId && visibleOwnerIds !== null && !visibleOwnerIds.includes(requestedOwnerId)) {
+      throw new AppError('Forbidden owner report scope', 403);
+    }
+    const reportOwnerIds = requestedOwnerId
+      ? [requestedOwnerId]
+      : visibleOwnerIds;
+    const report = await getDailyOperationalReport(from, to, reportOwnerIds);
+    const companyCsv = req.query.format === 'company-csv';
+    respondOrCsv(res, report,
+      companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv',
+      companyCsv
+        ? ['companyName', 'accountId', 'activityCount', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'merchantsSignedUp', 'merchantsDeclined']
+        : ['date', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'merchantsSignedUp', 'merchantsDeclined'],
+      d => companyCsv ? d.byCompany : d.daily,
+      companyCsv ? 'csv' : req.query.format as string);
   });
 
   getLeadAgingReport = asyncHandler(async (req: AuthRequest, res: Response) => {

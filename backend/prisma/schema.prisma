@@ -2920,6 +2920,13 @@ model CrmActivity {
   completedAt     DateTime? @map("completed_at") @db.Timestamp(6)
   durationMinutes Int?      @map("duration_minutes")
 
+  // Structured operational reporting outcomes
+  callCategory       String? @map("call_category") @db.VarChar(30)
+  callOutcome        String? @map("call_outcome") @db.VarChar(30)
+  emailOutcome       String? @map("email_outcome") @db.VarChar(30)
+  meetingOutcome     String? @map("meeting_outcome") @db.VarChar(30)
+  engagementOutcome  String? @map("engagement_outcome") @db.VarChar(30)
+
   // Activity Reminders (Sprint 2)
   reminderSent Boolean @default(false) @map("reminder_sent")
 

@@ -210,6 +210,11 @@ export interface CrmActivity {
   userId: string; accountId: string | null; contactId: string | null;
   leadId: string | null; opportunityId: string | null;
   scheduledAt: string | null; completedAt: string | null; durationMinutes: number | null;
+  callCategory: 'NEW_CALL' | 'FOLLOW_UP_CALL' | null;
+  callOutcome: 'ANSWERED' | 'NO_ANSWER' | 'NOT_INTERESTED' | 'WRONG_NUMBER' | 'NOT_REACHABLE' | 'INTERESTED' | null;
+  emailOutcome: 'SENT' | 'BOUNCED' | 'REPLIED' | 'RESEND_REQUIRED' | null;
+  meetingOutcome: 'ARRANGED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
+  engagementOutcome: 'INTERESTED' | 'NOT_INTERESTED' | 'PENDING' | null;
   reminderSent: boolean;
   createdAt: string; updatedAt: string;
   user?: UserRef; account?: { id: string; name: string };
@@ -705,6 +710,10 @@ const crmService = {
   },
   async getActivitySummaryReport(params?: Record<string, string>) {
     const res = await api.get('/crm/reports/activity-summary', { params });
+    return res.data.data;
+  },
+  async getDailyOperationalReport(params?: Record<string, string>) {
+    const res = await api.get('/crm/reports/daily-operational', { params });
     return res.data.data;
   },
   async getLeadAgingReport(params?: Record<string, string>) {

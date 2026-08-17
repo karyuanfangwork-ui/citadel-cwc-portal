@@ -539,7 +539,7 @@ class UserController {
     });
 
     /**
-     * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
+     * Get active users assigned the requested executive RBAC role
      * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
      * agent override the auto-selected approver before routing.
      *
@@ -567,10 +567,10 @@ class UserController {
             where: {
                 isActive: true,
                 ...(req.user?.tenantId ? { tenantId: req.user.tenantId } : {}),
-                OR: [
-                    { executiveRole: { in: roles } },
-                    { roles: { some: { role: { name: { in: roles } } } } },
-                ],
+                // RBAC role membership is authoritative. Do not use the nullable
+                // executiveRole column here: it can remain stale after an admin
+                // removes a user's executive role assignment.
+                roles: { some: { role: { name: { in: roles } } } },
             },
             select: {
                 id: true,
@@ -635,11 +635,22 @@ class UserController {
             throw new AppError(`Unknown roles: ${invalid.join(', ')}`, 400);
         }
 
+        // Keep the legacy executiveRole column aligned with the authoritative
+        // RBAC role assignment. This prevents a removed executive role from
+        // continuing to authorize or appear in approver resolution.
+        const resolvedExecutiveRole = EXECUTIVE_HIERARCHY.find((executiveRole) =>
+            roleRecords.some((role) => role.name === executiveRole),
+        ) ?? null;
+
         // Replace all roles atomically
         await prisma.$transaction([
             prisma.userRole.deleteMany({ where: { userId: id } }),
             prisma.userRole.createMany({
                 data: roleRecords.map((r) => ({ userId: id, roleId: r.id })),
+            }),
+            prisma.user.update({
+                where: { id },
+                data: { executiveRole: resolvedExecutiveRole },
             }),
         ]);
 

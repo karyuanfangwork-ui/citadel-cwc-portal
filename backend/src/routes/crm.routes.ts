@@ -117,6 +117,7 @@ router.get('/reports/lead-conversion', requirePermission('crm:read'), crmControl
 router.get('/reports/sales-performance', requirePermission('crm:read'), crmController.getSalesPerformanceReport);
 router.get('/reports/pipeline-forecast', requirePermission('crm:read'), crmController.getPipelineForecastReport);
 router.get('/reports/activity-summary', requirePermission('crm:read'), crmController.getActivitySummaryReport);
+router.get('/reports/daily-operational', requirePermission('crm:read'), crmController.getDailyOperationalReport);
 router.get('/reports/lead-aging', requirePermission('crm:read'), crmController.getLeadAgingReport);
 router.get('/reports/win-loss', requirePermission('crm:read'), crmController.getWinLossReport);
 router.get('/reports/kyc-compliance', requirePermission('crm:read'), crmController.getKycComplianceReport);

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import crmService, { CrmPipeline } from '../src/services/crm.service';
+import crmService, { CrmPipeline, CrmUser } from '../src/services/crm.service';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, FunnelChart, Funnel, LabelList,
@@ -38,6 +38,27 @@ interface ActivitySummaryReport {
   byUser: Array<{ userId: string; userName: string; count: number; breakdown: Record<string, number> }>;
   totalActivities: number;
   period: { from: string; to: string };
+}
+
+interface DailyOperationalRow {
+  date: string;
+  emailsSent: number; emailBounces: number; newCalls: number; followUpCalls: number;
+  callEngagement: number; interested: number; noAnswer: number; notInterested: number;
+  wrongNumber: number; notReachable: number; meetingsArranged: number;
+  merchantsSignedUp: number; merchantsDeclined: number;
+}
+
+interface DailyOperationalCompanyRow extends Omit<DailyOperationalRow, 'date'> {
+  companyName: string;
+  accountId: string | null;
+  activityCount: number;
+}
+
+interface DailyOperationalReport {
+  daily: DailyOperationalRow[];
+  totals: DailyOperationalRow;
+  byCompany: DailyOperationalCompanyRow[];
+  period: { from: string; to: string; timezone: string };
 }
 
 interface LeadAgingReport {
@@ -141,12 +162,13 @@ const TABS = [
   { id: 'forecast-categories', label: 'Forecast by Category' },
   { id: 'forecast-accuracy', label: 'Forecast Accuracy' },
   { id: 'activity-summary', label: 'Activity Summary' },
+  { id: 'daily-operational', label: 'Daily Operational' },
   { id: 'lead-aging', label: 'Lead Aging' },
   { id: 'win-loss', label: 'Win/Loss' },
   { id: 'kyc-compliance', label: 'KYC Compliance' },
 ] as const;
 type TabId = typeof TABS[number]['id'];
-const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'win-loss', 'forecast-accuracy'];
+const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'daily-operational', 'win-loss', 'forecast-accuracy'];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -630,6 +652,145 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
   );
 }
 
+function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
+  const [data, setData] = React.useState<DailyOperationalReport | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [owners, setOwners] = React.useState<CrmUser[]>([]);
+  const [ownerId, setOwnerId] = React.useState('');
+
+  React.useEffect(() => {
+    crmService.listCrmUsers().then(setOwners).catch(() => setOwners([]));
+  }, []);
+
+  React.useEffect(() => {
+    setLoading(true);
+    crmService.getDailyOperationalReport({ from, to, ...(ownerId ? { ownerId } : {}) })
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [from, to, ownerId]);
+
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(data.daily.map(row => ({
+      Date: row.date,
+      'Email Sent': row.emailsSent,
+      'Email Bounce': row.emailBounces,
+      'New Calls': row.newCalls,
+      'Follow-up Calls': row.followUpCalls,
+      Engagement: row.callEngagement,
+      Interested: row.interested,
+      'No Answer': row.noAnswer,
+      'Not Interested': row.notInterested,
+      'Wrong Number': row.wrongNumber,
+      'Not Reachable': row.notReachable,
+      'Meetings Arranged': row.meetingsArranged,
+      'Merchants Signed Up': row.merchantsSignedUp,
+      'Merchants Declined': row.merchantsDeclined,
+    })), 'crm-daily-operational.csv');
+ };
+
+ const handleCompanyExport = () => {
+ if (!data) return;
+ downloadCsv(data.byCompany.map(row => ({
+ Company: row.companyName,
+ AccountId: row.accountId ?? '',
+ Activities: row.activityCount,
+ 'Email Sent': row.emailsSent,
+ 'Email Bounce': row.emailBounces,
+ 'New Calls': row.newCalls,
+ 'Follow-up Calls': row.followUpCalls,
+ Engagement: row.callEngagement,
+ Interested: row.interested,
+ 'No Answer': row.noAnswer,
+ 'Not Interested': row.notInterested,
+ 'Wrong Number': row.wrongNumber,
+ 'Not Reachable': row.notReachable,
+ 'Meetings Arranged': row.meetingsArranged,
+ 'Merchants Signed Up': row.merchantsSignedUp,
+ 'Merchants Declined': row.merchantsDeclined,
+ })), 'crm-daily-operational-by-company.csv');
+ };
+
+ if (loading) return <Skeleton />;
+  if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
+
+  const columns: Array<[string, keyof DailyOperationalRow]> = [
+    ['Email Sent', 'emailsSent'], ['Bounce', 'emailBounces'], ['New Calls', 'newCalls'],
+    ['Follow-up', 'followUpCalls'], ['Engagement', 'callEngagement'], ['Interested', 'interested'],
+    ['No Answer', 'noAnswer'], ['Not Interested', 'notInterested'], ['Wrong Number', 'wrongNumber'],
+    ['Not Reachable', 'notReachable'], ['Meetings', 'meetingsArranged'], ['Signed Up', 'merchantsSignedUp'],
+    ['Declined', 'merchantsDeclined'],
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-text-primary">Daily CRM-recorded operational activity</p>
+          <p className="text-xs text-text-secondary mt-1">Timezone: {data.period.timezone}. Imported leads are not counted as calls or emails.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <label className="text-xs font-semibold text-text-secondary">Sales rep:</label>
+          <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
+            className="border border-border rounded-lg px-2 py-1.5 text-xs bg-bg-surface text-text-primary">
+            <option value="">All visible owners</option>
+            {owners.map(owner => <option key={owner.id} value={owner.id}>{owner.firstName} {owner.lastName}</option>)}
+          </select>
+          <CsvBtn onClick={handleExport} label="Export Daily CSV" />
+          <CsvBtn onClick={handleCompanyExport} label="Export Company CSV" />
+        </div>
+      </div>
+      <div className="overflow-x-auto bg-bg-surface border border-border rounded-xl">
+        <table className="w-full text-xs min-w-[1100px]">
+          <thead>
+            <tr className="text-text-secondary uppercase border-b border-border">
+              <th className="text-left px-3 py-3">Date</th>
+              {columns.map(([label, key]) => <th key={key} className="text-right px-2 py-3">{label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {data.daily.map(row => (
+              <tr key={row.date} className="border-b border-border last:border-0">
+                <td className="px-3 py-2 text-text-primary font-medium whitespace-nowrap">{row.date}</td>
+                {columns.map(([, key]) => <td key={key} className="px-2 py-2 text-right text-text-secondary">{row[key]}</td>)}
+              </tr>
+            ))}
+            <tr className="font-bold bg-bg-subtle">
+              <td className="px-3 py-3 text-text-primary">TOTAL</td>
+              {columns.map(([, key]) => <td key={key} className="px-2 py-3 text-right text-text-primary">{data.totals[key]}</td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <details className="bg-bg-surface border border-border rounded-xl" open>
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          By Company
+        </summary>
+        <div className="p-5 pt-0 overflow-x-auto">
+          <table className="w-full text-xs min-w-[1100px]">
+            <thead>
+              <tr className="text-text-secondary uppercase border-b border-border">
+                <th className="text-left px-3 py-3">Company</th>
+                <th className="text-right px-2 py-3">Activities</th>
+                {columns.map(([label, key]) => <th key={key} className="text-right px-2 py-3">{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {data.byCompany.map(row => (
+                <tr key={`${row.accountId ?? 'none'}:${row.companyName}`} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2 text-text-primary font-medium">{row.companyName}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-text-primary">{row.activityCount}</td>
+                  {columns.map(([, key]) => <td key={key} className="px-2 py-2 text-right text-text-secondary">{row[key]}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function LeadAgingPanel() {
   const [data, setData] = React.useState<LeadAgingReport | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1086,6 +1247,8 @@ export default function CrmReports() {
         return <PipelineForecastPanel key={`pf-${refreshKey}`} />;
       case 'activity-summary':
         return <ActivitySummaryPanel key={`as-${refreshKey}`} {...dateProps} />;
+      case 'daily-operational':
+        return <DailyOperationalPanel key={`do-${refreshKey}`} {...dateProps} />;
       case 'lead-aging':
         return <LeadAgingPanel key={`la-${refreshKey}`} />;
       case 'win-loss':
