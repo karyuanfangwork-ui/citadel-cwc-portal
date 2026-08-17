@@ -139,6 +139,27 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         const currentRequest = await prisma.request.findUnique({ where: { id: requestId } });
         if (!currentRequest) return res.status(404).json({ error: 'Request not found' });
 
+        if (overallStatus === 'COMPLETED') {
+            const taskCounts = await prisma.onboardingTask.groupBy({
+                by: ['status'],
+                where: { onboarding: { requestId } },
+                _count: true,
+            });
+            const pendingCount = taskCounts
+                .filter(t => t.status !== 'COMPLETED')
+                .reduce((sum, t) => sum + t._count, 0);
+            const totalCount = taskCounts.reduce((sum, t) => sum + t._count, 0);
+
+            if (totalCount > 0 && pendingCount > 0) {
+                return res.status(400).json({
+                    error: 'Cannot complete onboarding',
+                    message: `${pendingCount} task${pendingCount > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks before closing this onboarding.`,
+                    pendingCount,
+                    totalCount,
+                });
+            }
+        }
+
         const onboarding = await prisma.onboardingRequest.update({
             where: { requestId },
             data: {
@@ -191,24 +212,6 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (overallStatus === 'COMPLETED') {
-            const taskCounts = await prisma.onboardingTask.groupBy({
-                by: ['status'],
-                where: { onboardingId: onboarding.id },
-                _count: true,
-            });
-            const pendingCount = taskCounts
-                .filter(t => t.status !== 'COMPLETED')
-                .reduce((sum, t) => sum + t._count, 0);
-            const totalCount = taskCounts.reduce((sum, t) => sum + t._count, 0);
-
-            if (totalCount > 0 && pendingCount > 0) {
-                return res.status(400).json({
-                    error: 'Cannot complete onboarding',
-                    message: `${pendingCount} task${pendingCount > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks before closing this onboarding.`,
-                    pendingCount,
-                    totalCount,
-                });
-            }
             finalStatus = 'ONBOARDING_COMPLETED';
         }
 

@@ -297,23 +297,25 @@ export async function validateImportMapping(
       const value = row[header];
 
       if (fieldDef.required && (!value || String(value).trim() === '')) {
-        errors.push({ row: i + 1, field: fieldDef.label, error: 'Required field is empty' });
+        // rawData excludes the spreadsheet header row.
+        errors.push({ row: i + 2, field: fieldDef.label, error: 'Required field is empty' });
       }
 
       if (value && fieldDef.maxLength && String(value).length > fieldDef.maxLength) {
         errors.push({
-          row: i + 1,
+          // rawData excludes the spreadsheet header row.
+          row: i + 2,
           field: fieldDef.label,
           error: `Value is ${String(value).length} characters; maximum is ${fieldDef.maxLength}`,
         });
       }
 
       if (value && fieldDef.type === 'number' && isNaN(Number(value))) {
-        errors.push({ row: i + 1, field: fieldDef.label, error: `Expected number, got "${value}"` });
+        errors.push({ row: i + 2, field: fieldDef.label, error: `Expected number, got "${value}"` });
       }
 
       if (value && fieldDef.type === 'enum' && fieldDef.enumValues && !fieldDef.enumValues.includes(String(value).toUpperCase())) {
-        errors.push({ row: i + 1, field: fieldDef.label, error: `Invalid value "${value}". Allowed: ${fieldDef.enumValues.join(', ')}` });
+        errors.push({ row: i + 2, field: fieldDef.label, error: `Invalid value "${value}". Allowed: ${fieldDef.enumValues.join(', ')}` });
       }
     }
   }
@@ -323,7 +325,8 @@ export async function validateImportMapping(
     data: { columnMapping: columnMapping as any, status: 'PREVIEW' },
   });
 
-  return { valid: errors.length < rawData.length * 0.5, errors: errors.slice(0, 50), warnings };
+  // Any validation error must block import.
+  return { valid: errors.length === 0, errors: errors.slice(0, 50), warnings };
 }
 
 export async function executeImport(jobId: string, userId: string): Promise<{

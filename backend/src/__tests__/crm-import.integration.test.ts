@@ -598,6 +598,50 @@ describe('Import pipeline - full happy path', () => {
     expect(res.body.data.errors).toHaveLength(0);
   });
 
+  it('blocks invalid rows and reports their spreadsheet row numbers', async () => {
+    const csvBuffer = makeCsvBuffer([
+      {
+        Title: `Validation Lead A ${suffix}`,
+        'Contact Name': 'Alice Validation',
+        'Contact Phone': '603 1111 1111',
+      },
+      {
+        Title: `Validation Lead B ${suffix}`,
+        'Contact Name': 'Bob Validation',
+        'Contact Phone': '603 2222 2222',
+      },
+      {
+        Title: `Validation Lead C ${suffix}`,
+        'Contact Name': 'Carol Validation',
+        'Contact Phone': 'x'.repeat(51),
+      },
+    ]);
+
+    const uploadRes = await request(app)
+      .post('/api/v1/crm/import/upload')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .field('entity', 'LEAD')
+      .attach('file', csvBuffer, { filename: `leads-validation-${suffix}.csv`, contentType: 'text/csv' });
+    expect(uploadRes.status).toBe(200);
+
+    const res = await request(app)
+      .post(`/api/v1/crm/import/${uploadRes.body.data.jobId}/mapping`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        columnMapping: {
+          Title: 'title',
+          'Contact Name': 'contactName',
+          'Contact Phone': 'contactPhone',
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(false);
+    expect(res.body.data.errors).toEqual([
+      { row: 4, field: 'Contact Phone', error: 'Value is 51 characters; maximum is 50' },
+    ]);
+  });
+
   it('executes the import and returns importedRows > 0', async () => {
     const res = await request(app)
       .post(`/api/v1/crm/import/${jobId}/execute`)

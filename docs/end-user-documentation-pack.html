@@ -127,6 +127,7 @@
   <a href="#doc3">3 · Service Catalog Guide</a>
   <a href="#doc4">4 · Ticket Lifecycle Guide</a>
   <a class="sub" href="#ref-status">↳ 4.1 General Track</a>
+  <a class="sub" href="#track-41b">↳ 4.1b Question for HR</a>
   <a class="sub" href="#track-42">↳ 4.2 New Hardware</a>
   <a class="sub" href="#track-42b">↳ 4.2b Software Installation</a>
   <a class="sub" href="#track-43">↳ 4.3 New Hiring Request</a>
@@ -152,7 +153,7 @@
 <main>
 <div class="topbar">
   <strong style="color:var(--navy)">End User Documentation Pack</strong>
-  <span class="meta">Version 1.1 &nbsp;•&nbsp; Published 5 June 2026 &nbsp;•&nbsp; Audience: All Employees</span>
+  <span class="meta">Version 1.3 &nbsp;•&nbsp; Updated 17 August 2026 &nbsp;•&nbsp; Audience: All Employees</span>
 </div>
 
 <!-- ============ HERO ============ -->
@@ -354,7 +355,7 @@
     <tbody>
       <tr><td><strong>Question for HR</strong></td><td>Any HR policy or general query.</td><td>Question, detail, optional attachment</td><td>24 hrs</td><td>No</td></tr>
       <tr><td><strong>New Hiring Request</strong></td><td>Open a new role / recruitment.</td><td>Position, department, role category, employment type, proposed salary, org chart &amp; JD, candidate docs</td><td>48 hrs</td><td>Restricted to <strong>Hiring Manager</strong>; multi-stage approval</td></tr>
-      <tr><td><strong>New Employee Onboarding</strong></td><td>Onboard a confirmed new joiner.</td><td>Employee name, email, start date, department, job title</td><td>48 hrs</td><td>No</td></tr>
+      <tr><td><strong>New Employee Onboarding</strong></td><td>Onboard a confirmed new joiner.</td><td>Employee name, email, start date, department, job title</td><td>48 hrs</td><td>No approval node in published Active v2 graph</td></tr>
       <tr><td><strong>Offboard an Employee</strong></td><td>Process a leaver.</td><td>Employee name, email, last working day</td><td>48 hrs</td><td>No</td></tr>
     </tbody>
   </table>
@@ -387,6 +388,9 @@
   </div>
 
   <p>CWC uses different status tracks depending on the request type. Most simple tickets follow the <strong>General track</strong> below. Software and hardware procurement each have their own track. Hiring, onboarding, offboarding, finance and chargeback requests follow their own specialised tracks. The <strong>Workflow Stepper</strong> on the <span class="screen">Request Detail</span> page always shows your ticket's position in plain language.</p>
+  <div class="box info"><span class="lbl">Workflow Designer authority</span>
+    The published workflow graph configured by administrators in <span class="screen">Admin → Workflow Designer</span> is the runtime source of truth for each workflow. It is compiled into the request stepper and available transitions, so an approved published graph may add, remove or reorder steps compared with the default examples in this guide. Always follow the published stepper and current action buttons for the request in front of you.
+  </div>
 
   <h2 id="ref-status">4.1 General Track (most tickets)</h2>
   <table>
@@ -401,6 +405,83 @@
       <tr><td><span class="badge b-green">Resolved</span></td><td>Work is done.</td><td>Confirm; comment to re-open if needed.</td></tr>
       <tr><td><span class="badge b-green">Completed</span></td><td>Closed and finalised.</td><td>None.</td></tr>
       <tr><td><span class="badge b-red">Rejected</span></td><td>Declined (with reason).</td><td>Read the reason; raise a corrected request if appropriate.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="track-41b">4.1b Question for HR — Published HR General Track — Active v2</h2>
+  <p><strong>Question for HR</strong> uses the published <strong>HR General</strong> graph. It moves from <strong>Submitted</strong> directly to <strong>In Progress</strong>. HR agents and admins can return a ticket for more information, place it on hold, resolve it, reject it, or cancel it according to the published transition rules.</p>
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node">In Progress</span><span class="arr">→</span>
+    <span class="node end">Resolved</span>
+  </div>
+  <table>
+    <thead><tr><th>Status</th><th>Published transitions</th><th>Who acts</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-grey">Submitted</span></td><td>Advance → In Progress; Reject → Rejected; Cancel → Cancelled</td><td>HR Agent / Admin</td></tr>
+      <tr><td><span class="badge b-blue">In Progress</span></td><td>Resolve → Resolved; Return → Action Required; Hold → Waiting; Reject → Rejected; Cancel → Cancelled</td><td>HR Agent / Admin</td></tr>
+      <tr><td><span class="badge b-amber">Action Required</span></td><td>Advance → In Progress; Resolve → Resolved; Reject → Rejected; Cancel → Cancelled</td><td>HR Agent / Admin</td></tr>
+      <tr><td><span class="badge b-amber">Waiting</span></td><td>Advance → In Progress; Resolve → Resolved; Cancel → Cancelled</td><td>HR Agent / Admin</td></tr>
+      <tr><td><span class="badge b-green">Resolved</span>, <span class="badge b-red">Rejected</span>, <span class="badge b-red">Cancelled</span></td><td>Final statuses in the published graph.</td><td>No further action</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.1b.1 &nbsp; Detailed User Journey — Question for HR</h3>
+  <p>The table below follows every node and published transition in HR General Active v2. The Question for HR request has a 24-hour catalogue SLA. Rejection and cancellation transitions require a comment; the requester can provide information through comments or attachments, while HR Agent / Admin performs the workflow transition.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">#</th>
+        <th style="width:15%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:24%">What Happens</th>
+        <th style="width:23%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span><br><small><code>SUBMITTED</code></small></td>
+        <td>Requester</td>
+        <td>The requester opens <strong>HR Services → Question for HR</strong>, enters the question and supporting detail, optionally attaches a document, and submits the request.</td>
+        <td>Confirmation with the request ID. The stepper highlights <strong>Submitted</strong> and the 24-hour SLA starts.</td>
+        <td>✅ Advance → <span class="badge b-blue">In Progress</span><br>❌ Reject → <span class="badge b-red">Rejected</span><br>✕ Cancel → <span class="badge b-red">Cancelled</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">In Progress</span><br><small><code>IN_PROGRESS</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR reviews the question, checks the relevant policy or records, and prepares an answer. If more information is needed, HR returns the request; if work depends on another party, HR places it on hold.</td>
+        <td>The stepper shows <strong>In Progress</strong>. The requester can monitor comments and provide follow-up information.</td>
+        <td>✅ Resolve → <span class="badge b-green">Resolved</span><br>↩ Return → <span class="badge b-amber">Action Required</span><br>⏸ Hold → <span class="badge b-amber">Waiting</span><br>❌ Reject → <span class="badge b-red">Rejected</span><br>✕ Cancel → <span class="badge b-red">Cancelled</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-amber">Action Required</span><br><small><code>ACTION_REQUIRED</code></small></td>
+        <td>Requester → HR Agent / Admin</td>
+        <td>The requester supplies the missing detail or attachment in the request conversation. HR reviews the response and advances the request when the question can be answered.</td>
+        <td>The stepper shows <strong>Action Required</strong>. The requester should respond promptly; the published graph does not give the requester a direct transition button.</td>
+        <td>✅ Advance → <span class="badge b-blue">In Progress</span><br>✅ Resolve → <span class="badge b-green">Resolved</span><br>❌ Reject → <span class="badge b-red">Rejected</span><br>✕ Cancel → <span class="badge b-red">Cancelled</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-amber">Waiting</span><br><small><code>WAITING</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR is waiting for a dependency, such as a policy owner, another department, or an external clarification. HR resumes the request when the dependency is available.</td>
+        <td>The stepper shows <strong>Waiting</strong> and comments explain what the request is waiting for.</td>
+        <td>✅ Advance → <span class="badge b-blue">In Progress</span><br>✅ Resolve → <span class="badge b-green">Resolved</span><br>✕ Cancel → <span class="badge b-red">Cancelled</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-green">Resolved</span>, <span class="badge b-red">Rejected</span>, or <span class="badge b-red">Cancelled</span></td>
+        <td>No further workflow action</td>
+        <td><strong>Resolved</strong> means HR has answered the question. <strong>Rejected</strong> means the request was declined with a required comment. <strong>Cancelled</strong> means the request was stopped with a required comment.</td>
+        <td>The stepper shows a final status and the request is no longer available for a published transition.</td>
+        <td>End of the published HR General workflow.</td>
+      </tr>
     </tbody>
   </table>
 
@@ -872,11 +953,13 @@
 
   <h2 id="track-43">4.3 New Hiring Request</h2>
 
-  <p>The HR Hiring track (request type <strong>New Hiring Request</strong>) is the longest workflow in CWC. It runs from a hiring manager's request, through a <strong>two-tier executive approval</strong> (CEO then Group Deputy CEO), into recruitment (job posting, candidate review, interview, screening) and finally the <strong>Letter of Acceptance (LOA)</strong> cycle. On completion it can automatically spin up an Onboarding ticket (Section 4.4). The request can only be raised by a user with the <strong>Hiring Manager</strong> role, and the HR agent drives most of the recruitment steps while the hiring manager makes the candidate and LOA decisions.</p>
+  <div class="box info"><span class="lbl">Published graph — Active v1</span> This section follows the published HR Recruitment graph in <span class="screen">Admin → Workflow Designer</span>. It includes an explicit <strong>In Review</strong> node before CEO Approval, executive rejection loop-back nodes, candidate rejection loop-back, LOA rejection return to HR Screening, and cancellation from each non-final operational status.</div>
+  <p>The HR Hiring track (request type <strong>New Hiring Request</strong>) runs from a hiring manager's request through <strong>In Review</strong>, two-tier executive approval (CEO then Group Deputy CEO), recruitment, candidate review, interview, screening and the <strong>Letter of Acceptance (LOA)</strong> cycle. On completion it can automatically spin up an Onboarding ticket (Section 4.4). The request can only be raised by a user with the <strong>Hiring Manager</strong> role, and the HR agent drives most recruitment steps while the hiring manager makes candidate and LOA decisions.</p>
 
   <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
     <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node">In Review</span><span class="arr">→</span>
     <span class="node gate">CEO Approval</span><span class="arr">→</span>
     <span class="node gate">Group DCEO Approval</span><span class="arr">→</span>
     <span class="node">Job Posted</span><span class="arr">→</span>
@@ -893,7 +976,7 @@
 
   <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
   <h3>4.3.1 &nbsp; Detailed User Journey — New Hiring Request</h3>
-  <p>New Hiring Requests are raised under <strong>HR Services</strong>. After both executives approve, the HR agent posts the job, collects resumes, and routes candidates to the hiring manager; once a candidate clears the interview and screening, HR drives the Letter of Acceptance cycle to completion.</p>
+  <p>New Hiring Requests are raised under <strong>HR Services</strong>. The published graph first moves the request into In Review, then through both executive approvals. After approval, the HR agent posts the job, collects resumes, and routes candidates to the hiring manager; once a candidate clears the interview and screening, HR drives the Letter of Acceptance cycle to completion.</p>
 
   <table>
     <thead>
@@ -913,7 +996,15 @@
         <td>Hiring Manager (requester)</td>
         <td>Creates the request via <strong>Create Request</strong>: <em>HR Services → New Hiring Request</em>. Required fields: job title, department, role category (Junior/Senior Executive, Manager, HOD, C-Level), employment type; optional proposed salary, org chart, job description. An HR agent then clicks <strong>"Route to CEO for Approval"</strong> (<code>ROUTE_TO_CEO_HR</code>).</td>
         <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (48 hrs).</td>
-        <td>→ <span class="badge b-blue">CEO Approval</span></td>
+        <td>→ <span class="badge b-blue">In Review</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">In Review</span></td>
+        <td>HR Agent / Admin</td>
+        <td>HR reviews the submitted hiring details and advances the request to the published CEO approval node.</td>
+        <td>Stepper shows <strong>In Review</strong>.</td>
+        <td>→ <span class="badge b-blue">CEO Approval</span> or <span class="badge b-red">Cancelled</span></td>
       </tr>
       <tr>
         <td>2</td>
@@ -977,7 +1068,7 @@
         <td>Hiring Manager (requester)</td>
         <td>The hiring manager reviews the draft LOA and clicks <strong>Approve</strong> or <strong>Reject</strong> (<code>LOA_APPROVAL</code>).</td>
         <td>Stepper shows <strong>LOA Pending</strong>.</td>
-        <td>✅ Approve → <span class="badge b-blue">LOA Approved</span><br>❌ Reject → <span class="badge b-red">LOA Rejected</span> (stops)</td>
+        <td>✅ Approve → <span class="badge b-blue">LOA Approved</span><br>❌ Reject → <span class="badge b-red">LOA Rejected</span> → <span class="badge b-purple">HR Screening</span> (revise and re-route)</td>
       </tr>
       <tr>
         <td>10</td>
@@ -1016,7 +1107,7 @@
 
   <!-- ─── REJECTION BRANCH TABLE ─── -->
   <h3>4.3.2 &nbsp; Rejection &amp; Loop-Back Paths</h3>
-  <p>The hiring workflow has several decision points. Executive rejections loop back to Submitted; a failed interview returns to recruitment; an LOA rejection is terminal.</p>
+  <p>The hiring workflow has several decision points. Executive rejections loop back to Submitted; a failed interview returns to recruitment; an LOA rejection returns to HR Screening so HR can revise the offer and route it again.</p>
   <table>
     <thead>
       <tr><th>Decision Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
@@ -1025,7 +1116,7 @@
       <tr><td><span class="badge b-blue">CEO Approval</span></td><td><span class="badge b-red">CEO Rejected</span></td><td>Routes back to <span class="badge b-grey">Submitted</span>. The CEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
       <tr><td><span class="badge b-blue">Group DCEO Approval</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Routes back to <span class="badge b-grey">Submitted</span> (or fully rejected). The Group DCEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
       <tr><td><span class="badge b-amber">Interview Feedback</span></td><td><span class="badge b-red">Candidate Rejected</span></td><td>Returns to <span class="badge b-purple">Job Posted</span> to resume recruitment with other candidates — the request itself is <strong>not</strong> cancelled.</td><td>N/A — recruitment continues.</td></tr>
-      <tr><td><span class="badge b-blue">LOA Pending</span></td><td><span class="badge b-red">LOA Rejected</span></td><td>The LOA cycle <strong>stops</strong>. The hiring manager's comment is visible.</td><td>Raise a new request if needed.</td></tr>
+      <tr><td><span class="badge b-blue">LOA Pending</span></td><td><span class="badge b-red">LOA Rejected</span></td><td>Returns to <span class="badge b-purple">HR Screening</span>. The hiring manager's comment is visible and HR can revise the LOA before routing it again.</td><td><strong>Yes</strong> — HR revises and re-routes the LOA.</td></tr>
     </tbody>
   </table>
 
@@ -1039,6 +1130,7 @@
       <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Executive Approval</div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
         <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node">In Review</span><span class="arr">→</span>
         <span class="node gate">CEO<br>Approval</span><span class="arr">→</span>
         <span class="node gate">Group DCEO<br>Approval</span>
       </div>
@@ -1080,7 +1172,7 @@
       <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
         <span style="color:var(--warn);font-weight:600">LOA rejected:</span>
         <span class="badge b-red">LOA Rejected</span>
-        <span style="color:var(--muted)">→ cycle stops</span>
+        <span style="color:var(--muted)">→ back to <span class="badge b-purple">HR Screening</span> for revision</span>
       </div>
     </div>
   </div>
@@ -1117,7 +1209,10 @@
 
   <h2 id="track-44">4.4 New Employee Onboarding</h2>
 
-  <p>The New Employee Onboarding track (request type <strong>New Employee Onboarding</strong>) walks a new hire through their first weeks, from pre-arrival setup to a completed onboarding. It can be raised directly by HR or <strong>created automatically</strong> when a New Hiring Request completes (Section 4.3). An <strong>HR agent</strong> drives the ticket forward one phase at a time; a supporting <strong>onboarding checklist</strong> (tasks) and an optional <strong>buddy assignment</strong> help track the detailed work within each phase. There is no approval gate — this is an execution workflow, not an approval one.</p>
+  <div class="box info"><span class="lbl">Published graph — Active v2</span> This section follows the published Employee Onboarding graph in <span class="screen">Admin → Workflow Designer</span>. It contains seven nodes: Submitted, Pre-Arrival, Ready for Day 1, Orientation, Integration, Completed, and Cancelled. The published graph does not contain an HR Approval node or Month 1–3 milestone nodes.
+  </div>
+
+  <p>The New Employee Onboarding track (request type <strong>New Employee Onboarding</strong>) moves a new hire from submission through pre-arrival setup, readiness for Day 1, orientation, and first-week integration. It can be raised directly by HR or <strong>created automatically</strong> when a New Hiring Request completes (Section 4.3). An <strong>HR agent</strong> or admin drives the published graph forward one phase at a time; supporting onboarding checklist tasks, IT setup fields, and an optional buddy assignment help track the detailed work within each phase.</p>
 
   <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
@@ -1131,7 +1226,7 @@
 
   <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
   <h3>4.4.1 &nbsp; Detailed User Journey — New Employee Onboarding</h3>
-  <p>Onboarding tickets are raised under <strong>HR Services</strong>. The HR agent advances the ticket through each phase with a single action button, completing the supporting checklist tasks along the way, and closes it after the Week 1 integration phase.</p>
+  <p>Onboarding tickets are raised under <strong>HR Services</strong>. After submission, the published graph advances through each phase with a single action button. The graph also provides a cancellation path from each non-final operational status. The final transition from Integration to Completed has no displayed transition label in the published graph.</p>
 
   <table>
     <thead>
@@ -1149,12 +1244,12 @@
         <td>1</td>
         <td><span class="badge b-grey">Onboarding Submitted</span><br><small><code>ONBOARDING_SUBMITTED</code></small></td>
         <td>HR Agent / Admin</td>
-        <td>The ticket is created via <strong>Create Request</strong> (<em>HR Services → New Employee Onboarding</em>) or auto-generated from a completed hire. Required fields: employee full name, email, start date, department, job title. The HR agent reviews the new-hire details and clicks <strong>"Start Pre-Arrival Setup"</strong> (<code>ADVANCE_ONBOARDING_PHASE</code>).</td>
+        <td>The ticket is created via <strong>Create Request</strong> (<em>HR Services → New Employee Onboarding</em>) or auto-generated from a completed hire. Required fields: employee full name, email, start date, department, job title. The request starts at the published onboarding submission node.</td>
         <td>Confirmation banner with request ID. Stepper highlights <strong>Onboarding Submitted</strong>. SLA timer starts (48 hrs).</td>
-        <td>→ <span class="badge b-purple">Pre-Arrival Setup</span></td>
+        <td>→ <span class="badge b-purple">Pre-Arrival Setup</span> or <span class="badge b-red">Cancelled</span></td>
       </tr>
       <tr>
-        <td>2</td>
+        <td>3</td>
         <td><span class="badge b-purple">Pre-Arrival Setup</span><br><small><code>ONBOARDING_PRE_ARRIVAL_SETUP</code></small></td>
         <td>HR Agent / Admin</td>
         <td>HR completes pre-arrival tasks from the checklist (account creation, equipment provisioning, access requests), then clicks <strong>"Mark Day 1 Ready"</strong>.</td>
@@ -1162,7 +1257,7 @@
         <td>→ <span class="badge b-purple">Ready for Day 1</span></td>
       </tr>
       <tr>
-        <td>3</td>
+        <td>4</td>
         <td><span class="badge b-purple">Ready for Day 1</span><br><small><code>ONBOARDING_READY_FOR_DAY_1</code></small></td>
         <td>HR Agent / Admin</td>
         <td>All pre-arrival tasks are done and the new hire is ready to start. On their arrival, HR clicks <strong>"Begin Day 1 Orientation"</strong>.</td>
@@ -1170,7 +1265,7 @@
         <td>→ <span class="badge b-blue">Day 1 Orientation</span></td>
       </tr>
       <tr>
-        <td>4</td>
+        <td>5</td>
         <td><span class="badge b-blue">Day 1 Orientation</span><br><small><code>ONBOARDING_DAY_1_ORIENTATION</code></small></td>
         <td>HR Agent / Admin</td>
         <td>HR runs the Day 1 orientation (welcome, introductions, policies, workstation). Once complete, they click <strong>"Advance to Week 1 Integration"</strong>.</td>
@@ -1178,18 +1273,18 @@
         <td>→ <span class="badge b-blue">Week 1 Integration</span></td>
       </tr>
       <tr>
-        <td>5</td>
+        <td>6</td>
         <td><span class="badge b-blue">Week 1 Integration</span><br><small><code>ONBOARDING_WEEK_1_INTEGRATION</code></small></td>
         <td>HR Agent / Admin</td>
-        <td>The new hire settles into the team during the first week. When all onboarding tasks are done, HR clicks <strong>"Complete Onboarding"</strong> (<code>COMPLETE_ONBOARDING</code>).</td>
-        <td>Stepper shows <strong>Week 1 Integration</strong>. Requester sees onboarding is nearly complete.</td>
+        <td>The new hire settles into the team during the first week. HR completes the published Integration phase and advances the onboarding request to completion.</td>
+        <td>Stepper shows <strong>Week 1 Integration</strong>. Requester sees onboarding is progressing.</td>
         <td>→ <span class="badge b-green">Onboarding Complete</span></td>
       </tr>
       <tr>
-        <td>6</td>
+        <td>7</td>
         <td><span class="badge b-green">Onboarding Complete</span><br><small><code>ONBOARDING_COMPLETED</code></small></td>
-        <td>System</td>
-        <td>Onboarding is finalised and the ticket is closed.</td>
+        <td>HR Agent / Admin</td>
+        <td>HR completes the published Integration phase and closes the onboarding request.</td>
         <td>Stepper shows all steps completed. Requester sees <strong>Onboarding Complete</strong>.</td>
         <td>End of life cycle.</td>
       </tr>
@@ -1198,7 +1293,7 @@
 
   <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
   <h3>4.4.2 &nbsp; Visual Flow — Onboarding Phases</h3>
-  <p>Onboarding is a straightforward linear progression with <strong>no approval gates and no rejection branches</strong>. The HR agent advances one phase at a time as the new hire's first weeks progress.</p>
+  <p>Onboarding is a linear progression from submission through operational setup, arrival, integration and completion. The published graph also exposes cancellation from each non-final node.</p>
 
   <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
     <div style="background:#f3f0fb;border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
@@ -1227,8 +1322,8 @@
       <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
     </thead>
     <tbody>
-      <tr><td><strong>Requester</strong> (HR / hiring manager)</td><td>Raise onboarding ticket, view progress, comment</td><td>Creator only — no phase actions</td></tr>
-      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance each onboarding phase, manage the onboarding checklist (tasks), assign a buddy, set/adjust start date, complete onboarding</td><td>All onboarding statuses from <span class="badge b-grey">Onboarding Submitted</span> to <span class="badge b-blue">Week 1 Integration</span></td></tr>
+      <tr><td><strong>Requester</strong> (HR / hiring manager)</td><td>Raise onboarding ticket, view progress, comment</td><td>Creator only — no approval or phase-advance actions</td></tr>
+      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance each published onboarding phase, cancel when needed, manage the onboarding checklist (tasks), assign a buddy, set/adjust start date, complete onboarding</td><td><span class="badge b-purple">Pre-Arrival Setup</span> through <span class="badge b-blue">Week 1 Integration</span></td></tr>
     </tbody>
   </table>
 
@@ -1241,30 +1336,30 @@
       <li>Use the <strong>onboarding checklist (tasks)</strong> to track the detailed work within each phase (accounts, equipment, access, orientation items).</li>
       <li>Assign an <strong>onboarding buddy</strong> to help the new hire settle in during the first week.</li>
       <li>Keep the <strong>start date</strong> accurate — it anchors the pre-arrival and Day 1 timing.</li>
-      <li>This is an <strong>execution workflow with no approval gate</strong>; HR advances it phase-by-phase as the new hire's first weeks progress.</li>
+      <li>The published graph has no HR approval or monthly milestone nodes; follow the current stepper and action buttons.</li>
+      <li>Cancellation is available from Submitted and each non-final operational status in the published graph.</li>
     </ul>
   </div>
   <div class="box example"><span class="lbl">Example Scenario</span>
-    A new Marketing Executive is hired and an onboarding ticket is auto-created from the completed hiring request. The HR agent reviews the details and clicks <strong>Start Pre-Arrival Setup</strong>, completing checklist tasks for the laptop, email account, and building access, then marks <strong>Day 1 Ready</strong> and assigns a buddy. On the start date HR clicks <strong>Begin Day 1 Orientation</strong>, runs the welcome session, then advances to <strong>Week 1 Integration</strong>. At the end of the first week, with all tasks done, HR clicks <strong>Complete Onboarding</strong> and the ticket closes.
+    A new Marketing Executive is hired and an onboarding ticket is auto-created from the completed hiring request. HR completes checklist tasks for the laptop, email account and building access, marks <strong>Ready for Day 1</strong>, and assigns a buddy. On the start date HR runs orientation, advances through <strong>Week 1 Integration</strong>, and completes the published onboarding workflow.
   </div>
 
   <h2 id="track-45">4.5 Offboard an Employee</h2>
 
-  <p>The Offboard an Employee track (request type <strong>Offboard an Employee</strong>) manages a departing employee's exit from first notice through to final access revocation. It is raised by HR and progresses through five phases driven by an <strong>HR agent</strong> one step at a time. There is <strong>no approval gate</strong> — this is a pure execution workflow. Supporting tools include an <strong>offboarding checklist (tasks)</strong> and an optional <strong>resignation letter upload</strong>.</p>
+  <div class="box info"><span class="lbl">Published graph — Active v3</span> This section follows the published Employee Offboarding graph in <span class="screen">Admin → Workflow Designer</span>. It contains Submitted, Notice Period, Exit Procedures, Completed, and Cancelled. The published graph does not contain Knowledge Transfer or Final Week nodes.</div>
+  <p>The Offboard an Employee track (request type <strong>Offboard an Employee</strong>) manages a departing employee's exit from notice period through exit procedures and closure. It is raised by HR and progressed by an <strong>HR agent</strong> or admin. Notice Period and Exit Procedures are SLA-paused nodes in the published graph. Cancellation is available from Submitted, Notice Period, and Exit Procedures.</p>
 
   <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
     <span class="node start">Offboarding Submitted</span><span class="arr">→</span>
     <span class="node">Notice Period</span><span class="arr">→</span>
-    <span class="node">Knowledge Transfer</span><span class="arr">→</span>
-    <span class="node">Final Week</span><span class="arr">→</span>
     <span class="node">Exit Procedures</span><span class="arr">→</span>
     <span class="node end">Offboarding Complete</span>
   </div>
 
   <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
   <h3>4.5.1 &nbsp; Detailed User Journey — Offboard an Employee</h3>
-  <p>Offboarding tickets are raised under <strong>HR Services</strong>. The HR agent advances the ticket through each phase, completing checklist tasks at every stage, until exit procedures are done and the ticket is closed.</p>
+  <p>Offboarding tickets are raised under <strong>HR Services</strong>. The HR agent advances the ticket through the published phases, completing checklist tasks as needed, until exit procedures are done and the ticket is closed. Each non-final phase also has a published cancellation transition.</p>
 
   <table>
     <thead>
@@ -1290,36 +1385,20 @@
         <td>2</td>
         <td><span class="badge b-blue">Notice Period</span><br><small><code>OFFBOARDING_NOTICE_PERIOD</code></small></td>
         <td>HR Agent / Admin</td>
-        <td>HR manages the notice period — informing the team, beginning handover planning, working through checklist tasks. When the notice period is underway, HR clicks <strong>"Begin Knowledge Transfer"</strong>.</td>
+        <td>HR manages the notice period — informing the team, beginning handover planning, and working through checklist tasks. HR advances to the published Exit Procedures node when ready.</td>
         <td>Stepper shows <strong>Notice Period</strong>.</td>
-        <td>→ <span class="badge b-blue">Knowledge Transfer</span></td>
+        <td>→ <span class="badge b-purple">Exit Procedures</span> or <span class="badge b-red">Cancelled</span></td>
       </tr>
       <tr>
         <td>3</td>
-        <td><span class="badge b-blue">Knowledge Transfer</span><br><small><code>OFFBOARDING_KNOWLEDGE_TRANSFER</code></small></td>
+        <td><span class="badge b-purple">Exit Procedures</span><br><small><code>OFFBOARDING_EXIT_PROCEDURES</code></small></td>
         <td>HR Agent / Admin</td>
-        <td>The departing employee documents processes, hands over projects and files, and completes knowledge-transfer checklist items. Once done, HR clicks <strong>"Advance to Final Week"</strong>.</td>
-        <td>Stepper shows <strong>Knowledge Transfer</strong>.</td>
-        <td>→ <span class="badge b-blue">Final Week</span></td>
+        <td>HR completes exit procedures: IT account and access revocation, hardware and equipment collection, ID/access card return. When all exit tasks are done, HR clicks <strong>"Complete Offboarding"</strong> (<code>COMPLETE_OFFBOARDING</code>), or cancels if the request should stop.</td>
+        <td>Stepper shows <strong>Exit Procedures</strong>.</td>
+        <td>→ <span class="badge b-green">Offboarding Complete</span> or <span class="badge b-red">Cancelled</span></td>
       </tr>
       <tr>
         <td>4</td>
-        <td><span class="badge b-blue">Final Week</span><br><small><code>OFFBOARDING_FINAL_WEEK</code></small></td>
-        <td>HR Agent / Admin</td>
-        <td>The employee's last week — final farewells, outstanding tasks cleared. HR clicks <strong>"Begin Exit Procedures"</strong> to start the formal IT and access revocation steps.</td>
-        <td>Stepper shows <strong>Final Week</strong>.</td>
-        <td>→ <span class="badge b-purple">Exit Procedures</span></td>
-      </tr>
-      <tr>
-        <td>5</td>
-        <td><span class="badge b-purple">Exit Procedures</span><br><small><code>OFFBOARDING_EXIT_PROCEDURES</code></small></td>
-        <td>HR Agent / Admin</td>
-        <td>HR completes exit procedures: IT account and access revocation, hardware and equipment collection, ID/access card return. When all exit tasks are done, HR clicks <strong>"Complete Offboarding"</strong> (<code>COMPLETE_OFFBOARDING</code>).</td>
-        <td>Stepper shows <strong>Exit Procedures</strong>.</td>
-        <td>→ <span class="badge b-green">Offboarding Complete</span></td>
-      </tr>
-      <tr>
-        <td>6</td>
         <td><span class="badge b-green">Offboarding Complete</span><br><small><code>OFFBOARDING_COMPLETED</code></small></td>
         <td>System</td>
         <td>Offboarding is finalised and the ticket is closed.</td>
@@ -1331,7 +1410,7 @@
 
   <!-- ─── VISUAL FLOW ─── -->
   <h3>4.5.2 &nbsp; Visual Flow — Offboarding Phases</h3>
-  <p>Offboarding is a strictly linear progression with <strong>no approval gates and no rejection branches</strong>. The HR agent advances one phase at a time as the departure progresses.</p>
+  <p>Offboarding is a linear progression with <strong>no approval gates or rejection branches</strong>. The published graph also includes cancellation from each non-final node. SLA is paused in Notice Period and Exit Procedures.</p>
 
   <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
     <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
@@ -1339,15 +1418,13 @@
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
         <span class="node">Offboarding<br>Submitted</span><span class="arr">→</span>
         <span class="node">Notice<br>Period</span><span class="arr">→</span>
-        <span class="node">Knowledge<br>Transfer</span><span class="arr">→</span>
-        <span class="node">Final<br>Week</span>
+        <span class="node">Exit<br>Procedures</span>
       </div>
     </div>
     <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Last day approaching&nbsp; ↓</div>
     <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
       <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">EXIT &amp; CLOSURE</div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
-        <span class="node">Exit<br>Procedures</span><span class="arr">→</span>
         <span class="node end">Offboarding<br>Complete</span>
       </div>
     </div>
@@ -1361,7 +1438,7 @@
     </thead>
     <tbody>
       <tr><td><strong>Requester</strong> (HR)</td><td>Raise offboarding ticket, upload resignation letter, view progress, comment</td><td>Creator only — no phase-advance actions</td></tr>
-      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance each offboarding phase, manage the offboarding checklist (tasks), upload resignation letter, complete offboarding</td><td>All offboarding statuses from <span class="badge b-grey">Offboarding Submitted</span> to <span class="badge b-purple">Exit Procedures</span></td></tr>
+      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance or cancel the published offboarding phases, manage the offboarding checklist (tasks), upload resignation letter, complete offboarding</td><td><span class="badge b-grey">Offboarding Submitted</span>, <span class="badge b-blue">Notice Period</span>, <span class="badge b-purple">Exit Procedures</span></td></tr>
     </tbody>
   </table>
 
@@ -1373,12 +1450,12 @@
       <li>Raise the offboarding ticket <strong>as soon as resignation is confirmed</strong> — early setup gives more time for knowledge transfer.</li>
       <li>Upload the <strong>resignation letter</strong> early to keep a record on the ticket.</li>
       <li>Use the <strong>offboarding checklist (tasks)</strong> to track every exit item — IT access revocation, hardware return, payroll notification, etc.</li>
-      <li>The <strong>Last Working Day</strong> field anchors the notice and final-week timing; keep it accurate.</li>
+      <li>The <strong>Last Working Day</strong> field anchors the notice-period timing; keep it accurate.</li>
       <li>This is an <strong>execution workflow with no approval gate</strong> — HR drives it start to finish.</li>
     </ul>
   </div>
   <div class="box example"><span class="lbl">Example Scenario</span>
-    A Finance Executive resigns with four weeks' notice. HR opens <strong>HR Services → Offboard an Employee</strong>, enters the employee's name, email, and last working day, uploads the resignation letter, and clicks <strong>Start Notice Period</strong>. As the employee documents processes and hands over files, HR advances to <strong>Knowledge Transfer</strong>, then <strong>Final Week</strong>. On the last day, HR clicks <strong>Begin Exit Procedures</strong>, completes the IT revocation and hardware-collection checklist, and clicks <strong>Complete Offboarding</strong>. The ticket closes.
+    A Finance Executive resigns with four weeks' notice. HR opens <strong>HR Services → Offboard an Employee</strong>, enters the employee's name, email, and last working day, uploads the resignation letter, and starts the <strong>Notice Period</strong>. HR then advances to <strong>Exit Procedures</strong>, completes the IT revocation and hardware-collection checklist, and clicks <strong>Complete Offboarding</strong>. The ticket closes.
   </div>
 
   <h2 id="track-46">4.6 Purchase Requisition Track</h2>
@@ -1986,7 +2063,8 @@
     <tbody>
       <tr><td>Software Installation</td><td>IT acknowledge → CEO → CTO → CFO</td><td>Sequential multi-tier approval; any rejection ends it.</td></tr>
       <tr><td>New Hardware</td><td>IT acknowledge → CEO → CTO → CFO (payment)</td><td>Sequential multi-tier approval; any rejection ends it.</td></tr>
-      <tr><td>New Hiring Request</td><td>CEO → Group DCEO → Hiring Manager (candidate selection) → HR Screening → LOA approval</td><td>Sequential; candidate rejection re-opens posting.</td></tr>
+      <tr><td>New Hiring Request</td><td>CEO → Group DCEO → Hiring Manager (candidate selection) → HR Screening → LOA approval</td><td>Sequential; candidate rejection re-opens posting and LOA rejection returns to HR Screening.</td></tr>
+      <tr><td>New Employee Onboarding</td><td>HR approval → pre-arrival → Day 1 → Week 1 → Month 1 → Month 2 → Month 3</td><td>HR approval is required; completion is blocked until all onboarding tasks are complete.</td></tr>
       <tr><td>Purchase Requisition</td><td>Finance acknowledge → CFO → Group DCEO</td><td>Routed by value; every amount gets executive sign-off via Group DCEO.</td></tr>
       <tr><td>Budget Proposal</td><td>Finance acknowledge → CFO <em>(no Group DCEO)</em></td><td>CFO is sole executive approver. No payment phase — Finance updates &amp; closes after approval.</td></tr>
       <tr><td>Inter-Company Chargeback</td><td>From-Entity approver → To-Entity approver → Finance review</td><td><strong>Both</strong> entities must approve; either rejection stops it.</td></tr>
@@ -2118,7 +2196,7 @@
   <table>
     <thead><tr><th>Rule</th><th>Effect</th></tr></thead>
     <tbody>
-      <tr><td>Request type marked “requires approval”</td><td>Routes to the configured approval chain before work proceeds (Software, Hardware, all Finance types).</td></tr>
+      <tr><td>Request type marked “requires approval”</td><td>Routes to the configured approval chain before work proceeds (Software, Hardware, Finance types and onboarding HR approval).</td></tr>
       <tr><td>Role-restricted request type</td><td>Only users with the required role may raise it (e.g. <em>New Hiring</em> requires Hiring Manager).</td></tr>
       <tr><td>Entity-based routing</td><td>Approver is chosen from the requester's entity or a selected entity field.</td></tr>
       <tr><td>Multi-entity request</td><td>One approval per entity; advances only when all approve, stops if any rejects.</td></tr>
@@ -2173,7 +2251,7 @@
 </section>
 
 <footer>
-  Citadel Workplace Connect — End User Documentation Pack &nbsp;•&nbsp; Version 1.1 &nbsp;•&nbsp; Published 5 June 2026<br>
+  Citadel Workplace Connect — End User Documentation Pack &nbsp;•&nbsp; Version 1.3 &nbsp;•&nbsp; Updated 17 August 2026<br>
   Citadel Group · Prepared for company-wide rollout · Suitable for Confluence, SharePoint or an internal knowledge portal.
 </footer>
 

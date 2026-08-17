@@ -524,7 +524,7 @@ const CrmImportExport = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-red-600 font-medium mb-4">
-                    <span className="material-symbols-outlined">cancel</span> Too many errors — fix your data and re-upload
+                    <span className="material-symbols-outlined">cancel</span> Validation failed — fix your data and re-upload
                   </div>
                 )}
 
