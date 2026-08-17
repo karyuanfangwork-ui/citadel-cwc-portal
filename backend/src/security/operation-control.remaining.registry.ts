@@ -1167,4 +1167,9 @@ export const remainingOperationControls: OperationControl[] = [
     coarsePermission: 'request:approve', resourcePolicy: 'request:update', validation: 'pathParams',
     responseSchema: 'RequestDto', rateTier: 'write', auditEvent: 'finance.groupDceoApprover.reassign', auditFindingIds: [],
   },
+  {
+    method: 'POST', path: '/finance-workflow/requests/:id/reassign-ceo-approver', owner: 'Finance', authentication: 'user',
+    coarsePermission: 'request:approve', resourcePolicy: 'request:update', validation: 'pathParams',
+    responseSchema: 'RequestDto', rateTier: 'write', auditEvent: 'finance.ceoApprover.reassign', auditFindingIds: [],
+  },
 ];

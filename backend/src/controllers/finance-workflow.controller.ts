@@ -669,6 +669,122 @@ export const reassignGroupDceoApprover = async (req: Request, res: Response) => 
     }
 };
 
+/** POST /finance-workflow/requests/:id/reassign-ceo-approver */
+export const reassignCeoApprover = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { approverId, notes } = req.body;
+        const user = (req as any).user;
+        const userRoles: string[] = user?.roles || [];
+
+        if (!approverId || typeof approverId !== 'string') {
+            res.status(400).json({ status: 'error', message: 'approverId is required' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                serviceDesk: true,
+                requestType: true,
+                approvals: { where: { approverType: 'CEO', status: 'PENDING' } },
+            },
+        });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+        if (request.serviceDesk?.code !== 'FINANCE' || request.requestType?.code !== 'PURCHASE_REQUISITION') {
+            res.status(400).json({ status: 'error', message: 'Only Finance Purchase Requisition CEO approvers can be reassigned here' });
+            return;
+        }
+        if (request.status !== 'PENDING_CEO_APPROVAL_FIN') {
+            res.status(400).json({ status: 'error', message: 'CEO approver can only be changed while the request is pending CEO approval' });
+            return;
+        }
+
+        const isAdmin = userRoles.includes('ADMIN');
+        const isFinanceAgent = userRoles.includes('AGENT') && (user?.agentTeam || '').trim().toUpperCase() === 'FINANCE';
+        if (!isAdmin && !isFinanceAgent) {
+            res.status(403).json({ status: 'error', message: 'Only Finance agents or admins can change the CEO approver' });
+            return;
+        }
+
+        const newApprover = await prisma.user.findFirst({
+            where: {
+                id: approverId,
+                isActive: true,
+                ...(request.tenantId ? { tenantId: request.tenantId } : {}),
+                OR: [
+                    { executiveRole: 'CEO' },
+                    { executiveRole: 'GROUP_DCEO' },
+                    { roles: { some: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } } } },
+                ],
+            },
+            select: { id: true, firstName: true, lastName: true, email: true },
+        });
+        if (!newApprover) {
+            res.status(400).json({ status: 'error', message: 'Selected approver is not an active CEO or Group DCEO in this tenant' });
+            return;
+        }
+
+        const pendingApproval = request.approvals[0];
+        const oldApproverId = pendingApproval?.approverId || request.assignedToId || null;
+        if (oldApproverId === newApprover.id) {
+            res.status(400).json({ status: 'error', message: 'Selected CEO is already assigned to this request' });
+            return;
+        }
+
+        const oldApprover = oldApproverId
+            ? await prisma.user.findUnique({ where: { id: oldApproverId }, select: { firstName: true, lastName: true } })
+            : null;
+
+        const updatedRequest = await prisma.$transaction(async (tx) => {
+            if (pendingApproval) {
+                await tx.requestApproval.update({
+                    where: { id: pendingApproval.id },
+                    data: { approverId: newApprover.id, comments: notes || pendingApproval.comments || null },
+                });
+            } else {
+                await tx.requestApproval.create({
+                    data: { requestId: id, approverType: 'CEO', approverId: newApprover.id, status: 'PENDING', comments: notes || null },
+                });
+            }
+
+            await tx.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: user?.id || null,
+                    authorName: user ? `${user.firstName} ${user.lastName}`.trim() : 'System',
+                    activityType: 'ASSIGNMENT',
+                    message: `CEO approver changed from ${oldApprover ? `${oldApprover.firstName} ${oldApprover.lastName}`.trim() : 'Unassigned'} to ${newApprover.firstName} ${newApprover.lastName}${notes ? `: ${notes}` : ''}`,
+                    isSystemGenerated: false,
+                    metadata: { previousApproverId: oldApproverId, newApproverId: newApprover.id, changedByRole: isAdmin ? 'ADMIN' : 'FINANCE_AGENT' },
+                },
+            });
+
+            return tx.request.update({
+                where: { id },
+                data: { assignedToId: newApprover.id },
+                include: { assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } } },
+            });
+        });
+
+        await notify({ userId: newApprover.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
+        await auditLog(req as any, 'FINANCE_CEO_APPROVER_REASSIGNED', 'request', id, {
+            previousApproverId: oldApproverId,
+            newApproverId: newApprover.id,
+            referenceNumber: request.referenceNumber,
+            notes: notes || null,
+        }, { assignedToId: request.assignedToId });
+
+        res.json({ status: 'success', message: 'CEO approver reassigned successfully', data: { request: updatedRequest } });
+    } catch (error: any) {
+        console.error('reassignCeoApprover error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to reassign CEO approver' });
+    }
+};
+
 /** POST /finance-workflow/requests/:id/group-dceo-decision */
 export const groupDceoDecision = async (req: Request, res: Response) => {
     try {

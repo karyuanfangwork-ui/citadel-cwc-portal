@@ -633,6 +633,39 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
+  CEO_DECISION_FIN: {
+    title: 'CEO Decision',
+    subtitle: 'Finance Workflow · Approve or reject Purchase Requisition',
+    icon: 'gavel',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      approvalService.bulkAction(
+        (values.decision as string) === 'APPROVE' ? 'approve' : 'reject',
+        [requestId],
+        (values.notes as string) || undefined,
+      ),
+  },
+
   CFO_DECISION_FIN: {
     title: 'CFO Decision',
     subtitle: 'Finance Workflow · Approve or reject',
@@ -735,6 +768,47 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     loadingLabel: 'Changing…',
     onSubmit: (requestId, values) =>
       financeWorkflowService.reassignGroupDceoApprover(
+        requestId,
+        values.approverId as string,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  REASSIGN_CEO_APPROVER_FIN: {
+    title: 'Change CEO Approver',
+    subtitle: 'Finance Workflow · Reassign this Purchase Requisition to a different CEO or Group DCEO',
+    icon: 'manage_accounts',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'approverId',
+        label: 'New CEO Approver',
+        type: 'select',
+        required: true,
+        asyncOptions: async () => {
+          const res = await api.get('/users/executives', { params: { role: 'CEO,GROUP_DCEO' } });
+          const executives = res.data?.data?.executives ?? [];
+          return executives.map((user: any) => ({
+            value: user.id,
+            label: `${user.firstName} ${user.lastName}${user.email ? ` — ${user.email}` : ''}${user.entity?.name ? ` · ${user.entity.name}` : ''}${user.executiveRole ? ` · ${user.executiveRole}` : ''}`,
+          }));
+        },
+      },
+      {
+        name: 'notes',
+        label: 'Reason',
+        type: 'textarea',
+        placeholder: 'Optional reason for changing the CEO approver…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Change Approver',
+    submitColor: 'warning',
+    loadingLabel: 'Changing…',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.reassignCeoApprover(
         requestId,
         values.approverId as string,
         (values.notes as string) || undefined,

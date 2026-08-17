@@ -50,6 +50,11 @@ const financeWorkflowService = {
         return response.data;
     },
 
+    async reassignCeoApprover(requestId: string, approverId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/reassign-ceo-approver`, { approverId, notes });
+        return response.data;
+    },
+
 
 
     async markPaymentComplete(requestId: string, paymentReference?: string, notes?: string) {

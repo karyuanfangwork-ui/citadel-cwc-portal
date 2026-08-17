@@ -42,6 +42,24 @@ function cfStr(val: any): string {
     }
     return String(val);
 }
+
+async function findFinanceCeo(tenantId: string | null | undefined, preferredUserId?: string): Promise<{ id: string; firstName: string; lastName: string; email: string } | null> {
+    return prisma.user.findFirst({
+        where: {
+            isActive: true,
+            ...(preferredUserId ? { id: preferredUserId } : {}),
+            ...(tenantId ? { tenantId } : {}),
+            OR: [
+                { executiveRole: 'CEO' },
+                { executiveRole: 'GROUP_DCEO' },
+                { roles: { some: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } } } },
+            ],
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, firstName: true, lastName: true, email: true },
+    });
+}
+
 class RequestController {
     /**
      * Get all requests with filters and pagination
@@ -411,7 +429,7 @@ class RequestController {
             // CEO approvals — skip transient "APPROVED" states, go directly to next pending step
             PENDING_CEO_APPROVAL: { CEO: { approve: 'CEO_APPROVED', reject: 'CEO_REJECTED' } },
             PENDING_CEO_APPROVAL_IT: { CEO: { approve: 'PENDING_CTO_APPROVAL_IT', reject: 'CEO_REJECTED_IT' } },
-            PENDING_CEO_APPROVAL_FIN: { CEO: { approve: 'PENDING_CFO_APPROVAL_FIN', reject: 'CEO_REJECTED_IT' } },
+            PENDING_CEO_APPROVAL_FIN: { CEO: { approve: 'PENDING_CFO_APPROVAL_FIN', reject: 'CEO_REJECTED_FIN' } },
             // CTO approvals (IT workflow) — skip CTO_APPROVED_IT, go to PENDING_INVOICE_IT
             PENDING_CTO_APPROVAL_IT: { CTO: { approve: 'PENDING_INVOICE_IT', reject: 'CTO_REJECTED_IT' } },
             // CFO approvals — skip transient APPROVED states, go to next workflow step
@@ -435,6 +453,7 @@ class RequestController {
         // When NO cascade exists (e.g. CTO approve → PENDING_INVOICE_IT), SLA stays resumed.
         const CASCADING_APPROVALS: Record<string, { approverType: string; nextStatus: string }> = {
             PENDING_CEO_APPROVAL_IT: { approverType: 'CTO', nextStatus: 'PENDING_CTO_APPROVAL_IT' },
+            PENDING_CEO_APPROVAL_FIN: { approverType: 'CFO', nextStatus: 'PENDING_CFO_APPROVAL_FIN' },
         };
 
         // Role display names for activity log
@@ -465,8 +484,32 @@ class RequestController {
 
             try {
                 const requestPatch: Record<string, unknown> = {};
+                let nextCfoId: string | null = null;
                 if (action === 'reject' && transition.reject.includes('REJECTED')) {
                     requestPatch.resolvedAt = new Date();
+                }
+
+                if (action === 'approve' && currentStatus === 'PENDING_CEO_APPROVAL_FIN') {
+                    const existingCfoApproval = await prisma.requestApproval.findFirst({
+                        where: { requestId: request.id, approverType: 'CFO', status: 'PENDING' },
+                        select: { approverId: true },
+                    });
+                    nextCfoId = existingCfoApproval?.approverId ?? (await prisma.user.findFirst({
+                        where: {
+                            isActive: true,
+                            ...(request.tenantId ? { tenantId: request.tenantId } : {}),
+                            OR: [
+                                { executiveRole: 'CFO' },
+                                { roles: { some: { role: { name: 'CFO' } } } },
+                            ],
+                        },
+                        orderBy: { createdAt: 'asc' },
+                        select: { id: true },
+                    }))?.id ?? null;
+                    if (!nextCfoId) {
+                        throw new AppError('No active CFO approver is configured for this tenant', 409);
+                    }
+                    requestPatch.assignedToId = nextCfoId;
                 }
 
                 let financeAgent: { id: string; firstName: string; lastName: string } | null = null;
@@ -508,9 +551,13 @@ class RequestController {
                         data: {
                             requestId: request.id,
                             approverType: cascade.approverType,
+                            approverId: currentStatus === 'PENDING_CEO_APPROVAL_FIN' ? nextCfoId : undefined,
                             status: 'PENDING',
                         },
                     });
+                    if (currentStatus === 'PENDING_CEO_APPROVAL_FIN' && nextCfoId) {
+                        await notify({ userId: nextCfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: request.id, role: 'CFO' }, relatedRequestId: request.id });
+                    }
                 }
 
                 // Create activity log
@@ -664,7 +711,7 @@ class RequestController {
             : isManualOffboarding
             ? 'OFFBOARDING_SUBMITTED'
             : (isPurchaseRequisition || isBudgetProposal)
-            ? 'FINANCE_PENDING_ACK'
+            ? 'PENDING_CEO_APPROVAL_FIN'
             : isIntercompanyChargeback
             ? 'SUBMITTED'
             : isExpenseClaim
@@ -672,6 +719,28 @@ class RequestController {
             : isEsmTravelRequest
             ? 'PENDING_CEO_APPROVAL'
             : 'SUBMITTED';
+
+        const financeFormConfig = Array.isArray(requestType?.formConfig)
+            ? requestType.formConfig as Array<{ id?: string; label?: string; type?: string }>
+            : [];
+        const financeApproverField = financeFormConfig.find((field) =>
+            field.type === 'ceo-select' || field.label?.trim().toLowerCase() === 'ceo approver'
+        );
+        const selectedFinanceCeoId = financeApproverField?.id
+            ? String(((customFields || {}) as Record<string, any>)[financeApproverField.id] || '').trim()
+            : '';
+        if (isPurchaseRequisition && financeApproverField && !selectedFinanceCeoId) {
+            throw new AppError('CEO Approver is required for Purchase Requisition', 400);
+        }
+        const financeCeo = (isPurchaseRequisition || isBudgetProposal)
+            ? await findFinanceCeo(creationPolicy.tenantId, selectedFinanceCeoId || undefined)
+            : null;
+        if ((isPurchaseRequisition || isBudgetProposal) && !financeCeo) {
+            throw new AppError(
+                selectedFinanceCeoId ? 'Selected CEO Approver is not an active CEO or Group DCEO in this tenant' : 'No active CEO approver is configured for this tenant',
+                selectedFinanceCeoId ? 400 : 409,
+            );
+        }
 
         // Auto-generate description from form fields
         let finalDescription = description;
@@ -1025,7 +1094,7 @@ class RequestController {
                     customFields,
                     isConfidential: creationPolicy.isConfidential,
                     status: initialStatus as any,
-                    assignedToId: esmSelectedCeo?.id,
+                    assignedToId: financeCeo?.id ?? esmSelectedCeo?.id,
                     slaDueAt,
                     // P5-04: Snapshot form config at submission time
                     formConfigSnapshot: creationPolicy.formConfig ?? undefined,
@@ -1220,6 +1289,33 @@ class RequestController {
                 });
             }
 
+            if ((isPurchaseRequisition || isBudgetProposal) && financeCeo) {
+                await tx.requestApproval.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        approverType: 'CEO',
+                        approverId: financeCeo.id,
+                        status: 'PENDING',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        activityType: 'ASSIGNMENT',
+                        message: `Finance request submitted directly to ${financeCeo.firstName} ${financeCeo.lastName} for CEO approval`,
+                        isSystemGenerated: true,
+                        metadata: {
+                            autoAssigned: true,
+                            assignedToId: financeCeo.id,
+                            approverType: 'CEO',
+                            source: 'finance-request-create',
+                        },
+                    },
+                });
+            }
+
             return createdRequest;
         });
 
@@ -1249,6 +1345,16 @@ class RequestController {
             await pauseSla(request.id);
             await notify({
                 userId: esmSelectedCeo.id,
+                eventType: 'APPROVAL_REQUIRED',
+                variables: { requestId: request.id, role: 'CEO' },
+                relatedRequestId: request.id,
+            });
+        }
+
+        if ((isPurchaseRequisition || isBudgetProposal) && financeCeo) {
+            await pauseSla(request.id);
+            await notify({
+                userId: financeCeo.id,
                 eventType: 'APPROVAL_REQUIRED',
                 variables: { requestId: request.id, role: 'CEO' },
                 relatedRequestId: request.id,

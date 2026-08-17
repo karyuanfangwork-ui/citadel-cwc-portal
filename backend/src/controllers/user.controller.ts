@@ -566,6 +566,7 @@ class UserController {
         const executives = await prisma.user.findMany({
             where: {
                 isActive: true,
+                ...(req.user?.tenantId ? { tenantId: req.user.tenantId } : {}),
                 OR: [
                     { executiveRole: { in: roles } },
                     { roles: { some: { role: { name: { in: roles } } } } },

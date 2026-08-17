@@ -30,7 +30,7 @@ interface ConditionalRule {
 interface FormField {
     id: string;
     label: string;
-    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file' | 'entity';
+    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file' | 'entity' | 'ceo-select';
     required: boolean;
     options?: string[];
     showWhen?: ConditionalRule;
@@ -109,6 +109,7 @@ const SortableField: React.FC<SortableFieldProps> = ({ field, fields, onRemove, 
                         <option value="select">Dropdown (Select)</option>
                         <option value="file">File Upload</option>
                         <option value="entity">Entity (Dropdown)</option>
+                        <option value="ceo-select">CEO Approver (CEO / Group DCEO)</option>
                     </select>
                 </div>
 
@@ -417,9 +418,9 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                         <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-400 min-h-[80px]">
                                             {field.label} will appear here...
                                         </div>
-                                    ) : field.type === 'select' || field.type === 'entity' ? (
+                                    ) : field.type === 'select' || field.type === 'entity' || field.type === 'ceo-select' ? (
                                         <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-400 flex items-center justify-between">
-                                            <span>{field.type === 'entity' ? 'Select entity...' : (field.options?.length ? 'Select an option...' : 'No options added')}</span>
+                                            <span>{field.type === 'entity' ? 'Select entity...' : field.type === 'ceo-select' ? 'Select a CEO approver...' : (field.options?.length ? 'Select an option...' : 'No options added')}</span>
                                             <span className="material-symbols-outlined text-base text-gray-300">expand_more</span>
                                         </div>
                                     ) : field.type === 'date' ? (

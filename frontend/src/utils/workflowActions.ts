@@ -42,8 +42,10 @@ export type WorkflowActionType =
   | 'SET_FINALIZED_AMOUNT'
   | 'ROUTE_TO_CFO_FIN'
   | 'ROUTE_TO_CFO_BP'
+  | 'CEO_DECISION_FIN'
   | 'CFO_DECISION_FIN'
   | 'REASSIGN_GROUP_DCEO_APPROVER_FIN'
+  | 'REASSIGN_CEO_APPROVER_FIN'
 
   | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
@@ -222,6 +224,24 @@ export function getWorkflowActions(
   const isFinanceRequest = isPurchaseRequisition || isBudgetProposal;
 
   if (isFinanceRequest) {
+    if (isPurchaseRequisition && (userRoles.includes('CEO') || userRoles.includes('GROUP_DCEO')) && status === 'PENDING_CEO_APPROVAL_FIN' && isDesignatedApprover) {
+      actions.push({
+        type: 'CEO_DECISION_FIN',
+        label: 'CEO Approval Decision',
+        description: 'Review and approve or reject this Purchase Requisition as the designated CEO approver.',
+        variant: 'primary',
+      });
+    }
+
+    if (isPurchaseRequisition && canActOnDesk && status === 'PENDING_CEO_APPROVAL_FIN') {
+      actions.push({
+        type: 'REASSIGN_CEO_APPROVER_FIN',
+        label: 'Change CEO Approver',
+        description: 'Select a different CEO or Group Deputy CEO approver for this Purchase Requisition.',
+        variant: 'warning',
+      });
+    }
+
     if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_FIN') {
       actions.push({
         type: 'CFO_DECISION_FIN',
