@@ -32,6 +32,15 @@ import prisma from '../utils/prisma';
 
 const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true };
 
+/** Parse CRM report dates as inclusive calendar dates when supplied as YYYY-MM-DD. */
+function parseReportDate(value: string | undefined, fallback: Date, endOfDay = false): Date {
+  if (!value) return fallback;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
+  }
+  return new Date(value);
+}
+
 /** Mask bankAccount in API responses — only show last 4 digits */
 const maskBankAccount = (account: any): any => {
   if (!account) return account;
@@ -1455,8 +1464,8 @@ class CrmController {
 
   // ======== REPORTS ========
   getLeadConversionReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
     const ownerId = req.query.ownerId as string | undefined;
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const report = await crmReportsService.getLeadConversionReport(from, to, ownerId, visibleOwnerIds);
@@ -1466,8 +1475,8 @@ class CrmController {
   });
 
   getSalesPerformanceReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
     const pipelineId = req.query.pipelineId as string | undefined;
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const report = await crmReportsService.getSalesPerformanceReport(from, to, pipelineId, visibleOwnerIds);
@@ -1487,8 +1496,8 @@ class CrmController {
   });
 
   getActivitySummaryReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
     const userId = req.query.userId as string | undefined;
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const report = await crmReportsService.getActivitySummaryReport(from, to, userId, visibleOwnerIds);
@@ -1507,8 +1516,8 @@ class CrmController {
   });
 
   getWinLossReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
     const ownerId = req.query.ownerId as string | undefined;
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const report = await crmReportsService.getWinLossReport(from, to, ownerId, visibleOwnerIds);
@@ -1539,8 +1548,8 @@ class CrmController {
   });
 
   getForecastAccuracyReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const report = await crmForecastService.getForecastAccuracyReport({ from, to }, visibleOwnerIds);
     respondOrCsv(res, report, 'forecast-accuracy.csv',

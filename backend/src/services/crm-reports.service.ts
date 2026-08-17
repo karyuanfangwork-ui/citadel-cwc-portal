@@ -374,12 +374,39 @@ export async function getActivitySummaryReport(
     ? (userId ? { userId } : {})
     : { userId: { in: userId ? visibleOwnerIds.filter((id) => id === userId) : visibleOwnerIds } };
   const dateFilter = { createdAt: { gte: from, lte: to } };
+  const activeEntityFilter = {
+    OR: [
+      { accountId: null, contactId: null, leadId: null, opportunityId: null },
+      { account: { deletedAt: null } },
+      { contact: { deletedAt: null } },
+      { lead: { deletedAt: null } },
+      { opportunity: { deletedAt: null } },
+    ],
+  };
+  const visibilityFilter = visibleOwnerIds === null
+    ? {}
+    : {
+        OR: [
+          { account: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
+          { contact: { account: { ownerId: { in: visibleOwnerIds }, deletedAt: null } } },
+          { lead: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
+          { opportunity: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
+          {
+            accountId: null,
+            contactId: null,
+            leadId: null,
+            opportunityId: null,
+            userId: { in: visibleOwnerIds },
+          },
+        ],
+      };
+  const activityWhere = { AND: [userFilter, dateFilter, activeEntityFilter, visibilityFilter] };
 
   // Activity counts by type
   const byTypeRaw = await prisma.crmActivity.groupBy({
     by: ['activityType'],
     _count: true,
-    where: { ...userFilter, ...dateFilter },
+    where: activityWhere,
   });
 
   const byType = byTypeRaw.map((row) => ({
@@ -391,7 +418,7 @@ export async function getActivitySummaryReport(
   const byUserRaw = await prisma.crmActivity.groupBy({
     by: ['userId', 'activityType'],
     _count: true,
-    where: { ...userFilter, ...dateFilter },
+    where: activityWhere,
   });
 
   // Fetch user names for the user IDs in the results
