@@ -3098,6 +3098,7 @@ model CrmImportJob {
   importedRows  Int       @default(0) @map("imported_rows")
   failedRows    Int       @default(0) @map("failed_rows")
   errorReport   Json?     @map("error_report")
+  duplicateReport Json?   @map("duplicate_report")
   columnMapping Json?     @map("column_mapping")
   rawData       Json?     @map("raw_data") // Stores parsed rows for preview
   createdBy     String    @map("created_by") @db.Uuid

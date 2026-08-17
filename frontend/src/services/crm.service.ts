@@ -932,7 +932,12 @@ const crmService = {
     return res.data.data as {
       importedRows: number;
       duplicateRows: number;
-      duplicateDetails: Array<{ row: number; matchedBy: string }>;
+      duplicateDetails: Array<{
+        row: number;
+        matchedBy: string;
+        matchedRow?: number;
+        matchSource: 'existing lead' | 'earlier spreadsheet row';
+      }>;
       failedRows: number;
       errors: Array<{ row: number; error: string }>;
     };
@@ -949,7 +954,7 @@ const crmService = {
     const res = await api.post('/crm/export', { entity, filters, format });
     return res.data.data as { jobId: string };
   },
-  async downloadExport(jobId: string) {
+  async downloadExport(jobId: string, format: 'CSV' | 'XLSX' = 'CSV') {
     const res = await api.get(`/crm/export/${jobId}/download`, { responseType: 'blob' });
     const now = new Date();
     const timestamp = [
@@ -964,7 +969,7 @@ const crmService = {
     const url = window.URL.createObjectURL(res.data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `crm_leads_export_${timestamp}.csv`;
+    a.download = `crm_leads_export_${timestamp}.${format === 'XLSX' ? 'xlsx' : 'csv'}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -30,6 +30,13 @@ interface FieldDef {
   default?: unknown;
 }
 
+interface DuplicateDetail {
+  row: number;
+  matchedBy: string;
+  matchedRow?: number;
+  matchSource: 'existing lead' | 'earlier spreadsheet row';
+}
+
 const STEP_LABELS: Record<ImportStep, string> = {
   upload: 'Upload',
   mapping: 'Map Columns',
@@ -85,9 +92,10 @@ const CrmImportExport = () => {
   const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; duplicateDetails: Array<{ row: number; matchedBy: string }>; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; duplicateDetails: DuplicateDetail[]; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedImportId, setExpandedImportId] = useState<string | null>(null);
 
   // ── Export state ──
   const [exportEntity, setExportEntity] = useState<EntityType>('LEAD');
@@ -582,14 +590,14 @@ const CrmImportExport = () => {
 
                 {importResult.duplicateDetails.length > 0 && (
                   <div className="rounded-cwc-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-4">
-                    <p className="text-sm font-semibold text-amber-900">Duplicate rows skipped</p>
+                    <p className="text-sm font-semibold text-amber-900">Duplicate rows were skipped</p>
                     <p className="text-sm text-amber-800 mt-1">
-                      Spreadsheet rows {importResult.duplicateDetails.map((duplicate) => duplicate.row).join(', ')} were skipped because they matched an earlier or existing Lead.
+                      These spreadsheet rows were not imported because they matched an earlier row in this file or an existing Lead. Review the matching field and source below.
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {importResult.duplicateDetails.map((duplicate) => (
                         <span key={duplicate.row} className="inline-flex items-center rounded-full bg-white border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900">
-                          Row {duplicate.row}: {duplicate.matchedBy}
+                          Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : 'matches an existing Lead'}
                         </span>
                       ))}
                     </div>
@@ -614,12 +622,14 @@ const CrmImportExport = () => {
                         <th className="text-left py-2 text-xs font-bold uppercase text-text-secondary tracking-wide">Entity</th>
                         <th className="text-left py-2 text-xs font-bold uppercase text-text-secondary tracking-wide">Status</th>
                         <th className="text-left py-2 text-xs font-bold uppercase text-text-secondary tracking-wide">Rows</th>
+                        <th className="text-left py-2 text-xs font-bold uppercase text-text-secondary tracking-wide">Duplicates</th>
                         <th className="text-left py-2 text-xs font-bold uppercase text-text-secondary tracking-wide">Date</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importHistory.slice(0, 10).map((job: any) => (
-                        <tr key={job.id} className="border-b border-border/50 hover:bg-bg-subtle/50">
+                        <React.Fragment key={job.id}>
+                          <tr className="border-b border-border/50 hover:bg-bg-subtle/50">
                           <td className="py-2.5 text-text-primary font-medium">{job.fileName}</td>
                           <td className="py-2.5 text-text-secondary">{ENTITY_LABELS[(job.entity as EntityType)] || job.entity}</td>
                           <td className="py-2.5">
@@ -630,8 +640,36 @@ const CrmImportExport = () => {
                             }`}>{job.status}</span>
                           </td>
                           <td className="py-2.5 text-text-secondary">{job.importedRows ?? 0}/{job.totalRows ?? 0}</td>
+                          <td className="py-2.5">
+                            {Array.isArray(job.duplicateReport) && job.duplicateReport.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedImportId(expandedImportId === job.id ? null : job.id)}
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
+                              >
+                                {job.duplicateReport.length} skipped
+                                <span className="material-symbols-outlined text-[16px]">{expandedImportId === job.id ? 'expand_less' : 'expand_more'}</span>
+                              </button>
+                            ) : <span className="text-text-secondary">—</span>}
+                          </td>
                           <td className="py-2.5 text-text-secondary">{new Date(job.createdAt).toLocaleDateString()}</td>
                         </tr>
+                        {expandedImportId === job.id && Array.isArray(job.duplicateReport) && job.duplicateReport.length > 0 && (
+                          <tr key={`${job.id}-duplicates`} className="border-b border-border/50 bg-amber-50/60">
+                            <td colSpan={6} className="px-4 py-3">
+                              <p className="text-xs font-semibold text-amber-900">Skipped rows from this import</p>
+                              <p className="text-xs text-amber-800 mt-1">These rows were skipped during this specific import. The matching field and source are shown for traceability.</p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {(job.duplicateReport as DuplicateDetail[]).map((duplicate) => (
+                                  <span key={`${job.id}-${duplicate.row}`} className="inline-flex items-center rounded-full bg-white border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900">
+                                    Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : 'matches an existing Lead'}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

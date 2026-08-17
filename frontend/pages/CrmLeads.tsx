@@ -293,13 +293,14 @@ const CrmLeads = () => {
     try {
       setExporting(true);
       const { jobId } = await crmService.requestExport('LEAD', {
+        selectedIds: selectedIds.size > 0 ? Array.from(selectedIds) : undefined,
         search: search || undefined,
         status: statusFilter || undefined,
         source: sourceFilter || undefined,
         ownerId: ownerIdParam || undefined,
         filter: filterParam || undefined,
-      });
-      await crmService.downloadExport(jobId);
+      }, 'XLSX');
+      await crmService.downloadExport(jobId, 'XLSX');
     } catch (error) {
       console.error('Failed to export leads', error);
     } finally {

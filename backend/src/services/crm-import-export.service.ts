@@ -329,7 +329,12 @@ export async function validateImportMapping(
 export async function executeImport(jobId: string, userId: string): Promise<{
   importedRows: number;
   duplicateRows: number;
-  duplicateDetails: { row: number; matchedBy: string }[];
+  duplicateDetails: {
+    row: number;
+    matchedBy: string;
+    matchedRow?: number;
+    matchSource: 'existing lead' | 'earlier spreadsheet row';
+  }[];
   failedRows: number;
   errors: { row: number; error: string }[];
 }> {
@@ -346,11 +351,16 @@ export async function executeImport(jobId: string, userId: string): Promise<{
   const fields = ENTITY_FIELDS[job.entity as keyof typeof ENTITY_FIELDS] || [];
   let importedRows = 0;
   let duplicateRows = 0;
-  const duplicateDetails: { row: number; matchedBy: string }[] = [];
+  const duplicateDetails: {
+    row: number;
+    matchedBy: string;
+    matchedRow?: number;
+    matchSource: 'existing lead' | 'earlier spreadsheet row';
+  }[] = [];
   let failedRows = 0;
   const allErrors: { row: number; error: string }[] = [];
 
-  const existingLeadKeys = new Set<string>();
+  const existingLeadKeys = new Map<string, { source: 'existing lead' | 'earlier spreadsheet row'; row?: number }>();
   if (job.entity === 'LEAD') {
     const existingLeads = await prisma.crmLead.findMany({
       where: { ownerId: userId, deletedAt: null },
@@ -358,7 +368,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{
     });
     for (const lead of existingLeads) {
       const key = leadDuplicateKey(lead);
-      if (key) existingLeadKeys.add(key);
+      if (key) existingLeadKeys.set(key, { source: 'existing lead' });
     }
   }
 
@@ -418,8 +428,14 @@ export async function executeImport(jobId: string, userId: string): Promise<{
         case 'LEAD': {
           const duplicateKey = leadDuplicateKey(data);
           if (duplicateKey && existingLeadKeys.has(duplicateKey)) {
+            const match = existingLeadKeys.get(duplicateKey)!;
             duplicateRows++;
-            duplicateDetails.push({
+            const duplicateDetail: {
+              row: number;
+              matchedBy: string;
+              matchedRow?: number;
+              matchSource: 'existing lead' | 'earlier spreadsheet row';
+            } = {
               // rawData starts after the spreadsheet header row.
               row: i + 2,
               matchedBy: duplicateKey.startsWith('email:')
@@ -427,7 +443,12 @@ export async function executeImport(jobId: string, userId: string): Promise<{
                 : duplicateKey.startsWith('phone-company:')
                   ? 'Contact Phone + Company Name'
                   : 'Title + Company Name + Contact Name',
-            });
+              matchSource: match.source,
+            };
+            if (match.source === 'earlier spreadsheet row') {
+              duplicateDetail.matchedRow = match.row;
+            }
+            duplicateDetails.push(duplicateDetail);
             continue;
           }
           await prisma.crmLead.create({
@@ -447,7 +468,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{
               status: 'NEW',
             },
           });
-          if (duplicateKey) existingLeadKeys.add(duplicateKey);
+          if (duplicateKey) existingLeadKeys.set(duplicateKey, { source: 'earlier spreadsheet row', row: i + 2 });
           break;
         }
         case 'CONTACT': {
@@ -559,6 +580,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{
       importedRows,
       failedRows,
       errorReport: allErrors.length > 0 ? (allErrors as any) : undefined,
+      duplicateReport: duplicateDetails as any,
       completedAt: new Date(),
     },
   });
@@ -633,17 +655,51 @@ async function generateExportFile(jobId: string): Promise<void> {
 
   const filters = (job.filters as Record<string, unknown> | null) ?? {};
   const visibleOwnerIds = filters.__visibleOwnerIds as string[] | null | undefined;
+  const selectedIds = Array.isArray(filters.selectedIds)
+    ? filters.selectedIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
   const ownerScope = visibleOwnerIds === null || visibleOwnerIds === undefined
     ? {}
     : { ownerId: { in: visibleOwnerIds } };
-  const whereClause = { deletedAt: null as Date | null, ...ownerScope };
+  const selectedScope = selectedIds.length > 0 ? { id: { in: selectedIds } } : {};
+  const whereClause = { deletedAt: null as Date | null, ...ownerScope, ...selectedScope };
+  const leadWhereClause: Record<string, unknown> = { ...whereClause };
+  const requestedOwnerId = typeof filters.ownerId === 'string' ? filters.ownerId : undefined;
+  const requestedStatus = typeof filters.status === 'string' ? filters.status : undefined;
+  const requestedSource = typeof filters.source === 'string' ? filters.source : undefined;
+  const requestedSearch = typeof filters.search === 'string' ? filters.search.trim() : '';
+  const requestedFilter = typeof filters.filter === 'string' ? filters.filter : undefined;
+
+  // Match the lead list's filters. The visibility scope remains authoritative;
+  // a requested owner can only narrow it, never expand it.
+  if (requestedOwnerId) leadWhereClause.ownerId = requestedOwnerId;
+  if (requestedStatus) leadWhereClause.status = requestedStatus;
+  if (requestedSource) leadWhereClause.source = requestedSource;
+  if (requestedSearch) {
+    leadWhereClause.OR = [
+      { title: { contains: requestedSearch, mode: 'insensitive' } },
+      { contactName: { contains: requestedSearch, mode: 'insensitive' } },
+      { contactEmail: { contains: requestedSearch, mode: 'insensitive' } },
+      { companyName: { contains: requestedSearch, mode: 'insensitive' } },
+    ];
+  }
+  if (requestedFilter === 'stale') {
+    leadWhereClause.status = { notIn: ['CONVERTED', 'LOST'] };
+    leadWhereClause.activities = { none: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } };
+  }
+  if (requestedFilter === 'followup') {
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    leadWhereClause.followUpDate = { lte: todayEnd };
+    leadWhereClause.status = { notIn: ['CONVERTED', 'LOST'] };
+  }
   const contactWhereClause = visibleOwnerIds === null || visibleOwnerIds === undefined
     ? { deletedAt: null as Date | null }
     : { deletedAt: null as Date | null, account: { ownerId: { in: visibleOwnerIds } } };
 
   switch (job.entity) {
     case 'LEAD':
-      data = await prisma.crmLead.findMany({ where: whereClause, include: { owner: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
+      data = await prisma.crmLead.findMany({ where: leadWhereClause as any, include: { owner: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
       break;
     case 'CONTACT':
       data = await prisma.crmContact.findMany({ where: contactWhereClause, include: { account: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];

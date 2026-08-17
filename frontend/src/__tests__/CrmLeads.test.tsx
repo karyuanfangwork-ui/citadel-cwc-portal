@@ -35,7 +35,12 @@ vi.mock('../hooks/useCrmUpdate', () => ({
 }));
 
 vi.mock('../components/crm/LeadsTable', () => ({
-  default: () => <div data-testid="leads-table">Leads Table</div>,
+  default: ({ onToggleSelect }: { onToggleSelect: (id: string) => void }) => (
+    <div data-testid="leads-table">
+      Leads Table
+      <button type="button" aria-label="Select lead-1" onClick={() => onToggleSelect('lead-1')}>Select</button>
+    </div>
+  ),
 }));
 
 const renderPage = () =>
@@ -120,8 +125,21 @@ describe('CrmLeads', () => {
         source: undefined,
         ownerId: undefined,
         filter: undefined,
-      }));
-      expect(mockDownloadExport).toHaveBeenCalledWith('export-1');
+      }), 'XLSX');
+      expect(mockDownloadExport).toHaveBeenCalledWith('export-1', 'XLSX');
+    });
+  });
+
+  it('exports only the selected leads when a selection exists', async () => {
+    renderPage();
+
+    (await screen.findByRole('button', { name: 'Select lead-1' })).click();
+    (await screen.findByRole('button', { name: /export leads/i })).click();
+
+    await waitFor(() => {
+      expect(mockRequestExport).toHaveBeenCalledWith('LEAD', expect.objectContaining({
+        selectedIds: ['lead-1'],
+      }), 'XLSX');
     });
   });
 });

@@ -657,12 +657,18 @@ describe('Import pipeline - full happy path', () => {
       importedRows: 0,
       duplicateRows: 2,
       duplicateDetails: [
-        { row: 2, matchedBy: 'Contact Email' },
-        { row: 3, matchedBy: 'Contact Email' },
+        { row: 2, matchedBy: 'Contact Email', matchSource: 'existing lead' },
+        { row: 3, matchedBy: 'Contact Email', matchSource: 'existing lead' },
       ],
       failedRows: 0,
     });
     expect(executeRes.body.data.errors).toHaveLength(0);
+
+    const historyStatusRes = await request(app)
+      .get(`/api/v1/crm/import/${repeatedJobId}/status`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(historyStatusRes.status).toBe(200);
+    expect(historyStatusRes.body.data.duplicateReport).toHaveLength(2);
 
     const matchingLeads = await prisma.crmLead.findMany({
       where: { title: { in: [`Imported Lead A ${suffix}`, `Imported Lead B ${suffix}`] } },
