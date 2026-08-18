@@ -237,6 +237,70 @@ describe('notification.service durable pipeline', () => {
     );
   });
 
+  it('normalizes legacy approval role variables and renders Finance approval context', async () => {
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1',
+      tenantId: 'tenant-1',
+      recipientId: 'user-1',
+      channel: 'EMAIL',
+      status: 'PENDING',
+      attemptCount: 0,
+      event: {
+        id: 'event-1',
+        eventKey: 'event-key',
+        tenantId: 'tenant-1',
+        departmentId: null,
+        eventType: 'APPROVAL_REQUIRED',
+        classification: 'INTERNAL',
+        resourceType: 'request',
+        resourceId: 'request-1',
+        payload: {
+          variables: {
+            role: 'Group Deputy CEO',
+            approvalPolicyReason: 'All Purchase Requisitions require Group Deputy CEO approval after CFO review, regardless of the request amount.',
+          },
+          relatedRequestId: 'request-1',
+          wrapInLayout: true,
+        },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Alain', lastName: 'Boey', tenantId: 'tenant-1' },
+      notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
+      pushTitle: 'Approval Required',
+      pushBody: 'Request #{{requestId}} needs {{approverRole}} approval.',
+      emailSubject: '{{approverRole}} Approval Needed — {{requestTypeName}} #{{requestId}}',
+      emailBody: '<strong>{{approverRole}}</strong> approval is required. Level: {{approvalLevel}}. Type: {{requestTypeName}}. Amount: {{currency}} {{amount}}. {{approvalPolicyReason}}',
+    });
+    mockPrisma.request.findUnique.mockResolvedValue({
+      referenceNumber: 'FINANCE-00001',
+      summary: 'Purchase: Miscellaneous',
+      customFields: { finalizedAmount: 38.8, currency: 'MYR' },
+      status: 'PENDING_GROUP_DCEO_APPROVAL',
+      priority: 'MEDIUM',
+      requester: { firstName: 'John', lastName: 'Smith' },
+      assignedTo: { firstName: 'Alain', lastName: 'Boey' },
+      serviceDesk: { name: 'Finance' },
+      requestType: { name: 'Purchase Requisition' },
+    });
+
+    await deliverNotification('delivery-email');
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      'recipient@test.local',
+      'Group Deputy CEO Approval Needed — Purchase Requisition #FINANCE-00001',
+      expect.stringContaining('<strong>Group Deputy CEO</strong> approval is required'),
+      { wrapInLayout: true },
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining('MYR 38.80'),
+      expect.any(Object),
+    );
+  });
+
   it('renders mandatory Purchase Requisition Group DCEO decision details', async () => {
     mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
       id: where.id,

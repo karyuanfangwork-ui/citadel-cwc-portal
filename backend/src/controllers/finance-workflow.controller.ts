@@ -495,7 +495,17 @@ export const cfoDecision = async (req: Request, res: Response) => {
 
             // Notify Group DCEO
             if (groupDceoId) {
-                await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
+                await notify({
+                    userId: groupDceoId,
+                    eventType: 'APPROVAL_REQUIRED',
+                    variables: {
+                        requestId: id,
+                        approverRole: 'Group Deputy CEO',
+                        approvalLevel: 'Group Deputy CEO',
+                        approvalPolicyReason: 'All Purchase Requisitions require Group Deputy CEO approval after CFO review, regardless of the request amount.',
+                    },
+                    relatedRequestId: id,
+                });
             }
         }
 
@@ -655,7 +665,12 @@ export const reassignGroupDceoApprover = async (req: Request, res: Response) => 
         await notify({
             userId: newApprover.id,
             eventType: 'APPROVAL_REQUIRED',
-            variables: { requestId: id, role: 'Group Deputy CEO' },
+            variables: {
+                requestId: id,
+                approverRole: 'Group Deputy CEO',
+                approvalLevel: 'Group Deputy CEO',
+                approvalPolicyReason: 'All Purchase Requisitions require Group Deputy CEO approval after CFO review, regardless of the request amount.',
+            },
             relatedRequestId: id,
         });
 

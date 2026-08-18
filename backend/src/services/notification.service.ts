@@ -263,9 +263,14 @@ async function materializeContent(delivery: any): Promise<MaterializedNotificati
   const recipientUser = delivery.recipient;
   const userName = recipientUser ? `${recipientUser.firstName} ${recipientUser.lastName}` : '';
   const requestVars = await loadRelatedRequestVars(relatedRequestId);
+  const approverRole = variables.approverRole || variables.role || '';
+  const approvalLevel = variables.approvalLevel || approverRole || '';
   const enrichedVars: Record<string, string> = {
     ...variables,
     ...requestVars,
+    approverRole,
+    approvalLevel,
+    approvalPolicyReason: variables.approvalPolicyReason || 'Please review this request and approve or reject it.',
     userName,
     appUrl: variables.appUrl || config.app.url,
   };

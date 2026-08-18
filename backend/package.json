@@ -19,6 +19,7 @@
     "workflow:reconstruct": "tsx prisma/reconstruct-workflow-edges.ts --write",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:rectify:approval-reminder-templates": "tsx prisma/rectify-approval-reminder-templates.ts",
+    "prisma:rectify:approval-required-template": "tsx prisma/rectify-approval-required-template.ts",
     "prisma:seed:purchase-requisition-approval": "tsx prisma/seed-purchase-requisition-approval.ts",
     "prisma:rectify:purchase-requisition-group-dceo": "tsx prisma/rectify-purchase-requisition-group-dceo.ts",
     "prisma:seed:crm": "tsx prisma/seed-crm.ts",
