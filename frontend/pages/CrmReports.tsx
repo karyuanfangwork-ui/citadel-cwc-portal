@@ -711,6 +711,10 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
  })), 'crm-daily-operational-by-company.csv');
  };
 
+ const handleActivityDetailExport = () => {
+   crmService.downloadDailyOperationalActivityDetail({ from, to, ...(ownerId ? { ownerId } : {}) });
+ };
+
  if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
@@ -738,6 +742,7 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
           </select>
           <CsvBtn onClick={handleExport} label="Export Daily CSV" />
           <CsvBtn onClick={handleCompanyExport} label="Export Company CSV" />
+          <CsvBtn onClick={handleActivityDetailExport} label="Export Activity Detail CSV" />
         </div>
       </div>
       <div className="overflow-x-auto bg-bg-surface border border-border rounded-xl">

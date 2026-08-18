@@ -716,6 +716,20 @@ const crmService = {
     const res = await api.get('/crm/reports/daily-operational', { params });
     return res.data.data;
   },
+  async downloadDailyOperationalActivityDetail(params?: Record<string, string>) {
+    const res = await api.get('/crm/reports/daily-operational', {
+      params: { ...(params ?? {}), format: 'detail-csv' },
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'crm-activity-detail.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
   async getLeadAgingReport(params?: Record<string, string>) {
     const res = await api.get('/crm/reports/lead-aging', { params });
     return res.data.data;
@@ -903,13 +917,13 @@ const crmService = {
   },
 
   // ── Import / Export ───────────────────────────────────────────────
-  async getFieldDefinitions(entity: string) {
-    const res = await api.get(`/crm/import/field-definitions?entity=${entity}`);
+  async getFieldDefinitions(entity: string, mode: 'create' | 'activity-update' = 'create') {
+    const res = await api.get(`/crm/import/field-definitions`, { params: { entity, ...(mode === 'activity-update' ? { mode } : {}) } });
     return res.data.data as { fields: Array<{ key: string; label: string; required: boolean; type: string; enumValues?: string[]; default?: unknown }> };
   },
-  async downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv') {
+  async downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv', mode: 'create' | 'activity-update' = 'create') {
     const res = await api.get(`/crm/import/template`, {
-      params: { entity, format },
+      params: { entity, format, ...(mode === 'activity-update' ? { mode } : {}) },
       responseType: 'blob',
     });
     const url = window.URL.createObjectURL(res.data);
@@ -921,10 +935,11 @@ const crmService = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
-  async uploadImportFile(file: File, entity: string) {
+  async uploadImportFile(file: File, entity: string, mode: 'create' | 'activity-update' = 'create') {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await api.post(`/crm/import/upload?entity=${entity}`, formData, {
+    const res = await api.post(`/crm/import/upload`, formData, {
+      params: { entity, ...(mode === 'activity-update' ? { mode } : {}) },
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data as {
@@ -940,6 +955,9 @@ const crmService = {
     const res = await api.post(`/crm/import/${jobId}/execute`);
     return res.data.data as {
       importedRows: number;
+      activitiesCreated?: number;
+      updatedRows?: number;
+      skippedRows?: number;
       duplicateRows: number;
       duplicateDetails: Array<{
         row: number;

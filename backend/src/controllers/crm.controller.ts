@@ -15,7 +15,7 @@ import { trackFieldChanges } from '../services/crm-field-change.service';
 import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
 import { buildMatchFields } from '../services/crm-duplicate.service';
 import crmReportsService from '../services/crm-reports.service';
-import { getDailyOperationalReport } from '../services/crm-daily-report.service';
+import { getDailyOperationalActivityDetail, getDailyOperationalReport } from '../services/crm-daily-report.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
 import * as importExportService from '../services/crm-import-export.service';
@@ -1518,6 +1518,14 @@ class CrmController {
     const reportOwnerIds = requestedOwnerId
       ? [requestedOwnerId]
       : visibleOwnerIds;
+    if (req.query.format === 'detail-csv') {
+      const detail = await getDailyOperationalActivityDetail(from, to, reportOwnerIds);
+      respondOrCsv(res, detail, 'crm-activity-detail.csv', [
+        'date', 'createdAt', 'company', 'leadId', 'leadTitle', 'contactName',
+        'activityType', 'activitySubject', 'recordedBy', 'recordedByEmail',
+      ], d => d, 'csv');
+      return;
+    }
     const report = await getDailyOperationalReport(from, to, reportOwnerIds);
     const companyCsv = req.query.format === 'company-csv';
     respondOrCsv(res, report,
@@ -1711,48 +1719,60 @@ class CrmController {
   // ======== IMPORT ========
   uploadImportFile = asyncHandler(async (req: AuthRequest, res: Response) => {
     const entity = String(req.query.entity || req.body.entity || '');
+    const mode = String(req.query.mode || req.body.mode || '').toLowerCase();
     const file = req.file as Express.Multer.File | undefined;
     if (!file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
     if (!entity || !['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(entity.toUpperCase())) {
       return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
     }
-    const result = await importExportService.uploadAndParseFile(file, entity.toUpperCase(), req.user!.id);
+    const importEntity = entity.toUpperCase() === 'LEAD' && mode === 'activity-update'
+      ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
+      : entity.toUpperCase();
+    const result = await importExportService.uploadAndParseFile(file, importEntity, req.user!.id);
     res.json({ status: 'success', data: result });
   });
 
   getFieldDefinitions = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entity } = req.query;
+    const mode = String(req.query.mode || '').toLowerCase();
     if (!entity || !['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(String(entity).toUpperCase())) {
       return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
     }
-    const fields = importExportService.getFieldDefinitions(String(entity).toUpperCase());
+    const fieldEntity = String(entity).toUpperCase() === 'LEAD' && mode === 'activity-update'
+      ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
+      : String(entity).toUpperCase();
+    const fields = importExportService.getFieldDefinitions(fieldEntity);
     res.json({ status: 'success', data: { fields } });
   });
 
   downloadImportTemplate = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entity, format } = req.query;
+    const mode = String(req.query.mode || '').toLowerCase();
     const entityUpper = String(entity || 'LEAD').toUpperCase();
     if (!['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(entityUpper)) {
       return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
     }
-    const fields = importExportService.getFieldDefinitions(entityUpper);
+    const templateEntity = entityUpper === 'LEAD' && mode === 'activity-update'
+      ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
+      : entityUpper;
+    const fields = importExportService.getFieldDefinitions(templateEntity);
     const labels = fields.map((f: { label: string }) => f.label);
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([labels]);
     // Set column widths
     ws['!cols'] = fields.map((f: { label: string; type: string }) => ({ wch: Math.max(f.label.length + 4, 15) }));
-    XLSX.utils.book_append_sheet(wb, ws, entityUpper);
+    XLSX.utils.book_append_sheet(wb, ws, templateEntity);
     const fmt = String(format || 'csv').toLowerCase();
     if (fmt === 'xlsx') {
       const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${entityUpper}_template.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${templateEntity}_template.xlsx"`);
       res.send(buf);
     } else {
       const csv = XLSX.utils.sheet_to_csv(ws);
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${entityUpper}_template.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${templateEntity}_template.csv"`);
       res.send(csv);
     }
   });
@@ -1760,13 +1780,15 @@ class CrmController {
   validateImportMapping = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
     const { columnMapping } = req.body;
-    const result = await importExportService.validateImportMapping(id, columnMapping, req.user!.id);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const result = await importExportService.validateImportMapping(id, columnMapping, req.user!.id, visibleOwnerIds);
     res.json({ status: 'success', data: result });
   });
 
   executeImport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const result = await importExportService.executeImport(id, req.user!.id);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const result = await importExportService.executeImport(id, req.user!.id, visibleOwnerIds);
     res.json({ status: 'success', data: result });
   });
 

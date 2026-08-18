@@ -557,6 +557,51 @@ describe('Import pipeline - full happy path', () => {
     expect(templateRes.status).toBe(200);
     expect(templateRes.text).toContain('Activity Type');
     expect(templateRes.text).toContain('Activity Subject');
+
+    const activityTemplateRes = await request(app)
+      .get('/api/v1/crm/import/template?entity=LEAD&mode=activity-update&format=csv')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(activityTemplateRes.status).toBe(200);
+    expect(activityTemplateRes.text.trim()).toBe('Lead ID,Activity Type,Activity Subject');
+  });
+
+  it('adds an activity to an existing Lead without overwriting Lead fields', async () => {
+    const lead = await prisma.crmLead.create({
+      data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        title: `Activity Update Target ${suffix}`,
+        contactName: 'Activity Target',
+        contactEmail: `activity-target-${suffix}@import.test`,
+        companyName: `Activity Target Co ${suffix}`,
+        ownerId: adminId,
+      },
+    });
+    const csvBuffer = makeCsvBuffer([{ 'Lead ID': lead.id, 'Activity Type': 'EMAIL', 'Activity Subject': 'EMAIL SENT' }]);
+
+    const uploadRes = await request(app)
+      .post('/api/v1/crm/import/upload?entity=LEAD&mode=activity-update')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', csvBuffer, { filename: `lead-activity-update-${suffix}.csv`, contentType: 'text/csv' });
+    expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body.data.suggestedMapping).toMatchObject({ 'Lead ID': 'leadId', 'Activity Type': 'activityType', 'Activity Subject': 'activitySubject' });
+
+    const jobId = uploadRes.body.data.jobId;
+    const mappingRes = await request(app)
+      .post(`/api/v1/crm/import/${jobId}/mapping`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ columnMapping: { 'Lead ID': 'leadId', 'Activity Type': 'activityType', 'Activity Subject': 'activitySubject' } });
+    expect(mappingRes.body.data).toMatchObject({ valid: true, errors: [] });
+
+    const executeRes = await request(app)
+      .post(`/api/v1/crm/import/${jobId}/execute`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(executeRes.body.data).toMatchObject({ importedRows: 1, activitiesCreated: 1, updatedRows: 1, failedRows: 0 });
+
+    const unchangedLead = await prisma.crmLead.findUnique({ where: { id: lead.id } });
+    expect(unchangedLead).toMatchObject({ title: `Activity Update Target ${suffix}`, status: 'NEW', ownerId: adminId });
+    await expect(prisma.crmActivity.findMany({ where: { leadId: lead.id } })).resolves.toEqual([
+      expect.objectContaining({ activityType: 'EMAIL', subject: 'EMAIL SENT', userId: adminId }),
+    ]);
   });
 
   it('uploads a valid CSV and returns a jobId with preview', async () => {
@@ -798,6 +843,19 @@ describe('Import pipeline - authorization', () => {
 });
 
 describe('CRM controller broad read coverage', () => {
+  it('exports detailed activity rows with company and subject', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await request(app)
+      .get(`/api/v1/crm/reports/daily-operational?from=${today}&to=${today}&format=detail-csv`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.text).toContain('activitySubject');
+    expect(res.text).toContain('EMAIL SENT');
+    expect(res.text).toContain(`Activity Target Co ${suffix}`);
+  });
+
   it('reaches common CRM read/report controller endpoints as an admin', async () => {
     const endpoints = [
       '/api/v1/crm/dashboard',

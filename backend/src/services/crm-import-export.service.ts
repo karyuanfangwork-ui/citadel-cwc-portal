@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
 import { AppError } from '../middleware/error.middleware';
+import { broadcast } from '../utils/sseClients';
 
 import prisma from '../utils/prisma';
 
@@ -21,7 +22,14 @@ interface FieldDef {
   default?: unknown;
 }
 
+export const LEAD_ACTIVITY_UPDATE_ENTITY = 'LEAD_ACTIVITY_UPDATE';
+
 const ENTITY_FIELDS: Record<string, FieldDef[]> = {
+  LEAD_ACTIVITY_UPDATE: [
+    { key: 'leadId', label: 'Lead ID', required: true, type: 'string', maxLength: 36 },
+    { key: 'activityType', label: 'Activity Type', required: true, type: 'enum', enumValues: ['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] },
+    { key: 'activitySubject', label: 'Activity Subject', required: true, type: 'string', maxLength: 255 },
+  ],
   LEAD: [
     { key: 'title', label: 'Title', required: true, type: 'string', maxLength: 255 },
     { key: 'contactName', label: 'Contact Name', required: true, type: 'string', maxLength: 200 },
@@ -272,7 +280,8 @@ export async function uploadAndParseFile(
 export async function validateImportMapping(
   jobId: string,
   columnMapping: Record<string, string>,
-  userId: string
+  userId: string,
+  visibleOwnerIds?: string[] | null
 ): Promise<{ valid: boolean; errors: { row: number; field: string; error: string }[]; warnings: string[] }> {
   const job = await prisma.crmImportJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error('Import job not found');
@@ -329,6 +338,22 @@ export async function validateImportMapping(
     if ((mappedActivityType || mappedActivitySubject) && (!mappedActivityType || !mappedActivitySubject)) {
       errors.push({ row: i + 2, field: 'Activity Type / Activity Subject', error: 'Both activity fields are required to create an activity log' });
     }
+
+    if (job.entity === LEAD_ACTIVITY_UPDATE_ENTITY) {
+      const leadIdHeader = Object.entries(columnMapping).find(([, fieldKey]) => fieldKey === 'leadId')?.[0];
+      const leadId = leadIdHeader ? String(row[leadIdHeader] ?? '').trim() : '';
+      if (leadId) {
+        const lead = await prisma.crmLead.findFirst({
+          where: {
+            id: leadId,
+            deletedAt: null,
+            ...(visibleOwnerIds === null || visibleOwnerIds === undefined ? {} : { ownerId: { in: visibleOwnerIds } }),
+          },
+          select: { id: true },
+        });
+        if (!lead) errors.push({ row: i + 2, field: 'Lead ID', error: 'Lead was not found or is not visible to you' });
+      }
+    }
   }
 
   await prisma.crmImportJob.update({
@@ -340,7 +365,7 @@ export async function validateImportMapping(
   return { valid: errors.length === 0, errors: errors.slice(0, 50), warnings };
 }
 
-export async function executeImport(jobId: string, userId: string): Promise<{
+export async function executeImport(jobId: string, userId: string, visibleOwnerIds?: string[] | null): Promise<{
   importedRows: number;
   duplicateRows: number;
   duplicateDetails: {
@@ -359,6 +384,10 @@ export async function executeImport(jobId: string, userId: string): Promise<{
   if (job.status === 'COMPLETED' || job.status === 'FAILED') throw new Error('Import job has already been processed');
 
   await prisma.crmImportJob.update({ where: { id: jobId }, data: { status: 'IMPORTING' } });
+
+  if (job.entity === LEAD_ACTIVITY_UPDATE_ENTITY) {
+    return executeLeadActivityUpdate(job, userId, visibleOwnerIds);
+  }
 
   const rawData = (job.rawData as Record<string, unknown>[]) || [];
   const columnMapping = (job.columnMapping as Record<string, string>) || {};
@@ -610,6 +639,92 @@ export async function executeImport(jobId: string, userId: string): Promise<{
   });
 
   return { importedRows, duplicateRows, duplicateDetails, failedRows, errors: allErrors.slice(0, 50) };
+}
+
+async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null) {
+  const rawData = (job.rawData as Record<string, unknown>[]) || [];
+  const columnMapping = (job.columnMapping as Record<string, string>) || {};
+  const importingUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  let activitiesCreated = 0;
+  let failedRows = 0;
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rawData.length; i++) {
+    const row = rawData[i];
+    try {
+      const values: Record<string, unknown> = {};
+      for (const [header, fieldKey] of Object.entries(columnMapping)) {
+        if (fieldKey) values[fieldKey] = row[header];
+      }
+
+      const leadId = String(values.leadId ?? '').trim();
+      const activityType = String(values.activityType ?? '').trim().toUpperCase();
+      const subject = String(values.activitySubject ?? '').trim();
+      if (!leadId || !activityType || !subject) {
+        throw new Error('Lead ID, Activity Type, and Activity Subject are required');
+      }
+
+      const lead = await prisma.crmLead.findFirst({
+        where: {
+          id: leadId,
+          deletedAt: null,
+          ...(visibleOwnerIds === null || visibleOwnerIds === undefined ? {} : { ownerId: { in: visibleOwnerIds } }),
+        },
+        select: { id: true },
+      });
+      if (!lead) throw new Error('Lead was not found or is not visible to you');
+
+      const activity = await prisma.$transaction(async (tx) => {
+        const created = await tx.crmActivity.create({
+          data: {
+            activityType: activityType as CrmActivityType,
+            subject,
+            leadId: lead.id,
+            userId,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId,
+            userEmail: importingUser?.email ?? '',
+            action: 'CREATE',
+            resourceType: 'CrmActivity',
+            resourceId: created.id,
+            newValues: { activityType, subject, leadId: lead.id, importJobId: job.id },
+          },
+        });
+        return created;
+      });
+
+      activitiesCreated++;
+      broadcast('crm_update', { type: 'activity.created', entityType: 'activity', id: activity.id, changedBy: userId });
+    } catch (err) {
+      failedRows++;
+      errors.push({ row: i + 2, error: (err as Error).message });
+    }
+  }
+
+  await prisma.crmImportJob.update({
+    where: { id: job.id },
+    data: {
+      status: rawData.length > 0 && failedRows < rawData.length ? 'COMPLETED' : 'FAILED',
+      importedRows: activitiesCreated,
+      failedRows,
+      errorReport: errors.length > 0 ? (errors as any) : undefined,
+      completedAt: new Date(),
+    },
+  });
+
+  return {
+    importedRows: activitiesCreated,
+    activitiesCreated,
+    updatedRows: activitiesCreated,
+    skippedRows: 0,
+    duplicateRows: 0,
+    duplicateDetails: [],
+    failedRows,
+    errors: errors.slice(0, 50),
+  };
 }
 
 export async function getImportStatus(jobId: string, userId: string) {

@@ -4,6 +4,7 @@ import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
 type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'OPPORTUNITY';
+type ImportMode = 'create' | 'activity-update';
 
 const ENTITY_LABELS: Record<EntityType, string> = {
   LEAD: 'Leads',
@@ -72,6 +73,7 @@ const CrmImportExport = () => {
     const param = searchParams.get('entity');
     return (['LEAD','CONTACT','ACCOUNT','OPPORTUNITY'].includes(String(param)) ? param : 'LEAD') as EntityType;
   });
+  const [importMode, setImportMode] = useState<ImportMode>('create');
 
   // ── Sync URL params when entity or tab changes ──
   useEffect(() => {
@@ -92,7 +94,7 @@ const CrmImportExport = () => {
   const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ importedRows: number; duplicateRows: number; duplicateDetails: DuplicateDetail[]; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<{ importedRows: number; activitiesCreated?: number; updatedRows?: number; skippedRows?: number; duplicateRows: number; duplicateDetails: DuplicateDetail[]; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedImportId, setExpandedImportId] = useState<string | null>(null);
@@ -107,11 +109,11 @@ const CrmImportExport = () => {
   // ── Load field definitions when entity changes ──
   useEffect(() => {
     if (tab === 'import' && canImport) {
-      crmService.getFieldDefinitions(entity).then(res => {
+      crmService.getFieldDefinitions(entity, entity === 'LEAD' ? importMode : 'create').then(res => {
         setFieldDefs(res.fields);
       }).catch(() => {});
     }
-  }, [entity, tab, canImport]);
+  }, [entity, importMode, tab, canImport]);
 
   // ── Load histories ──
   useEffect(() => {
@@ -141,7 +143,7 @@ const CrmImportExport = () => {
     setImporting(true);
     setError(null);
     try {
-      const result = await crmService.uploadImportFile(selectedFile, entity);
+      const result = await crmService.uploadImportFile(selectedFile, entity, entity === 'LEAD' ? importMode : 'create');
       setJobId(result.jobId);
       setPreview(result.preview);
       setHeaders(result.headers);
@@ -154,7 +156,7 @@ const CrmImportExport = () => {
     } finally {
       setImporting(false);
     }
-  }, [selectedFile, entity]);
+  }, [selectedFile, entity, importMode]);
 
   // ── Validate ──
   const handleValidate = useCallback(async () => {
@@ -339,6 +341,23 @@ const CrmImportExport = () => {
                   </div>
                 </div>
 
+                {entity === 'LEAD' && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-text-primary mb-1.5">Import mode</label>
+                    <select
+                      value={importMode}
+                      onChange={e => { setImportMode(e.target.value as ImportMode); setSelectedFile(null); setFieldDefs([]); }}
+                      className="w-full px-3 py-2 rounded-cwc-md border border-border bg-bg-subtle text-sm text-text-primary focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    >
+                      <option value="create">Create new Leads</option>
+                      <option value="activity-update">Add activities to existing Leads</option>
+                    </select>
+                    {importMode === 'activity-update' && (
+                      <p className="text-xs text-brand-700 mt-1.5">Only activity logs will be added. Existing Lead fields will not be overwritten. Match rows using Lead ID.</p>
+                    )}
+                  </div>
+                )}
+
                 {/* ── Field reference table + download template ── */}
                 {fieldDefs.length > 0 && (
                   <div className="mb-4 bg-bg-subtle rounded-cwc-lg border border-border overflow-hidden">
@@ -349,13 +368,13 @@ const CrmImportExport = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'csv'); } catch (e) { console.error('CSV template download failed:', e); } }}
+                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'csv', entity === 'LEAD' ? importMode : 'create'); } catch (e) { console.error('CSV template download failed:', e); } }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
                         >
                           <span className="material-symbols-outlined text-[14px]">download</span> CSV Template
                         </button>
                         <button
-                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'xlsx'); } catch (e) { console.error('Excel template download failed:', e); } }}
+                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'xlsx', entity === 'LEAD' ? importMode : 'create'); } catch (e) { console.error('Excel template download failed:', e); } }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
                         >
                           <span className="material-symbols-outlined text-[14px]">download</span> Excel Template
@@ -555,21 +574,21 @@ const CrmImportExport = () => {
               <div className="bg-surface rounded-cwc-xl border border-border p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-emerald-500 text-xl">check_circle</span>
-                  <h3 className="text-base font-bold text-text-primary">Import Complete</h3>
+                  <h3 className="text-base font-bold text-text-primary">{importMode === 'activity-update' ? 'Activity Update Complete' : 'Import Complete'}</h3>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 mb-4">
                   <div className="bg-emerald-50 rounded-cwc-lg p-4 text-center">
                     <div className="text-2xl font-bold text-emerald-600">{importResult.importedRows}</div>
-                    <div className="text-xs text-emerald-700 font-medium">Imported</div>
+                    <div className="text-xs text-emerald-700 font-medium">{importMode === 'activity-update' ? 'Activities created' : 'Imported'}</div>
                   </div>
                   <div className={`rounded-cwc-lg p-4 text-center ${importResult.failedRows > 0 ? 'bg-red-50' : 'bg-bg-subtle'}`}>
                     <div className={`text-2xl font-bold ${importResult.failedRows > 0 ? 'text-red-600' : 'text-text-secondary'}`}>{importResult.failedRows}</div>
                     <div className="text-xs text-text-secondary font-medium">Failed</div>
                   </div>
-                  <div className={`rounded-cwc-lg p-4 text-center ${importResult.duplicateRows > 0 ? 'bg-amber-50' : 'bg-bg-subtle'}`}>
-                    <div className={`text-2xl font-bold ${importResult.duplicateRows > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>{importResult.duplicateRows}</div>
-                    <div className="text-xs text-text-secondary font-medium">Duplicates skipped</div>
+                  <div className={`rounded-cwc-lg p-4 text-center ${(importMode === 'activity-update' ? (importResult.skippedRows || 0) : importResult.duplicateRows) > 0 ? 'bg-amber-50' : 'bg-bg-subtle'}`}>
+                    <div className={`text-2xl font-bold ${(importMode === 'activity-update' ? (importResult.skippedRows || 0) : importResult.duplicateRows) > 0 ? 'text-amber-600' : 'text-text-secondary'}`}>{importMode === 'activity-update' ? (importResult.skippedRows || 0) : importResult.duplicateRows}</div>
+                    <div className="text-xs text-text-secondary font-medium">{importMode === 'activity-update' ? 'Skipped' : 'Duplicates skipped'}</div>
                   </div>
                   <div className="bg-bg-subtle rounded-cwc-lg p-4 text-center">
                     <div className="text-2xl font-bold text-text-primary">{totalRows}</div>

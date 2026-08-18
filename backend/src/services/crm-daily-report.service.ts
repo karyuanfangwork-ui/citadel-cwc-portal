@@ -238,3 +238,50 @@ export async function getDailyOperationalReport(
     period: { from, to, timezone: REPORT_TIMEZONE },
   };
 }
+
+export async function getDailyOperationalActivityDetail(
+  from: Date,
+  to: Date,
+  visibleOwnerIds: VisibleOwnerIds = null,
+): Promise<Record<string, unknown>[]> {
+  const activities = await prisma.crmActivity.findMany({
+    where: {
+      AND: [
+        { createdAt: { gte: from, lte: to } },
+        activeEntityWhere(),
+        visibleActivityWhere(visibleOwnerIds),
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      activityType: true,
+      subject: true,
+      createdAt: true,
+      leadId: true,
+      accountId: true,
+      contactId: true,
+      opportunityId: true,
+      user: { select: { firstName: true, lastName: true, email: true } },
+      account: { select: { id: true, name: true } },
+      contact: { select: { account: { select: { id: true, name: true } } } },
+      lead: { select: { id: true, title: true, contactName: true, companyName: true } },
+      opportunity: { select: { account: { select: { id: true, name: true } } } },
+    },
+  });
+
+  return activities.map((activity) => {
+    const attribution = resolveCompanyAttribution(activity);
+    return {
+      date: dateKey(activity.createdAt),
+      createdAt: activity.createdAt.toISOString(),
+      company: attribution.companyName,
+      leadId: activity.lead?.id ?? activity.leadId ?? '',
+      leadTitle: activity.lead?.title ?? '',
+      contactName: activity.lead?.contactName ?? '',
+      activityType: activity.activityType,
+      activitySubject: activity.subject,
+      recordedBy: `${activity.user.firstName} ${activity.user.lastName}`.trim() || activity.user.email,
+      recordedByEmail: activity.user.email,
+    };
+  });
+}
