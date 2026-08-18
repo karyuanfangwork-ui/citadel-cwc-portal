@@ -1,4 +1,4 @@
-import { LeadSource } from '@prisma/client';
+import { CrmActivityType, LeadSource } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,6 +34,8 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'], default: 'OTHER' },
     { key: 'estimatedValue', label: 'Estimated Value', required: false, type: 'number' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
+    { key: 'activityType', label: 'Activity Type', required: false, type: 'enum', enumValues: ['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] },
+    { key: 'activitySubject', label: 'Activity Subject', required: false, type: 'string', maxLength: 255 },
   ],
   CONTACT: [
     { key: 'firstName', label: 'First Name', required: true, type: 'string' },
@@ -191,6 +193,7 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'bankacc': 'bankAccount', 'bankaccountno': 'bankAccount',
         'addressline': 'address', 'registeredaddress': 'address', 'street': 'address',
         'leadsource': 'source',
+        'activitytype': 'activityType', 'activitysubject': 'activitySubject',
         'jobtitle': 'jobTitle', 'position': 'jobTitle', 'role': 'jobTitle',
         'nric': 'nricPassport', 'passport': 'nricPassport',
       };
@@ -317,6 +320,14 @@ export async function validateImportMapping(
       if (value && fieldDef.type === 'enum' && fieldDef.enumValues && !fieldDef.enumValues.includes(String(value).toUpperCase())) {
         errors.push({ row: i + 2, field: fieldDef.label, error: `Invalid value "${value}". Allowed: ${fieldDef.enumValues.join(', ')}` });
       }
+    }
+
+    const activityTypeHeader = Object.entries(columnMapping).find(([, fieldKey]) => fieldKey === 'activityType')?.[0];
+    const activitySubjectHeader = Object.entries(columnMapping).find(([, fieldKey]) => fieldKey === 'activitySubject')?.[0];
+    const mappedActivityType = activityTypeHeader ? row[activityTypeHeader] : undefined;
+    const mappedActivitySubject = activitySubjectHeader ? row[activitySubjectHeader] : undefined;
+    if ((mappedActivityType || mappedActivitySubject) && (!mappedActivityType || !mappedActivitySubject)) {
+      errors.push({ row: i + 2, field: 'Activity Type / Activity Subject', error: 'Both activity fields are required to create an activity log' });
     }
   }
 
@@ -454,7 +465,7 @@ export async function executeImport(jobId: string, userId: string): Promise<{
             duplicateDetails.push(duplicateDetail);
             continue;
           }
-          await prisma.crmLead.create({
+          const createdLead = await prisma.crmLead.create({
             data: {
               title: String(data.title || 'Imported Lead'),
               contactName: String(data.contactName || 'Unknown'),
@@ -471,6 +482,16 @@ export async function executeImport(jobId: string, userId: string): Promise<{
               status: 'NEW',
             },
           });
+          if (data.activityType && data.activitySubject) {
+            await prisma.crmActivity.create({
+              data: {
+                activityType: data.activityType as CrmActivityType,
+                subject: String(data.activitySubject),
+                leadId: createdLead.id,
+                userId,
+              },
+            });
+          }
           if (duplicateKey) existingLeadKeys.set(duplicateKey, { source: 'earlier spreadsheet row', row: i + 2 });
           break;
         }

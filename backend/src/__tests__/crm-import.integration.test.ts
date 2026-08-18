@@ -541,6 +541,24 @@ describe('CRM controller broad write coverage', () => {
 describe('Import pipeline - full happy path', () => {
   let jobId: string;
 
+  it('exposes activity fields in the Lead field definitions and template', async () => {
+    const definitionsRes = await request(app)
+      .get('/api/v1/crm/import/field-definitions?entity=LEAD')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(definitionsRes.status).toBe(200);
+    expect(definitionsRes.body.data.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'activityType', label: 'Activity Type', type: 'enum' }),
+      expect.objectContaining({ key: 'activitySubject', label: 'Activity Subject', type: 'string' }),
+    ]));
+
+    const templateRes = await request(app)
+      .get('/api/v1/crm/import/template?entity=LEAD&format=csv')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(templateRes.status).toBe(200);
+    expect(templateRes.text).toContain('Activity Type');
+    expect(templateRes.text).toContain('Activity Subject');
+  });
+
   it('uploads a valid CSV and returns a jobId with preview', async () => {
     const csvBuffer = makeCsvBuffer([
       {
@@ -551,6 +569,8 @@ describe('Import pipeline - full happy path', () => {
         Industry: 'Financial Services',
         Address: 'Level 10, Import Tower\nKuala Lumpur',
         Remark: `Priority prospect ${suffix}`,
+        'Activity Type': 'EMAIL',
+        'Activity Subject': 'EMAIL SENT',
       },
       {
         Title: `Imported Lead B ${suffix}`,
@@ -590,6 +610,8 @@ describe('Import pipeline - full happy path', () => {
           Industry: 'industry',
           Address: 'address',
           Remark: 'remark',
+          'Activity Type': 'activityType',
+          'Activity Subject': 'activitySubject',
         },
       });
 
@@ -660,6 +682,12 @@ describe('Import pipeline - full happy path', () => {
       remark: `Priority prospect ${suffix}`,
       description: null,
     });
+    const importedActivities = await prisma.crmActivity.findMany({
+      where: { leadId: importedLead!.id },
+    });
+    expect(importedActivities).toEqual([
+      expect.objectContaining({ activityType: 'EMAIL', subject: 'EMAIL SENT', userId: adminId }),
+    ]);
   });
 
   it('skips duplicate leads when the same file is imported again', async () => {
