@@ -190,6 +190,7 @@ async function loadRelatedRequestVars(relatedRequestId?: string | null): Promise
     select: {
       referenceNumber: true,
       summary: true,
+      customFields: true,
       status: true,
       priority: true,
       requester: { select: { firstName: true, lastName: true } },
@@ -200,6 +201,24 @@ async function loadRelatedRequestVars(relatedRequestId?: string | null): Promise
   });
 
   if (!relatedReq) return {};
+
+  const customFields = (relatedReq.customFields ?? {}) as Record<string, unknown>;
+  const amountValue = customFields.finalizedAmount
+    ?? customFields.amount
+    ?? customFields.estimatedCost
+    ?? null;
+  const numericAmount = typeof amountValue === 'number'
+    || (typeof amountValue === 'string' && amountValue.trim() !== '' && Number.isFinite(Number(amountValue)))
+    ? Number(amountValue)
+    : null;
+  const amount = numericAmount !== null
+    ? numericAmount.toFixed(2)
+    : amountValue === null || amountValue === undefined || amountValue === ''
+      ? 'Not available'
+      : String(amountValue);
+  const currency = typeof customFields.currency === 'string' && customFields.currency.trim()
+    ? customFields.currency.trim()
+    : 'MYR';
 
   const requesterName = relatedReq.requester
     ? `${relatedReq.requester.firstName} ${relatedReq.requester.lastName}`
@@ -220,6 +239,8 @@ async function loadRelatedRequestVars(relatedRequestId?: string | null): Promise
     assigneeName,
     categoryName: relatedReq.serviceDesk?.name ?? '',
     requestTypeName: relatedReq.requestType?.name ?? '',
+    amount,
+    currency,
   };
 }
 

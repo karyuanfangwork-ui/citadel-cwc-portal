@@ -1,4 +1,4 @@
-const mockPrisma = {
+const mockPrisma: any = {
   $transaction: jest.fn((fn: any) => fn(mockPrisma)),
   user: {
     findUnique: jest.fn(),
@@ -233,6 +233,71 @@ describe('notification.service durable pipeline', () => {
       expect.any(String),
       expect.any(String),
       expect.stringContaining('24 hours'),
+      expect.any(Object),
+    );
+  });
+
+  it('renders mandatory Purchase Requisition Group DCEO decision details', async () => {
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1',
+      tenantId: 'tenant-1',
+      recipientId: 'user-1',
+      channel: 'EMAIL',
+      status: 'PENDING',
+      attemptCount: 0,
+      event: {
+        id: 'event-1',
+        eventKey: 'event-key',
+        tenantId: 'tenant-1',
+        departmentId: null,
+        eventType: 'FINANCE_GROUP_DCEO_DECISION',
+        classification: 'INTERNAL',
+        resourceType: 'request',
+        resourceId: 'request-1',
+        payload: {
+          variables: {
+            decision: 'APPROVED',
+            approvalStage: 'Group Deputy CEO',
+            approvalPolicyReason: 'All Purchase Requisitions require Group Deputy CEO approval after CFO review, regardless of the request amount.',
+          },
+          relatedRequestId: 'request-1',
+          wrapInLayout: true,
+        },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' },
+      notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
+      pushTitle: 'Group Deputy CEO Decision',
+      pushBody: 'Group Deputy CEO reviewed request #{{requestId}}: {{decision}}.',
+      emailSubject: 'Group Deputy CEO Decision — Purchase Requisition #{{requestId}}',
+      emailBody: 'Decision: {{decision}}. {{approvalPolicyReason}} <strong>{{currency}} {{amount}}</strong>',
+    });
+    mockPrisma.request.findUnique.mockResolvedValue({
+      referenceNumber: 'FINANCE-00001',
+      summary: 'Purchase: Miscellaneous',
+      customFields: { finalizedAmount: 38.8, currency: 'MYR' },
+      status: 'PAYMENT_PROCESSING_FIN',
+      priority: 'MEDIUM',
+      requester: { firstName: 'John', lastName: 'Smith' },
+      assignedTo: null,
+      serviceDesk: { name: 'Finance' },
+      requestType: { name: 'Purchase Requisition' },
+    });
+
+    await deliverNotification('delivery-email');
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      'recipient@test.local',
+      'Group Deputy CEO Decision — Purchase Requisition #FINANCE-00001',
+      expect.stringContaining('MYR 38.80'),
+      { wrapInLayout: true },
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining('All Purchase Requisitions require Group Deputy CEO approval'),
       expect.any(Object),
     );
   });

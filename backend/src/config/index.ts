@@ -148,7 +148,7 @@ export const config = {
     // Hardware VP Approval
     hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
 
-    // Finance Group Deputy CEO Approval threshold (amounts above this require Group Deputy CEO approval)
+    // Deprecated for Purchase Requisitions: all amounts require Group Deputy CEO approval.
     groupDceoApprovalThreshold: parseInt(process.env.GROUP_DCEO_APPROVAL_THRESHOLD || '15000', 10),
 
     // SLA Checker Schedule

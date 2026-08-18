@@ -10,8 +10,8 @@ import prisma from '../utils/prisma';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { runPurchaseRequisitionApprovalShadow } from '../services/purchaseRequisitionApprovalShadow.service';
 
-// Group Deputy CEO approval threshold — no longer used for routing (all amounts go to GROUP_DCEO)
-// Config import removed; threshold not needed after DCEO→GROUP_DCEO merge.
+// All Finance Purchase Requisitions require Group Deputy CEO approval after CFO review,
+// regardless of the request amount. Budget proposals follow their separate path below.
 
 async function logActivity(requestId: string, message: string, authorId?: string) {
     await prisma.requestActivity.create({
@@ -513,8 +513,16 @@ export const cfoDecision = async (req: Request, res: Response) => {
             newStatus,
             previousStatus: request.status,
             comments: comments || null,
+            approvalPolicy: isBudgetProposal
+                ? 'BUDGET_PROPOSAL_FINANCE_PROCESSING'
+                : 'MANDATORY_GROUP_DCEO_FOR_ALL_PURCHASE_REQUISITIONS',
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+        await notify({
+            userId: request.requesterId,
+            eventType: 'FINANCE_CFO_DECISION',
+            variables: { requestId: id, decision },
+            relatedRequestId: id,
+        });
 
         res.json({ status: 'success', message: `Request ${decision.toLowerCase()} by CFO — routed to ${isBudgetProposal ? 'Finance Updating' : 'Group Deputy CEO'}` });
     } catch (error: any) {
@@ -858,8 +866,19 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
             newStatus: decision === 'APPROVED' ? 'PAYMENT_PROCESSING_FIN' : 'GROUP_DCEO_REJECTED',
             previousStatus: request.status,
             comments: comments || null,
+            approvalPolicy: 'MANDATORY_GROUP_DCEO_FOR_ALL_PURCHASE_REQUISITIONS',
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_DCEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+        await notify({
+            userId: request.requesterId,
+            eventType: 'FINANCE_GROUP_DCEO_DECISION',
+            variables: {
+                requestId: id,
+                decision,
+                approvalStage: 'Group Deputy CEO',
+                approvalPolicyReason: 'All Purchase Requisitions require Group Deputy CEO approval after CFO review, regardless of the request amount.',
+            },
+            relatedRequestId: id,
+        });
 
         const { resumeSla } = await import('../services/sla-pause.service');
         await resumeSla(id);
