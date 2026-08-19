@@ -558,11 +558,23 @@ describe('Import pipeline - full happy path', () => {
     expect(templateRes.text).toContain('Activity Type');
     expect(templateRes.text).toContain('Activity Subject');
 
+
     const activityTemplateRes = await request(app)
       .get('/api/v1/crm/import/template?entity=LEAD&mode=activity-update&format=csv')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(activityTemplateRes.status).toBe(200);
     expect(activityTemplateRes.text.trim()).toBe('Lead ID,Activity Type,Activity Subject');
+  });
+
+  it('exposes only Lead ID and Email Delivery Date for date-only updates', async () => {
+    const definitionsRes = await request(app)
+      .get('/api/v1/crm/import/field-definitions?entity=LEAD&mode=email-delivery-update')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(definitionsRes.status).toBe(200);
+    expect(definitionsRes.body.data.fields).toEqual([
+      expect.objectContaining({ key: 'leadId', label: 'Lead ID', required: true }),
+      expect.objectContaining({ key: 'emailDeliveryDate', label: 'Email Delivery Date', required: true, type: 'date' }),
+    ]);
   });
 
   it('adds an activity to an existing Lead without overwriting Lead fields', async () => {
@@ -598,10 +610,43 @@ describe('Import pipeline - full happy path', () => {
     expect(executeRes.body.data).toMatchObject({ importedRows: 1, activitiesCreated: 1, updatedRows: 1, failedRows: 0 });
 
     const unchangedLead = await prisma.crmLead.findUnique({ where: { id: lead.id } });
-    expect(unchangedLead).toMatchObject({ title: `Activity Update Target ${suffix}`, status: 'NEW', ownerId: adminId });
+    expect(unchangedLead).toMatchObject({ title: `Activity Update Target ${suffix}`, status: 'NEW', ownerId: adminId, emailDeliveryDate: new Date('2026-08-19T00:00:00.000Z') });
     await expect(prisma.crmActivity.findMany({ where: { leadId: lead.id } })).resolves.toEqual([
       expect.objectContaining({ activityType: 'EMAIL', subject: 'EMAIL SENT', userId: adminId }),
     ]);
+  });
+
+  it('updates only Email Delivery Date for existing Leads', async () => {
+    const lead = await prisma.crmLead.create({
+      data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        title: `Email Date Update Target ${suffix}`,
+        contactName: 'Email Date Target',
+        ownerId: adminId,
+      },
+    });
+    const csvBuffer = makeCsvBuffer([{ 'Lead ID': lead.id, 'Email Delivery Date': '2026-08-20' }]);
+    const uploadRes = await request(app)
+      .post('/api/v1/crm/import/upload?entity=LEAD&mode=email-delivery-update')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', csvBuffer, { filename: `lead-email-date-update-${suffix}.csv`, contentType: 'text/csv' });
+    expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body.data.suggestedMapping).toMatchObject({ 'Lead ID': 'leadId', 'Email Delivery Date': 'emailDeliveryDate' });
+
+    const jobId = uploadRes.body.data.jobId;
+    const mappingRes = await request(app)
+      .post(`/api/v1/crm/import/${jobId}/mapping`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ columnMapping: { 'Lead ID': 'leadId', 'Email Delivery Date': 'emailDeliveryDate' } });
+    expect(mappingRes.body.data).toMatchObject({ valid: true, errors: [] });
+
+    const executeRes = await request(app)
+      .post(`/api/v1/crm/import/${jobId}/execute`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(executeRes.body.data).toMatchObject({ importedRows: 1, updatedRows: 1, failedRows: 0 });
+
+    const updatedLead = await prisma.crmLead.findUnique({ where: { id: lead.id } });
+    expect(updatedLead?.emailDeliveryDate).toEqual(new Date('2026-08-20T00:00:00.000Z'));
   });
 
   it('uploads a valid CSV and returns a jobId with preview', async () => {
@@ -614,6 +659,7 @@ describe('Import pipeline - full happy path', () => {
         Industry: 'Financial Services',
         Address: 'Level 10, Import Tower\nKuala Lumpur',
         Remark: `Priority prospect ${suffix}`,
+        'Email Delivery Date': '2026-08-18',
         'Activity Type': 'EMAIL',
         'Activity Subject': 'EMAIL SENT',
       },
@@ -655,6 +701,7 @@ describe('Import pipeline - full happy path', () => {
           Industry: 'industry',
           Address: 'address',
           Remark: 'remark',
+          'Email Delivery Date': 'emailDeliveryDate',
           'Activity Type': 'activityType',
           'Activity Subject': 'activitySubject',
         },
@@ -725,6 +772,7 @@ describe('Import pipeline - full happy path', () => {
       industry: 'Financial Services',
       address: 'Level 10, Import Tower\nKuala Lumpur',
       remark: `Priority prospect ${suffix}`,
+      emailDeliveryDate: new Date('2026-08-18T00:00:00.000Z'),
       description: null,
     });
     const importedActivities = await prisma.crmActivity.findMany({

@@ -4,7 +4,7 @@ import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
 type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'OPPORTUNITY';
-type ImportMode = 'create' | 'activity-update';
+type ImportMode = 'create' | 'activity-update' | 'email-delivery-update';
 
 const ENTITY_LABELS: Record<EntityType, string> = {
   LEAD: 'Leads',
@@ -109,9 +109,13 @@ const CrmImportExport = () => {
   // ── Load field definitions when entity changes ──
   useEffect(() => {
     if (tab === 'import' && canImport) {
+      setFieldDefs([]);
+      setError(null);
       crmService.getFieldDefinitions(entity, entity === 'LEAD' ? importMode : 'create').then(res => {
         setFieldDefs(res.fields);
-      }).catch(() => {});
+      }).catch((err: any) => {
+        setError(err?.response?.data?.message || err?.message || 'Unable to load import column definitions');
+      });
     }
   }, [entity, importMode, tab, canImport]);
 
@@ -351,9 +355,13 @@ const CrmImportExport = () => {
                     >
                       <option value="create">Create new Leads</option>
                       <option value="activity-update">Add activities to existing Leads</option>
+                      <option value="email-delivery-update">Update Email Delivery Date</option>
                     </select>
                     {importMode === 'activity-update' && (
-                      <p className="text-xs text-brand-700 mt-1.5">Only activity logs will be added. Existing Lead fields will not be overwritten. Match rows using Lead ID.</p>
+                      <p className="text-xs text-brand-700 mt-1.5">Only activity logs will be added. Match rows using Lead ID.</p>
+                    )}
+                    {importMode === 'email-delivery-update' && (
+                      <p className="text-xs text-brand-700 mt-1.5">Only Email Delivery Date will be updated. Match rows using Lead ID.</p>
                     )}
                   </div>
                 )}
@@ -574,13 +582,13 @@ const CrmImportExport = () => {
               <div className="bg-surface rounded-cwc-xl border border-border p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-emerald-500 text-xl">check_circle</span>
-                  <h3 className="text-base font-bold text-text-primary">{importMode === 'activity-update' ? 'Activity Update Complete' : 'Import Complete'}</h3>
+                  <h3 className="text-base font-bold text-text-primary">{importMode === 'activity-update' ? 'Activity Update Complete' : importMode === 'email-delivery-update' ? 'Email Delivery Date Update Complete' : 'Import Complete'}</h3>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 mb-4">
                   <div className="bg-emerald-50 rounded-cwc-lg p-4 text-center">
                     <div className="text-2xl font-bold text-emerald-600">{importResult.importedRows}</div>
-                    <div className="text-xs text-emerald-700 font-medium">{importMode === 'activity-update' ? 'Activities created' : 'Imported'}</div>
+                    <div className="text-xs text-emerald-700 font-medium">{importMode === 'activity-update' ? 'Activities created' : importMode === 'email-delivery-update' ? 'Leads updated' : 'Imported'}</div>
                   </div>
                   <div className={`rounded-cwc-lg p-4 text-center ${importResult.failedRows > 0 ? 'bg-red-50' : 'bg-bg-subtle'}`}>
                     <div className={`text-2xl font-bold ${importResult.failedRows > 0 ? 'text-red-600' : 'text-text-secondary'}`}>{importResult.failedRows}</div>

@@ -2647,6 +2647,7 @@ model CrmLead {
   estimatedValue Decimal? @map("estimated_value") @db.Decimal(15, 2)
   description    String?  @db.Text
   remark        String?  @db.Text
+  emailDeliveryDate DateTime? @map("email_delivery_date") @db.Date
   lostReason     String?  @map("lost_reason") @db.Text
 
   // Conversion tracking

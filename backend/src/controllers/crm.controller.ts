@@ -588,10 +588,15 @@ class CrmController {
     // Use ownerId from body if provided, otherwise default to logged-in user
     const ownerId = req.body.ownerId || req.user!.id;
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
-    const { autoAssign, followUpDate, ...restBody } = req.body;
+    const { autoAssign, followUpDate, emailDeliveryDate, ...restBody } = req.body;
     delete restBody.ownerId;
     const lead = await prisma.crmLead.create({
-      data: { ...restBody, ownerId, followUpDate: followUpDate ? new Date(followUpDate) : undefined },
+      data: {
+        ...restBody,
+        ownerId,
+        followUpDate: followUpDate ? new Date(followUpDate) : undefined,
+        emailDeliveryDate: emailDeliveryDate ? new Date(emailDeliveryDate) : undefined,
+      },
       include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmLead', resourceId: lead.id, newValues: req.body } });
@@ -658,9 +663,10 @@ class CrmController {
     });
     if (!existing) throw new AppError('Lead not found', 404);
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
-    const { followUpDate, ...rest } = req.body;
+    const { followUpDate, emailDeliveryDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
+    if (emailDeliveryDate !== undefined) data.emailDeliveryDate = emailDeliveryDate ? new Date(emailDeliveryDate) : null;
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect }, account: { select: { id: true, name: true, industry: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
@@ -1727,7 +1733,9 @@ class CrmController {
     }
     const importEntity = entity.toUpperCase() === 'LEAD' && mode === 'activity-update'
       ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
-      : entity.toUpperCase();
+      : entity.toUpperCase() === 'LEAD' && mode === 'email-delivery-update'
+        ? importExportService.LEAD_EMAIL_DELIVERY_UPDATE_ENTITY
+        : entity.toUpperCase();
     const result = await importExportService.uploadAndParseFile(file, importEntity, req.user!.id);
     res.json({ status: 'success', data: result });
   });
@@ -1740,7 +1748,9 @@ class CrmController {
     }
     const fieldEntity = String(entity).toUpperCase() === 'LEAD' && mode === 'activity-update'
       ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
-      : String(entity).toUpperCase();
+      : String(entity).toUpperCase() === 'LEAD' && mode === 'email-delivery-update'
+        ? importExportService.LEAD_EMAIL_DELIVERY_UPDATE_ENTITY
+        : String(entity).toUpperCase();
     const fields = importExportService.getFieldDefinitions(fieldEntity);
     res.json({ status: 'success', data: { fields } });
   });
@@ -1754,7 +1764,9 @@ class CrmController {
     }
     const templateEntity = entityUpper === 'LEAD' && mode === 'activity-update'
       ? importExportService.LEAD_ACTIVITY_UPDATE_ENTITY
-      : entityUpper;
+      : entityUpper === 'LEAD' && mode === 'email-delivery-update'
+        ? importExportService.LEAD_EMAIL_DELIVERY_UPDATE_ENTITY
+        : entityUpper;
     const fields = importExportService.getFieldDefinitions(templateEntity);
     const labels = fields.map((f: { label: string }) => f.label);
     const XLSX = await import('xlsx');

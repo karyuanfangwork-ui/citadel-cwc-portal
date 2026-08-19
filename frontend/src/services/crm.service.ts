@@ -95,6 +95,7 @@ export interface CrmLead {
   contactName: string | null; contactEmail: string | null; contactPhone: string | null;
   companyName: string | null; industry: string | null; address: string | null;
   estimatedValue: number | null; description: string | null; remark: string | null;
+  emailDeliveryDate: string | null;
   followUpDate: string | null; followUpNote: string | null;
   lostReason: string | null; convertedAt: string | null; convertedToOppId: string | null;
   // AI scoring fields
@@ -917,13 +918,13 @@ const crmService = {
   },
 
   // ── Import / Export ───────────────────────────────────────────────
-  async getFieldDefinitions(entity: string, mode: 'create' | 'activity-update' = 'create') {
-    const res = await api.get(`/crm/import/field-definitions`, { params: { entity, ...(mode === 'activity-update' ? { mode } : {}) } });
+  async getFieldDefinitions(entity: string, mode: 'create' | 'activity-update' | 'email-delivery-update' = 'create') {
+    const res = await api.get(`/crm/import/field-definitions`, { params: { entity, ...(mode !== 'create' ? { mode } : {}) } });
     return res.data.data as { fields: Array<{ key: string; label: string; required: boolean; type: string; enumValues?: string[]; default?: unknown }> };
   },
-  async downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv', mode: 'create' | 'activity-update' = 'create') {
+  async downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv', mode: 'create' | 'activity-update' | 'email-delivery-update' = 'create') {
     const res = await api.get(`/crm/import/template`, {
-      params: { entity, format, ...(mode === 'activity-update' ? { mode } : {}) },
+      params: { entity, format, ...(mode !== 'create' ? { mode } : {}) },
       responseType: 'blob',
     });
     const url = window.URL.createObjectURL(res.data);
@@ -935,11 +936,11 @@ const crmService = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
-  async uploadImportFile(file: File, entity: string, mode: 'create' | 'activity-update' = 'create') {
+  async uploadImportFile(file: File, entity: string, mode: 'create' | 'activity-update' | 'email-delivery-update' = 'create') {
     const formData = new FormData();
     formData.append('file', file);
     const res = await api.post(`/crm/import/upload`, formData, {
-      params: { entity, ...(mode === 'activity-update' ? { mode } : {}) },
+      params: { entity, ...(mode !== 'create' ? { mode } : {}) },
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data as {

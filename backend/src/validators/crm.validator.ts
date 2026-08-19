@@ -111,8 +111,11 @@ const leadBodySchema = z.object({
   contactPhone: z.string().max(50).optional(),
   companyName: z.string().max(255).optional(),
   industry: z.string().max(100).optional(),
+  address: z.string().optional(),
   estimatedValue: z.coerce.number().nonnegative().optional(),
   description: z.string().optional(),
+  remark: z.string().optional(),
+  emailDeliveryDate: z.string().optional(),
   followUpDate: z.string().optional(),
   followUpNote: z.string().optional(),
 });

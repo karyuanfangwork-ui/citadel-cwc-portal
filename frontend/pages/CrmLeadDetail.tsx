@@ -294,6 +294,7 @@ const CrmLeadDetail = () => {
       source: lead.source ?? 'OTHER',
       estimatedValue: lead.estimatedValue ?? '',
       description: lead.description ?? '',
+      emailDeliveryDate: lead.emailDeliveryDate ? lead.emailDeliveryDate.slice(0, 10) : '',
       followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
       followUpNote: lead.followUpNote ?? '',
     });
@@ -318,6 +319,7 @@ const CrmLeadDetail = () => {
       for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'industry', 'address', 'remark', 'description', 'followUpNote']) {
         if (editForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
       }
+      if (editForm.emailDeliveryDate === '' && lead!.emailDeliveryDate) payload.emailDeliveryDate = null;
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
       await crmService.updateLead(id, payload);
       setShowEdit(false);
@@ -904,6 +906,10 @@ const CrmLeadDetail = () => {
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Date</p>
                   <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.followUpDate ? formatDate(lead.followUpDate) : 'No follow-up scheduled'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Email Delivery Date</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.emailDeliveryDate ? formatDate(lead.emailDeliveryDate) : 'Not specified'}</p>
                 </div>
               </div>
               {lead.followUpNote ? (
@@ -1587,6 +1593,11 @@ const CrmLeadDetail = () => {
                 <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Remark</label>
                 <textarea rows={3} value={editForm.remark ?? ''} onChange={e => setEditForm(f => ({ ...f, remark: e.target.value }))}
                   className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all resize-vertical" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Email Delivery Date</label>
+                <input type="date" value={editForm.emailDeliveryDate ?? ''} onChange={e => setEditForm(f => ({ ...f, emailDeliveryDate: e.target.value }))}
+                  className="w-full px-4 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff]" style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>

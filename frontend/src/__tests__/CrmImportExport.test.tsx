@@ -49,6 +49,7 @@ describe('CrmImportExport', () => {
         { key: 'industry', label: 'Industry', required: false, type: 'string' },
         { key: 'address', label: 'Address', required: false, type: 'string' },
         { key: 'remark', label: 'Remark', required: false, type: 'string' },
+        { key: 'emailDeliveryDate', label: 'Email Delivery Date', required: false, type: 'date' },
       ],
     });
     mockGetImportHistory.mockResolvedValue({ jobs: [] });
@@ -82,6 +83,7 @@ describe('CrmImportExport', () => {
     expect(screen.getByText('Industry')).toBeInTheDocument();
     expect(screen.getByText('Address')).toBeInTheDocument();
     expect(screen.getByText('Remark')).toBeInTheDocument();
+    expect(screen.getByText('Email Delivery Date')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /csv template/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /excel template/i })).toBeInTheDocument();
   });

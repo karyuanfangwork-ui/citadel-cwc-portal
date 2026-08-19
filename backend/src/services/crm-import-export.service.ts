@@ -23,12 +23,27 @@ interface FieldDef {
 }
 
 export const LEAD_ACTIVITY_UPDATE_ENTITY = 'LEAD_ACTIVITY_UPDATE';
+export const LEAD_EMAIL_DELIVERY_UPDATE_ENTITY = 'LEAD_EMAIL_DATE';
+
+function parseImportDate(value: unknown): Date | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number' || (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value))) {
+    const serial = Number(value);
+    if (Number.isFinite(serial)) return new Date(Date.UTC(1899, 11, 30) + serial * 24 * 60 * 60 * 1000);
+  }
+  const date = new Date(String(value));
+  return isNaN(date.getTime()) ? null : date;
+}
 
 const ENTITY_FIELDS: Record<string, FieldDef[]> = {
   LEAD_ACTIVITY_UPDATE: [
     { key: 'leadId', label: 'Lead ID', required: true, type: 'string', maxLength: 36 },
     { key: 'activityType', label: 'Activity Type', required: true, type: 'enum', enumValues: ['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] },
     { key: 'activitySubject', label: 'Activity Subject', required: true, type: 'string', maxLength: 255 },
+  ],
+  LEAD_EMAIL_DATE: [
+    { key: 'leadId', label: 'Lead ID', required: true, type: 'string', maxLength: 36 },
+    { key: 'emailDeliveryDate', label: 'Email Delivery Date', required: true, type: 'date' },
   ],
   LEAD: [
     { key: 'title', label: 'Title', required: true, type: 'string', maxLength: 255 },
@@ -39,6 +54,7 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'industry', label: 'Industry', required: false, type: 'string', maxLength: 255 },
     { key: 'address', label: 'Address', required: false, type: 'string' },
     { key: 'remark', label: 'Remark', required: false, type: 'string' },
+    { key: 'emailDeliveryDate', label: 'Email Delivery Date', required: false, type: 'date' },
     { key: 'source', label: 'Source', required: false, type: 'enum', enumValues: ['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'], default: 'OTHER' },
     { key: 'estimatedValue', label: 'Estimated Value', required: false, type: 'number' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
@@ -192,6 +208,7 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'dealvalue': 'value', 'amount': 'value', 'revenue': 'annualRevenue',
         'estimatedvalue': 'estimatedValue', 'leadvalue': 'estimatedValue',
         'remarks': 'remark', 'note': 'remark', 'notes': 'remark',
+        'emaildeliverydate': 'emailDeliveryDate', 'deliverydate': 'emailDeliveryDate',
         'closingdate': 'expectedCloseDate', 'closedate': 'expectedCloseDate',
         'industrytype': 'industry', 'companysize': 'companySize', 'employees': 'companySize',
         'accounttype': 'accountType', 'type': 'accountType', 'customertype': 'accountType',
@@ -202,6 +219,7 @@ export function suggestColumnMapping(headers: string[], entity: string): Record<
         'addressline': 'address', 'registeredaddress': 'address', 'street': 'address',
         'leadsource': 'source',
         'activitytype': 'activityType', 'activitysubject': 'activitySubject',
+        'leadid': 'leadId',
         'jobtitle': 'jobTitle', 'position': 'jobTitle', 'role': 'jobTitle',
         'nric': 'nricPassport', 'passport': 'nricPassport',
       };
@@ -326,6 +344,10 @@ export async function validateImportMapping(
         errors.push({ row: i + 2, field: fieldDef.label, error: `Expected number, got "${value}"` });
       }
 
+      if (value && fieldDef.type === 'date' && !parseImportDate(value)) {
+        errors.push({ row: i + 2, field: fieldDef.label, error: `Invalid date "${value}"` });
+      }
+
       if (value && fieldDef.type === 'enum' && fieldDef.enumValues && !fieldDef.enumValues.includes(String(value).toUpperCase())) {
         errors.push({ row: i + 2, field: fieldDef.label, error: `Invalid value "${value}". Allowed: ${fieldDef.enumValues.join(', ')}` });
       }
@@ -388,6 +410,9 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
   if (job.entity === LEAD_ACTIVITY_UPDATE_ENTITY) {
     return executeLeadActivityUpdate(job, userId, visibleOwnerIds);
   }
+  if (job.entity === LEAD_EMAIL_DELIVERY_UPDATE_ENTITY) {
+    return executeLeadEmailDeliveryUpdate(job, userId, visibleOwnerIds);
+  }
 
   const rawData = (job.rawData as Record<string, unknown>[]) || [];
   const columnMapping = (job.columnMapping as Record<string, string>) || {};
@@ -443,8 +468,8 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
           value = String(value).toUpperCase();
         }
         if (fieldDef.type === 'date' && value) {
-          const d = new Date(String(value));
-          if (isNaN(d.getTime())) throw new Error(`Invalid date for ${fieldDef.label}`);
+          const d = parseImportDate(value);
+          if (!d) throw new Error(`Invalid date for ${fieldDef.label}`);
           value = d.toISOString();
         }
         if (fieldDef.type === 'boolean' && value !== undefined) {
@@ -507,6 +532,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
               estimatedValue: data.estimatedValue ? Number(data.estimatedValue) : undefined,
               description: data.description ? String(data.description) : null,
               remark: data.remark ? String(data.remark) : null,
+              emailDeliveryDate: parseImportDate(data.emailDeliveryDate),
               ownerId: userId,
               status: 'NEW',
             },
@@ -725,6 +751,69 @@ async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerI
     failedRows,
     errors: errors.slice(0, 50),
   };
+}
+
+async function executeLeadEmailDeliveryUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null) {
+  const rawData = (job.rawData as Record<string, unknown>[]) || [];
+  const columnMapping = (job.columnMapping as Record<string, string>) || {};
+  const importingUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  let updatedRows = 0;
+  let failedRows = 0;
+  const errors: { row: number; error: string }[] = [];
+
+  for (let i = 0; i < rawData.length; i++) {
+    try {
+      const values: Record<string, unknown> = {};
+      for (const [header, fieldKey] of Object.entries(columnMapping)) {
+        if (fieldKey) values[fieldKey] = rawData[i][header];
+      }
+      const leadId = String(values.leadId ?? '').trim();
+      const emailDeliveryDate = parseImportDate(values.emailDeliveryDate);
+      if (!leadId || !emailDeliveryDate) throw new Error('Lead ID and a valid Email Delivery Date are required');
+
+      const lead = await prisma.crmLead.findFirst({
+        where: {
+          id: leadId,
+          deletedAt: null,
+          ...(visibleOwnerIds === null || visibleOwnerIds === undefined ? {} : { ownerId: { in: visibleOwnerIds } }),
+        },
+      });
+      if (!lead) throw new Error('Lead was not found or is not visible to you');
+
+      await prisma.$transaction(async (tx) => {
+        const updated = await tx.crmLead.update({ where: { id: lead.id }, data: { emailDeliveryDate } });
+        await tx.auditLog.create({
+          data: {
+            userId,
+            userEmail: importingUser?.email ?? '',
+            action: 'UPDATE',
+            resourceType: 'CrmLead',
+            resourceId: updated.id,
+            oldValues: lead as any,
+            newValues: { leadId: lead.id, emailDeliveryDate: emailDeliveryDate.toISOString(), importJobId: job.id },
+          },
+        });
+      });
+      updatedRows++;
+      broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: userId });
+    } catch (err) {
+      failedRows++;
+      errors.push({ row: i + 2, error: (err as Error).message });
+    }
+  }
+
+  await prisma.crmImportJob.update({
+    where: { id: job.id },
+    data: {
+      status: rawData.length > 0 && failedRows < rawData.length ? 'COMPLETED' : 'FAILED',
+      importedRows: updatedRows,
+      failedRows,
+      errorReport: errors.length > 0 ? (errors as any) : undefined,
+      completedAt: new Date(),
+    },
+  });
+
+  return { importedRows: updatedRows, updatedRows, skippedRows: 0, duplicateRows: 0, duplicateDetails: [], failedRows, errors: errors.slice(0, 50) };
 }
 
 export async function getImportStatus(jobId: string, userId: string) {
