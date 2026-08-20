@@ -83,20 +83,5 @@ export function buildPipelineStages(states: PipelineStateCount[]): PipelineStage
     stages.push(other);
   }
 
-  const legacySubmittedStates = new Set(['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED']);
-  const submittedCount = states
-    .filter(state => legacySubmittedStates.has(state.state))
-    .reduce((sum, state) => sum + state.count, 0);
-  if (submittedCount > 0) {
-    stages.push({ key: 'submitted', label: 'Submitted', count: submittedCount });
-  }
-
-  const approvedCount = states
-    .filter(state => state.state === 'APPROVED')
-    .reduce((sum, state) => sum + state.count, 0);
-  if (approvedCount > 0) {
-    stages.push({ key: 'approved', label: 'Approved', count: approvedCount });
-  }
-
   return stages;
 }

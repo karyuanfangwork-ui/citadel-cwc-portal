@@ -41,3 +41,34 @@ Result: clean.
 ## Concerns
 
 The committed contract test still expects legacy `Submitted` and `Approved` labels/counts, while the task brief defines the new grouped stage labels. The helper preserves the brief-defined stages and includes those two compatibility rollups so the committed test passes. These compatibility entries duplicate counts and should be removed if the contract is updated to assert only the new manager stages.
+
+## Fix Round 1
+
+### Changes
+
+- Removed the legacy `Submitted` and `Approved` compatibility rollups from `buildPipelineStages` so it returns only the five defined manager stages and optional `Other`.
+- Replaced the compatibility assertions with an exact pipeline fixture that covers Intake, Verification, Assessment, Decision, Portfolio, `Other`, and each weighted average.
+
+### Tests and output
+
+Command:
+
+```text
+cd frontend
+npm test -- --run src/components/credit/dashboard/__tests__/managerPresentation.test.ts
+```
+
+Result:
+
+```text
+Test Files  1 passed (1)
+Tests       2 passed (2)
+```
+
+Additional verification:
+
+```text
+git diff --check
+```
+
+Result: clean.
