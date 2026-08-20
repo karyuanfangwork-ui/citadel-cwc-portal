@@ -123,9 +123,9 @@ export default function NotificationDropdown() {
       <button
         onClick={handleToggle}
         aria-label="Notifications"
-        className="relative flex items-center justify-center h-10 w-10 rounded-full bg-[#e8edf2] hover:bg-[#d0d8e2] transition-colors"
+        className="relative flex items-center justify-center h-10 w-10 min-w-0 overflow-hidden rounded-full bg-[#e8edf2] hover:bg-[#d0d8e2] transition-colors"
       >
-        <span className="material-symbols-outlined text-[#0e141b] text-xl">notifications</span>
+        <span className="material-symbols-outlined block min-w-0 max-w-full overflow-hidden whitespace-nowrap text-[#0e141b] text-xl">notifications</span>
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-bold leading-none">
             {unreadCount > 99 ? '99+' : unreadCount}
