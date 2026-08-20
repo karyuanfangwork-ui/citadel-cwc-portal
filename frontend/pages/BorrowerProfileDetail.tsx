@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
-import creditService, { BorrowerProfile, Borrower360Activity, Borrower360Summary, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
-import Borrower360Header from '../src/components/credit/borrower360/Borrower360Header';
-import BorrowerKpiBand from '../src/components/credit/borrower360/BorrowerKpiBand';
-import RetailOverview from '../src/components/credit/borrower360/RetailOverview';
-import CorporateOverview from '../src/components/credit/borrower360/CorporateOverview';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import creditService, { BorrowerProfile, Borrower360Activity, Borrower360Summary, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
 import BureauUploadModal from '../src/components/credit/borrower360/BureauUploadModal';
 import IncomeEditModal from '../src/components/credit/borrower360/IncomeEditModal';
 import { useAuth } from '../src/context/AuthContext';
@@ -13,6 +9,10 @@ import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
 import PartyFormModal, { PartyRole } from '../src/components/credit/PartyFormModal';
 import toast from 'react-hot-toast';
 import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
+import BorrowerWorkspaceHeader from '../src/components/credit/borrower360/BorrowerWorkspaceHeader';
+import BorrowerOverview from '../src/components/credit/borrower360/BorrowerOverview';
+import BorrowerApplicationSummary from '../src/components/credit/borrower360/BorrowerApplicationSummary';
+import { calculateBorrowerReadiness, getPrimaryApplicationAction, type BorrowerNextAction } from '../src/components/credit/borrower360/borrowerReadiness';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -85,7 +85,8 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   BRIDGE_LOAN: 'Bridge Loan', PROJECT_FINANCE: 'Project Finance',
 };
 
-type DetailTab = 'overview' | 'profile' | 'financials' | 'exposure' | 'risk' | 'bureau' | 'documents';
+type DetailTab = 'overview' | 'applications' | 'profile' | 'financials' | 'exposure' | 'risk' | 'bureau' | 'documents';
+const DETAIL_TABS: DetailTab[] = ['overview', 'applications', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'];
 
 // Derive display name from the independent borrower profile
 const displayName = (p: BorrowerProfile) => getBorrowerDisplayName(p);
@@ -101,12 +102,16 @@ const getInitials = (p: BorrowerProfile) => {
 const BorrowerProfileDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [profile, setProfile] = useState<BorrowerProfile | null>(null);
   const [borrower360Summary, setBorrower360Summary] = useState<Borrower360Summary | null>(null);
   const [borrower360Activity, setBorrower360Activity] = useState<Borrower360Activity[]>([]);
+  const [applications, setApplications] = useState<CreditApplication[]>([]);
+  const [applicationError, setApplicationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
+  const requestedTab = searchParams.get('tab') as DetailTab | null;
+  const [activeTab, setActiveTab] = useState<DetailTab>(requestedTab && DETAIL_TABS.includes(requestedTab) ? requestedTab : 'overview');
   const [exposure, setExposure] = useState<ExposureDashboardSummary | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
   const [showLinkCrm, setShowLinkCrm] = useState(false);
@@ -117,8 +122,8 @@ const BorrowerProfileDetail: React.FC = () => {
   const [partyModal, setPartyModal] = useState<{ open: boolean; role: PartyRole }>({ open: false, role: 'director' });
 
   const canWrite = hasPermission(user, 'credit:write');
-  const canReview = hasPermission(user, 'credit:approve');
-  const isRetail = profile?.borrowerType !== 'CORPORATE';
+  const canCreate = hasPermission(user, 'credit:create');
+
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
@@ -132,6 +137,14 @@ const BorrowerProfileDetail: React.FC = () => {
       setProfile(profileData);
       setBorrower360Summary(summaryData);
       setBorrower360Activity(activityData ?? []);
+      try {
+        const applicationData = await creditService.listApplications({ borrowerProfileId: id, page: 1, limit: 20, sortBy: 'createdAt', sortDir: 'desc' });
+        setApplications(applicationData.applications ?? []);
+        setApplicationError(null);
+      } catch (applicationLoadError) {
+        console.error(applicationLoadError);
+        setApplicationError('Applications could not be loaded.');
+      }
     } catch (e) {
       console.error(e);
       navigate('/credit/borrowers');
@@ -156,6 +169,29 @@ const BorrowerProfileDetail: React.FC = () => {
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
   useEffect(() => {
+    const nextTab = requestedTab && DETAIL_TABS.includes(requestedTab) ? requestedTab : 'overview';
+    if (nextTab !== activeTab) setActiveTab(nextTab);
+  }, [activeTab, requestedTab]);
+
+  const selectTab = useCallback((tab: DetailTab) => {
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', tab);
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
+  const handleWorkspaceAction = useCallback((action: BorrowerNextAction) => {
+    if (action.target === 'profile') selectTab('profile');
+    if (action.target === 'income') setShowIncomeModal(true);
+    if (action.target === 'bureau') setShowBureauModal(true);
+    if (action.target === 'documents') selectTab('documents');
+    if (action.target === 'risk') selectTab('risk');
+    if (action.target === 'application') {
+      navigate(action.id ? `/credit/applications/${action.id}` : `/credit/applications/new?borrowerId=${profile?.id ?? id}`);
+    }
+  }, [id, navigate, profile?.id, selectTab]);
+
+  useEffect(() => {
     if (activeTab === 'exposure' && id) {
       (async () => {
         try {
@@ -169,7 +205,7 @@ const BorrowerProfileDetail: React.FC = () => {
   }, [activeTab, id]);
 
   if (loading) return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem' }}>
+    <div className="w-full px-4 py-8 sm:px-8" style={{ paddingBottom: '2rem' }}>
       {[...Array(4)].map((_, i) => (
         <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
       ))}
@@ -184,68 +220,58 @@ const BorrowerProfileDetail: React.FC = () => {
 
   return (
     <>
-      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-        <Borrower360Header
+      <div className="w-full px-4 py-4 sm:px-8 sm:py-8" style={{ paddingBottom: 'var(--space-16)' }}>
+        <BorrowerWorkspaceHeader
           profile={profile}
           summary={borrower360Summary}
+          primaryAction={getPrimaryApplicationAction(applications)}
           canWrite={canWrite}
+          canCreate={canCreate}
+          onPrimaryAction={() => {
+            const primary = getPrimaryApplicationAction(applications);
+            if (primary.applicationId) navigate(`/credit/applications/${primary.applicationId}`);
+            else navigate(`/credit/applications/new?borrowerId=${profile.id}`);
+          }}
           onEdit={() => setShowEditModal(true)}
           onUploadBureau={() => setShowBureauModal(true)}
           onRunKyc={handleRunKyc}
-          onNewApp={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
+          onRecalculateRisk={() => selectTab('risk')}
         />
 
-        <div className="mt-6">
-          <BorrowerKpiBand summary={borrower360Summary} isRetail={isRetail} />
-        </div>
-
         {/* Tabs — 'financials' tab (Financial Spreading) only applies to non-INDIVIDUAL borrowers */}
-        <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
-          {(['overview', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'] as DetailTab[])
+        <div role="tablist" aria-label="Borrower detail sections" className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
+          {(['overview', 'applications', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'] as DetailTab[])
             .filter(tab => tab !== 'financials' || profile.borrowerType !== 'INDIVIDUAL')
             .map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => selectTab(tab)} role="tab" aria-selected={activeTab === tab}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              {tab === 'risk' ? 'Risk & Compliance' : tab === 'bureau' ? 'Bureau' : tab === 'documents' ? 'Documents' : tab}
+              {tab === 'risk' ? 'Risk & Compliance' : tab === 'bureau' ? 'Bureau' : tab === 'documents' ? 'Documents' : tab === 'applications' ? 'Applications' : tab}
             </button>
           ))}
         </div>
 
-        {/* Borrower 360 summary */}
+        {activeTab === 'applications' && (
+          <div role="tabpanel" aria-label="Applications" className="mb-6">
+            {applicationError ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-800"><p>{applicationError}</p><button type="button" onClick={fetchProfile} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white">Retry applications</button></div> : <BorrowerApplicationSummary applications={applications} {...(canCreate ? { onStartApplication: () => navigate(`/credit/applications/new?borrowerId=${profile.id}`) } : {})} />}
+          </div>
+        )}
+
+        {/* Borrower workspace overview */}
         {activeTab === 'overview' && (
-          <div className="mb-6">
-            {borrower360Summary ? (
-              profile.borrowerType === 'CORPORATE' ? (
-                <CorporateOverview
-                  profile={profile}
-                  summary={borrower360Summary}
-                  activity={borrower360Activity}
-                  onAlertAction={(label) => {
-                    if (label === 'Upload Bureau Report') {
-                      setShowBureauModal(true);
-                    }
-                  }}
-                />
-              ) : (
-                <RetailOverview
-                  profile={profile}
-                  summary={borrower360Summary}
-                  activity={borrower360Activity}
-                  onAlertAction={(label) => {
-                    if (label === 'Upload Bureau Report') {
-                      setShowBureauModal(true);
-                    }
-                  }}
-                  onEditIncome={() => setShowIncomeModal(true)}
-                  canWrite={canWrite}
-                />
-              )
-            ) : (
-              <div className="rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-secondary">
-                Borrower 360 summary is not available yet.
-              </div>
-            )}
+          <div role="tabpanel" aria-label="Overview" className="mb-6">
+            {applicationError ? <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800"><p>{applicationError}</p><button type="button" onClick={fetchProfile} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white">Retry applications</button></div> : null}
+            <BorrowerOverview
+              profile={profile}
+              summary={borrower360Summary}
+              applications={applications}
+              readiness={calculateBorrowerReadiness({ profile, summary: borrower360Summary, applications })}
+              activity={borrower360Activity}
+              canWrite={canWrite}
+              onAction={handleWorkspaceAction}
+              onEditIncome={() => setShowIncomeModal(true)}
+              onViewExposure={() => selectTab('exposure')}
+            />
           </div>
         )}
 
@@ -563,7 +589,7 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {activeTab === 'documents' && (
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <div role="tabpanel" aria-label="Documents" className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Documents</h3>
             {(profile.documents ?? []).length > 0 ? (
               <div className="space-y-3">
