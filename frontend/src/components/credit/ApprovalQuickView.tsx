@@ -9,7 +9,8 @@ import StateBadge from './StateBadge';
 import RiskBadge from './RiskBadge';
 import { useAuth } from '../../context/AuthContext';
 import { getBorrowerDisplayName } from './BorrowerSummaryCard';
-import { validateApprovalDecision, buildApprovalPayload, COMMENT_MIN_LENGTH } from './approvalDecision';
+import { buildApprovalPayload, type ApprovalDecisionInput } from './approvalDecision';
+import DecisionActions from './dashboard/DecisionActions';
 import toast from 'react-hot-toast';
 
 interface ApprovalQuickViewProps {
@@ -28,10 +29,7 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
   const [approvals, setApprovals] = useState<CreditApproval[]>([]);
   const [loading, setLoading] = useState(false);
   const [decisionLoading, setDecisionLoading] = useState(false);
-  const [comment, setComment] = useState('');
-  const [rejectionReasonCode, setRejectionReasonCode] = useState('');
   const [rejectionReasonCodes, setRejectionReasonCodes] = useState<{ value: string; label: string }[]>([]);
-  const [showDecision, setShowDecision] = useState<ApprovalDecision | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!application) return;
@@ -55,18 +53,16 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
     if (!open) {
       setFullApp(null);
       setApprovals([]);
-      setComment('');
-      setShowDecision(null);
+
     }
   }, [open, application, fetchDetail]);
 
   // LOS-012 — Load rejection reason codes when REJECT is selected
   useEffect(() => {
-    if (showDecision !== 'REJECT' || rejectionReasonCodes.length > 0) return;
     creditService.listRejectionReasonCodes?.()
       .then(setRejectionReasonCodes)
       .catch(() => setRejectionReasonCodes([]));
-  }, [showDecision, rejectionReasonCodes.length]);
+  }, []);
 
   // Close on Escape
   useEffect(() => {
@@ -83,24 +79,16 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  const handleSubmitDecision = async (decision: ApprovalDecision) => {
+  const handleSubmitDecision = async (decision: ApprovalDecision, input: ApprovalDecisionInput) => {
     if (!application) return;
-    const input = { decision, comment, rejectionReasonCode };
-    const validationError = validateApprovalDecision(input);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
     setDecisionLoading(true);
     try {
       await creditService.submitApproval(application.id, buildApprovalPayload(input));
       onDecision?.(application.id, decision);
-      setShowDecision(null);
-      setComment('');
-      setRejectionReasonCode('');
       onClose();
     } catch (e) {
       console.error('Decision failed', e);
+      toast.error('Decision failed');
     } finally {
       setDecisionLoading(false);
     }
@@ -277,130 +265,41 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
           )}
         </div>
 
-        {/* Bottom Decision Actions — sticky */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 shrink-0">
-          {isRmOnApplication ? (
-            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">warning</span>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-amber-800 mb-1">Segregation of Duties — Action Restricted</p>
-                <p className="text-xs text-amber-700">
-                  You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision.
-                </p>
-              </div>
-            </div>
-          ) : !showDecision ? (
-            <div className="space-y-3">
-              <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Your Decision</h4>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowDecision('APPROVE')}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">check_circle</span>
-                  Approve
-                </button>
-                <button
-                  onClick={() => setShowDecision('REJECT')}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">cancel</span>
-                  Reject
-                </button>
-                <button
-                  onClick={() => setShowDecision('RETURN')}
-                  className="flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-amber-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">undo</span>
-                  Return
-                </button>
-              </div>
-              {/* §1.10 — CA Memo Preview */}
-              {fullApp && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const { jobId } = await creditService.downloadCaMemo(fullApp.id);
-                      const url = await pollPdfJob(jobId);
-                      window.open(url, '_blank');
-                    } catch (e) {
-                      console.error('Failed to generate CA Memo preview', e);
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">description</span>
-                  Preview CA Memo
-                </button>
-              )}
-              <a
-                href={`/credit/applications/${app.id}?tab=approvals`}
-                onClick={(e) => { e.preventDefault(); onClose(); window.location.href = `/credit/applications/${app.id}?tab=approvals`; }}
-                className="flex items-center justify-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors pt-1"
-              >
-                <span className="material-symbols-outlined text-base">open_in_new</span>
-                Open full application detail
-              </a>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                {showDecision === 'APPROVE' && 'Approve this application'}
-                {showDecision === 'REJECT' && 'Reject this application — a reason is required'}
-                {showDecision === 'RETURN' && 'Return to analyst for more work — a reason is required'}
-              </p>
-              {showDecision === 'REJECT' && (
-                <select
-                  value={rejectionReasonCode}
-                  onChange={(e) => setRejectionReasonCode(e.target.value)}
-                  aria-label="Rejection reason code"
-                  className="w-full mb-2 rounded border border-gray-300 px-2 py-1.5 text-sm"
-                >
-                  <option value="">Select a rejection reason…</option>
-                  {rejectionReasonCodes.map((rc) => (
-                    <option key={rc.value} value={rc.value}>{rc.label}</option>
-                  ))}
-                </select>
-              )}
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder={
-                  showDecision === 'APPROVE'
-                    ? 'Optional conditions or comments...'
-                    : 'Reason for decision (required)...'
+        {/* Bottom Decision Actions — shared with the inline decision card */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 shrink-0 space-y-3">
+          <DecisionActions
+            applicationId={app.id}
+            sodBlocked={isRmOnApplication}
+            sodReason="You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision."
+            submitting={decisionLoading}
+            rejectionReasonCodes={rejectionReasonCodes}
+            onSubmit={handleSubmitDecision}
+          />
+          {!isRmOnApplication && fullApp && (
+            <button
+              onClick={async () => {
+                try {
+                  const { jobId } = await creditService.downloadCaMemo(fullApp.id);
+                  const url = await pollPdfJob(jobId);
+                  window.open(url, '_blank');
+                } catch (e) {
+                  console.error('Failed to generate CA Memo preview', e);
                 }
-                rows={3}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleSubmitDecision(showDecision)}
-                  disabled={decisionLoading || validateApprovalDecision({ decision: showDecision as ApprovalDecision, comment, rejectionReasonCode }) !== null}
-                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 ${
-                    showDecision === 'APPROVE' ? 'bg-green-600 hover:bg-green-700' :
-                    showDecision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' :
-                    'bg-amber-600 hover:bg-amber-700'
-                  }`}
-                >
-                  {decisionLoading ? (
-                    <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-base">
-                      {showDecision === 'APPROVE' ? 'check_circle' : showDecision === 'REJECT' ? 'cancel' : 'undo'}
-                    </span>
-                  )}
-                  Confirm {showDecision === 'APPROVE' ? 'Approve' : showDecision === 'REJECT' ? 'Reject' : 'Return'}
-                </button>
-                <button
-                  onClick={() => { setShowDecision(null); setComment(''); }}
-                  className="px-4 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+              }}
+              className="w-full flex items-center justify-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">description</span>
+              Preview CA Memo
+            </button>
           )}
+          <a
+            href={`/credit/applications/${app.id}?tab=approvals`}
+            onClick={(e) => { e.preventDefault(); onClose(); window.location.href = `/credit/applications/${app.id}?tab=approvals`; }}
+            className="flex items-center justify-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors pt-1"
+          >
+            <span className="material-symbols-outlined text-base">open_in_new</span>
+            Open full application detail
+          </a>
         </div>
       </div>
     </div>,

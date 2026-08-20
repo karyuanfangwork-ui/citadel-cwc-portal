@@ -14,6 +14,9 @@ beforeAll(async () => {
     data: {
       borrowerType: 'INDIVIDUAL',
       name: 'Deviation Test Borrower',
+      borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+      segment: 'INDIVIDUAL',
+      lifecycleStatus: 'ACTIVE',
     },
   });
   testBorrowerId = borrower.id;
@@ -344,7 +347,13 @@ describe('P1-6: Deviation Register (Service Layer)', () => {
     it('should report canProceed=true when no pending deviations', async () => {
       // Create a fresh application with no deviations
       const borrower = await prisma.borrowerProfile.create({
-        data: { borrowerType: 'INDIVIDUAL', name: 'Clean Test Borrower' },
+        data: {
+          borrowerType: 'INDIVIDUAL',
+          name: 'Clean Test Borrower',
+          borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+          segment: 'INDIVIDUAL',
+          lifecycleStatus: 'ACTIVE',
+        },
       });
       const app = await prisma.creditApplication.create({
         data: {

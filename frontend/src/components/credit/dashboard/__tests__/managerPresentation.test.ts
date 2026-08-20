@@ -12,6 +12,7 @@ describe('manager dashboard presentation', () => {
     expect(formatActivityAction('start_condition_fulfilment')).toBe('Started condition fulfilment');
     expect(formatActivityAction('submit_to_committee')).toBe('Submitted to committee');
     expect(formatActivityAction('approve_kyc')).toBe('Approved KYC');
+    expect(formatActivityAction('Advance')).toBe('Advanced application');
   });
 
   it('builds exactly the five manager stages plus Other with weighted ages', () => {

@@ -586,6 +586,7 @@ describe('Import pipeline - full happy path', () => {
         contactEmail: `activity-target-${suffix}@import.test`,
         companyName: `Activity Target Co ${suffix}`,
         ownerId: adminId,
+        emailDeliveryDate: new Date('2026-08-19T00:00:00.000Z'),
       },
     });
     const csvBuffer = makeCsvBuffer([{ 'Lead ID': lead.id, 'Activity Type': 'EMAIL', 'Activity Subject': 'EMAIL SENT' }]);

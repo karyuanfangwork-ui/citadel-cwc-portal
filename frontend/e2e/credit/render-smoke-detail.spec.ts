@@ -62,10 +62,9 @@ test.describe('Phase 8 — parameterised credit screens render', () => {
     const uncaught: string[] = [];
     page.on('pageerror', (e) => uncaught.push(e.message));
 
-    // Borrower rows open the quick-preview panel by design. Navigation is on
-    // the borrower name button in the first cell, which stops row bubbling.
+    // Borrower rows navigate directly to the full borrower workspace.
     await page.goto('/credit/borrowers', { waitUntil: 'domcontentloaded' });
-    const nameButton = page.locator('table tbody tr td:first-child button').first();
+    const nameButton = page.locator('table tbody tr td:nth-child(2) button').first();
     await expect(
       nameButton,
       'No borrower rows. Run `npx tsx prisma/seed-credit.ts --demo --e2e`.',

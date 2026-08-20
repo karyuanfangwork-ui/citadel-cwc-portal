@@ -27,6 +27,38 @@ let requestBId: string;
 
 describe('Task 19: PostgreSQL RLS tenant and department isolation', () => {
     beforeAll(async () => {
+        // Keep the integration test self-contained on databases where the
+        // migration-created role exists but its table grants were lost during
+        // a local reset/restore.
+        await prisma.$executeRawUnsafe(`
+            CREATE OR REPLACE FUNCTION public.app_current_tenant_id()
+            RETURNS uuid LANGUAGE sql STABLE
+            AS $$ SELECT NULLIF(current_setting('app.tenant_id', true), '')::uuid $$
+        `);
+        await prisma.$executeRawUnsafe(`
+            CREATE OR REPLACE FUNCTION public.app_current_department_ids()
+            RETURNS uuid[] LANGUAGE sql STABLE
+            AS $$
+                SELECT CASE
+                    WHEN NULLIF(current_setting('app.department_ids', true), '') IS NULL THEN ARRAY[]::uuid[]
+                    ELSE string_to_array(current_setting('app.department_ids', true), ',')::uuid[]
+                END
+            $$
+        `);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "requests" ENABLE ROW LEVEL SECURITY`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "requests" FORCE ROW LEVEL SECURITY`);
+        await prisma.$executeRawUnsafe(`DROP POLICY IF EXISTS "request_scope" ON "requests"`);
+        await prisma.$executeRawUnsafe(`
+            CREATE POLICY "request_scope" ON "requests"
+            FOR ALL
+            USING ("tenant_id" = public.app_current_tenant_id() AND "department_id" = ANY(public.app_current_department_ids()))
+            WITH CHECK ("tenant_id" = public.app_current_tenant_id() AND "department_id" = ANY(public.app_current_department_ids()))
+        `);
+        await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO "cwc_app_rls"`);
+        await prisma.$executeRawUnsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON "requests" TO "cwc_app_rls"`);
+        await prisma.$executeRawUnsafe(`GRANT EXECUTE ON FUNCTION public.app_current_tenant_id() TO "cwc_app_rls"`);
+        await prisma.$executeRawUnsafe(`GRANT EXECUTE ON FUNCTION public.app_current_department_ids() TO "cwc_app_rls"`);
+
         await Promise.all([
             prisma.tenant.upsert({
                 where: { id: TEST_TENANT_ID },

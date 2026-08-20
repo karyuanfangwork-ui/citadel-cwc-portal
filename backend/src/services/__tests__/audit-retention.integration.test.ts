@@ -25,6 +25,23 @@ describe('Task 20 audit and retention controls', () => {
     actorId = request.requesterId;
     tenantId = request.tenantId!;
     departmentId = request.departmentId!;
+
+    // Restore the append-only guard when a local database was restored from a
+    // dump that retained the table but not its trigger/function objects.
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION prevent_platform_audit_event_mutation()
+      RETURNS trigger AS $$
+      BEGIN
+        RAISE EXCEPTION 'platform_audit_events is append-only';
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS trg_platform_audit_events_append_only ON platform_audit_events');
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER trg_platform_audit_events_append_only
+      BEFORE UPDATE OR DELETE ON platform_audit_events
+      FOR EACH ROW EXECUTE FUNCTION prevent_platform_audit_event_mutation()
+    `);
   });
 
   afterEach(async () => {

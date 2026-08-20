@@ -45,6 +45,7 @@ interface ActivityFeedItem {
   action: string;
   actorId: string | null;
   actorName: string | null;
+  oldState: string | null;
   newState: string | null;
   createdAt: string;
 }

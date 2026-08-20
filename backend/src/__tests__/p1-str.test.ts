@@ -22,7 +22,13 @@ beforeAll(async () => {
   testUserId = testUser.id;
 
   const borrower = await prisma.borrowerProfile.create({
-    data: { borrowerType: 'INDIVIDUAL', name: 'STR Test Borrower' },
+    data: {
+      borrowerType: 'INDIVIDUAL',
+      name: 'STR Test Borrower',
+      borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+      segment: 'INDIVIDUAL',
+      lifecycleStatus: 'ACTIVE',
+    },
   });
 
   const app = await prisma.creditApplication.create({
@@ -196,7 +202,13 @@ describe('P1-7: STR Register', () => {
 
       // Create a mock AML rescreen event
       const borrower = await prisma.borrowerProfile.create({
-        data: { borrowerType: 'INDIVIDUAL', name: 'AML Test Borrower' },
+        data: {
+          borrowerType: 'INDIVIDUAL',
+          name: 'AML Test Borrower',
+          borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+          segment: 'INDIVIDUAL',
+          lifecycleStatus: 'ACTIVE',
+        },
       });
 
       const amlEvent = await prisma.amlRescreenEvent.create({

@@ -15,6 +15,12 @@ jest.mock('../../../utils/prisma', () => ({
     creditSlaBreach: {
       findMany: jest.fn(),
     },
+    creditSlaPolicy: {
+      findMany: jest.fn(),
+    },
+    creditSlaPolicyBranchOverride: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -24,6 +30,8 @@ import { dashboardService } from '../dashboard.service';
 const mockedFindMany = prisma.creditApplication.findMany as jest.Mock;
 const mockedCount = prisma.creditApplication.count as jest.Mock;
 const mockedBreachFindMany = prisma.creditSlaBreach.findMany as jest.Mock;
+const mockedPolicyFindMany = prisma.creditSlaPolicy.findMany as jest.Mock;
+const mockedOverrideFindMany = prisma.creditSlaPolicyBranchOverride.findMany as jest.Mock;
 
 const makeApp = (idx: number) => ({
   id: `app-${idx}`,
@@ -44,6 +52,8 @@ describe('My Work Dashboard KPI counts', () => {
     jest.clearAllMocks();
     // Default: no SLA breaches
     mockedBreachFindMany.mockResolvedValue([]);
+    mockedPolicyFindMany.mockResolvedValue([]);
+    mockedOverrideFindMany.mockResolvedValue([]);
   });
 
   it('returns true counts even when list is capped at 10', async () => {

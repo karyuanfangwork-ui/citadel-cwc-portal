@@ -47,6 +47,7 @@ export interface MyWorkItem {
   // Dashboard cockpit additions
   slaRemainingHours: number | null;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  blocker: string;
   currentTask: string;
   nextAction: { label: string; route: string };
 }
@@ -202,6 +203,7 @@ export interface ActivityFeedItem {
   action: string;
   actorId: string | null;
   actorName: string | null;
+  oldState: string | null;
   newState: string | null;
   createdAt: string;
 }
@@ -264,6 +266,129 @@ export function getOperationalGuidance(state: string, applicationId: string) {
       route: `/credit/applications/${applicationId}`,
     },
   };
+}
+
+export interface BorrowerProfileNameFields {
+  name?: string | null;
+  account?: { name?: string | null } | null;
+  contact?: { firstName?: string | null; lastName?: string | null } | null;
+}
+
+/** Resolve borrower names consistently with the frontend borrower summary. */
+export function resolveBorrowerName(
+  bp: BorrowerProfileNameFields | null | undefined,
+  applicationNo: string,
+): string {
+  if (!bp) return `Borrower ${applicationNo}`;
+  const contactName = bp.contact
+    ? `${bp.contact.firstName || ''} ${bp.contact.lastName || ''}`.trim()
+    : '';
+  return (bp.account?.name || '').trim()
+    || contactName
+    || (bp.name || '').trim()
+    || `Borrower ${applicationNo}`;
+}
+
+export interface SlaPolicyRow {
+  id: string;
+  targetState: string;
+  slaHours: number;
+  productType: string | null;
+}
+
+export interface SlaOverrideRow {
+  policyId: string;
+  branchId: string;
+  slaHours: number;
+}
+
+export interface SlaComputation {
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+  slaRemainingHours: number | null;
+}
+
+export interface SlaCalculator {
+  compute(
+    app: { state: string; branchId: string | null; productType: string | null; createdAt: Date },
+    isBreached: boolean,
+  ): SlaComputation;
+}
+
+const SLA_WARNING_FRACTION = 0.25;
+
+/** Build a request-scoped SLA calculator without per-row database queries. */
+export function buildSlaCalculator(
+  policies: SlaPolicyRow[],
+  overrides: SlaOverrideRow[],
+  now: Date,
+): SlaCalculator {
+  const byState = new Map<string, SlaPolicyRow[]>();
+  for (const policy of policies) {
+    const list = byState.get(policy.targetState) ?? [];
+    list.push(policy);
+    byState.set(policy.targetState, list);
+  }
+  const overrideKey = (policyId: string, branchId: string) => `${policyId}::${branchId}`;
+  const overrideHours = new Map(
+    overrides.map(override => [overrideKey(override.policyId, override.branchId), override.slaHours]),
+  );
+
+  return {
+    compute(app, isBreached) {
+      if (isBreached) return { slaStatus: 'OVERDUE', slaRemainingHours: 0 };
+
+      const candidates = (byState.get(app.state) ?? [])
+        .filter(policy => policy.productType == null || policy.productType === app.productType);
+      if (candidates.length === 0) return { slaStatus: 'OK', slaRemainingHours: null };
+
+      let windowHours: number | null = null;
+      for (const policy of candidates) {
+        const hours = (app.branchId
+          ? overrideHours.get(overrideKey(policy.id, app.branchId))
+          : undefined) ?? policy.slaHours;
+        if (windowHours === null || hours < windowHours) windowHours = hours;
+      }
+
+      const elapsedHours = (now.getTime() - app.createdAt.getTime()) / 3600_000;
+      const remaining = (windowHours as number) - elapsedHours;
+      if (remaining <= 0) return { slaStatus: 'OVERDUE', slaRemainingHours: 0 };
+
+      return {
+        slaStatus: remaining <= (windowHours as number) * SLA_WARNING_FRACTION ? 'WARNING' : 'OK',
+        slaRemainingHours: Math.round(remaining),
+      };
+    },
+  };
+}
+
+export interface BlockerInput {
+  state: string;
+  slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
+  daysOverdue: number | null;
+  breachPolicyName: string | null;
+  openConditionCount: number | null;
+  currentTask: string;
+  flags: { expiredBureau: boolean; highDsr: boolean; amlReview: boolean };
+}
+
+const RETURNED_STATES = new Set(['REFERRED_BACK', 'KYC_REJECTED']);
+
+/** Resolve the most useful operational reason an application is stuck. */
+export function resolveBlocker(input: BlockerInput): string {
+  if (input.slaStatus === 'OVERDUE' && input.daysOverdue != null && input.breachPolicyName) {
+    const unit = input.daysOverdue === 1 ? 'day' : 'days';
+    return `Overdue ${input.daysOverdue} ${unit} — ${input.breachPolicyName}`;
+  }
+  if (RETURNED_STATES.has(input.state)) {
+    if (input.openConditionCount == null) return 'Returned by credit';
+    const unit = input.openConditionCount === 1 ? 'condition' : 'conditions';
+    return `Returned by credit — ${input.openConditionCount} ${unit} outstanding`;
+  }
+  if (input.state === 'COMPLIANCE_HOLD') return 'Information requested from customer';
+  if (input.flags.expiredBureau) return 'Bureau report expired';
+  if (input.flags.highDsr) return 'DSR above policy threshold';
+  if (input.flags.amlReview) return 'Pending AML review';
+  return input.currentTask;
 }
 
 // ---------------------------------------------------------------------------
@@ -480,6 +605,7 @@ class DashboardService {
       requestedAmount: true,
       lane: true,
       createdAt: true,
+      branchId: true,
       borrowerProfile: {
         select: {
           id: true,
@@ -487,6 +613,8 @@ class DashboardService {
           borrowerType: true,
           creditRiskRating: true,
           industry: true,
+          account: { select: { name: true } },
+          contact: { select: { firstName: true, lastName: true } },
         },
       },
     };
@@ -520,30 +648,42 @@ class DashboardService {
         },
       },
       include: {
-        application: { select: { id: true, applicationNo: true, state: true, borrowerProfile: { select: { id: true, name: true, industry: true } } } },
+        application: { select: { id: true, applicationNo: true, state: true, borrowerProfile: { select: { id: true, name: true, industry: true, account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } } } },
         policy: { select: { name: true } },
       },
     });
 
     const breachedAppIds = new Set(myBreaches.map(b => b.application.id));
 
+    // Load SLA policies once per request; countdown calculation stays in memory.
+    const [slaPolicies, slaOverrides] = await Promise.all([
+      prisma.creditSlaPolicy.findMany({
+        where: { isActive: true },
+        select: { id: true, targetState: true, slaHours: true, productType: true },
+      }),
+      prisma.creditSlaPolicyBranchOverride.findMany({
+        where: { isActive: true },
+        select: { policyId: true, branchId: true, slaHours: true },
+      }),
+    ]);
+    const slaCalculator = buildSlaCalculator(slaPolicies, slaOverrides, new Date());
+    // No conditions model exists to count against. Returned rows therefore use
+    // the documented "Returned by credit" fallback without an N+1 query.
+    const openConditionsByApp = new Map<string, number>();
+
     const toMyWorkItem = (app: any): MyWorkItem => {
       const bp = app.borrowerProfile;
-      const borrowerName = bp?.name ?? 'Unknown';
+      const borrowerName = resolveBorrowerName(bp, app.applicationNo ?? '');
 
-      const slaStatus: 'OK' | 'WARNING' | 'OVERDUE' = breachedAppIds.has(app.id)
-        ? 'OVERDUE'
-        : 'OK';
-
-      // Derive SLA remaining hours from the SLA due date
-      let slaRemainingHours: number | null = null;
-      // We compute this inline from the SLA service on demand — but to avoid
-      // N+1 queries we use a simpler heuristic: if breached, remaining = 0;
-      // otherwise we estimate from createdAt + slaHours (fetched per-bucket above).
-      // For the cockpit table we set it to null if no SLA policy applies.
-      if (slaStatus === 'OVERDUE') {
-        slaRemainingHours = 0;
-      }
+      const { slaStatus, slaRemainingHours } = slaCalculator.compute(
+        {
+          state: app.state as string,
+          branchId: app.branchId ?? null,
+          productType: app.productType ?? null,
+          createdAt: app.createdAt,
+        },
+        breachedAppIds.has(app.id),
+      );
 
       const requestedAmount = app.requestedAmount != null ? Number(app.requestedAmount) : 0;
       const priority = derivePriority({
@@ -552,6 +692,16 @@ class DashboardService {
         slaStatus,
       });
       const guidance = getOperationalGuidance(app.state as string, app.id);
+      const breach = myBreaches.find(item => item.application.id === app.id);
+      const blocker = resolveBlocker({
+        state: app.state as string,
+        slaStatus,
+        daysOverdue: breach ? Math.floor((Date.now() - breach.breachedAt.getTime()) / 86400000) : null,
+        breachPolicyName: breach?.policy?.name ?? null,
+        openConditionCount: openConditionsByApp.get(app.id) ?? null,
+        currentTask: guidance.currentTask,
+        flags: { expiredBureau: false, highDsr: false, amlReview: false },
+      });
 
       return {
         id: app.id,
@@ -566,13 +716,14 @@ class DashboardService {
         entityType: bp?.borrowerType ?? null,
         slaRemainingHours,
         priority,
+        blocker,
         ...guidance,
       };
     };
 
     const mySlaBreachItems: SlaBreachItem[] = myBreaches.map(b => {
       const bp = (b as any).application?.borrowerProfile;
-      const borrowerName = bp?.name ?? 'Unknown';
+      const borrowerName = resolveBorrowerName(bp, b.application.applicationNo);
       return {
         id: b.id,
         applicationId: b.application.id,
@@ -1437,6 +1588,7 @@ class DashboardService {
       action: e.action,
       actorId: e.actorId,
       actorName: e.actorId ? actorMap.get(e.actorId) ?? null : null,
+      oldState: e.oldState,
       newState: e.newState,
       createdAt: e.createdAt.toISOString(),
     }));

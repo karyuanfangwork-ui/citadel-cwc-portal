@@ -23,7 +23,13 @@ beforeAll(async () => {
   testWithdrawnById = testUser.id;
 
   const borrower = await prisma.borrowerProfile.create({
-    data: { borrowerType: 'INDIVIDUAL', name: 'Consent Test Borrower' },
+    data: {
+      borrowerType: 'INDIVIDUAL',
+      name: 'Consent Test Borrower',
+      borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+      segment: 'INDIVIDUAL',
+      lifecycleStatus: 'ACTIVE',
+    },
   });
   testBorrowerId = borrower.id;
 

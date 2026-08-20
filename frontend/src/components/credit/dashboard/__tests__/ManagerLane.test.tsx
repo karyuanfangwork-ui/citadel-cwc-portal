@@ -66,13 +66,15 @@ const alerts = {
 };
 
 const renderLane = (overrides: Partial<ComponentProps<typeof ManagerLane>> = {}) => render(
-  <ManagerLane
-    pipeline={pipeline}
-    teamPerf={teamPerf}
-    activity={[]}
-    alerts={alerts}
-    {...overrides}
-  />,
+  <MemoryRouter>
+    <ManagerLane
+      pipeline={pipeline}
+      teamPerf={teamPerf}
+      activity={[]}
+      alerts={alerts}
+      {...overrides}
+    />
+  </MemoryRouter>,
 );
 
 beforeEach(() => {
@@ -192,15 +194,20 @@ describe('ManagerLane', () => {
     renderLane({
       activity: [{
         id: 'activity-1',
+        applicationId: 'app-1001',
         applicationNo: 'APP-1001',
         action: 'start_condition_fulfilment',
         actorName: 'Alex Tan',
+        oldState: 'SUBMITTED',
+        newState: 'KYC_REVIEW',
         createdAt: new Date().toISOString(),
       }],
     });
 
     const activityRegion = screen.getByRole('region', { name: 'Recent activity' });
     expect(within(activityRegion).getByRole('listitem', { name: /Alex Tan.*Started condition fulfilment.*APP-1001.*Just now/ })).toBeInTheDocument();
+    expect(within(activityRegion).getByText(/Submitted.*Verification review/)).toBeInTheDocument();
+    expect(within(activityRegion).getByRole('link', { name: 'APP-1001' })).toHaveAttribute('href', '/credit/applications/app-1001');
     expect(within(activityRegion).queryByText('start_condition_fulfilment')).not.toBeInTheDocument();
   });
 });

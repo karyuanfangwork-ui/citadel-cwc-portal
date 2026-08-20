@@ -59,6 +59,7 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   resume_underwriting: 'Resumed underwriting',
   resume_assessment: 'Resumed credit assessment',
   resume_committee: 'Resumed committee review',
+  advance: 'Advanced application',
 };
 
 const MANAGER_STAGES = [
@@ -77,7 +78,8 @@ export function formatPipelineState(state: string): string {
 }
 
 export function formatActivityAction(action: string): string {
-  return ACTIVITY_ACTION_LABELS[action] ?? action
+  const normalizedAction = action.trim().toLowerCase();
+  return ACTIVITY_ACTION_LABELS[normalizedAction] ?? normalizedAction
     .replace(/[_-]+/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, character => character.toUpperCase());
@@ -101,7 +103,7 @@ export function buildPipelineStages(states: PipelineStateCount[]): PipelineStage
     return stageResult;
   });
 
-  const knownStates = new Set(MANAGER_STAGES.flatMap(stage => stage.states));
+  const knownStates = new Set<string>(MANAGER_STAGES.flatMap(stage => stage.states));
   const otherStates = states.filter(state => !knownStates.has(state.state));
 
   if (otherStates.length > 0) {

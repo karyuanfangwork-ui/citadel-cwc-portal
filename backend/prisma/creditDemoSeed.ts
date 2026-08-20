@@ -85,7 +85,7 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
   const profiles: any[] = [];
 
   // --- Corporate borrowers ---
-  for (const acct of corporateAccounts) {
+  for (const [index, acct] of corporateAccounts.entries()) {
     let bp = await findExisting(prisma.borrowerProfile, { accountId: acct.id });
     if (!bp) {
       const riskRating = acct.name.includes('SME') ? RiskRating.BBB : acct.name.includes('Tech') ? RiskRating.BB : RiskRating.A;
@@ -94,6 +94,8 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
       bp = await prisma.borrowerProfile.create({
         data: {
           borrowerType: BorrowerType.CORPORATE,
+          borrowerNumber: `DEMO-CORP-${String(index + 1).padStart(3, '0')}`,
+          segment: acct.name.includes('SME') ? 'SME' : 'CORPORATE',
           accountId: acct.id,
           creditRiskRating: riskRating,
           amlRiskTier: amlTier,
@@ -194,7 +196,7 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
   }
 
   // --- Individual borrowers (linked via CrmContact) ---
-  for (const acct of individualAccounts) {
+  for (const [index, acct] of individualAccounts.entries()) {
     const firstName = acct.name.includes('High') ? 'Dato' : 'Aminah';
     const lastName = acct.name.includes('High') ? 'Lee @ Dato Lee' : 'binti Yusof';
     let contact = await findExisting(prisma.crmContact, { accountId: acct.id, firstName, lastName });
@@ -209,6 +211,8 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
       bp = await prisma.borrowerProfile.create({
         data: {
           borrowerType: BorrowerType.INDIVIDUAL,
+          borrowerNumber: `DEMO-IND-${String(index + 1).padStart(3, '0')}`,
+          segment: 'INDIVIDUAL',
           contactId: contact.id,
           creditRiskRating: acct.name.includes('High') ? RiskRating.A : RiskRating.BBB,
           amlRiskTier: acct.name.includes('High') ? AmlRiskTier.MEDIUM : AmlRiskTier.LOW,

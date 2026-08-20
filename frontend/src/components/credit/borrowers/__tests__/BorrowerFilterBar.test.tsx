@@ -11,6 +11,17 @@ const defaultFilters: BorrowerFilterState = {
 };
 
 describe('BorrowerFilterBar', () => {
+  it('marks the search control for full-width wrapping on narrow filter rows', () => {
+    const { container } = render(<BorrowerFilterBar filters={defaultFilters} onFilterChange={vi.fn()} />);
+
+    const searchLabel = container.querySelector('label');
+
+    expect(searchLabel).toHaveClass('borrower-filter-search');
+    expect(searchLabel).toHaveStyle({
+      minWidth: '0',
+    });
+  });
+
   it('announces active filters count on the button', () => {
     const filters: BorrowerFilterState = { ...defaultFilters, segmentFilter: 'INDIVIDUAL', statusFilter: 'ACTIVE' };
     render(<BorrowerFilterBar filters={filters} onFilterChange={vi.fn()} />);

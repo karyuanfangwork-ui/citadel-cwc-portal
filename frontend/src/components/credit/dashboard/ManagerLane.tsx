@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import type { PipelineDashboard } from '../../../services/credit.service';
 import { buildPipelineStages, formatActivityAction, formatPipelineState } from './managerPresentation';
 
@@ -12,9 +13,12 @@ interface TeamPerformanceData {
 
 interface ActivityItem {
   id: string;
+  applicationId: string;
   applicationNo: string;
   action: string;
   actorName: string | null;
+  oldState: string | null;
+  newState: string | null;
   createdAt: string;
 }
 
@@ -67,6 +71,19 @@ function formatRelativeTime(createdAt: string): string {
   if (elapsedDays < 7) return `${elapsedDays}d ago`;
 
   return new Date(timestamp).toLocaleDateString();
+}
+
+function formatActivityTimestamp(createdAt: string): string {
+  const timestamp = new Date(createdAt).getTime();
+  if (Number.isNaN(timestamp)) return 'Unknown time';
+
+  return new Date(timestamp).toLocaleString('en-MY', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 const ManagerLane: React.FC<ManagerLaneProps> = ({ pipeline, teamPerf, activity, alerts }) => {
@@ -188,7 +205,20 @@ const ManagerLane: React.FC<ManagerLaneProps> = ({ pipeline, teamPerf, activity,
             {activity.map(item => (
               <li key={item.id} aria-label={`${item.actorName ?? 'Unknown user'} ${formatActivityAction(item.action)} ${item.applicationNo} ${formatRelativeTime(item.createdAt)}`} style={{ borderBottom: '1px solid var(--cr-outline-variant)', padding: '12px 0' }}>
                 <p style={{ color: 'var(--cr-on-surface)', fontSize: 14, margin: 0 }}><strong>{item.actorName ?? 'Unknown user'}</strong> {formatActivityAction(item.action)}</p>
-                <p style={{ color: 'var(--cr-on-surface-variant)', fontSize: 12, margin: '4px 0 0' }}>{item.applicationNo} · {formatRelativeTime(item.createdAt)}</p>
+                {item.oldState && item.newState && item.oldState !== item.newState && (
+                  <p style={{ color: 'var(--cr-on-surface-variant)', fontSize: 12, margin: '4px 0 0' }}>
+                    {formatPipelineState(item.oldState)} <span aria-hidden="true">→</span> {formatPipelineState(item.newState)}
+                  </p>
+                )}
+                <p style={{ alignItems: 'center', color: 'var(--cr-on-surface-variant)', display: 'flex', flexWrap: 'wrap', fontSize: 12, gap: 6, margin: '4px 0 0' }}>
+                  <Link to={`/credit/applications/${item.applicationId}`} style={{ color: 'var(--cr-primary)', fontWeight: 650, textDecoration: 'none' }}>
+                    {item.applicationNo}
+                  </Link>
+                  <span aria-hidden="true">·</span>
+                  <time dateTime={item.createdAt} title={formatActivityTimestamp(item.createdAt)}>
+                    {formatRelativeTime(item.createdAt)} · {formatActivityTimestamp(item.createdAt)}
+                  </time>
+                </p>
               </li>
             ))}
           </ul>

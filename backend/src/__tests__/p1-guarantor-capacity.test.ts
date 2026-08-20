@@ -10,7 +10,13 @@ let testGuaranteeId2: string;
 
 beforeAll(async () => {
   const borrower = await prisma.borrowerProfile.create({
-    data: { borrowerType: 'INDIVIDUAL', name: 'Guarantor Test Borrower' },
+    data: {
+      borrowerType: 'INDIVIDUAL',
+      name: 'Guarantor Test Borrower',
+      borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+      segment: 'INDIVIDUAL',
+      lifecycleStatus: 'ACTIVE',
+    },
   });
   testGuarantorId = borrower.id;
 
@@ -124,7 +130,13 @@ describe('P1-5: Guarantor Capacity Checks', () => {
     it('should handle missing net worth gracefully', async () => {
       // Create guarantee without setting estimatedNetWorth
       const borrower2 = await prisma.borrowerProfile.create({
-        data: { borrowerType: 'INDIVIDUAL', name: 'No Net Worth Guarantor' },
+        data: {
+          borrowerType: 'INDIVIDUAL',
+          name: 'No Net Worth Guarantor',
+          borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+          segment: 'INDIVIDUAL',
+          lifecycleStatus: 'ACTIVE',
+        },
       });
 
       const guarantee4 = await guaranteeService.createGuarantee({

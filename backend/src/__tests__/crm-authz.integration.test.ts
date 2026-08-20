@@ -32,7 +32,7 @@ const signToken = (userId: string, email: string) =>
 
 beforeAll(async () => {
   const permissions = await Promise.all(
-    ['crm:read', 'crm:write', 'crm:delete'].map((name) =>
+    ['crm:read', 'crm:write', 'crm:delete', 'crm:export'].map((name) =>
       prisma.permission.upsert({
         where: { name },
         update: {},

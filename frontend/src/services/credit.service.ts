@@ -2441,6 +2441,11 @@ export interface MyWorkItem {
   riskGrade: string | null;
   slaStatus: 'OK' | 'WARNING' | 'OVERDUE';
   entityType: string | null;
+  slaRemainingHours: number | null;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  blocker: string;
+  currentTask: string;
+  nextAction: { label: string; route: string };
 }
 
 export interface MyWorkDashboard {

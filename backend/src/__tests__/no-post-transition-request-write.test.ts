@@ -29,8 +29,10 @@ const ALLOWLIST = new Set<string>([
   // Legitimate: tx.request.update inside $transaction for admin CEO-approver reassignment
   // (read-modify-return pattern returning updated request for API response)
   'esm-workflow.controller.ts:393',
-  // Legitimate: tx.request.update inside $transaction for DCEO approver change
-  'finance-workflow.controller.ts:637',
+  // Legitimate: tx.request.update inside $transaction for Group DCEO approver reassignment
+  'finance-workflow.controller.ts:655',
+  // Legitimate: tx.request.update inside $transaction for CEO approver reassignment
+  'finance-workflow.controller.ts:789',
   // Data-sync: customFields.lastDay propagation from offboarding model
   'offboarding.controller.ts:228',
 ]);

@@ -38,7 +38,13 @@ beforeAll(async () => {
   }
 
   const borrower = await prisma.borrowerProfile.create({
-    data: { borrowerType: 'INDIVIDUAL', name: 'LTV Test Borrower' },
+    data: {
+      borrowerType: 'INDIVIDUAL',
+      name: 'LTV Test Borrower',
+      borrowerNumber: `T${Date.now().toString().slice(-10)}${Math.random().toString(36).slice(2, 7)}`,
+      segment: 'INDIVIDUAL',
+      lifecycleStatus: 'ACTIVE',
+    },
   });
 
   const app = await prisma.creditApplication.create({
