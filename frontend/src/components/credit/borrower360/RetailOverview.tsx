@@ -9,6 +9,8 @@ type RetailOverviewProps = {
   onAlertAction: (label: string) => void;
   onEditIncome?: () => void;
   canWrite?: boolean;
+  includeAlerts?: boolean;
+  includeActivity?: boolean;
 };
 
 const MYR = new Intl.NumberFormat('en-MY', {
@@ -29,7 +31,7 @@ const ACTIVITY_ICON: Record<string, { icon: string; tone: 'pos' | 'warn' | 'neg'
   ONBOARDED: { icon: 'person_add', tone: 'pos' },
 };
 
-export const RetailOverview: React.FC<RetailOverviewProps> = ({ profile, summary, activity, onAlertAction, onEditIncome, canWrite }) => {
+export const RetailOverview: React.FC<RetailOverviewProps> = ({ profile, summary, activity, onAlertAction, onEditIncome, canWrite, includeAlerts = true, includeActivity = true }) => {
   const income = summary?.income;
   const gross = income?.gross ?? 0;
   const commitments = income?.commitments ?? 0;
@@ -38,7 +40,7 @@ export const RetailOverview: React.FC<RetailOverviewProps> = ({ profile, summary
 
   return (
     <div className="space-y-4">
-      {(summary?.alerts ?? []).length > 0 ? (
+      {includeAlerts && (summary?.alerts ?? []).length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {summary!.alerts.map((alert) => (
             <AlertCard
@@ -123,7 +125,7 @@ export const RetailOverview: React.FC<RetailOverviewProps> = ({ profile, summary
         </div>
       </div>
 
-      <OutlinedCard title="Recent Activity">
+      {includeActivity ? <OutlinedCard title="Recent Activity">
         {activity.length > 0 ? (
           <ActivityTimeline
             events={activity.map((event) => ({
@@ -137,7 +139,7 @@ export const RetailOverview: React.FC<RetailOverviewProps> = ({ profile, summary
         ) : (
           <p className="text-[12px] italic text-fc-on-variant">No activity recorded yet.</p>
         )}
-      </OutlinedCard>
+      </OutlinedCard> : null}
     </div>
   );
 };

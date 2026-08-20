@@ -7,6 +7,8 @@ type CorporateOverviewProps = {
   summary: Borrower360Summary | null;
   activity: Borrower360Activity[];
   onAlertAction: (label: string) => void;
+  includeAlerts?: boolean;
+  includeActivity?: boolean;
 };
 
 const MYR = new Intl.NumberFormat('en-MY', {
@@ -31,7 +33,7 @@ const ACTIVITY_ICON: Record<string, { icon: string; tone: 'pos' | 'warn' | 'neg'
   APP_CREATED: { icon: 'description', tone: 'neutral' },
 };
 
-export const CorporateOverview: React.FC<CorporateOverviewProps> = ({ profile, summary, activity, onAlertAction }) => {
+export const CorporateOverview: React.FC<CorporateOverviewProps> = ({ profile, summary, activity, onAlertAction, includeAlerts = true, includeActivity = true }) => {
   const businessRows = [
     { label: 'Borrower Type', value: profile.borrowerType?.replace(/_/g, ' ') ?? '—' },
     { label: 'Registration No.', value: profile.registrationNumber ?? '—' },
@@ -51,7 +53,7 @@ export const CorporateOverview: React.FC<CorporateOverviewProps> = ({ profile, s
 
   return (
     <div className="space-y-4">
-      {(summary?.alerts ?? []).length > 0 ? (
+      {includeAlerts && (summary?.alerts ?? []).length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {summary!.alerts.map((alert) => (
             <AlertCard
@@ -100,7 +102,7 @@ export const CorporateOverview: React.FC<CorporateOverviewProps> = ({ profile, s
         </OutlinedCard>
       </div>
 
-      <OutlinedCard title="Recent Activity">
+      {includeActivity ? <OutlinedCard title="Recent Activity">
         {activity.length > 0 ? (
           <ActivityTimeline
             events={activity.map((event) => ({
@@ -114,7 +116,7 @@ export const CorporateOverview: React.FC<CorporateOverviewProps> = ({ profile, s
         ) : (
           <p className="text-[12px] italic text-fc-on-variant">No activity recorded yet.</p>
         )}
-      </OutlinedCard>
+      </OutlinedCard> : null}
     </div>
   );
 };

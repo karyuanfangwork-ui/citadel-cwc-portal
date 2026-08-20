@@ -217,6 +217,7 @@ const BorrowerProfileDetail: React.FC = () => {
   const typeBadge = TYPE_BADGE[profile.borrowerType] || { bg: '#6366f120', text: '#6366f1' };
   const ratingColor = RATING_COLOR(profile.creditRiskRating);
   const amlBadge = profile.amlRiskTier ? AML_BADGE[profile.amlRiskTier] : null;
+  const applicationsAvailable = applicationError === null;
 
   return (
     <>
@@ -225,6 +226,7 @@ const BorrowerProfileDetail: React.FC = () => {
           profile={profile}
           summary={borrower360Summary}
           primaryAction={getPrimaryApplicationAction(applications)}
+          applicationsAvailable={applicationsAvailable}
           canWrite={canWrite}
           canCreate={canCreate}
           onPrimaryAction={() => {
@@ -265,6 +267,7 @@ const BorrowerProfileDetail: React.FC = () => {
               profile={profile}
               summary={borrower360Summary}
               applications={applications}
+              applicationsAvailable={applicationsAvailable}
               readiness={calculateBorrowerReadiness({ profile, summary: borrower360Summary, applications })}
               activity={borrower360Activity}
               canWrite={canWrite}
