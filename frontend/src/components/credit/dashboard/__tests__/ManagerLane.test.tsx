@@ -1,8 +1,42 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import { describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dashboardMocks = vi.hoisted(() => ({
+  getActivityFeed: vi.fn(),
+  getAlerts: vi.fn(),
+  getMyWork: vi.fn(),
+  getPipelineDashboard: vi.fn(),
+  getTeamPerformance: vi.fn(),
+  getWorkQueue: vi.fn(),
+  listBranches: vi.fn(),
+}));
+
+vi.mock('../../../../services/credit.service', () => ({
+  dashboardApi: {
+    getActivityFeed: dashboardMocks.getActivityFeed,
+    getAlerts: dashboardMocks.getAlerts,
+    getMyWork: dashboardMocks.getMyWork,
+    getPipelineDashboard: dashboardMocks.getPipelineDashboard,
+    getTeamPerformance: dashboardMocks.getTeamPerformance,
+    getWorkQueue: dashboardMocks.getWorkQueue,
+  },
+  branchApi: { list: dashboardMocks.listBranches },
+}));
+
+vi.mock('../../../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'manager-1', permissions: ['credit:admin'] } }),
+}));
+
+vi.mock('../useCreditLane', () => ({
+  LANE_LABELS: { rm: 'My deals', approver: 'Decisions', manager: 'Portfolio' },
+  useCreditLane: () => ({ lane: 'manager', lanes: ['rm', 'manager'], setLane: vi.fn() }),
+}));
+
 import ManagerLane from '../ManagerLane';
 import type { PipelineDashboard } from '../../../../services/credit.service';
+import CreditDashboard from '../../../../../pages/credit/CreditDashboard';
 
 const pipeline: PipelineDashboard = {
   states: [
@@ -38,7 +72,35 @@ const renderLane = (overrides: Partial<ComponentProps<typeof ManagerLane>> = {})
   />,
 );
 
+beforeEach(() => {
+  dashboardMocks.listBranches.mockResolvedValue([]);
+  dashboardMocks.getWorkQueue.mockResolvedValue({ data: { data: { buckets: [], totalApplications: 0 } } });
+  dashboardMocks.getAlerts.mockResolvedValue({ data: { data: alerts } });
+  dashboardMocks.getActivityFeed.mockResolvedValue({ data: { data: { items: [], total: 0, page: 1, limit: 20 } } });
+  dashboardMocks.getTeamPerformance.mockResolvedValue({ data: { data: teamPerf } });
+  dashboardMocks.getPipelineDashboard.mockResolvedValue({ data: { data: pipeline } });
+  dashboardMocks.getMyWork.mockResolvedValue({ data: { data: {
+    myApprovalCount: 0,
+    myAssignedCount: 0,
+    mySlaBreaches: 0,
+    mySlaBreachItems: [],
+    recentAssigned: [],
+    recentApprovals: [],
+    attention: { overdue: 0, dueSoon: 0, informationRequired: 0, returned: 0 },
+  } } });
+});
+
 describe('ManagerLane', () => {
+  it('keeps each manager dashboard section under a single presentation owner', async () => {
+    render(<MemoryRouter><CreditDashboard /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /application pipeline/i })).toHaveLength(1));
+
+    expect(screen.getAllByRole('heading', { name: /team performance/i })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: /operational alerts/i })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: /recent activit/i })).toHaveLength(1);
+  });
+
   it('renders a user-facing application pipeline with compact accessible stages', () => {
     renderLane();
 

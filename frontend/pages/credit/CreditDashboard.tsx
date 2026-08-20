@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { dashboardApi, branchApi, Branch } from '../../src/services/credit.service';
+import { useNavigate } from 'react-router-dom';
+import { dashboardApi, branchApi, Branch, type ApprovalDecision, type PipelineDashboard } from '../../src/services/credit.service';
+import type { ApprovalInbox } from '../../src/services/credit.types';
+import type { ApprovalDecisionInput } from '../../src/components/credit/approvalDecision';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
 import { useAuth } from '../../src/context/AuthContext';
 import { hasPermission } from '../../src/utils/permissions';
 import AttentionStrip from '../../src/components/credit/dashboard/AttentionStrip';
-import PriorityWorkQueue from '../../src/components/credit/dashboard/PriorityWorkQueue';
-import NextActionsPanel from '../../src/components/credit/dashboard/NextActionsPanel';
-import OperationalAlerts from '../../src/components/credit/dashboard/OperationalAlerts';
+import { useCreditLane } from '../../src/components/credit/dashboard/useCreditLane';
+import LaneSwitcher from '../../src/components/credit/dashboard/LaneSwitcher';
+import RmLane from '../../src/components/credit/dashboard/RmLane';
+import ApproverLane from '../../src/components/credit/dashboard/ApproverLane';
+import ManagerLane from '../../src/components/credit/dashboard/ManagerLane';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,12 +63,6 @@ interface TeamPerformanceResult {
   totalDecisions: number;
 }
 
-interface PipelineStateCount {
-  state: string;
-  count: number;
-  avgDaysInState: number;
-}
-
 interface SlaBreachItem {
   id: string;
   applicationId: string;
@@ -74,13 +72,6 @@ interface SlaBreachItem {
   breachedAt: string;
   daysOverdue: number;
   policyName: string;
-}
-
-interface PipelineDashboard {
-  states: PipelineStateCount[];
-  totalApplications: number;
-  slaBreachCount: number;
-  slaBreaches: SlaBreachItem[];
 }
 
 interface MyWorkItem {
@@ -96,6 +87,7 @@ interface MyWorkItem {
   entityType: string | null;
   slaRemainingHours: number | null;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  blocker: string;
   currentTask: string;
   nextAction: { label: string; route: string };
 }
@@ -119,377 +111,6 @@ const formatMYR = (val: number | null | undefined) =>
     ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)
     : '—';
 
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  SUBMITTED: 'Submitted',
-  KYC_REVIEW: 'Verification',
-  COMPLIANCE_HOLD: 'Compliance Hold',
-  KYC_APPROVED: 'KYC Approved',
-  KYC_REJECTED: 'KYC Rejected',
-  UNDERWRITING: 'Underwriting',
-  CREDIT_ASSESSMENT: 'Credit Assessment',
-  COMMITTEE_REVIEW: 'Committee Review',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-  OFFER: 'Offer',
-  ACCEPTED: 'Accepted',
-  DISBURSED: 'Disbursed',
-  ACTIVE: 'Active',
-  CLOSED: 'Closed',
-  WITHDRAWN: 'Withdrawn',
-  REFERRED_BACK: 'Returned',
-  CONDITION_FULFILMENT: 'Condition Fulfilment',
-};
-
-const PRIORITY_COLORS: Record<string, { dot: string; text: string }> = {
-  HIGH: { dot: '#ba1a1a', text: '#ba1a1a' },
-  MEDIUM: { dot: '#d97706', text: '#d97706' },
-  LOW: { dot: '#16a34a', text: '#45464d' },
-};
-
-const SLA_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  OK: { bg: '#f0fdf4', text: '#16a34a' },
-  WARNING: { bg: '#fffbeb', text: '#d97706' },
-  OVERDUE: { bg: '#fef2f2', text: '#ba1a1a' },
-};
-
-function formatSlaRemaining(hours: number | null): string {
-  if (hours == null) return '—';
-  if (hours <= 0) return 'Overdue';
-  if (hours < 24) return `${hours}h remaining`;
-  const days = Math.floor(hours / 24);
-  return `${days}d remaining`;
-}
-
-function formatTimeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'Yesterday';
-  return `${days}d ago`;
-}
-
-// Pipeline funnel stages — collapse 20 states into 6 display stages
-const FUNNEL_STAGES = [
-  { label: 'Draft', states: ['DRAFT'] },
-  { label: 'Submitted', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED'] },
-  { label: 'Verification', states: ['COMPLIANCE_HOLD'] },
-  { label: 'Under Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'CONDITION_FULFILMENT'] },
-  { label: 'Final Approval', states: ['APPROVED', 'OFFER', 'ACCEPTED', 'REFERRED_BACK'] },
-  { label: 'Disbursed', states: ['DISBURSED', 'ACTIVE'] },
-];
-
-function computeFunnel(pipelineStates: PipelineStateCount[]) {
-  const total = pipelineStates.reduce((sum, s) => sum + s.count, 0);
-  return FUNNEL_STAGES.map((stage, i) => {
-    const count = pipelineStates
-      .filter(ps => stage.states.includes(ps.state))
-      .reduce((sum, ps) => sum + ps.count, 0);
-    const conversionPct = total > 0 ? Math.round((count / total) * 100) : 0;
-    const prevCount = i === 0 ? total : FUNNEL_STAGES.slice(0, i).reduce((acc, s) => {
-      return acc + pipelineStates.filter(ps => s.states.includes(ps.state)).reduce((sum, ps) => sum + ps.count, 0);
-    }, 0);
-    const stageConversion = prevCount > 0 ? Math.round((count / prevCount) * 100) : 0;
-    return { label: stage.label, count, conversionPct, stageConversion };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// KPI Card Component
-// ---------------------------------------------------------------------------
-
-const KpiCard: React.FC<{ bucket: WorkQueueBucket; isCritical?: boolean }> = ({ bucket, isCritical }) => {
-  const compliance = bucket.slaCompliancePct;
-  const barColor = compliance == null ? 'var(--cr-outline-variant)' : compliance >= 80 ? 'var(--cr-secondary)' : compliance >= 60 ? '#d97706' : 'var(--cr-error)';
-
-  return (
-    <div
-      style={{
-        background: 'var(--cr-surface-container-lowest)',
-        border: `1px solid ${isCritical ? 'var(--cr-error)' : 'var(--cr-outline-variant)'}`,
-        borderLeft: isCritical ? '3px solid var(--cr-error)' : undefined,
-        borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-        padding: '14px 16px',
-        minWidth: 0,
-        flex: '1 1 0',
-      }}
-    >
-      <p
-        style={{
-          fontFamily: 'var(--cr-font-display)',
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-          color: isCritical ? 'var(--cr-error)' : 'var(--cr-on-surface-variant)',
-          marginBottom: 6,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {bucket.label}
-      </p>
-      <p
-        style={{
-          fontFamily: 'var(--cr-font-display)',
-          fontSize: 28,
-          fontWeight: 700,
-          color: isCritical ? 'var(--cr-error)' : 'var(--cr-on-surface)',
-          fontVariantNumeric: 'tabular-nums',
-          lineHeight: 1.1,
-        }}
-      >
-        {bucket.count}
-      </p>
-
-      {/* SLA compliance bar */}
-      {compliance != null && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-            <span style={{ fontSize: 10, color: 'var(--cr-on-surface-variant)' }}>SLA</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: barColor, fontVariantNumeric: 'tabular-nums' }}>{compliance}%</span>
-          </div>
-          <div style={{ height: 3, background: 'var(--cr-surface-container)', borderRadius: 9999, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${compliance}%`, background: barColor, borderRadius: 9999, transition: 'width 0.3s' }} />
-          </div>
-        </div>
-      )}
-
-      {isCritical && bucket.count > 0 && (
-        <p style={{ fontSize: 10, color: 'var(--cr-error)', marginTop: 6, fontWeight: 600 }}>Immediate attention</p>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Pipeline Funnel Component (CSS clip-path chevrons)
-// ---------------------------------------------------------------------------
-
-const PipelineFunnel: React.FC<{ pipeline: PipelineDashboard | null }> = ({ pipeline }) => {
-  if (!pipeline || !pipeline.states.length) {
-    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>No pipeline data</div>;
-  }
-
-  const stages = computeFunnel(pipeline.states);
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'stretch', gap: 2, overflowX: 'auto' }}>
-      {stages.map((stage, i) => {
-        const widthPct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
-        const isCurrent = stage.label === 'Under Assessment';
-        const bg = isCurrent ? 'var(--cr-secondary-fixed)' : 'var(--cr-surface-container)';
-        const textCol = isCurrent ? 'var(--cr-on-secondary-fixed-variant)' : 'var(--cr-on-surface-variant)';
-
-        return (
-          <div
-            key={stage.label}
-            style={{
-              flex: '1 1 0',
-              minWidth: 120,
-              background: bg,
-              clipPath: i === 0
-                ? 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)'
-                : i === stages.length - 1
-                  ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%)'
-                  : 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%)',
-              padding: '12px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-            }}
-          >
-            <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 11, fontWeight: 600, color: textCol, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
-              {stage.label}
-            </p>
-            <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 22, fontWeight: 700, color: textCol, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-              {stage.count}
-            </p>
-            <p style={{ fontSize: 10, color: textCol, opacity: 0.8, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-              {stage.conversionPct}% of total
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Alert Tile Component
-// ---------------------------------------------------------------------------
-
-const AlertTile: React.FC<{
-  title: string;
-  icon: string;
-  count: number;
-  description: string;
-  actionLabel: string;
-  filterUrl: string;
-  variant: 'danger' | 'warning' | 'info';
-}> = ({ title, icon, count, description, actionLabel, filterUrl, variant }) => {
-  const colors = {
-    danger: { bg: '#fef2f2', border: '#ba1a1a', iconBg: '#ba1a1a', text: '#93000a' },
-    warning: { bg: '#fffbeb', border: '#d97706', iconBg: '#d97706', text: '#78350f' },
-    info: { bg: 'var(--cr-surface-container)', border: 'var(--cr-outline-variant)', iconBg: 'var(--cr-on-surface-variant)', text: 'var(--cr-on-surface-variant)' },
-  };
-  const c = colors[variant];
-
-  return (
-    <div
-      style={{
-        background: c.bg,
-        border: `1px solid ${c.border}`,
-        borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-        padding: 16,
-        flex: '1 1 0',
-        minWidth: 0,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 'var(--cr-radius)', background: c.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#fff' }}>{icon}</span>
-        </div>
-        <p style={{ fontFamily: 'var(--cr-font-display)', fontSize: 13, fontWeight: 600, color: c.text, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-          {title}
-        </p>
-      </div>
-      <p style={{ fontSize: 13, color: c.text, lineHeight: 1.4, marginBottom: 12 }}>
-        {count > 0 ? `${count} ${description}` : 'No alerts'}
-      </p>
-      {count > 0 && (
-        <Link
-          to={filterUrl}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            fontFamily: 'var(--cr-font-display)',
-            fontSize: 12,
-            fontWeight: 600,
-            color: c.border,
-            textDecoration: 'none',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
-          {actionLabel}
-          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
-        </Link>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Activity Timeline Component
-// ---------------------------------------------------------------------------
-
-const ActivityTimeline: React.FC<{ items: ActivityFeedItem[]; loading: boolean }> = ({ items, loading }) => {
-  if (loading) {
-    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>Loading activities…</div>;
-  }
-  if (!items.length) {
-    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>No recent activity</div>;
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {items.slice(0, 8).map((item, i) => (
-        <div
-          key={item.id}
-          style={{
-            display: 'flex',
-            gap: 12,
-            paddingBottom: i < Math.min(items.length, 8) - 1 ? 14 : 0,
-            position: 'relative',
-          }}
-        >
-          {/* Timeline dot */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--cr-secondary)', marginTop: 4 }} />
-            {i < Math.min(items.length, 8) - 1 && <div style={{ width: 1, flex: 1, background: 'var(--cr-outline-variant)', marginTop: 2 }} />}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--cr-on-surface)', marginBottom: 2 }}>
-              {item.action.replace(/_/g, ' ')}
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>
-              {item.applicationNo && <Link to={`/credit/applications/${item.applicationId}`} style={{ color: 'var(--cr-secondary)', textDecoration: 'none' }}>{item.applicationNo}</Link>}
-              {item.actorName ? ` · ${item.actorName}` : ''}
-              {item.newState ? ` · → ${STATE_LABELS[item.newState] ?? item.newState}` : ''}
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)', marginTop: 2 }}>{formatTimeAgo(item.createdAt)}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Team Performance Component
-// ---------------------------------------------------------------------------
-
-const TeamPerformance: React.FC<{ data: TeamPerformanceResult | null; loading: boolean }> = ({ data, loading }) => {
-  if (loading || !data) {
-    return <div style={{ padding: 24, textAlign: 'center', color: 'var(--cr-on-surface-variant)' }}>Loading…</div>;
-  }
-
-  const slaColor = data.slaCompliancePct >= 80 ? 'var(--cr-secondary)' : data.slaCompliancePct >= 60 ? '#d97706' : 'var(--cr-error)';
-
-  return (
-    <div>
-      {/* SLA Compliance */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>SLA Compliance</span>
-          <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 18, fontWeight: 700, color: slaColor, fontVariantNumeric: 'tabular-nums' }}>{data.slaCompliancePct}%</span>
-        </div>
-        <div style={{ height: 6, background: 'var(--cr-surface-container)', borderRadius: 9999, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${data.slaCompliancePct}%`, background: slaColor, borderRadius: 9999, transition: 'width 0.3s' }} />
-        </div>
-      </div>
-
-      {/* Approval Turnaround */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Approval Turnaround</span>
-          <span style={{ fontFamily: 'var(--cr-font-display)', fontSize: 18, fontWeight: 700, color: 'var(--cr-on-surface)', fontVariantNumeric: 'tabular-nums' }}>
-            {data.avgApprovalTurnaroundDays != null ? `${data.avgApprovalTurnaroundDays}d` : '—'}
-          </span>
-        </div>
-        <p style={{ fontSize: 11, color: 'var(--cr-on-surface-variant)' }}>{data.totalDecisions} decisions</p>
-      </div>
-
-      {/* Bottleneck */}
-      {data.bottleneckStage && (
-        <div style={{ background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', padding: 12 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--cr-on-surface-variant)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-            Queue Bottlenecks
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--cr-on-surface)' }}>
-            <strong>{STATE_LABELS[data.bottleneckStage.state] ?? data.bottleneckStage.state}</strong> is currently{' '}
-            <span style={{ color: 'var(--cr-error)', fontWeight: 600 }}>{data.bottleneckStage.pctSlowerThanAvg}% slower</span>
-            {' '}than hub average ({data.bottleneckStage.avgDays}d avg)
-          </p>
-        </div>
-      )}
-
-      {!data.bottleneckStage && (
-        <div style={{ background: 'var(--cr-surface-container)', borderRadius: 'var(--cr-radius)', padding: 12 }}>
-          <p style={{ fontSize: 13, color: 'var(--cr-on-surface-variant)' }}>No bottlenecks detected</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
@@ -499,6 +120,7 @@ const CreditDashboard: React.FC = () => {
   const { user } = useAuth();
   const canCreate = hasPermission(user, 'credit:create');
   const canAdminister = hasPermission(user, 'credit:admin');
+  const { lane, lanes, setLane } = useCreditLane(user);
   const [workQueue, setWorkQueue] = useState<WorkQueueResult | null>(null);
   const [alerts, setAlerts] = useState<DashboardAlerts | null>(null);
   const [activity, setActivity] = useState<ActivityFeedResult | null>(null);
@@ -509,9 +131,34 @@ const CreditDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchFilter, setBranchFilter] = useState<string>('');
+  const [approvalInbox, setApprovalInbox] = useState<ApprovalInbox | null>(null);
+  const [quickFilter, setQuickFilter] = useState<keyof MyWorkDashboard['attention'] | null>(null);
 
   useEffect(() => {
     branchApi.list().then(setBranches).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (lane !== 'approver') {
+      setApprovalInbox(null);
+      return;
+    }
+    dashboardApi.getApprovalInbox()
+      .then(response => setApprovalInbox(response.data.data))
+      .catch(err => {
+        toast.error(friendlyMessage(err, 'Failed to load approval inbox'));
+        setApprovalInbox({ high: [], medium: [], low: [], totalPending: 0, excluded: [] });
+      });
+  }, [lane]);
+
+  const handleDecision = useCallback((applicationId: string, _decision: ApprovalDecision, _input: ApprovalDecisionInput) => {
+    setApprovalInbox(current => current ? {
+      ...current,
+      high: current.high.filter(item => item.applicationId !== applicationId),
+      medium: current.medium.filter(item => item.applicationId !== applicationId),
+      low: current.low.filter(item => item.applicationId !== applicationId),
+      totalPending: Math.max(0, current.totalPending - 1),
+    } : current);
   }, []);
 
   const fetchAll = useCallback(() => {
@@ -633,6 +280,7 @@ const CreditDashboard: React.FC = () => {
               ))}
             </select>
           )}
+          <LaneSwitcher lane={lane} lanes={lanes} onChange={setLane} />
           {canCreate && <button
             onClick={() => navigate('/credit/applications/new')}
             style={{
@@ -656,80 +304,35 @@ const CreditDashboard: React.FC = () => {
         </div>
       </div>
 
-      <AttentionStrip attention={attention} />
+      <AttentionStrip
+        attention={attention}
+        active={quickFilter}
+        onSelect={key => setQuickFilter(current => current === key ? null : key)}
+      />
 
-      {/* ── Pipeline Funnel ── */}
-      <div
-        style={{
-          background: 'var(--cr-surface-container-lowest)',
-          border: '1px solid var(--cr-outline-variant)',
-          borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-          padding: 20,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
-            Application Pipeline
-          </h2>
-          <span style={{ fontSize: 12, color: 'var(--cr-on-surface-variant)' }}>{pipeline?.totalApplications ?? 0} total</span>
-        </div>
-        <PipelineFunnel pipeline={pipeline} />
-      </div>
+      {lane === 'rm' && (
+        <RmLane
+          items={quickFilter ? myAssigned.filter(item => {
+            if (quickFilter === 'overdue') return item.slaStatus === 'OVERDUE';
+            if (quickFilter === 'dueSoon') return item.slaStatus === 'WARNING';
+            if (quickFilter === 'informationRequired') return item.state === 'COMPLIANCE_HOLD';
+            return item.state === 'KYC_REJECTED' || item.state === 'REFERRED_BACK';
+          }) : myAssigned}
+          formatAmount={formatMYR}
+        />
+      )}
+      {lane === 'approver' && approvalInbox && (
+        <ApproverLane inbox={approvalInbox} onDecision={handleDecision} formatAmount={formatMYR} />
+      )}
+      {lane === 'manager' && (
+        <ManagerLane
+          pipeline={pipeline}
+          teamPerf={teamPerf}
+          activity={activity?.items ?? []}
+          alerts={alerts}
+        />
+      )}
 
-      {/* ── Split Section: Left (table + alerts) / Right (team perf + activity) ── */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        {/* Left column — 2/3 width */}
-        <div style={{ flex: '2 1 600px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <PriorityWorkQueue items={myAssigned} formatAmount={formatMYR} stateLabels={STATE_LABELS} formatSla={formatSlaRemaining} />
-          <NextActionsPanel items={myAssigned} />
-
-          {alerts && <OperationalAlerts alerts={[
-            { title: 'High DSR', icon: 'trending_up', count: alerts.highDsr.count, description: `Cases exceeding ${alerts.highDsr.thresholdPct}% DSR threshold. Manual override required.`, actionLabel: 'View Cases', filterUrl: alerts.highDsr.filterUrl, variant: 'danger' },
-            { title: 'Expired Bureau', icon: 'schedule', count: alerts.expiredBureau.count, description: `Bureau reports older than ${alerts.expiredBureau.maxAgeDays} days need refresh.`, actionLabel: 'Refresh All', filterUrl: alerts.expiredBureau.filterUrl, variant: 'warning' },
-            { title: 'AML Review', icon: 'shield', count: alerts.amlReview.count, description: 'High-risk matches detected in AML screening.', actionLabel: 'Open AML Case', filterUrl: alerts.amlReview.filterUrl, variant: 'info' },
-          ]} />}
-        </div>
-
-        {/* Right column — 1/3 width */}
-        <div style={{ flex: '1 1 320px', minWidth: 300, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Team Performance */}
-          {canAdminister && <div
-            style={{
-              background: 'var(--cr-surface-container-lowest)',
-              border: '1px solid var(--cr-outline-variant)',
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              padding: 20,
-            }}
-          >
-            <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)', marginBottom: 16 }}>
-              Team Performance
-            </h2>
-            <TeamPerformance data={teamPerf} loading={false} />
-          </div>}
-
-          {/* Recent Activities */}
-          <div
-            style={{
-              background: 'var(--cr-surface-container-lowest)',
-              border: '1px solid var(--cr-outline-variant)',
-              borderRadius: 'var(--cr-radius-lg, 0.5rem)',
-              padding: 20,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ fontFamily: 'var(--cr-font-display)', fontSize: 14, fontWeight: 600, color: 'var(--cr-on-surface)' }}>
-                Recent Activities
-              </h2>
-              {/* Audit log route not yet implemented — link hidden until route exists (P0.3) */}
-              {/* <Link to="/credit/audit" style={{ fontSize: 12, fontWeight: 600, color: 'var(--cr-secondary)', textDecoration: 'none' }}>
-                View Audit Log
-              </Link> */}
-            </div>
-            <ActivityTimeline items={activity?.items ?? []} loading={false} />
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
