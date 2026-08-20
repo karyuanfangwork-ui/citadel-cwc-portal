@@ -44,8 +44,8 @@ describe('ManagerLane', () => {
 
     const pipelineRegion = screen.getByRole('region', { name: 'Application pipeline' });
     expect(within(pipelineRegion).getByRole('heading', { name: 'Application pipeline' })).toBeInTheDocument();
-    expect(within(pipelineRegion).queryByText('KYC_REVIEW')).not.toBeInTheDocument();
-    expect(within(pipelineRegion).queryByText('CREDIT_ASSESSMENT')).not.toBeInTheDocument();
+    expect(screen.queryByText('KYC_REVIEW')).not.toBeInTheDocument();
+    expect(screen.queryByText('CREDIT_ASSESSMENT')).not.toBeInTheDocument();
     expect(within(pipelineRegion).getByRole('listitem', { name: /Submitted.*2/ })).toBeInTheDocument();
     expect(within(pipelineRegion).getByRole('listitem', { name: /Verification review.*1/ })).toBeInTheDocument();
     expect(within(pipelineRegion).getByRole('listitem', { name: /Credit assessment.*4/ })).toBeInTheDocument();
