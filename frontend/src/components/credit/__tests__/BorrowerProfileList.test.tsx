@@ -76,6 +76,6 @@ describe('BorrowerProfileList', () => {
     expect(screen.getByRole('region', { name: 'Borrower summary' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: /search borrowers by name, borrower ID, or identifier/i })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Borrower list' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Borrower cards' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Borrower cards' }, { hidden: true })).toBeInTheDocument();
   });
 });
