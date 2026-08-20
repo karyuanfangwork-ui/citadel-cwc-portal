@@ -46,9 +46,10 @@ describe('ManagerLane', () => {
     expect(within(pipelineRegion).getByRole('heading', { name: 'Application pipeline' })).toBeInTheDocument();
     expect(screen.queryByText('KYC_REVIEW')).not.toBeInTheDocument();
     expect(screen.queryByText('CREDIT_ASSESSMENT')).not.toBeInTheDocument();
-    expect(within(pipelineRegion).getByRole('listitem', { name: /Submitted.*2/ })).toBeInTheDocument();
-    expect(within(pipelineRegion).getByRole('listitem', { name: /Verification review.*1/ })).toBeInTheDocument();
-    expect(within(pipelineRegion).getByRole('listitem', { name: /Credit assessment.*4/ })).toBeInTheDocument();
+    expect(within(pipelineRegion).getByRole('listitem', { name: /Intake.*2/ })).toBeInTheDocument();
+    expect(within(pipelineRegion).getByRole('listitem', { name: /Verification.*1/ })).toBeInTheDocument();
+    expect(within(pipelineRegion).getByRole('listitem', { name: /Assessment.*4/ })).toBeInTheDocument();
+    expect(within(pipelineRegion).getAllByRole('listitem')).toHaveLength(5);
   });
 
   it('renders team performance as labeled metrics', () => {
@@ -76,5 +77,35 @@ describe('ManagerLane', () => {
 
     const activityRegion = screen.getByRole('region', { name: 'Recent activity' });
     expect(within(activityRegion).getByText('No recent activity.')).toBeInTheDocument();
+    expect(within(activityRegion).queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  it('shows the specified unavailable states without empty lists', () => {
+    renderLane({ pipeline: null, teamPerf: null, alerts: null, activity: [] });
+
+    const pipelineRegion = screen.getByRole('region', { name: 'Application pipeline' });
+    const teamRegion = screen.getByRole('region', { name: 'Team performance' });
+    const alertsRegion = screen.getByRole('region', { name: 'Operational alerts' });
+
+    expect(within(pipelineRegion).getByText('No pipeline data available.')).toBeInTheDocument();
+    expect(within(pipelineRegion).queryByRole('list')).not.toBeInTheDocument();
+    expect(within(teamRegion).getByText('Team performance is not available for this view.')).toBeInTheDocument();
+    expect(within(alertsRegion).getByText('No operational alerts.')).toBeInTheDocument();
+    expect(within(alertsRegion).queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  it('renders activity details with the actor, action, application, and relative time', () => {
+    renderLane({
+      activity: [{
+        id: 'activity-1',
+        applicationNo: 'APP-1001',
+        action: 'Submitted for review',
+        actorName: 'Alex Tan',
+        createdAt: new Date().toISOString(),
+      }],
+    });
+
+    const activityRegion = screen.getByRole('region', { name: 'Recent activity' });
+    expect(within(activityRegion).getByRole('listitem', { name: /Alex Tan.*Submitted for review.*APP-1001.*Just now/ })).toBeInTheDocument();
   });
 });
