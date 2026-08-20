@@ -17,7 +17,7 @@ interface DuplicateCheckStepProps {
 const BORROWER_TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'Individual',
   CORPORATE: 'Corporate',
-  SOLE_PROPRIETOR: 'SME',
+  SOLE_PROPRIETOR: 'Sole Proprietor',
   JOINT: 'Joint',
 };
 
@@ -39,6 +39,7 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
       setResults(data);
     } catch {
       setResults([]);
+      setHasSearched(true);
     } finally {
       setSearching(false);
     }
@@ -108,7 +109,7 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
           Duplicate Check
         </h2>
         <p style={{ fontSize: 'var(--cr-text-body-md, 14px)', color: 'var(--cr-on-surface-variant, #45464d)', margin: '4px 0 0' }}>
-          Search existing borrower records before creating a new profile. Match by NRIC, passport, phone, email, or name.
+          Search existing borrower records before creating a new profile. The final server check remains the authoritative safety recheck.
         </p>
       </div>
 
@@ -162,7 +163,7 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 24px', backgroundColor: 'var(--cr-surface-container-low, #f2f4f6)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', border: '1px solid var(--cr-outline-variant, #c6c6cd)' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 40, color: 'var(--cr-secondary, #0051d5)' }}>search_off</span>
           <p style={{ fontSize: 'var(--cr-text-body-md, 14px)', fontWeight: 600, color: 'var(--cr-on-surface, #191c1e)', margin: 0 }}>No matches found</p>
-          <p style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', margin: 0 }}>This appears to be a new borrower. Proceed to create a new profile.</p>
+          <p style={{ fontSize: 'var(--cr-text-body-sm, 13px)', color: 'var(--cr-on-surface-variant, #45464d)', margin: 0 }}>No existing record matched this search. Complete the type-aware identity check before creating a new profile.</p>
           <button onClick={onProceed} disabled={!canProceed} style={{ ...searchBtnStyle, backgroundColor: 'var(--cr-secondary, #0051d5)', opacity: canProceed ? 1 : 0.5 }}>
             Continue after identity check
             <span className="material-symbols-outlined" style={{ fontSize: 16, marginLeft: 4 }}>arrow_forward</span>

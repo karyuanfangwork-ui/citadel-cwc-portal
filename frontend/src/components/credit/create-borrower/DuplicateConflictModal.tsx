@@ -5,7 +5,8 @@ import { DuplicateMatch } from '../../../services/credit.service';
 interface DuplicateConflictModalProps {
   conflicts: DuplicateMatch[];
   onCancel: () => void;
-  onOverride: () => void;
+  onOverride: (reason: string) => void;
+  canOverride: boolean;
   saving: boolean;
 }
 
@@ -13,8 +14,11 @@ const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
   conflicts,
   onCancel,
   onOverride,
+  canOverride,
   saving,
 }) => {
+  const [overrideReason, setOverrideReason] = React.useState('');
+
   return (
     <div
       style={{
@@ -91,6 +95,25 @@ const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
           </table>
         </div>
 
+        {!canOverride && (
+          <p role="alert" style={{ margin: '0 0 16px', padding: 12, borderRadius: 6, background: '#fff4e5', border: '1px solid #f2c078', color: '#92400e', fontSize: 13 }}>
+            This borrower matches an existing identity. Request an approved duplicate exception from the Identity Check step, or ask a credit administrator to review this conflict.
+          </p>
+        )}
+        {canOverride && (
+          <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700, color: 'var(--cr-on-surface-variant, #45464d)' }}>
+            Admin override reason (minimum 20 characters)
+            <textarea
+              value={overrideReason}
+              onChange={(event) => setOverrideReason(event.target.value)}
+              minLength={20}
+              rows={3}
+              style={{ display: 'block', width: '100%', marginTop: 6, padding: 8, border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 4, resize: 'vertical' }}
+              placeholder="Explain why these are distinct parties."
+            />
+          </label>
+        )}
+
         {/* Actions */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
           <button
@@ -109,9 +132,9 @@ const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
           >
             Cancel
           </button>
-          <button
-            onClick={onOverride}
-            disabled={saving}
+          {canOverride && <button
+            onClick={() => onOverride(overrideReason.trim())}
+            disabled={saving || overrideReason.trim().length < 20}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -124,8 +147,8 @@ const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
               color: 'var(--cr-on-primary, #ffffff)',
               border: 'none',
               borderRadius: 'var(--cr-radius, 0.25rem)',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
+              cursor: saving || overrideReason.trim().length < 20 ? 'not-allowed' : 'pointer',
+              opacity: saving || overrideReason.trim().length < 20 ? 0.7 : 1,
             }}
           >
             {saving && (
@@ -134,7 +157,7 @@ const DuplicateConflictModal: React.FC<DuplicateConflictModalProps> = ({
               </span>
             )}
             Create Anyway (Admin Override)
-          </button>
+          </button>}
         </div>
       </div>
 

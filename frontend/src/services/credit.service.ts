@@ -336,6 +336,13 @@ export interface BorrowerOnboardingResult {
   stages: BorrowerOnboardingStage[];
 }
 
+export interface BorrowerOnboardingPersistenceFailure {
+  borrowerId: string;
+  idempotencyKey: string;
+  stages: BorrowerOnboardingStage[];
+  message: string;
+}
+
 export interface DuplicateMatch {
   borrowerId: string;
   name: string;
@@ -1135,6 +1142,16 @@ const creditService = {
   async updateBorrowerProfile(id: string, data: Partial<BorrowerProfile>) {
     const res = await apiClient.patch(`/credit/borrowers/${id}`, data);
     return res.data.data.profile as BorrowerProfile;
+  },
+
+  async getBorrowerOnboarding(id: string) {
+    const res = await apiClient.get(`/credit/borrowers/${id}/onboarding`);
+    return res.data.data.onboarding as BorrowerOnboardingResult | null;
+  },
+
+  async updateBorrowerOnboarding(id: string, idempotencyKey: string, stages: BorrowerOnboardingStage[]) {
+    const res = await apiClient.put(`/credit/borrowers/${id}/onboarding`, { idempotencyKey, stages });
+    return res.data.data.onboarding as BorrowerOnboardingResult;
   },
 
   async deleteBorrowerProfile(id: string) {

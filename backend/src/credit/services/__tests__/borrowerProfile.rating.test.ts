@@ -2,7 +2,21 @@ jest.mock('../../../utils/prisma', () => ({
   __esModule: true,
   default: {
     borrowerProfile: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', deletedAt: null }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'bp-1',
+        deletedAt: null,
+        borrowerType: 'INDIVIDUAL',
+        name: 'Test Borrower',
+        nricPassport: '900101-10-1234',
+        dateOfBirth: new Date('1990-01-01'),
+        nationality: 'Malaysian',
+        registrationNumber: null,
+        dateOfIncorporation: null,
+        businessNature: null,
+        accountId: null,
+        contactId: null,
+      }),
+      findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({ id: 'bp-1', industry: 'TECH' }),
     },
   },

@@ -1,16 +1,20 @@
 import React from 'react';
 import { FormData, UploadedDoc } from './BasicInfoStep';
 
+export type GovernedIdentityStatus = 'not_started' | 'checking' | 'clear' | 'exact_match' | 'exception_approved' | 'failed';
+
 interface ReviewStepProps {
   formData: FormData;
-  duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate';
+  governedIdentityStatus: GovernedIdentityStatus;
   onSubmit: () => void;
   onSaveDraft: () => void;
   saving: boolean;
   canSubmit: boolean;
+  onEditStep?: (step: number) => void;
 }
 
 type StatusLevel = 'complete' | 'pending' | 'error';
+type ChecklistCategory = 'creation' | 'followUp';
 
 interface ChecklistItem {
   id: string;
@@ -19,6 +23,9 @@ interface ChecklistItem {
   icon: string;
   color: string;
   hint: string;
+  category: ChecklistCategory;
+  editStep?: number;
+  editLabel?: string;
 }
 
 const MANDATORY_DOCS_BY_TYPE: Record<FormData['borrowerType'], string[]> = {
@@ -37,76 +44,90 @@ function getUploadedDocClasses(documents: UploadedDoc[]): Set<string> {
   return new Set(documents.map(d => d.documentClass));
 }
 
-function buildChecklist(formData: FormData, duplicateStatus: ReviewStepProps['duplicateStatus']): ChecklistItem[] {
+function buildChecklist(
+  formData: FormData,
+  governedIdentityStatus: GovernedIdentityStatus,
+): ChecklistItem[] {
   const items: ChecklistItem[] = [];
 
-  // a. Duplicate Check
+  // a. Governed duplicate / identity check
   let dupLevel: StatusLevel = 'pending';
-  let dupHint = 'Not yet checked';
-  if (duplicateStatus === 'clear') {
+  let dupHint = 'Complete the governed identity check before creating.';
+  if (governedIdentityStatus === 'clear') {
     dupLevel = 'complete';
     dupHint = 'No duplicates found';
-  } else if (duplicateStatus === 'duplicate') {
+  } else if (governedIdentityStatus === 'exception_approved') {
+    dupLevel = 'complete';
+    dupHint = 'Exact-match exception approved';
+  } else if (governedIdentityStatus === 'exact_match') {
     dupLevel = 'error';
-    dupHint = 'Duplicate borrower detected';
-  } else if (duplicateStatus === 'checking') {
+    dupHint = 'Exact identity match requires an approved exception';
+  } else if (governedIdentityStatus === 'checking') {
     dupLevel = 'pending';
     dupHint = 'Checking…';
+  } else if (governedIdentityStatus === 'failed') {
+    dupLevel = 'error';
+    dupHint = 'Identity check failed. Run it again before creating.';
   }
   items.push({
     id: 'duplicate',
-    label: 'Duplicate Check',
+    label: 'Governed identity check',
     level: dupLevel,
     icon: STATUS_STYLES[dupLevel].icon,
     color: STATUS_STYLES[dupLevel].color,
     hint: dupHint,
+    category: 'creation',
   });
 
-  // b. Identity & Contact — type-specific mandatory field check
+  // b. Legal identity — type-specific mandatory field check
   const isInd = formData.borrowerType === 'INDIVIDUAL';
   const isCorp = formData.borrowerType === 'CORPORATE' || formData.borrowerType === 'SOLE_PROPRIETOR';
-  const identityId = isInd ? formData.nric : formData.ssm;
-  let identityComplete = !!formData.name.trim() && !!identityId.trim() && !!formData.phone.trim();
-  if (isInd) {
-    identityComplete = identityComplete && !!formData.dateOfBirth && !!formData.nationality.trim();
-  }
-  if (isCorp) {
-    identityComplete = identityComplete && !!formData.dateOfIncorporation && !!formData.businessNature.trim();
-  }
-  let identityHint = identityComplete ? 'Name, ID and phone provided' : 'Name, ID or phone missing';
-  if (!identityComplete && isInd) {
-    identityHint = 'Missing: ' + [
-      !formData.name.trim() && 'Name',
-      !formData.nric.trim() && 'NRIC',
-      !formData.dateOfBirth && 'DOB',
-      !formData.nationality.trim() && 'Nationality',
-      !formData.phone.trim() && 'Phone',
-    ].filter(Boolean).join(', ');
-  }
-  if (!identityComplete && isCorp) {
-    identityHint = 'Missing: ' + [
-      !formData.name.trim() && 'Company Name',
-      !formData.ssm.trim() && 'SSM',
-      !formData.dateOfIncorporation && 'Incorporation Date',
-      !formData.businessNature.trim() && 'Business Nature',
-      !formData.phone.trim() && 'Phone',
-    ].filter(Boolean).join(', ');
-  }
+  const identityMissing = isInd
+    ? [
+        !formData.name.trim() && 'Full Name',
+        !formData.nric.trim() && 'NRIC/Passport',
+        !formData.dateOfBirth && 'Date of Birth',
+        !formData.nationality.trim() && 'Nationality',
+      ].filter(Boolean)
+    : [
+        !formData.name.trim() && 'Company Name',
+        !formData.ssm.trim() && 'SSM Registration Number',
+        !formData.dateOfIncorporation && 'Date of Incorporation',
+        !formData.businessNature.trim() && 'Business Nature',
+      ].filter(Boolean);
+  const identityComplete = identityMissing.length === 0;
   items.push({
     id: 'identity',
-    label: 'Identity & Contact',
+    label: 'Legal identity',
     level: identityComplete ? 'complete' : 'pending',
     icon: STATUS_STYLES[identityComplete ? 'complete' : 'pending'].icon,
     color: STATUS_STYLES[identityComplete ? 'complete' : 'pending'].color,
-    hint: identityHint,
+    hint: identityComplete ? 'Required legal identity provided' : `Missing: ${identityMissing.join(', ')}`,
+    category: 'creation',
+    editStep: 1,
+    editLabel: 'identity',
   });
 
-  // c. Compliance
+  // c. Primary contact — either method satisfies the creation rule.
+  const contactComplete = !!formData.phone.trim() || !!formData.email.trim();
+  items.push({
+    id: 'contact',
+    label: 'Primary contact',
+    level: contactComplete ? 'complete' : 'pending',
+    icon: STATUS_STYLES[contactComplete ? 'complete' : 'pending'].icon,
+    color: STATUS_STYLES[contactComplete ? 'complete' : 'pending'].color,
+    hint: contactComplete ? 'Phone or email provided' : 'Missing: Phone or email',
+    category: 'creation',
+    editStep: 2,
+    editLabel: 'contact',
+  });
+
+  // d. Compliance is follow-up work; it does not gate record creation.
   let compLevel: StatusLevel = 'pending';
   let compHint = 'KYC and AML not completed';
   if (formData.amlResult === 'prohibited') {
     compLevel = 'error';
-    compHint = 'AML screening prohibited — cannot proceed';
+    compHint = 'AML screening prohibited — escalate for compliance review before any credit activity.';
   } else if (formData.kycVerified && formData.amlResult === 'clear') {
     compLevel = 'complete';
     compHint = 'KYC verified, AML clear';
@@ -121,9 +142,12 @@ function buildChecklist(formData: FormData, duplicateStatus: ReviewStepProps['du
     icon: STATUS_STYLES[compLevel].icon,
     color: STATUS_STYLES[compLevel].color,
     hint: compHint,
+    category: 'followUp',
+    editStep: 4,
+    editLabel: 'compliance',
   });
 
-  // d. Documents
+  // e. Documents are follow-up work; they do not gate record creation.
   const mandatory = MANDATORY_DOCS_BY_TYPE[formData.borrowerType];
   const uploaded = getUploadedDocClasses(formData.documents);
   const missing = mandatory.filter(cls => !uploaded.has(cls));
@@ -146,20 +170,34 @@ function buildChecklist(formData: FormData, duplicateStatus: ReviewStepProps['du
     icon: STATUS_STYLES[docLevel].icon,
     color: STATUS_STYLES[docLevel].color,
     hint: docHint,
+    category: 'followUp',
+    editStep: 4,
+    editLabel: 'documents',
   });
 
   return items;
 }
 
+function maskIdentity(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 4) return trimmed || '—';
+  return `${'•'.repeat(Math.max(0, trimmed.length - 4))}${trimmed.slice(-4)}`;
+}
+
 const ReviewStep: React.FC<ReviewStepProps> = ({
   formData,
-  duplicateStatus,
+  governedIdentityStatus,
   onSubmit,
   onSaveDraft,
   saving,
   canSubmit,
+  onEditStep,
 }) => {
-  const checklist = buildChecklist(formData, duplicateStatus);
+  const checklist = buildChecklist(formData, governedIdentityStatus);
+  const blockers = checklist.filter(item => item.category === 'creation' && item.level !== 'complete');
+  const followUpItems = checklist.filter(item => item.category === 'followUp' && item.level !== 'complete');
+  const identityValue = formData.borrowerType === 'INDIVIDUAL' ? formData.nric : formData.ssm;
+  const typeLabel = formData.borrowerType === 'SOLE_PROPRIETOR' ? 'Sole Proprietor' : formData.borrowerType === 'INDIVIDUAL' ? 'Individual' : 'Corporate';
 
   return (
     <div>
@@ -242,14 +280,14 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
                   color: item.color,
                   flexShrink: 0,
                   lineHeight: 1,
-                  ...(item.level === 'pending' && item.id === 'duplicate' && duplicateStatus === 'checking'
+                  ...(item.level === 'pending' && item.id === 'duplicate' && governedIdentityStatus === 'checking'
                     ? { animation: 'crSpin 1s linear infinite' }
                     : {}),
                 }}
               >
                 {item.icon}
               </span>
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
                     fontFamily: 'var(--cr-font-display, Geist, system-ui, sans-serif)',
@@ -272,8 +310,74 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
                   {item.hint}
                 </div>
               </div>
+              {item.editStep !== undefined && onEditStep && (
+                <button
+                  type="button"
+                  onClick={() => onEditStep(item.editStep!)}
+                  aria-label={`Edit ${item.editLabel}`}
+                  style={{
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textDecoration: 'underline',
+                    flexShrink: 0,
+                  }}
+                >
+                  Edit
+                </button>
+              )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {blockers.length > 0 && (
+        <div role="alert" style={{ marginTop: 20, padding: 16, borderRadius: 'var(--cr-radius-lg, 0.5rem)', background: '#fff4e5', border: '1px solid #f2c078' }}>
+          <strong style={{ display: 'block', color: '#92400e', fontSize: 14 }}>Complete these items before creating the borrower</strong>
+          <ul style={{ margin: '8px 0 0 18px', color: '#92400e', fontSize: 13 }}>
+            {blockers.map(item => <li key={item.id}>{item.label}: {item.hint}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {followUpItems.length > 0 && (
+        <section
+          aria-labelledby="complete-later-heading"
+          style={{ marginTop: 20, padding: 16, borderRadius: 'var(--cr-radius-lg, 0.5rem)', background: 'var(--cr-surface-container-low, #f2f4f6)', border: '1px solid var(--cr-outline-variant, #c6c6cd)' }}
+        >
+          <h3 id="complete-later-heading" style={{ margin: 0, color: 'var(--cr-on-surface, #191c1e)', fontSize: 14 }}>
+            Complete later
+          </h3>
+          <p style={{ margin: '6px 0 0', color: 'var(--cr-on-surface-variant, #45464d)', fontSize: 13 }}>
+            These items can be completed after the borrower record exists.
+          </p>
+          <ul style={{ margin: '8px 0 0 18px', color: 'var(--cr-on-surface-variant, #45464d)', fontSize: 13 }}>
+            {followUpItems.map(item => (
+              <li key={item.id} style={{ marginTop: 4 }}>
+                <span>{item.label}: {item.hint}</span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ margin: '8px 0 0', color: 'var(--cr-on-surface-variant, #45464d)', fontSize: 13 }}>
+            Income and bureau information can also be completed later.
+          </p>
+        </section>
+      )}
+
+      <div style={{ marginTop: 20, padding: 20, border: '1px solid var(--cr-outline-variant, #c6c6cd)', borderRadius: 'var(--cr-radius-lg, 0.5rem)', background: 'var(--cr-surface-container-lowest, #ffffff)' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cr-on-surface-variant, #45464d)', marginBottom: 12 }}>Values that will be saved</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 24px', fontSize: 13 }}>
+          <div><strong>Legal type</strong><div>{typeLabel}</div></div>
+          <div><strong>Name</strong><div>{formData.name || '—'}</div></div>
+          <div><strong>Identity</strong><div>{maskIdentity(identityValue)}</div></div>
+          <div><strong>Nationality / date</strong><div>{formData.nationality || '—'} · {formData.dateOfBirth || formData.dateOfIncorporation || '—'}</div></div>
+          <div><strong>Business nature</strong><div>{formData.businessNature || '—'}</div></div>
+          <div><strong>Primary contact</strong><div>{formData.phone || formData.email || '—'}</div></div>
+          <div style={{ gridColumn: '1 / -1' }}><strong>Address</strong><div>{[formData.addressLine1, formData.addressLine2, formData.postcode, formData.city, formData.state].filter(Boolean).join(', ') || '—'}</div></div>
         </div>
       </div>
 

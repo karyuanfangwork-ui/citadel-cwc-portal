@@ -22,6 +22,55 @@ type StoredRun = {
 };
 
 class BorrowerOnboardingService {
+  async getForBorrower(borrowerId: string): Promise<BorrowerOnboardingResult | null> {
+    const run = await prisma.borrowerOnboardingRun.findFirst({
+      where: { borrowerId },
+      orderBy: { updatedAt: 'desc' },
+    }) as StoredRun | null;
+    if (!run?.borrowerId || !Array.isArray(run.stages)) return null;
+
+    const profile = await prisma.borrowerProfile.findUnique({
+      where: { id: borrowerId },
+      select: { id: true, borrowerNumber: true },
+    });
+    if (!profile) return null;
+
+    const stages = run.stages as BorrowerOnboardingStage[];
+    return {
+      borrowerId: profile.id,
+      borrowerNumber: profile.borrowerNumber ?? '',
+      status: run.status === 'COMPLETED' ? 'COMPLETED' : 'REQUIRES_FOLLOW_UP',
+      stages,
+    };
+  }
+
+  async recordStages(idempotencyKey: string, stages: BorrowerOnboardingStage[]): Promise<BorrowerOnboardingResult | null> {
+    const status = stages.some((stage) => stage.status === 'FAILED') ? 'REQUIRES_FOLLOW_UP' : 'COMPLETED';
+    try {
+      const updated = await prisma.borrowerOnboardingRun.update({
+        where: { idempotencyKey },
+        data: { status, stages: stages as unknown as Prisma.InputJsonValue },
+      });
+      if (!updated.borrowerId) return null;
+
+      const profile = await prisma.borrowerProfile.findUnique({
+        where: { id: updated.borrowerId },
+        select: { id: true, borrowerNumber: true },
+      });
+      if (!profile) return null;
+
+      return {
+        borrowerId: profile.id,
+        borrowerNumber: profile.borrowerNumber ?? '',
+        status: updated.status === 'COMPLETED' ? 'COMPLETED' : 'REQUIRES_FOLLOW_UP',
+        stages: updated.stages as unknown as BorrowerOnboardingStage[],
+      };
+    } catch (error: any) {
+      if (error?.code === 'P2025') return null;
+      throw error;
+    }
+  }
+
   async run(
     userId: string,
     idempotencyKey: string,

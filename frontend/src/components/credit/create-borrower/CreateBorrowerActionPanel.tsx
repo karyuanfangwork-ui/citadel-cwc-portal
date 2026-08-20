@@ -29,7 +29,7 @@ const MANDATORY_DOCS: Record<string, string[]> = {
   CORPORATE: ['SSM_CERT', 'BANK_STATEMENT', 'AUDITED_FINANCIALS'],
 };
 
-function computeCompletion(formData: FormData, duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate'): number {
+function computeCompletion(formData: FormData, duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate' | 'failed'): number {
   const sections = [
     { filled: duplicateStatus === 'clear', weight: 1 },           // Duplicate check
     { filled: !!formData.borrowerType, weight: 1 },                // Borrower type
@@ -44,7 +44,7 @@ function computeCompletion(formData: FormData, duplicateStatus: 'idle' | 'checki
   return Math.round((filledWeight / totalWeight) * 100);
 }
 
-function getPendingRequirements(formData: FormData, duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate'): PendingReq[] {
+function getPendingRequirements(formData: FormData, duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate' | 'failed'): PendingReq[] {
   const reqs: PendingReq[] = [];
   const isIndividual = formData.borrowerType === 'INDIVIDUAL';
 
@@ -80,7 +80,7 @@ function getPendingRequirements(formData: FormData, duplicateStatus: 'idle' | 'c
 interface CreateBorrowerActionPanelProps {
   formData: FormData;
   currentStep: number;
-  duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate';
+  duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate' | 'failed';
 }
 
 const CreateBorrowerActionPanel: React.FC<CreateBorrowerActionPanelProps> = ({

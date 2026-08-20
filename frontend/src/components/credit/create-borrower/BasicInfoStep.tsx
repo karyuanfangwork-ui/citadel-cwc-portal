@@ -117,8 +117,9 @@ const SEGMENT_TAGS: Record<BorrowerType, string> = {
 interface BasicInfoStepProps {
   formData: FormData;
   onFormDataChange: (updates: Partial<FormData>) => void;
-  duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate';
+  duplicateStatus: 'idle' | 'checking' | 'clear' | 'duplicate' | 'failed';
   duplicateBorrowerId: string | null;
+  duplicateError?: string | null;
   onDuplicateCheck: () => void;
 }
 
@@ -158,6 +159,7 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
   onFormDataChange,
   duplicateStatus,
   duplicateBorrowerId,
+  duplicateError,
   onDuplicateCheck,
 }) => {
   const isIndividual = formData.borrowerType === 'INDIVIDUAL';
@@ -513,6 +515,17 @@ const BasicInfoStep: React.FC<BasicInfoStepProps> = ({
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check_circle</span>
             No duplicate found — you may proceed.
+          </div>
+        )}
+        {duplicateStatus === 'failed' && (
+          <div role="alert" style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginTop: 12,
+            padding: '8px 12px', borderRadius: 'var(--cr-radius, 0.25rem)',
+            backgroundColor: '#fff4e5', border: '1px solid #f2c078',
+            fontSize: 'var(--cr-text-body-sm, 13px)', fontWeight: 600, color: '#b54708',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>error</span>
+            {duplicateError || 'Duplicate check failed. Retry before continuing.'}
           </div>
         )}
         {duplicateStatus === 'duplicate' && duplicateBorrowerId && (

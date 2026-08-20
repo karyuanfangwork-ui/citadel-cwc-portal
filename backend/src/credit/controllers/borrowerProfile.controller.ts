@@ -181,6 +181,32 @@ class BorrowerProfileController {
     res.json({ status: 'success', data: { profile } });
   });
 
+  getOnboarding = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const onboarding = await borrowerOnboardingService.getForBorrower(String(req.params.id));
+    res.json({ status: 'success', data: { onboarding } });
+  });
+
+  updateOnboarding = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const idempotencyKey = req.body?.idempotencyKey;
+    const stages = req.body?.stages;
+    if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 255) {
+      throw new AppError('Onboarding idempotency key is required', 400);
+    }
+    if (!Array.isArray(stages) || stages.length === 0 || stages.length > 20) {
+      throw new AppError('Onboarding stages must be a non-empty list', 400);
+    }
+    const allowedNames = new Set(['PROFILE', 'INCOME', 'KYC', 'AML', 'DOCUMENTS']);
+    const allowedStatuses = new Set(['COMPLETED', 'FAILED', 'NOT_REQUIRED']);
+    if (stages.some((stage: any) => !stage || !allowedNames.has(stage.name) || !allowedStatuses.has(stage.status) || (stage.message != null && String(stage.message).length > 1000))) {
+      throw new AppError('Onboarding stages contain an invalid name, status, or message', 400);
+    }
+    const onboarding = await borrowerOnboardingService.recordStages(idempotencyKey, stages);
+    if (!onboarding || onboarding.borrowerId !== String(req.params.id)) {
+      throw new AppError('Borrower onboarding run not found', 404);
+    }
+    res.json({ status: 'success', data: { onboarding } });
+  });
+
   /**
    * DELETE /borrowers/:id — Soft-delete a borrower profile
    */

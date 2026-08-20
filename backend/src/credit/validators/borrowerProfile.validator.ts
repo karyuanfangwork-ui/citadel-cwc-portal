@@ -9,6 +9,52 @@ const smeFinancialStatementTypeEnum = z.enum(['AUDITED', 'MANAGEMENT', 'COMPILED
 // Allow decimal-like strings or numbers, normalise to string for Prisma Decimal
 const decimalField = z.union([z.string(), z.number()]).optional().nullable();
 
+export type BorrowerIdentityValidationInput = {
+  borrowerType?: string | null;
+  name?: string | null;
+  nricPassport?: string | null;
+  dateOfBirth?: string | Date | null;
+  nationality?: string | null;
+  registrationNumber?: string | null;
+  dateOfIncorporation?: string | Date | null;
+  businessNature?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+/**
+ * Validates the identity fields required by the selected legal borrower type.
+ * The service uses this against the merged post-update state so sparse PATCH
+ * payloads cannot remove fields that were required at creation time.
+ */
+export function getBorrowerIdentityValidationIssues(data: BorrowerIdentityValidationInput): Array<{ field: string; message: string }> {
+  const issues: Array<{ field: string; message: string }> = [];
+  const isIndividual = data.borrowerType === 'INDIVIDUAL';
+  const isCorporateType = data.borrowerType === 'CORPORATE' || data.borrowerType === 'SOLE_PROPRIETOR';
+
+  if (!data.name?.trim()) {
+    issues.push({ field: 'name', message: 'Borrower name is required' });
+  }
+
+  if (!data.phone?.trim() && !data.email?.trim()) {
+    issues.push({ field: 'phoneOrEmail', message: 'At least one primary contact method (phone or email) is required' });
+  }
+
+  if (isIndividual) {
+    if (!data.nricPassport?.trim()) issues.push({ field: 'nricPassport', message: 'NRIC/Passport is required for Individual borrowers' });
+    if (!data.dateOfBirth) issues.push({ field: 'dateOfBirth', message: 'Date of Birth is required for Individual borrowers' });
+    if (!data.nationality?.trim()) issues.push({ field: 'nationality', message: 'Nationality is required for Individual borrowers' });
+  }
+
+  if (isCorporateType) {
+    if (!data.registrationNumber?.trim()) issues.push({ field: 'registrationNumber', message: 'Registration Number is required for Sole Proprietor/Corporate borrowers' });
+    if (!data.dateOfIncorporation) issues.push({ field: 'dateOfIncorporation', message: 'Date of Incorporation is required for Sole Proprietor/Corporate borrowers' });
+    if (!data.businessNature?.trim()) issues.push({ field: 'businessNature', message: 'Business Nature is required for Sole Proprietor/Corporate borrowers' });
+  }
+
+  return issues;
+}
+
 export const createBorrowerProfileSchema = z.object({
   body: z.object({
     idempotencyKey: z.string().min(16).max(160).optional(),
@@ -65,32 +111,8 @@ export const createBorrowerProfileSchema = z.object({
     overrideReason: z.string().max(2000).optional(),
     duplicateExceptionId: z.string().uuid().optional(),
   }).superRefine((data, ctx) => {
-    // Type-conditional mandatory field enforcement
-    const isIndividual = data.borrowerType === 'INDIVIDUAL';
-    const isCorporateType = data.borrowerType === 'CORPORATE' || data.borrowerType === 'SOLE_PROPRIETOR';
-
-    if (isIndividual) {
-      if (!data.nricPassport?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'nricPassport'], message: 'NRIC/Passport is required for Individual borrowers' });
-      }
-      if (!data.dateOfBirth) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'dateOfBirth'], message: 'Date of Birth is required for Individual borrowers' });
-      }
-      if (!data.nationality?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'nationality'], message: 'Nationality is required for Individual borrowers' });
-      }
-    }
-
-    if (isCorporateType) {
-      if (!data.registrationNumber?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'registrationNumber'], message: 'Registration Number is required for SME/Corporate borrowers' });
-      }
-      if (!data.dateOfIncorporation) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'dateOfIncorporation'], message: 'Date of Incorporation is required for SME/Corporate borrowers' });
-      }
-      if (!data.businessNature?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', 'businessNature'], message: 'Business Nature is required for SME/Corporate borrowers' });
-      }
+    for (const issue of getBorrowerIdentityValidationIssues(data)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['body', issue.field], message: issue.message });
     }
   }),
 });

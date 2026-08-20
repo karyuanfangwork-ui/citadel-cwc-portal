@@ -308,7 +308,7 @@ const AppShell = () => {
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditLayout /></ProtectedRoute>}>
                 <Route index element={<CreditDashboard />} />
                 <Route path="borrowers" element={<BorrowerProfileList />} />
-                <Route path="borrowers/new" element={<CreateBorrowerPage />} />
+                <Route path="borrowers/new" element={<ProtectedRoute requirePermission="credit:create"><CreateBorrowerPage /></ProtectedRoute>} />
                 <Route path="borrowers/:id" element={<BorrowerProfileDetail />} />
                 <Route path="applications" element={<CreditApplicationList />} />
                 <Route path="applications/new" element={<ProtectedRoute requirePermission="credit:create"><CreditApplicationCreate /></ProtectedRoute>} />

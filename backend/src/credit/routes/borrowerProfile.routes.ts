@@ -203,6 +203,26 @@ router.patch(
 );
 
 /**
+ * GET /borrowers/:id/onboarding — Durable post-create stage state
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/onboarding',
+  requirePermission('credit:read'),
+  borrowerProfileController.getOnboarding,
+);
+
+/**
+ * PUT /borrowers/:id/onboarding — Persist post-create stage outcomes
+ * Requires: credit:create
+ */
+router.put(
+  '/:id/onboarding',
+  requirePermission('credit:create'),
+  borrowerProfileController.updateOnboarding,
+);
+
+/**
  * DELETE /borrowers/:id
  * Soft-delete a borrower profile
  * Requires: credit:admin

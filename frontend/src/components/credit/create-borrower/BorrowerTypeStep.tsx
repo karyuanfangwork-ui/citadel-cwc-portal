@@ -16,20 +16,20 @@ const TYPE_CARDS: {
   {
     value: 'INDIVIDUAL',
     icon: 'person',
-    label: 'Retail / Individual',
-    description: 'Personal loans and micro-financing.',
+    label: 'Individual',
+    description: 'An individual customer with personal identity documents.',
   },
   {
     value: 'SOLE_PROPRIETOR',
     icon: 'storefront',
-    label: 'SME',
-    description: 'Small to Medium Enterprises (SSM registered).',
+    label: 'Sole Proprietor',
+    description: 'A sole proprietor legal form; this maps to the SME operational segment.',
   },
   {
     value: 'CORPORATE',
     icon: 'domain',
     label: 'Corporate',
-    description: 'Large tier entities and PLCs.',
+    description: 'A registered company or other corporate legal entity.',
   },
 ];
 
@@ -62,7 +62,7 @@ const BorrowerTypeStep: React.FC<BorrowerTypeStepProps> = ({ value, onChange }) 
             margin: 0,
           }}
         >
-          Select the operational segment for this entity to determine required fields and KYC thresholds.
+          Select the legal borrower type. The operational segment and KYC thresholds are applied after this choice.
         </p>
       </div>
 

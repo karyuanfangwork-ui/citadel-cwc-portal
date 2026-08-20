@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import creditService, { BorrowerProfile, Borrower360Activity, Borrower360Summary, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
+import { Link, useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import creditService, { BorrowerOnboardingPersistenceFailure, BorrowerProfile, Borrower360Activity, Borrower360Summary, BorrowerOnboardingResult, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
 import BureauUploadModal from '../src/components/credit/borrower360/BureauUploadModal';
 import IncomeEditModal from '../src/components/credit/borrower360/IncomeEditModal';
 import { useAuth } from '../src/context/AuthContext';
@@ -88,6 +88,10 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
 type DetailTab = 'overview' | 'applications' | 'profile' | 'financials' | 'exposure' | 'risk' | 'bureau' | 'documents';
 const DETAIL_TABS: DetailTab[] = ['overview', 'applications', 'profile', 'financials', 'exposure', 'risk', 'bureau', 'documents'];
 
+type BorrowerDetailLocationState = {
+  onboardingPersistenceFailure?: BorrowerOnboardingPersistenceFailure;
+};
+
 // Derive display name from the independent borrower profile
 const displayName = (p: BorrowerProfile) => getBorrowerDisplayName(p);
 
@@ -102,12 +106,18 @@ const getInitials = (p: BorrowerProfile) => {
 const BorrowerProfileDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [profile, setProfile] = useState<BorrowerProfile | null>(null);
   const [borrower360Summary, setBorrower360Summary] = useState<Borrower360Summary | null>(null);
   const [borrower360Activity, setBorrower360Activity] = useState<Borrower360Activity[]>([]);
   const [applications, setApplications] = useState<CreditApplication[]>([]);
+  const [onboarding, setOnboarding] = useState<BorrowerOnboardingResult | null>(null);
+  const [onboardingPersistenceFailure, setOnboardingPersistenceFailure] = useState<BorrowerOnboardingPersistenceFailure | null>(
+    () => (location.state as BorrowerDetailLocationState | null)?.onboardingPersistenceFailure ?? null,
+  );
+  const [retryingOnboardingPersistence, setRetryingOnboardingPersistence] = useState(false);
   const [applicationError, setApplicationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const requestedTab = searchParams.get('tab') as DetailTab | null;
@@ -129,14 +139,16 @@ const BorrowerProfileDetail: React.FC = () => {
     if (!id) return;
     try {
       setLoading(true);
-      const [profileData, summaryData, activityData] = await Promise.all([
+      const [profileData, summaryData, activityData, onboardingData] = await Promise.all([
         creditService.getBorrowerProfile(id),
         creditService.getBorrower360Summary(id),
         creditService.getBorrower360Activity(id, 6),
+        creditService.getBorrowerOnboarding(id),
       ]);
       setProfile(profileData);
       setBorrower360Summary(summaryData);
       setBorrower360Activity(activityData ?? []);
+      setOnboarding(onboardingData);
       try {
         const applicationData = await creditService.listApplications({ borrowerProfileId: id, page: 1, limit: 20, sortBy: 'createdAt', sortDir: 'desc' });
         setApplications(applicationData.applications ?? []);
@@ -165,6 +177,28 @@ const BorrowerProfileDetail: React.FC = () => {
       toast.error('Failed to verify KYC');
     }
   }, [fetchProfile, profile]);
+
+  const retryOnboardingPersistence = useCallback(async () => {
+    if (!onboardingPersistenceFailure) return;
+    setRetryingOnboardingPersistence(true);
+    try {
+      const updated = await creditService.updateBorrowerOnboarding(
+        onboardingPersistenceFailure.borrowerId,
+        onboardingPersistenceFailure.idempotencyKey,
+        onboardingPersistenceFailure.stages,
+      );
+      setOnboarding(updated);
+      setOnboardingPersistenceFailure(null);
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      toast.success('Onboarding status saved');
+    } catch (e: any) {
+      const message = e?.response?.data?.message || 'Onboarding status is still not saved. Retry when the service is available.';
+      setOnboardingPersistenceFailure(current => current ? { ...current, message } : current);
+      toast.error(message);
+    } finally {
+      setRetryingOnboardingPersistence(false);
+    }
+  }, [location.pathname, location.search, navigate, onboardingPersistenceFailure]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
@@ -218,10 +252,49 @@ const BorrowerProfileDetail: React.FC = () => {
   const ratingColor = RATING_COLOR(profile.creditRiskRating);
   const amlBadge = profile.amlRiskTier ? AML_BADGE[profile.amlRiskTier] : null;
   const applicationsAvailable = applicationError === null;
+  const readiness = calculateBorrowerReadiness({ profile, summary: borrower360Summary, applications });
+  const profileComplete = Boolean(profile.name?.trim() && (profile.borrowerType === 'INDIVIDUAL' ? profile.nricPassport : profile.registrationNumber) && (profile.phone || profile.email));
+  const applicationReady = readiness.status !== 'BLOCKED';
+  const milestone = (ready: boolean) => ready ? 'READY' : 'BLOCKED';
 
   return (
     <>
       <div className="w-full px-4 py-4 sm:px-8 sm:py-8" style={{ paddingBottom: 'var(--space-16)' }}>
+        {onboardingPersistenceFailure && (
+          <section role="alert" aria-labelledby="onboarding-persistence-heading" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <h1 id="onboarding-persistence-heading" className="text-base font-bold">Onboarding status needs to be saved</h1>
+            <p className="mt-1 text-sm">{onboardingPersistenceFailure.message}</p>
+            <p className="mt-2 text-xs">The borrower was created. The stage results below are retained; retry saving them so Borrower 360 keeps the follow-up record.</p>
+            <ul className="mt-2 list-disc pl-5 text-xs">{onboardingPersistenceFailure.stages.map(stage => <li key={stage.name}>{stage.name}: {stage.status}{stage.message ? ` — ${stage.message}` : ''}</li>)}</ul>
+            <button type="button" onClick={retryOnboardingPersistence} disabled={retryingOnboardingPersistence} className="mt-3 rounded bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+              {retryingOnboardingPersistence ? 'Saving onboarding…' : 'Retry saving onboarding'}
+            </button>
+          </section>
+        )}
+        {onboarding && (
+          <section role="status" aria-labelledby="borrower-created-heading" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-700">Borrower created</p>
+                <h1 id="borrower-created-heading" className="mt-1 text-lg font-bold">{displayName(profile)}</h1>
+                <p className="mt-1 text-sm">Borrower number {onboarding.borrowerNumber || '—'} · {profile.isActive ? 'Active' : 'Inactive'}</p>
+                {onboarding.status === 'REQUIRES_FOLLOW_UP' && <p className="mt-2 text-sm font-semibold text-amber-800">Some onboarding actions require follow-up. Review the stages below and use the relevant Borrower 360 action.</p>}
+              </div>
+              <Link to={applicationReady ? `/credit/applications/new?borrowerId=${profile.id}` : '#borrower-readiness-heading'} className="rounded-lg bg-emerald-700 px-3 py-2 text-center text-xs font-bold text-white no-underline">
+                {applicationReady ? 'Create credit application' : 'Complete required information'}
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ['Created', true],
+                ['Profile complete', profileComplete],
+                ['Application ready', applicationReady],
+                ['Assessment ready', readiness.status === 'READY'],
+              ].map(([label, ready]) => <div key={String(label)} className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">{label}</p><p className="mt-1 text-xs font-bold">{milestone(Boolean(ready))}</p></div>)}
+            </div>
+            {onboarding.stages.some(stage => stage.status === 'FAILED') && <ul className="mt-3 list-disc pl-5 text-xs text-amber-800">{onboarding.stages.filter(stage => stage.status === 'FAILED').map(stage => <li key={stage.name}>{stage.name}: {stage.message || 'Follow-up action failed.'}</li>)}</ul>}
+          </section>
+        )}
         <BorrowerWorkspaceHeader
           profile={profile}
           summary={borrower360Summary}
@@ -268,7 +341,7 @@ const BorrowerProfileDetail: React.FC = () => {
               summary={borrower360Summary}
               applications={applications}
               applicationsAvailable={applicationsAvailable}
-              readiness={calculateBorrowerReadiness({ profile, summary: borrower360Summary, applications })}
+              readiness={readiness}
               activity={borrower360Activity}
               canWrite={canWrite}
               onAction={handleWorkspaceAction}

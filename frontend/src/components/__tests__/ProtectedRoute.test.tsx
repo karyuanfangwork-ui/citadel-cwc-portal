@@ -1,14 +1,33 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Outlet } from 'react-router-dom';
 import { ProtectedRoute } from '../ProtectedRoute';
+import App from '../../../App';
 
 // Mock useAuth hook
 const mockUseAuth = vi.fn();
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+
+vi.mock('@/src/context/NotificationContext', () => ({
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useNotifications: () => ({ toast: null, dismissToast: vi.fn(), setUnreadCount: vi.fn() }),
+}));
+vi.mock('@/src/context/ThemeContext', () => ({ ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock('@/src/context/ToastContext', () => ({ ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock('@/src/components/CreditLayout', () => ({ default: () => <Outlet /> }));
+vi.mock('@/pages/Dashboard', () => ({ default: () => <div>Credit access denied</div> }));
+vi.mock('@/pages/CreateBorrowerPage', () => ({ default: () => <div>Create Borrower Page</div> }));
+vi.mock('@/src/components/layout/LeftRail', () => ({ default: () => null }));
+vi.mock('@/src/components/layout/TopBar', () => ({ default: () => null }));
+vi.mock('@/src/components/layout/MobileDrawer', () => ({ default: () => null }));
+vi.mock('@/src/components/ToastContainer', () => ({ default: () => null }));
+vi.mock('@/src/components/SessionExpiryBanner', () => ({ default: () => null }));
+vi.mock('@/src/components/ui/EnvironmentBanner', () => ({ default: () => null }));
+vi.mock('@/src/components/ui/OutOfOfficeModal', () => ({ default: () => null }));
 
 // Helper to wrap component in router
 const renderWithRouter = (ui: React.ReactElement) =>
@@ -254,5 +273,34 @@ describe('ProtectedRoute', () => {
       </ProtectedRoute>
     );
     expect(screen.getByText('Reports')).toBeTruthy();
+  });
+
+  it('denies the borrower creation route to credit readers without credit:create', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    window.history.pushState({}, '', '/credit/borrowers/new');
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'credit-reader', roles: ['NORMAL_STAFF'], permissions: ['credit:read'] },
+      loading: false,
+    });
+
+    render(<App />);
+
+    expect(screen.queryByText('Create Borrower Page')).not.toBeTruthy();
+    expect(screen.getByText('Credit access denied')).toBeTruthy();
+    warnSpy.mockRestore();
+  });
+
+  it('renders the borrower creation route when the user has credit:create', () => {
+    window.history.pushState({}, '', '/credit/borrowers/new');
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: 'credit-creator', roles: ['NORMAL_STAFF'], permissions: ['credit:read', 'credit:create'] },
+      loading: false,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText('Create Borrower Page')).toBeTruthy();
   });
 });

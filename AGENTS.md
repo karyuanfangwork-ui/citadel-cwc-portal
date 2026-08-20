@@ -70,43 +70,16 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 <claude-mem-context>
 # Memory Context
 
-# [citadel-cwc-portal] recent context, 2026-08-20 3:54pm GMT+8
+# [citadel-cwc-portal] recent context, 2026-08-20 11:24pm GMT+8
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,138t read) | 543,447t work | 97% savings
+Stats: 50 obs (20,402t read) | 495,297t work | 96% savings
 
 ### Aug 10, 2026
-3593 11:03a 🔵 ESM Portal: Credit Module Route Probe — All Routes Render, Collateral Missing Heading
-3594 " 🔵 ESM Portal: /credit/collateral Route Hangs — 30s Timeout in Playwright Probe
-3595 11:04a 🔵 ESM Portal: /credit/collateral, /credit/reports, /credit/group-exposure Silently Redirect to ESM Shell
-3596 11:07a 🔵 ESM Portal: /credit/collateral Shows Context-Dependent Empty State, Not a Bug
-3597 " 🔵 ESM Portal Backend: Credit Jest Suite — 108 Suites, 1256 Tests All Pass
-3598 11:09a ⚖️ ESM Portal: Credit LOS Phase 8 Implementation Plan Committed
-S920 ESM Portal Credit LOS Phase 8a — Implementation plan authored and committed for closing BullMQ queue leak, fixing 2 failing E2E specs, unblocking the release gate, and correcting audit documentation (Aug 10 at 11:09 AM)
-3599 11:29a ⚖️ ESM Portal: Credit LOS Phase 8 Implementation Verification Requested
-3600 11:30a 🔵 ESM Portal Frontend: TypeScript Errors in ScoreOutdatedBanner After Phase 8
-3602 11:31a 🔵 ESM Portal Credit LOS: ApprovalInboxItem Shape Uses currentState and Flat borrowerName
-3604 11:41a 🔵 ESM Portal Backend: Jest Open Handle from pdfQueue Module-Level Redis Connection
-3605 " 🔵 ESM Portal Backend: seed-credit.ts --demo Fails with chk_crm_accounts_tenant_id_required Constraint
-3606 " 🔵 ESM Portal Credit LOS: Backend Jest Suite Passes (1256/1256) — Jest Hang Is Open Handle Only
-3607 " 🔵 ESM Portal Credit LOS Phase 8: E2E — 2 New Failures, 29 Passed, 4 Skipped
-3608 " 🔵 ESM Portal Credit LOS: CreditApplicationList Reads borrowerProfileId and quickFilter from URL SearchParams
-3611 11:52a 🔵 ESM Portal Credit E2E: Borrower List DOM Structure and Navigation Wiring Confirmed
-3612 " 🔵 ESM Portal Credit Seed: Most Tenant-Constrained Models Missing tenantId in creditDemoSeed.ts
-S921 ESM Portal Credit LOS Phase 8: Plan Closure Blocked by Natural Jest Shutdown (Aug 10 at 11:54 AM)
-3613 3:01p ⚖️ ESM Portal Credit LOS Phase 8: Plan Closure Blocked by Natural Jest Shutdown
-3614 " ⚖️ ESM Portal Credit LOS Phase 8: Plan Closure Blocked by Natural Jest Shutdown
-3615 3:02p ⚖️ ESM Portal Credit LOS Phase 8: Plan Closure Blocked by Natural Jest Shutdown
-3616 " ⚖️ ESM Portal Credit LOS Phase 8: Plan Closure Blocked by Natural Jest Shutdown
-S922 ESM Portal Backend: Jest test suite status check — confirming pass/fail counts and hang behavior (Aug 10 at 3:02 PM)
-S925 ESM Portal Backend: Jest Hang Root-Cause Diagnosis — Unclosed Redis and Postgres Handles Identified (Aug 10 at 3:04 PM)
-3617 3:06p 🔵 ESM Portal Frontend: Jest Suite Hung — Re-ran with --detectOpenHandles
-3619 3:07p 🔵 ESM Portal Backend: Jest Re-run with --detectOpenHandles Backgrounded
-3620 3:08p 🔵 ESM Portal Backend: Jest Hung Process Killed, --detectOpenHandles Run Initiated
-3621 " 🔵 ESM Portal Backend: Jest Open Handle Debugging Initiated
+3621 3:08p 🔵 ESM Portal Backend: Jest Open Handle Debugging Initiated
 3623 3:12p 🔵 ESM Portal Backend: Jest Hangs Due to Unclosed PostgreSQL and Redis Connection Pool
 S928 ESM Portal: Credit LOS Phase 8b Implementation Plan Written (Aug 10 at 3:12 PM)
 3624 3:20p 🔵 ESM Portal Backend: Jest Open Handles Root Cause and Fix in setup.ts
@@ -134,12 +107,39 @@ S998 ESM Portal Credit LOS: Approver Lane UX Redesign — Inbox structure, decis
 S999 ESM Portal Backend: SLA Breach Detection Uses createdAt Not State-Entry Timestamp (Aug 20 at 10:43 AM)
 3809 10:46a 🔵 ESM Portal Backend: CreditSlaPolicy and CreditSlaBreach Prisma Schema Confirmed
 3810 " 🔵 ESM Portal Backend: SLA Breach Detection Uses createdAt Not State-Entry Timestamp
+S1000 ESM Portal: Credit Dashboard Role-Lane Redesign Spec Committed (Aug 20 at 10:46 AM)
 3811 10:49a ✅ ESM Portal: Credit Dashboard Role-Lane Redesign Spec Committed
-S1000 ESM Portal: Credit Dashboard Role-Lane Redesign Spec Committed (Aug 20 at 10:49 AM)
+S1001 ESM Portal Credit Assessment: End-to-End Journey Audit — full discovery, gap analysis, and production readiness scorecard (Aug 20 at 10:49 AM)
 3812 10:52a 🔵 ESM Portal Credit Dashboard: Test File Structure and KPI Count Architecture
 3813 " 🔵 ESM Portal Credit Dashboard API: Full Endpoint Map and MyWorkItem Interface
 3814 10:58a 🔵 ESM Portal Credit: Full Permission String Inventory and hasPermission Implementation
 3815 " ✅ ESM Portal Credit Dashboard: Role Lanes Implementation Plan Committed
+3816 4:05p ⚖️ ESM Portal: Credit Assessment End-to-End Journey Audit Commissioned
+3817 " 🔵 ESM Portal Credit LOS: Full Module Structure Mapped — Backend, Frontend, Schema
+3818 " 🔵 ESM Portal Credit LOS: Application State Machine — Full Transition Map Confirmed
+3819 4:06p ⚖️ ESM Portal: Credit LOS End-to-End Journey Audit Commissioned
+3820 " ⚖️ ESM Portal: Credit Assessment End-to-End Journey Audit Commissioned
+3821 " 🔵 ESM Portal Credit: Score Recalculation Service Architecture Confirmed
+3822 " 🔵 ESM Portal Credit: Borrower Duplicate Detection — Enhanced Multi-Signal Check with Admin Override
+3823 4:07p ⚖️ ESM Portal: Credit LOS End-to-End Journey Audit Commissioned
+3824 4:08p ⚖️ ESM Portal: Credit Assessment End-to-End Audit Commissioned
+3825 4:13p ⚖️ ESM Portal: Credit LOS End-to-End Journey Audit Commissioned
+3826 " ⚖️ ESM Portal: Credit Assessment End-to-End Journey Audit Commissioned
+S1002 ESM Portal: Credit Assessment End-to-End Journey Audit — 82% Production Readiness, Zero P0 Blockers (Aug 20 at 4:13 PM)
+3827 4:19p ⚖️ ESM Portal: Credit Assessment End-to-End Journey Audit — 82% Production Readiness, Zero P0 Blockers
+S1003 ESM Portal Credit LOS: Borrower-Scoped Scorecard Design — Factor Set, Scope Model, and Validation Architecture (Aug 20 at 4:19 PM)
+3828 4:28p 🔵 ESM Portal Credit LOS: Borrower UX Gap Identified — End-to-End Flow Unclear
+3829 4:30p 🔵 ESM Portal Credit LOS: BorrowerRiskRun Has No Frontend Trigger — Only READ Endpoints Exposed
+3830 4:36p 🔵 ESM Portal: CreditAuditEvent Hash-Chain Uses `sequence` Column for Ordering
+S1004 ESM Portal: Borrower Risk Rating System — Architecture Design (Sections 1–3 of 4) (Aug 20 at 4:37 PM)
+3831 4:41p 🔵 ESM Portal: Active Spec and Plan Files as of Aug 20, 2026
+3832 4:43p ⚖️ ESM Portal Credit LOS: Borrower-Level Risk Rating Design Spec Created
+3833 " ✅ ESM Portal: Borrower Risk Rating Design Spec Refined — Three Clarifications
+3834 4:44p ✅ ESM Portal: Borrower Risk Rating Spec — Staleness UX and JOINT Out-of-Scope Additions
+3835 4:47p 🔵 ESM Portal Credit Backend: Key Service Signatures and Architecture Confirmed
+3836 4:57p ⚖️ ESM Portal: Borrower-Level Risk Rating Implementation Plan Written
+3837 " ✅ ESM Portal: Borrower Risk Rating Plan — Tasks 1 & 2 Written (Schema Migration + Scope-Aware Weights)
+3838 4:59p ✅ ESM Portal Borrower Risk Plan: Tasks 3 & 4 Written (Scope Filter + Types/Thresholds)
 
-Access 543k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 495k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

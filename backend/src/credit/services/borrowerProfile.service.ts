@@ -8,6 +8,7 @@ import { normalizeIdentity } from '../utils/identityNormalization';
 import { formatBorrowerNumber, mapBorrowerLifecycle, mapBorrowerSegment } from '../utils/borrowerOperational';
 import { borrowerDuplicateExceptionService, computeDuplicateIdentityFingerprint } from './borrowerDuplicateException.service';
 import type { BorrowerListQuery } from '../validators/borrowerList.validator';
+import { getBorrowerIdentityValidationIssues } from '../validators/borrowerProfile.validator';
 
 type ScopedBorrowerListQuery = Omit<BorrowerListQuery, 'branchId'> & { branchId?: string | null };
 
@@ -484,7 +485,7 @@ class BorrowerProfileService {
           select: { firstName: true, lastName: true, borrowerProfile: { select: { id: true, name: true, borrowerType: true } } },
         });
         for (const mc of matchingContacts) {
-          if (mc.borrowerProfile && !seenIds.has(mc.borrowerProfile.id)) {
+          if (mc.borrowerProfile && mc.borrowerProfile.id !== params.excludeId && !seenIds.has(mc.borrowerProfile.id)) {
             seenIds.add(mc.borrowerProfile.id);
             duplicates.push({
               borrowerId: mc.borrowerProfile.id,
@@ -496,7 +497,7 @@ class BorrowerProfileService {
         }
       }
       // Also check if this contact already has a borrower profile linked
-      if (contact?.borrowerProfile && !seenIds.has(contact.borrowerProfile.id)) {
+      if (contact?.borrowerProfile && contact.borrowerProfile.id !== params.excludeId && !seenIds.has(contact.borrowerProfile.id)) {
         seenIds.add(contact.borrowerProfile.id);
         duplicates.push({
           borrowerId: contact.borrowerProfile.id,
@@ -552,6 +553,7 @@ class BorrowerProfileService {
           name: { equals: params.name, mode: 'insensitive' },
           borrowerType: params.borrowerType as any,
           deletedAt: null,
+          ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
         },
         select: { id: true, name: true, borrowerType: true },
         take: 5,
@@ -727,11 +729,24 @@ class BorrowerProfileService {
    * Create a new borrower profile.
    * If overrideDuplicate is false (default), runs checkDuplicateEnhanced first
    * and throws 409 if duplicates are found.
-   * If overrideDuplicate is true, skips the duplicate check (admin override).
-   */
+  * If overrideDuplicate is true, skips the duplicate check (admin override).
+  */
   async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; overrideReason?: string; duplicateExceptionId?: string; userId?: string; userPermissions?: string[] }) {
-    if (!data.name?.trim()) {
-      throw new Error('Borrower name is required');
+    const createIdentity = {
+      borrowerType: data.borrowerType,
+      name: data.name,
+      nricPassport: data.nricPassport,
+      dateOfBirth: data.dateOfBirth,
+      nationality: data.nationality,
+      registrationNumber: data.registrationNumber,
+      dateOfIncorporation: data.dateOfIncorporation,
+      businessNature: data.businessNature,
+      phone: data.phone,
+      email: data.email,
+    };
+    const identityIssues = getBorrowerIdentityValidationIssues(createIdentity);
+    if (identityIssues.length > 0) {
+      throw new AppError('Borrower identity is incomplete for the selected legal type', 400, { fields: identityIssues });
     }
 
     // LOS-017 — Overriding duplicate detection is a governed act: it creates a
@@ -891,6 +906,36 @@ class BorrowerProfileService {
 
     if (!existing) {
       return null;
+    }
+
+    const mergedIdentity = {
+      borrowerType: data.borrowerType ?? existing.borrowerType,
+      name: data.name !== undefined ? data.name : existing.name,
+      nricPassport: data.nricPassport !== undefined ? data.nricPassport : existing.nricPassport,
+      dateOfBirth: data.dateOfBirth !== undefined ? data.dateOfBirth : existing.dateOfBirth,
+      nationality: data.nationality !== undefined ? data.nationality : existing.nationality,
+      registrationNumber: data.registrationNumber !== undefined ? data.registrationNumber : existing.registrationNumber,
+      dateOfIncorporation: data.dateOfIncorporation !== undefined ? data.dateOfIncorporation : existing.dateOfIncorporation,
+      businessNature: data.businessNature !== undefined ? data.businessNature : existing.businessNature,
+      phone: data.phone !== undefined ? data.phone : existing.phone,
+      email: data.email !== undefined ? data.email : existing.email,
+    };
+    const identityIssues = getBorrowerIdentityValidationIssues(mergedIdentity);
+    if (identityIssues.length > 0) {
+      throw new AppError('Borrower identity is incomplete for the selected legal type', 400, { fields: identityIssues });
+    }
+
+    const duplicateCheck = await this.checkDuplicateEnhanced({
+      name: mergedIdentity.name,
+      borrowerType: mergedIdentity.borrowerType,
+      nricPassport: mergedIdentity.nricPassport,
+      registrationNumber: mergedIdentity.registrationNumber,
+      accountId: data.accountId !== undefined ? data.accountId : existing.accountId,
+      contactId: data.contactId !== undefined ? data.contactId : existing.contactId,
+      excludeId: id,
+    });
+    if (duplicateCheck.duplicates.length > 0) {
+      throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
     }
 
     const updateData: Prisma.BorrowerProfileUpdateInput = {};

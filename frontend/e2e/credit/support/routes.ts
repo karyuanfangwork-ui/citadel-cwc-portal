@@ -27,7 +27,7 @@ export interface CreditRoute {
 export const CREDIT_ROUTES: CreditRoute[] = [
   { path: '/credit',                  name: 'Dashboard',            permission: 'credit:read',    expect: /Credit Assessment Dashboard/i },
   { path: '/credit/borrowers',        name: 'Borrower list',        permission: 'credit:read',    expect: /Borrower Management/i },
-  { path: '/credit/borrowers/new',    name: 'Borrower create',      permission: 'credit:read',    expect: /Duplicate Check/i },
+  { path: '/credit/borrowers/new',    name: 'Borrower create',      permission: 'credit:create',  expect: /Duplicate Check/i },
   { path: '/credit/applications',     name: 'Application list',     permission: 'credit:read',    expect: /Application Management/i },
   { path: '/credit/applications/new', name: 'Application create',   permission: 'credit:create',  expect: /New Credit Application Wizard/i },
   { path: '/credit/approvals',        name: 'My Approvals',         permission: 'credit:approve', expect: /My Approvals/i },

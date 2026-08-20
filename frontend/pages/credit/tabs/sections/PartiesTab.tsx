@@ -201,12 +201,6 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
       <NewBorrowerWizard
         isOpen={showNewBorrower}
         onClose={() => setShowNewBorrower(false)}
-        navigateAfterCreate={false}
-        onCreated={(borrowerId) => {
-          setShowNewBorrower(false);
-          setPartyForm(f => ({ ...f, borrowerProfileId: borrowerId }));
-          fetchBorrowerProfiles();
-        }}
       />
     </>
   );

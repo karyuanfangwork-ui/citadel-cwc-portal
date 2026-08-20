@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import creditService, { BorrowerOnboardingStage, CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
+import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
+import creditService, { BorrowerOnboardingPersistenceFailure, BorrowerOnboardingStage, CreateBorrowerProfilePayload, DuplicateMatch } from '../src/services/credit.service';
 import { useDuplicateCheck } from '../src/hooks/useDuplicateCheck';
 import type { DuplicateIdentityResult } from '../src/types/credit-ui.types';
 import { STEPS } from '../src/components/credit/create-borrower/ProgressTracker';
@@ -13,12 +15,18 @@ import ContactInfoStep from '../src/components/credit/create-borrower/ContactInf
 import EmploymentFinancialsStep from '../src/components/credit/create-borrower/EmploymentFinancialsStep';
 import ComplianceChecksStep from '../src/components/credit/create-borrower/ComplianceChecksStep';
 import DocumentUploadStep from '../src/components/credit/create-borrower/DocumentUploadStep';
-import ReviewStep from '../src/components/credit/create-borrower/ReviewStep';
+import ReviewStep, { GovernedIdentityStatus } from '../src/components/credit/create-borrower/ReviewStep';
 import CreateBorrowerActionPanel from '../src/components/credit/create-borrower/CreateBorrowerActionPanel';
 import DuplicateConflictModal from '../src/components/credit/create-borrower/DuplicateConflictModal';
 import ProgressTracker from '../src/components/credit/create-borrower/ProgressTracker';
+import { getPostCreateDestination } from '../src/lib/credit/createBorrowerNavigation';
 
 type BorrowerType = 'INDIVIDUAL' | 'CORPORATE' | 'SOLE_PROPRIETOR';
+
+type IdentityResultBinding = {
+  borrowerType: BorrowerType;
+  identifier: string;
+};
 
 const SEGMENT_LABELS: Record<BorrowerType, string> = {
   INDIVIDUAL: 'Retail',
@@ -44,8 +52,15 @@ function normalizeWizardStep(step: number): number {
   return 5;
 }
 
+function normalizeIdentityIdentifier(value: string): string {
+  return value.replace(/[\s-]/g, '').toUpperCase();
+}
+
 const CreateBorrowerPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const returnTo = searchParams.get('returnTo');
 
   // ── Step state ──
   const [currentStep, setCurrentStep] = useState(0);
@@ -55,11 +70,12 @@ const CreateBorrowerPage: React.FC = () => {
   const [formData, setFormData] = useState<FormData>(initialFormData());
 
   // ── Duplicate check ──
-  const { dupCheck, dupBorrowerId, runCheck: runDuplicateCheck, reset: resetDupCheck } = useDuplicateCheck();
+  const { dupCheck, dupBorrowerId, dupError, runCheck: runDuplicateCheck, reset: resetDupCheck } = useDuplicateCheck();
 
   // ── Submission ──
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [onboardingPersistenceFailure, setOnboardingPersistenceFailure] = useState<BorrowerOnboardingPersistenceFailure | null>(null);
 
   // ── 409 conflict ──
   const [duplicateConflict, setDuplicateConflict] = useState<DuplicateMatch[]>([]);
@@ -74,10 +90,12 @@ const CreateBorrowerPage: React.FC = () => {
   const [serverDraftId, setServerDraftId] = useState<string | null>(null);
   const [onboardingKey] = useState(() => localStorage.getItem(ONBOARDING_KEY) || newIdempotencyKey());
   const [identityResult, setIdentityResult] = useState<DuplicateIdentityResult | null>(null);
+  const [identityResultBinding, setIdentityResultBinding] = useState<IdentityResultBinding | null>(null);
   const [identityValue, setIdentityValue] = useState('');
   const [identityChecking, setIdentityChecking] = useState(false);
   const [exceptionRequesting, setExceptionRequesting] = useState(false);
   const [identityError, setIdentityError] = useState<string | null>(null);
+  const identityCheckVersion = useRef(0);
   useEffect(() => {
     let mounted = true;
     void (async () => {
@@ -133,9 +151,22 @@ const CreateBorrowerPage: React.FC = () => {
 
   // ── Handlers ──
 
-  const handleFormDataChange = useCallback((updates: Partial<FormData>) => {
-    setFormData(prev => ({ ...prev, ...updates }));
+  const invalidateIdentityCheck = useCallback(() => {
+    identityCheckVersion.current += 1;
+    setIdentityResult(null);
+    setIdentityResultBinding(null);
+    setIdentityValue('');
+    setIdentityError(null);
+    setIdentityChecking(false);
   }, []);
+
+  const handleFormDataChange = useCallback((updates: Partial<FormData>) => {
+    const identityField = formData.borrowerType === 'INDIVIDUAL' ? 'nric' : 'ssm';
+    if (Object.prototype.hasOwnProperty.call(updates, identityField)) {
+      invalidateIdentityCheck();
+    }
+    setFormData(prev => ({ ...prev, ...updates }));
+  }, [formData.borrowerType, invalidateIdentityCheck]);
 
   const handleBorrowerTypeChange = useCallback((value: BorrowerType) => {
     setFormData(prev => ({
@@ -160,10 +191,8 @@ const CreateBorrowerPage: React.FC = () => {
       contactId: null,
     }));
     resetDupCheck();
-    setIdentityResult(null);
-    setIdentityValue('');
-    setIdentityError(null);
-  }, [resetDupCheck]);
+    invalidateIdentityCheck();
+  }, [invalidateIdentityCheck, resetDupCheck]);
 
   const runDuplicateCheckCb = useCallback(() => {
     const identifier = isIndividual ? formData.nric : formData.ssm;
@@ -173,24 +202,39 @@ const CreateBorrowerPage: React.FC = () => {
 
   const runIdentityCheck = useCallback(async (identifier: string) => {
     if (!serverDraftId) {
+      invalidateIdentityCheck();
       setIdentityError('Saving the secure server draft… please try the identity check again.');
       return;
     }
-    if (!identifier.trim()) return;
+    if (!identifier.trim()) {
+      invalidateIdentityCheck();
+      return;
+    }
+    const checkVersion = identityCheckVersion.current + 1;
+    const checkedBorrowerType = formData.borrowerType;
+    const checkedIdentifier = normalizeIdentityIdentifier(identifier);
+    identityCheckVersion.current = checkVersion;
+    setIdentityResult(null);
+    setIdentityResultBinding(null);
     setIdentityChecking(true);
     setIdentityError(null);
     setIdentityValue(identifier.trim());
     try {
       const segment = formData.borrowerType === 'SOLE_PROPRIETOR' ? 'SME' : formData.borrowerType === 'CORPORATE' ? 'CORPORATE' : 'INDIVIDUAL';
       const identifierType = segment === 'CORPORATE' || segment === 'SME' ? 'BUSINESS_REGISTRATION' : 'NRIC';
-      setIdentityResult(await creditService.checkBorrowerIdentity({ draftId: serverDraftId, segment, identifier, identifierType }));
+      const result = await creditService.checkBorrowerIdentity({ draftId: serverDraftId, segment, identifier, identifierType });
+      if (checkVersion !== identityCheckVersion.current) return;
+      setIdentityResultBinding({ borrowerType: checkedBorrowerType, identifier: checkedIdentifier });
+      setIdentityResult(result);
     } catch (e: any) {
+      if (checkVersion !== identityCheckVersion.current) return;
       setIdentityResult(null);
+      setIdentityResultBinding(null);
       setIdentityError(e?.response?.data?.message || 'Identity check failed.');
     } finally {
-      setIdentityChecking(false);
+      if (checkVersion === identityCheckVersion.current) setIdentityChecking(false);
     }
-  }, [formData.borrowerType, serverDraftId]);
+  }, [formData.borrowerType, invalidateIdentityCheck, serverDraftId]);
 
   const requestIdentityException = useCallback(async (input: { category: string; justification: string }) => {
     if (!serverDraftId || !identityResult?.match) return;
@@ -207,7 +251,26 @@ const CreateBorrowerPage: React.FC = () => {
     }
   }, [formData.borrowerType, identityResult, identityValue, serverDraftId]);
 
-  const identityCanProceed = Boolean(identityResult && (!identityResult.exactMatch || identityResult.exceptionStatus === 'APPROVED'));
+  const activeIdentityIdentifier = normalizeIdentityIdentifier(
+    formData.borrowerType === 'INDIVIDUAL' ? formData.nric : formData.ssm,
+  );
+  const identityResultMatchesActiveIdentity = !!identityResult &&
+    !!identityResultBinding &&
+    !!activeIdentityIdentifier &&
+    identityResultBinding.borrowerType === formData.borrowerType &&
+    identityResultBinding.identifier === activeIdentityIdentifier;
+  const governedIdentityStatus: GovernedIdentityStatus = identityChecking
+    ? 'checking'
+    : identityError
+      ? 'failed'
+      : !identityResultMatchesActiveIdentity
+        ? 'not_started'
+        : identityResult.exactMatch
+          ? identityResult.exceptionStatus === 'APPROVED'
+            ? 'exception_approved'
+            : 'exact_match'
+          : 'clear';
+  const identityCanProceed = governedIdentityStatus === 'clear' || governedIdentityStatus === 'exception_approved';
 
   const handleStepClick = useCallback((stepIndex: number) => {
     setCurrentStep(stepIndex);
@@ -220,7 +283,7 @@ const CreateBorrowerPage: React.FC = () => {
     toast.success('Draft saved');
   }, [formData, currentStep, onboardingKey]);
 
-  const handleValidate = useCallback(() => {
+  const handleValidate = useCallback((): string[] => {
     const isInd = formData.borrowerType === 'INDIVIDUAL';
     const isCorp = formData.borrowerType === 'CORPORATE' || formData.borrowerType === 'SOLE_PROPRIETOR';
 
@@ -244,8 +307,10 @@ const CreateBorrowerPage: React.FC = () => {
     if (issues.length === 0) {
       toast.success('All required fields for current step are complete');
     } else {
+      setError(issues.join(' · '));
       toast.error(`${issues.length} required field(s): ${issues.join(', ')}`);
     }
+    return issues;
   }, [formData]);
 
   // ── Post-create orchestration with explicit recoverable outcomes ──
@@ -287,7 +352,40 @@ const CreateBorrowerPage: React.FC = () => {
     return stages;
   }, [formData]);
 
-  const handleSubmit = useCallback(async (overrideDuplicate = false) => {
+  const completeOnboarding = useCallback((borrowerId: string, stages: BorrowerOnboardingStage[]) => {
+    const requiresFollowUp = stages.some(stage => stage.status === 'FAILED');
+    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(ONBOARDING_KEY);
+    setOnboardingPersistenceFailure(null);
+    toast.success(requiresFollowUp ? 'Borrower created; onboarding requires follow-up.' : 'Borrower created successfully');
+    const destination = getPostCreateDestination(borrowerId, returnTo);
+    if (returnTo === 'application') {
+      navigate(destination);
+    } else {
+      navigate(destination, { state: { onboarding: { borrowerId, status: requiresFollowUp ? 'REQUIRES_FOLLOW_UP' : 'COMPLETED', stages } } });
+    }
+  }, [navigate, returnTo]);
+
+  const retryOnboardingPersistence = useCallback(async () => {
+    if (!onboardingPersistenceFailure) return;
+    setSaving(true);
+    try {
+      await creditService.updateBorrowerOnboarding(
+        onboardingPersistenceFailure.borrowerId,
+        onboardingPersistenceFailure.idempotencyKey,
+        onboardingPersistenceFailure.stages,
+      );
+      completeOnboarding(onboardingPersistenceFailure.borrowerId, onboardingPersistenceFailure.stages);
+    } catch (e: any) {
+      const message = e?.response?.data?.message || 'Onboarding status is still not saved. Retry when the service is available.';
+      setOnboardingPersistenceFailure(current => current ? { ...current, message } : current);
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [completeOnboarding, onboardingPersistenceFailure]);
+
+  const handleSubmit = useCallback(async (overrideDuplicate = false, overrideReason?: string) => {
     setError(null);
     setSaving(true);
     try {
@@ -324,18 +422,22 @@ const CreateBorrowerPage: React.FC = () => {
         ...(formData.mailingAddress ? { mailingAddress: formData.mailingAddress } : {}),
         ...(formData.industrySector ? { sicCode: formData.industrySector } : {}),
         ...(formData.estimatedAnnualRevenue ? { annualTurnover: formData.estimatedAnnualRevenue } : {}),
-        ...(overrideDuplicate && { overrideDuplicate: true }),
+        ...(overrideDuplicate && { overrideDuplicate: true, overrideReason }),
       };
       const profile = await creditService.createBorrowerProfile(payload);
 
       // Post-create orchestration (best-effort)
       const stages = await runPostCreateSteps(profile.id);
-      const requiresFollowUp = stages.some(stage => stage.status === 'FAILED');
+      try {
+        await creditService.updateBorrowerOnboarding(profile.id, onboardingKey, stages);
+      } catch (e: any) {
+        const message = e?.response?.data?.message || 'Borrower was created, but onboarding status could not be saved. Retry to keep the follow-up stages on Borrower 360.';
+        setOnboardingPersistenceFailure({ borrowerId: profile.id, idempotencyKey: onboardingKey, stages, message });
+        toast.error(message);
+        return;
+      }
 
-      localStorage.removeItem(DRAFT_KEY);
-      localStorage.removeItem(ONBOARDING_KEY);
-      toast.success(requiresFollowUp ? 'Borrower created; onboarding requires follow-up.' : 'Borrower created successfully');
-      navigate(`/credit/borrowers/${profile.id}`, { state: { onboarding: { borrowerId: profile.id, status: requiresFollowUp ? 'REQUIRES_FOLLOW_UP' : 'COMPLETED', stages } } });
+      completeOnboarding(profile.id, stages);
     } catch (e: any) {
       if (e?.response?.status === 409) {
         const conflicts: DuplicateMatch[] = e?.response?.data?.data?.duplicates ?? e?.response?.data?.data ?? [];
@@ -348,7 +450,7 @@ const CreateBorrowerPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [formData, navigate, runPostCreateSteps]);
+  }, [completeOnboarding, formData, onboardingKey, runPostCreateSteps]);
 
   // ── Can submit? ──
   const canSubmit = formData.name.trim() &&
@@ -358,13 +460,24 @@ const CreateBorrowerPage: React.FC = () => {
     (isIndividual ? formData.nric.trim() : true) &&
     (isIndividual ? !!formData.dateOfBirth : true) &&
     (isIndividual ? !!formData.nationality.trim() : true) &&
+    (formData.phone.trim() || formData.email.trim()) &&
+    identityCanProceed &&
     dupCheck !== 'checking';
 
   // ── Mark step as completed when moving forward ──
   const handleNext = useCallback(() => {
+    if (currentStep === 0 && !identityCanProceed) {
+      setError('Complete the governed identity check before continuing.');
+      return;
+    }
+    if (currentStep === 1 && handleValidate().length > 0) return;
+    if (currentStep === 2 && !formData.phone.trim() && !formData.email.trim()) {
+      setError('Provide a primary phone number or email address before continuing.');
+      return;
+    }
     setCompletedSteps(prev => new Set(prev).add(currentStep));
     setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
-  }, [currentStep]);
+  }, [currentStep, formData.email, formData.phone, handleValidate, identityCanProceed]);
 
   const handlePrevious = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 0));
@@ -377,7 +490,7 @@ const CreateBorrowerPage: React.FC = () => {
         return (
           <>
             <DuplicateCheckStep
-              onUseExisting={(borrowerId) => navigate(`/credit/borrowers/${borrowerId}`)}
+              onUseExisting={(borrowerId) => navigate(getPostCreateDestination(borrowerId, returnTo))}
               onProceed={() => { setCompletedSteps(prev => new Set(prev).add(0)); setCurrentStep(1); }}
               onIdentityCheck={runIdentityCheck}
               identityResult={identityResult}
@@ -397,6 +510,7 @@ const CreateBorrowerPage: React.FC = () => {
             onFormDataChange={handleFormDataChange}
             duplicateStatus={dupCheck}
             duplicateBorrowerId={dupBorrowerId}
+            duplicateError={dupError}
             onDuplicateCheck={runDuplicateCheckCb}
           />
         );
@@ -425,11 +539,12 @@ const CreateBorrowerPage: React.FC = () => {
         return (
           <ReviewStep
             formData={formData}
-            duplicateStatus={dupCheck}
+            governedIdentityStatus={governedIdentityStatus}
             onSubmit={() => handleSubmit()}
             onSaveDraft={handleSaveDraft}
             saving={saving}
             canSubmit={!!canSubmit}
+            onEditStep={handleStepClick}
           />
         );
       default:
@@ -492,6 +607,33 @@ const CreateBorrowerPage: React.FC = () => {
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
               </button>
             </div>
+          )}
+
+          {onboardingPersistenceFailure && (
+            <section
+              role="alert"
+              aria-labelledby="onboarding-persistence-heading"
+              className="mx-6 mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950"
+            >
+              <h2 id="onboarding-persistence-heading" className="text-sm font-bold">Onboarding status needs to be saved</h2>
+              <p className="mt-1 text-sm">{onboardingPersistenceFailure.message}</p>
+              <p className="mt-2 text-xs">The borrower profile and completed follow-up work are retained below. Retry saving, or open Borrower 360 to retry there.</p>
+              <ul className="mt-2 list-disc pl-5 text-xs">
+                {onboardingPersistenceFailure.stages.map(stage => <li key={stage.name}>{stage.name}: {stage.status}</li>)}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={retryOnboardingPersistence} disabled={saving} className="rounded bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                  {saving ? 'Saving onboarding…' : 'Retry saving onboarding'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/credit/borrowers/${onboardingPersistenceFailure.borrowerId}`, { state: { onboardingPersistenceFailure } })}
+                  className="rounded border border-amber-700 px-3 py-2 text-xs font-bold text-amber-950"
+                >
+                  Open Borrower 360
+                </button>
+              </div>
+            </section>
           )}
 
           {/* Main canvas */}
@@ -601,9 +743,10 @@ const CreateBorrowerPage: React.FC = () => {
         <DuplicateConflictModal
           conflicts={duplicateConflict}
           onCancel={() => setShowConflictModal(false)}
-          onOverride={() => {
+          canOverride={hasPermission(user, 'credit:admin')}
+          onOverride={(reason) => {
             setShowConflictModal(false);
-            handleSubmit(true);
+            handleSubmit(true, reason);
           }}
           saving={saving}
         />

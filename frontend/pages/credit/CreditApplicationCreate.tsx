@@ -1,25 +1,24 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../src/context/AuthContext';
 import creditService, {
   branchApi,
   Branch,
   BorrowerProfile,
-  CreateBorrowerProfilePayload,
   CreditApplication,
   CreditProductType,
   CurrencyCode,
-  DuplicateMatch,
+
   financialApi,
   retailIncomeApi,
 } from '../../src/services/credit.service';
 import { friendlyMessage } from '../../src/utils/errorMessages';
-import { useDuplicateCheck } from '../../src/hooks/useDuplicateCheck';
+
 import WizardActions from '../../src/components/credit/new-application/WizardActions';
 import RightSummaryPanel from '../../src/components/credit/new-application/RightSummaryPanel';
 import WizardStepper from '../../src/components/credit/new-application/WizardStepper';
-import DuplicateConflictModal from '../../src/components/credit/create-borrower/DuplicateConflictModal';
+
 import {
   BUSINESS_DOCUMENTS,
   RETAIL_DOCUMENTS,
@@ -43,14 +42,6 @@ type DocumentState = {
   completed: boolean;
 };
 
-type NewApplicantDraft = {
-  borrowerType: 'INDIVIDUAL' | 'SOLE_PROPRIETOR' | 'CORPORATE';
-  name: string;
-  nricPassport: string;
-  registrationNumber: string;
-  phone: string;
-  email: string;
-};
 
 type FinancialDraft = {
   monthlySalary: string;
@@ -73,7 +64,7 @@ type WizardDraft = {
   searchResults: BorrowerProfile[];
   selectedBorrower: BorrowerProfile | null;
   applicantMode: ApplicantMode;
-  newApplicant: NewApplicantDraft;
+
   productType: CreditProductType | '';
   currency: CurrencyCode;
   requestedAmount: string;
@@ -131,14 +122,7 @@ const initialDraft = (): WizardDraft => ({
   searchResults: [],
   selectedBorrower: null,
   applicantMode: 'existing',
-  newApplicant: {
-    borrowerType: 'INDIVIDUAL',
-    name: '',
-    nricPassport: '',
-    registrationNumber: '',
-    phone: '',
-    email: '',
-  },
+
   productType: '',
   currency: 'MYR',
   requestedAmount: '',
@@ -306,26 +290,28 @@ async function syncFinancialSnapshot(applicationId: string, borrower: BorrowerPr
 
 export default function CreditApplicationCreate() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loaded, setLoaded] = useState(false);
   const [restored, setRestored] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [creatingApplicant, setCreatingApplicant] = useState(false);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchLoading, setBranchLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [borrowerContextStatus, setBorrowerContextStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [borrowerContextRetry, setBorrowerContextRetry] = useState(0);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const borrowerContextRequestGeneration = useRef(0);
   const [draft, setDraft] = useState<WizardDraft>(() => initialDraft());
 
-  // ── Inline create: duplicate pre-check + 409 conflict modal ──
-  const { dupCheck: inlineDupCheck, dupBorrowerId: inlineDupId, runCheck: runInlineDupCheck, reset: resetInlineDupCheck } = useDuplicateCheck();
-  const [duplicateConflicts, setDuplicateConflicts] = useState<DuplicateMatch[]>([]);
-  const [showConflictModal, setShowConflictModal] = useState(false);
 
   const currentStepIndex = getStepIndex(draft.currentStep);
   const selectedBorrower = draft.selectedBorrower;
+  const borrowerContextId = searchParams.get('borrowerId');
+  const isContextBorrower = !!borrowerContextId && selectedBorrower?.id === borrowerContextId;
   const financialMode = getFinancialMode(selectedBorrower);
   const documentCatalog = financialMode === 'retail' ? RETAIL_DOCUMENTS : BUSINESS_DOCUMENTS;
 
@@ -432,7 +418,7 @@ export default function CreditApplicationCreate() {
         ...current,
         ...source,
         financials: { ...initialFinancials, ...(source.financials ?? {}) },
-        newApplicant: { ...current.newApplicant, ...(source.newApplicant ?? {}) },
+
         documents: Array.isArray(source.documents) && source.documents.length > 0
           ? (source.documents as DocumentState[])
           : current.documents,
@@ -487,6 +473,37 @@ export default function CreditApplicationCreate() {
   }, [loaded, restored]);
 
   useEffect(() => {
+    if (!borrowerContextId || !loaded) return;
+
+    let cancelled = false;
+    const requestGeneration = ++borrowerContextRequestGeneration.current;
+    setBorrowerContextStatus('loading');
+
+    const hydrateBorrowerContext = async () => {
+      try {
+        const borrower = await creditService.getBorrowerProfile(borrowerContextId);
+        if (cancelled || requestGeneration !== borrowerContextRequestGeneration.current) return;
+
+        setDraft((current) => ({
+          ...current,
+          applicantMode: 'existing',
+          selectedBorrower: borrower,
+        }));
+        setBorrowerContextStatus('idle');
+      } catch {
+        if (cancelled || requestGeneration !== borrowerContextRequestGeneration.current) return;
+        setBorrowerContextStatus('error');
+      }
+    };
+
+    void hydrateBorrowerContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [borrowerContextId, borrowerContextRetry, loaded]);
+
+  useEffect(() => {
     setBranchLoading(true);
     branchApi.list()
       .then((items) => setBranches(items))
@@ -500,7 +517,12 @@ export default function CreditApplicationCreate() {
         const currentDocs = prev.documents;
         const nextDocs = (selectedBorrower.borrowerType === 'INDIVIDUAL' ? RETAIL_DOCUMENTS : BUSINESS_DOCUMENTS).map((doc) => {
           const existing = currentDocs.find((item) => item.key === doc.key);
-          return { key: doc.key, label: doc.label, required: doc.required, fileName: existing?.fileName ?? null, completed: existing?.completed ?? false };
+          return {
+            ...(existing ?? {}),
+            ...doc,
+            fileName: existing?.fileName ?? null,
+            completed: existing?.completed ?? false,
+          };
         });
         return { ...prev, documents: nextDocs };
       });
@@ -573,90 +595,21 @@ export default function CreditApplicationCreate() {
   };
 
   const selectExistingBorrower = (profile: BorrowerProfile) => {
+    borrowerContextRequestGeneration.current += 1;
+    setBorrowerContextStatus('idle');
     setDraft((prev) => ({
       ...prev,
       applicantMode: 'existing',
       selectedBorrower: profile,
-      newApplicant: initialDraft().newApplicant,
       currentStep: 'applicant-selection',
     }));
   };
 
-  const buildApplicantPayload = (overrideDuplicate = false): CreateBorrowerProfilePayload => {
-    const applicant = draft.newApplicant;
-    return {
-      borrowerType: applicant.borrowerType,
-      name: applicant.name.trim(),
-      nricPassport: applicant.borrowerType === 'INDIVIDUAL' ? applicant.nricPassport.trim() : undefined,
-      registrationNumber: applicant.borrowerType === 'INDIVIDUAL' ? undefined : applicant.registrationNumber.trim(),
-      phone: applicant.phone.trim() || undefined,
-      email: applicant.email.trim() || undefined,
-      ...(overrideDuplicate && { overrideDuplicate: true }),
-    };
-  };
-
-  const createNewBorrower = async () => {
-    const applicant = draft.newApplicant;
-    if (!applicant.name.trim()) {
-      toast.error('Applicant name is required');
-      return;
-    }
-    if (applicant.borrowerType === 'INDIVIDUAL') {
-      if (!applicant.nricPassport.trim()) {
-        toast.error('NRIC/Passport is required');
-        return;
-      }
-    } else if (!applicant.registrationNumber.trim()) {
-      toast.error('Registration number is required');
-      return;
-    }
-
-    setCreatingApplicant(true);
-    try {
-      const created = await creditService.createBorrowerProfile(buildApplicantPayload());
-      setDraft((prev) => ({
-        ...prev,
-        applicantMode: 'new',
-        selectedBorrower: created,
-        currentStep: 'applicant-selection',
-      }));
-      toast.success('Applicant created and linked');
-    } catch (err) {
-      if ((err as any)?.response?.status === 409) {
-        const conflicts: DuplicateMatch[] = (err as any)?.response?.data?.data?.duplicates ?? (err as any)?.response?.data?.data ?? [];
-        setDuplicateConflicts(Array.isArray(conflicts) ? conflicts : []);
-        setShowConflictModal(true);
-      } else {
-        toast.error(friendlyMessage(err, 'Failed to create applicant'));
-      }
-    } finally {
-      setCreatingApplicant(false);
-    }
-  };
-
-  const handleOverrideCreate = async () => {
-    setCreatingApplicant(true);
-    try {
-      const created = await creditService.createBorrowerProfile(buildApplicantPayload(true));
-      setDraft((prev) => ({
-        ...prev,
-        applicantMode: 'new',
-        selectedBorrower: created,
-        currentStep: 'applicant-selection',
-      }));
-      toast.success('Applicant created and linked');
-      setShowConflictModal(false);
-    } catch (err) {
-      toast.error(friendlyMessage(err, 'Failed to create applicant'));
-    } finally {
-      setCreatingApplicant(false);
-    }
-  };
 
   const createApplication = async () => {
     const borrower = draft.selectedBorrower;
     if (!borrower) {
-      setErrors(['Select or create a borrower first.']);
+      setErrors(['Select an existing borrower first.']);
       return;
     }
 
@@ -711,6 +664,31 @@ export default function CreditApplicationCreate() {
       ...prev,
       documents: prev.documents.map((doc) => (doc.key === key ? { ...doc, ...updates } : doc)),
     }));
+  };
+
+  const renderBorrowerContextStatus = () => {
+    if (!borrowerContextId || borrowerContextStatus === 'idle') return null;
+
+    if (borrowerContextStatus === 'loading') {
+      return (
+        <div className="rounded-lg border p-4 text-sm" style={{ borderColor: 'var(--cr-outline-variant)', background: 'var(--cr-surface-container-low)' }}>
+          Loading borrower opened from Borrower 360…
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p>Unable to load the borrower opened from Borrower 360. Your application draft is still available.</p>
+        <button
+          type="button"
+          onClick={() => setBorrowerContextRetry((attempt) => attempt + 1)}
+          className="mt-3 rounded border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-800"
+        >
+          Retry borrower lookup
+        </button>
+      </div>
+    );
   };
 
   const renderStep = () => {
@@ -789,140 +767,46 @@ export default function CreditApplicationCreate() {
               <div className="rounded-lg border p-4" style={{ borderColor: 'var(--cr-outline-variant)', background: 'var(--cr-surface-container-lowest)' }}>
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--cr-on-surface-variant)' }}>Selected applicant</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--cr-on-surface-variant)' }}>Selected applicant</p>
+                      {isContextBorrower && <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--cr-secondary-fixed)', color: 'var(--cr-on-secondary-fixed)' }}>Borrower 360 context</span>}
+                    </div>
                     <h3 className="mt-1 text-lg font-semibold" style={{ color: 'var(--cr-on-surface)' }}>{getBorrowerDisplayName(selectedBorrower)}</h3>
                     <p className="mt-1 text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>{applicantTypeLabel} · {selectedBorrower.nricPassport || selectedBorrower.registrationNumber || 'No identifier on file'}</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setDraft((prev) => ({ ...prev, selectedBorrower: null, applicantMode: 'existing' }))}
+                    onClick={() => {
+                      if (isContextBorrower && !window.confirm('Change the borrower for this application? The application will no longer use the borrower opened from Borrower 360.')) return;
+                      setDraft((prev) => ({ ...prev, selectedBorrower: null, applicantMode: 'existing' }));
+                    }}
                     className="rounded border px-3 py-2 text-sm font-semibold"
                     style={{ borderColor: 'var(--cr-outline-variant)', color: 'var(--cr-on-surface)', cursor: 'pointer', background: 'white' }}
                   >
-                    Clear selection
+                    {isContextBorrower ? 'Change borrower' : 'Clear selection'}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="rounded-lg border p-4" style={{ borderColor: 'var(--cr-outline-variant)', background: 'var(--cr-surface-container-lowest)' }}>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-base font-semibold" style={{ color: 'var(--cr-on-surface)' }}>No applicant selected</h3>
-                    <p className="mt-1 text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>Create a new applicant if no matching borrower exists.</p>
+                    <p className="mt-1 max-w-2xl text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>
+                      Select an existing borrower from the search results. New borrower identities must be created through the canonical Borrower Management flow so type-specific identity and duplicate rules are applied consistently.
+                    </p>
                   </div>
-                  <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--cr-surface-container-low)', color: 'var(--cr-on-surface-variant)' }}>Inline create</span>
+                  <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--cr-surface-container-low)', color: 'var(--cr-on-surface-variant)' }}>Existing borrower only</span>
                 </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold">Borrower type</label>
-                    <select
-                      value={draft.newApplicant.borrowerType}
-                      onChange={(e) => setDraft((prev) => ({
-                        ...prev,
-                        newApplicant: { ...prev.newApplicant, borrowerType: e.target.value as NewApplicantDraft['borrowerType'] },
-                      }))}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
-                    >
-                      <option value="INDIVIDUAL">Individual</option>
-                      <option value="SOLE_PROPRIETOR">Sole Proprietor</option>
-                      <option value="CORPORATE">Corporate</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold">Applicant name</label>
-                    <input
-                      value={draft.newApplicant.name}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, name: e.target.value } }))}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
-                    />
-                  </div>
-                  {draft.newApplicant.borrowerType === 'INDIVIDUAL' ? (
-                    <>
-                      <div>
-                        <label className="mb-1 block text-sm font-semibold">NRIC / Passport</label>
-                        <input
-                          value={draft.newApplicant.nricPassport}
-                          onChange={(e) => { setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, nricPassport: e.target.value } })); resetInlineDupCheck(); }}
-                          onBlur={() => { if (draft.newApplicant.nricPassport.trim()) void runInlineDupCheck({ nric: draft.newApplicant.nricPassport.trim() }); }}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                          style={{ borderColor: inlineDupCheck === 'duplicate' ? '#fca5a5' : 'var(--cr-outline-variant)', background: 'white' }}
-                        />
-                      </div>
-                      <div />
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="mb-1 block text-sm font-semibold">Registration number</label>
-                        <input
-                          value={draft.newApplicant.registrationNumber}
-                          onChange={(e) => { setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, registrationNumber: e.target.value } })); resetInlineDupCheck(); }}
-                          onBlur={() => { if (draft.newApplicant.registrationNumber.trim()) void runInlineDupCheck({ ssm: draft.newApplicant.registrationNumber.trim() }); }}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                          style={{ borderColor: inlineDupCheck === 'duplicate' ? '#fca5a5' : 'var(--cr-outline-variant)', background: 'white' }}
-                        />
-                      </div>
-                      <div />
-                    </>
-                  )}
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold">Phone</label>
-                    <input
-                      value={draft.newApplicant.phone}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, phone: e.target.value } }))}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold">Email</label>
-                    <input
-                      value={draft.newApplicant.email}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, newApplicant: { ...prev.newApplicant, email: e.target.value } }))}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
-                    />
-                  </div>
-                </div>
-
-                {/* Duplicate check feedback */}
-                {inlineDupCheck === 'checking' && (
-                  <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>
-                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                    Checking for duplicates…
-                  </div>
-                )}
-                {inlineDupCheck === 'clear' && (
-                  <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold" style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
-                    <span className="material-symbols-outlined text-base">check_circle</span>
-                    No duplicate found — safe to create.
-                  </div>
-                )}
-                {inlineDupCheck === 'duplicate' && inlineDupId && (
-                  <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2.5 rounded" style={{ background: '#fffbeb', border: '1px solid #fcd34d' }}>
-                    <div className="flex items-start gap-2">
-                      <span className="material-symbols-outlined text-base" style={{ color: '#d97706' }}>warning</span>
-                      <span className="text-xs font-semibold" style={{ color: '#92400e' }}>A borrower with this identifier already exists.</span>
-                    </div>
-                    <Link to={`/credit/borrowers/${inlineDupId}`} className="text-xs font-semibold whitespace-nowrap" style={{ color: '#0051d5', textDecoration: 'none' }}>
-                      View Existing →
-                    </Link>
-                  </div>
-                )}
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={createNewBorrower}
-                    disabled={creatingApplicant || inlineDupCheck === 'checking' || inlineDupCheck === 'duplicate'}
-                    className="rounded px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                    style={{ background: 'var(--cr-primary)', color: 'var(--cr-on-primary)', border: 'none', cursor: 'pointer' }}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/credit/borrowers/new?returnTo=application"
+                    className="rounded px-4 py-2 text-sm font-semibold"
+                    style={{ background: 'var(--cr-primary)', color: 'var(--cr-on-primary)', textDecoration: 'none' }}
                   >
-                    {creatingApplicant ? 'Creating…' : 'Create Applicant'}
-                  </button>
+                    Create borrower first
+                  </Link>
+                  <span className="text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>After creation, return here and select the borrower.</span>
                 </div>
               </div>
             )}
@@ -1227,7 +1111,10 @@ export default function CreditApplicationCreate() {
                 </div>
               </div>
 
-              <div className="mt-6">{renderStep()}</div>
+              <div className="mt-6 space-y-4">
+                {renderBorrowerContextStatus()}
+                <div>{renderStep()}</div>
+              </div>
 
               {errors.length > 0 && (
                 <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
@@ -1273,15 +1160,7 @@ export default function CreditApplicationCreate() {
         </div>
       </div>
 
-      {/* Duplicate conflict modal for inline applicant creation */}
-      {showConflictModal && (
-        <DuplicateConflictModal
-          conflicts={duplicateConflicts}
-          onCancel={() => setShowConflictModal(false)}
-          onOverride={handleOverrideCreate}
-          saving={creatingApplicant}
-        />
-      )}
+
     </div>
   );
 }
@@ -1305,4 +1184,3 @@ function InfoCard({ title, lines }: { title: string; lines: string[] }) {
     </div>
   );
 }
-
