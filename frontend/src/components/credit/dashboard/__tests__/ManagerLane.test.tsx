@@ -6,17 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const dashboardMocks = vi.hoisted(() => ({
   getActivityFeed: vi.fn(),
   getAlerts: vi.fn(),
+  getApprovalInbox: vi.fn(),
   getMyWork: vi.fn(),
   getPipelineDashboard: vi.fn(),
   getTeamPerformance: vi.fn(),
   getWorkQueue: vi.fn(),
   listBranches: vi.fn(),
+  useCreditLane: vi.fn(),
 }));
 
 vi.mock('../../../../services/credit.service', () => ({
   dashboardApi: {
     getActivityFeed: dashboardMocks.getActivityFeed,
     getAlerts: dashboardMocks.getAlerts,
+    getApprovalInbox: dashboardMocks.getApprovalInbox,
     getMyWork: dashboardMocks.getMyWork,
     getPipelineDashboard: dashboardMocks.getPipelineDashboard,
     getTeamPerformance: dashboardMocks.getTeamPerformance,
@@ -31,7 +34,7 @@ vi.mock('../../../../context/AuthContext', () => ({
 
 vi.mock('../useCreditLane', () => ({
   LANE_LABELS: { rm: 'My deals', approver: 'Decisions', manager: 'Portfolio' },
-  useCreditLane: () => ({ lane: 'manager', lanes: ['rm', 'manager'], setLane: vi.fn() }),
+  useCreditLane: dashboardMocks.useCreditLane,
 }));
 
 import ManagerLane from '../ManagerLane';
@@ -73,6 +76,7 @@ const renderLane = (overrides: Partial<ComponentProps<typeof ManagerLane>> = {})
 );
 
 beforeEach(() => {
+  dashboardMocks.useCreditLane.mockReturnValue({ lane: 'manager', lanes: ['rm', 'manager'], setLane: vi.fn() });
   dashboardMocks.listBranches.mockResolvedValue([]);
   dashboardMocks.getWorkQueue.mockResolvedValue({ data: { data: { buckets: [], totalApplications: 0 } } });
   dashboardMocks.getAlerts.mockResolvedValue({ data: { data: alerts } });
@@ -88,6 +92,7 @@ beforeEach(() => {
     recentApprovals: [],
     attention: { overdue: 0, dueSoon: 0, informationRequired: 0, returned: 0 },
   } } });
+  dashboardMocks.getApprovalInbox.mockResolvedValue({ data: { data: { high: [], medium: [], low: [], totalPending: 0, excluded: [] } } });
 });
 
 describe('ManagerLane', () => {
@@ -99,6 +104,20 @@ describe('ManagerLane', () => {
     expect(screen.getAllByRole('heading', { name: /team performance/i })).toHaveLength(1);
     expect(screen.getAllByRole('heading', { name: /operational alerts/i })).toHaveLength(1);
     expect(screen.getAllByRole('heading', { name: /recent activit/i })).toHaveLength(1);
+  });
+
+  it.each([
+    ['manager', ['rm', 'manager']],
+    ['approver', ['rm', 'approver']],
+  ] as const)('keeps attention items linked to their existing routes in the %s lane', async (lane, lanes) => {
+    dashboardMocks.useCreditLane.mockReturnValue({ lane, lanes, setLane: vi.fn() });
+    render(<MemoryRouter><CreditDashboard /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Overdue: 0' })).toHaveAttribute('href', '/credit/applications?quickFilter=overdue'));
+
+    expect(screen.getByRole('link', { name: 'Due soon: 0' })).toHaveAttribute('href', '/credit/applications?quickFilter=dueSoon');
+    expect(screen.getByRole('link', { name: 'Information required: 0' })).toHaveAttribute('href', '/credit/applications?quickFilter=informationRequired');
+    expect(screen.getByRole('link', { name: 'Returned: 0' })).toHaveAttribute('href', '/credit/applications?quickFilter=returned');
   });
 
   it('renders a user-facing application pipeline with compact accessible stages', () => {
@@ -174,13 +193,14 @@ describe('ManagerLane', () => {
       activity: [{
         id: 'activity-1',
         applicationNo: 'APP-1001',
-        action: 'Submitted for review',
+        action: 'start_condition_fulfilment',
         actorName: 'Alex Tan',
         createdAt: new Date().toISOString(),
       }],
     });
 
     const activityRegion = screen.getByRole('region', { name: 'Recent activity' });
-    expect(within(activityRegion).getByRole('listitem', { name: /Alex Tan.*Submitted for review.*APP-1001.*Just now/ })).toBeInTheDocument();
+    expect(within(activityRegion).getByRole('listitem', { name: /Alex Tan.*Started condition fulfilment.*APP-1001.*Just now/ })).toBeInTheDocument();
+    expect(within(activityRegion).queryByText('start_condition_fulfilment')).not.toBeInTheDocument();
   });
 });

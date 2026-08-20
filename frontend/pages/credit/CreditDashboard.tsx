@@ -306,8 +306,8 @@ const CreditDashboard: React.FC = () => {
 
       <AttentionStrip
         attention={attention}
-        active={quickFilter}
-        onSelect={key => setQuickFilter(current => current === key ? null : key)}
+        active={lane === 'rm' ? quickFilter : undefined}
+        onSelect={lane === 'rm' ? key => setQuickFilter(current => current === key ? null : key) : undefined}
       />
 
       {lane === 'rm' && (

@@ -31,6 +31,36 @@ const STATE_LABELS: Record<string, string> = {
   REFERRED_BACK: 'Returned for updates',
 };
 
+const ACTIVITY_ACTION_LABELS: Record<string, string> = {
+  submit: 'Submitted application',
+  withdraw: 'Withdrew application',
+  start_kyc: 'Started KYC review',
+  place_compliance_hold: 'Placed compliance hold',
+  approve_kyc: 'Approved KYC',
+  reject_kyc: 'Rejected KYC',
+  clear_compliance_hold: 'Cleared compliance hold',
+  reject_compliance: 'Rejected compliance review',
+  start_underwriting: 'Started underwriting',
+  resubmit: 'Resubmitted application',
+  start_assessment: 'Started credit assessment',
+  submit_to_committee: 'Submitted to committee',
+  approve: 'Approved application',
+  reject: 'Rejected application',
+  start_condition_fulfilment: 'Started condition fulfilment',
+  make_offer: 'Made offer',
+  make_offer_direct: 'Made direct offer',
+  accept_offer: 'Accepted offer',
+  decline_offer: 'Declined offer',
+  disburse: 'Disbursed application',
+  activate: 'Activated application',
+  close: 'Closed application',
+  refer_back: 'Returned for updates',
+  resume_kyc: 'Resumed KYC review',
+  resume_underwriting: 'Resumed underwriting',
+  resume_assessment: 'Resumed credit assessment',
+  resume_committee: 'Resumed committee review',
+};
+
 const MANAGER_STAGES = [
   { key: 'intake', label: 'Intake', states: ['DRAFT', 'SUBMITTED'] },
   { key: 'verification', label: 'Verification', states: ['KYC_REVIEW', 'KYC_APPROVED', 'COMPLIANCE_HOLD'] },
@@ -42,6 +72,13 @@ const MANAGER_STAGES = [
 export function formatPipelineState(state: string): string {
   return STATE_LABELS[state] ?? state
     .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, character => character.toUpperCase());
+}
+
+export function formatActivityAction(action: string): string {
+  return ACTIVITY_ACTION_LABELS[action] ?? action
+    .replace(/[_-]+/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, character => character.toUpperCase());
 }

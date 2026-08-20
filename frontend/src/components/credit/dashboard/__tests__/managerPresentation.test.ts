@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { buildPipelineStages, formatPipelineState } from '../managerPresentation';
+import { buildPipelineStages, formatActivityAction, formatPipelineState } from '../managerPresentation';
 
 describe('manager dashboard presentation', () => {
   it('maps workflow states to user-facing labels', () => {
     expect(formatPipelineState('KYC_REVIEW')).toBe('Verification review');
     expect(formatPipelineState('CREDIT_ASSESSMENT')).toBe('Credit assessment');
     expect(formatPipelineState('REFERRED_BACK')).toBe('Returned for updates');
+  });
+
+  it('formats backend activity actions as readable past-tense labels', () => {
+    expect(formatActivityAction('start_condition_fulfilment')).toBe('Started condition fulfilment');
+    expect(formatActivityAction('submit_to_committee')).toBe('Submitted to committee');
+    expect(formatActivityAction('approve_kyc')).toBe('Approved KYC');
   });
 
   it('builds exactly the five manager stages plus Other with weighted ages', () => {

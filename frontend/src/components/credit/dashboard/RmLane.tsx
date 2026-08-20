@@ -14,6 +14,7 @@ const HOLDER_GROUPS = [
   { label: 'With customer', states: ['COMPLIANCE_HOLD', 'OFFER'] },
   { label: 'With committee', states: ['COMMITTEE_REVIEW'] },
 ];
+const HOLDER_GROUP_STATES = new Set(HOLDER_GROUPS.flatMap(group => group.states));
 
 const isNeedsYou = (item: MyWorkItem) =>
   item.slaStatus === 'OVERDUE' || item.slaStatus === 'WARNING' || NEEDS_YOU_STATES.has(item.state);
@@ -45,6 +46,7 @@ const RmLane: React.FC<RmLaneProps> = ({ items, formatAmount }) => {
   const rest = items.filter(item => item.state !== 'DRAFT');
   const needsYou = rest.filter(isNeedsYou).sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
   const inFlight = rest.filter(item => !isNeedsYou(item));
+  const otherInFlight = inFlight.filter(item => !HOLDER_GROUP_STATES.has(item.state));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -68,6 +70,7 @@ const RmLane: React.FC<RmLaneProps> = ({ items, formatAmount }) => {
             if (groupItems.length === 0) return null;
             return <div key={group.label}><h3 style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>{group.label}</h3><ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>{groupItems.map(item => <li key={item.id}><Link to={`/credit/applications/${item.id}`}>{item.applicationNo}</Link> <span>{item.borrowerName}</span> <span>{formatAmount(item.requestedAmount)}</span></li>)}</ul></div>;
           })}
+          {otherInFlight.length > 0 && <div><h3 style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>Other in-flight work</h3><ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>{otherInFlight.map(item => <li key={item.id}><Link to={`/credit/applications/${item.id}`}>{item.applicationNo}</Link> <span>{item.borrowerName}</span> <span>{formatAmount(item.requestedAmount)}</span></li>)}</ul></div>}
         </section>
       )}
     </div>

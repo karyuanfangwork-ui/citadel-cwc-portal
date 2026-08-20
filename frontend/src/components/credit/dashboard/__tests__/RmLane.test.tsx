@@ -41,4 +41,19 @@ describe('RmLane', () => {
     expect(within(inFlight).getByRole('heading', { name: 'With credit' })).toBeInTheDocument();
     expect(within(inFlight).getByRole('heading', { name: 'With committee' })).toBeInTheDocument();
   });
+
+  it('keeps valid in-flight states outside holder groups visible', () => {
+    renderLane([
+      item({ id: 'approved', applicationNo: 'CA-APPROVED', state: 'APPROVED' }),
+      item({ id: 'conditions', applicationNo: 'CA-CONDITIONS', state: 'CONDITION_FULFILMENT' }),
+      item({ id: 'accepted', applicationNo: 'CA-ACCEPTED', state: 'ACCEPTED' }),
+    ]);
+
+    const inFlight = screen.getByRole('region', { name: 'In flight' });
+    const fallback = within(inFlight).getByRole('heading', { name: 'Other in-flight work' });
+    expect(fallback).toBeInTheDocument();
+    expect(within(inFlight).getByRole('link', { name: 'CA-APPROVED' })).toBeInTheDocument();
+    expect(within(inFlight).getByRole('link', { name: 'CA-CONDITIONS' })).toBeInTheDocument();
+    expect(within(inFlight).getByRole('link', { name: 'CA-ACCEPTED' })).toBeInTheDocument();
+  });
 });

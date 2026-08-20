@@ -1,7 +1,7 @@
 import React from 'react';
 import type { CSSProperties } from 'react';
 import type { PipelineDashboard } from '../../../services/credit.service';
-import { buildPipelineStages, formatPipelineState } from './managerPresentation';
+import { buildPipelineStages, formatActivityAction, formatPipelineState } from './managerPresentation';
 
 interface TeamPerformanceData {
   slaCompliancePct: number;
@@ -186,8 +186,8 @@ const ManagerLane: React.FC<ManagerLaneProps> = ({ pipeline, teamPerf, activity,
         {activity.length > 0 ? (
           <ul style={{ display: 'grid', gap: 1, listStyle: 'none', margin: '12px 0 0', padding: 0 }}>
             {activity.map(item => (
-              <li key={item.id} aria-label={`${item.actorName ?? 'Unknown user'} ${item.action} ${item.applicationNo} ${formatRelativeTime(item.createdAt)}`} style={{ borderBottom: '1px solid var(--cr-outline-variant)', padding: '12px 0' }}>
-                <p style={{ color: 'var(--cr-on-surface)', fontSize: 14, margin: 0 }}><strong>{item.actorName ?? 'Unknown user'}</strong> {item.action}</p>
+              <li key={item.id} aria-label={`${item.actorName ?? 'Unknown user'} ${formatActivityAction(item.action)} ${item.applicationNo} ${formatRelativeTime(item.createdAt)}`} style={{ borderBottom: '1px solid var(--cr-outline-variant)', padding: '12px 0' }}>
+                <p style={{ color: 'var(--cr-on-surface)', fontSize: 14, margin: 0 }}><strong>{item.actorName ?? 'Unknown user'}</strong> {formatActivityAction(item.action)}</p>
                 <p style={{ color: 'var(--cr-on-surface-variant)', fontSize: 12, margin: '4px 0 0' }}>{item.applicationNo} · {formatRelativeTime(item.createdAt)}</p>
               </li>
             ))}
