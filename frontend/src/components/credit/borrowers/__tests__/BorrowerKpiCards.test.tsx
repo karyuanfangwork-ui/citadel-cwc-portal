@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import BorrowerKpiCards, { type BorrowerKpiData } from '../BorrowerKpiCards';
 
 const globalData: BorrowerKpiData = {
@@ -34,8 +34,9 @@ describe('BorrowerKpiCards', () => {
   it('renders cards in a responsive grid with region role', () => {
     render(<BorrowerKpiCards {...globalData} scope="global" />);
 
-    expect(screen.getByRole('region', { name: 'Borrower summary' })).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Borrower summary metrics' })).toBeInTheDocument();
-    expect(screen.getAllByRole('listitem')).toHaveLength(5);
+    const summary = screen.getByRole('region', { name: 'Borrower summary' });
+    expect(summary).toBeInTheDocument();
+    expect(within(summary).getByRole('list', { name: 'Borrower summary metrics' })).toBeInTheDocument();
+    expect(within(summary).getAllByRole('listitem')).toHaveLength(5);
   });
 });
