@@ -18,9 +18,8 @@ import { expect, type Page } from '@playwright/test';
  * Seed accounts, verified against the running API rather than taken from
  * documentation. Two things that cost time when they were assumed:
  *
- *   - The two account families use DIFFERENT passwords:
- *       *@test.local      → password123
- *       user@helpdesk.com → abc@123
+ *   - The default seeded accounts use `abc@123`, including both
+ *     `admin@test.local` and `user@helpdesk.com`.
  *   - Only admin@test.local carries credit permissions. it@test.local is an
  *     IT-support agent with none, so specs using it silently landed on the
  *     home page instead of any credit screen.
@@ -32,12 +31,12 @@ import { expect, type Page } from '@playwright/test';
  */
 export const CREDIT_ANALYST = {
   email: process.env.E2E_CREDIT_USER || 'admin@test.local',
-  password: process.env.E2E_CREDIT_PASS || 'password123',
+  password: process.env.E2E_CREDIT_PASS || 'abc@123',
 };
 
 export const CREDIT_APPROVER = {
   email: process.env.E2E_APPROVER_USER || 'admin@test.local',
-  password: process.env.E2E_APPROVER_PASS || 'password123',
+  password: process.env.E2E_APPROVER_PASS || 'abc@123',
 };
 
 /**
