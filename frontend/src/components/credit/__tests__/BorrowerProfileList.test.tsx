@@ -66,4 +66,16 @@ describe('BorrowerProfileList', () => {
     expect(screen.queryByRole('button', { name: /Create Borrower/ })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.listBorrowers).toHaveBeenCalled());
   });
+
+  it('exposes coherent desktop and mobile borrower-list regions', async () => {
+    render(<MemoryRouter><BorrowerProfileList /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
+
+    expect(screen.getByRole('heading', { name: 'Borrower Management' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Borrower summary' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: /search borrowers by name, borrower ID, or identifier/i })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Borrower list' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Borrower cards' })).toBeInTheDocument();
+  });
 });

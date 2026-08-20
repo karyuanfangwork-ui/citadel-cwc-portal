@@ -32,8 +32,10 @@ describe('BorrowerKpiCards', () => {
   });
 
   it('renders cards in a responsive grid with region role', () => {
-    const { container } = render(<BorrowerKpiCards {...globalData} scope="global" />);
-    const region = container.querySelector('[role="region"]');
-    expect(region).toBeTruthy();
+    render(<BorrowerKpiCards {...globalData} scope="global" />);
+
+    expect(screen.getByRole('region', { name: 'Borrower summary' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Borrower summary metrics' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(5);
   });
 });
