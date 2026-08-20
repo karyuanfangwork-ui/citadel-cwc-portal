@@ -6,7 +6,7 @@ import NotificationDropdown from '../NotificationDropdown';
 
 vi.mock('../../context/NotificationContext', () => ({
   useNotifications: () => ({
-    unreadCount: 0,
+    unreadCount: 12,
     setUnreadCount: vi.fn(),
     recentNotification: null,
   }),
@@ -22,7 +22,7 @@ vi.mock('../../services/notification.service', () => ({
 }));
 
 describe('NotificationDropdown', () => {
-  it('contains the pre-font bell label inside the fixed notification control', () => {
+  it('keeps the unread badge visible while containing the pre-font bell label', () => {
     render(
       <MemoryRouter>
         <NotificationDropdown />
@@ -30,9 +30,13 @@ describe('NotificationDropdown', () => {
     );
 
     const button = screen.getByRole('button', { name: 'Notifications' });
+    const iconWrapper = screen.getByTestId('notification-icon-wrapper');
     const fallbackLabel = screen.getByText('notifications');
 
-    expect(button).toHaveClass('w-10', 'h-10', 'min-w-0', 'overflow-hidden');
-    expect(fallbackLabel).toHaveClass('min-w-0', 'max-w-full', 'overflow-hidden');
+    expect(screen.getByText('12')).toBeVisible();
+    expect(button).toHaveClass('w-10', 'h-10', 'min-w-0');
+    expect(button).not.toHaveClass('overflow-hidden');
+    expect(iconWrapper).toHaveClass('w-6', 'h-6', 'min-w-0', 'overflow-hidden');
+    expect(iconWrapper).toContainElement(fallbackLabel);
   });
 });
