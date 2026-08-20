@@ -258,7 +258,7 @@ const CreditDashboard: React.FC = () => {
             {branchFilter && branches.find(b => b.id === branchFilter) ? ` · ${branches.find(b => b.id === branchFilter)!.name}` : ' · All Branches'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {branches.length > 0 && (
             <select
               value={branchFilter}
