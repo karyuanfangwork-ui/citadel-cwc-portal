@@ -229,7 +229,7 @@ const AppShell = () => {
         />
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col min-h-screen overflow-visible">
+        <div className="flex-1 min-w-0 flex flex-col min-h-screen overflow-visible">
           <TopBar
             navLinks={navLinks}
             onMobileMenuToggle={() => setMobileMenuOpen((o) => !o)}
