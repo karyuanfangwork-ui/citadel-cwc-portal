@@ -15,12 +15,12 @@ import CreditNav from './CreditNav';
  */
 const CreditLayout: React.FC = () => {
   return (
-    <div className="credit-module" style={{ minHeight: '100vh', backgroundColor: 'var(--cr-surface, #f7f9fb)' }}>
+    <div className="credit-module" style={{ minHeight: '100%', overflowX: 'hidden', backgroundColor: 'var(--cr-surface, #f7f9fb)' }}>
       {/* ── Horizontal Sub-Nav (Financial Core styling) ── */}
       <CreditNav />
 
       {/* ── Content area ── */}
-      <div className="flex-1 min-w-0 overflow-auto">
+      <div className="flex-1 min-w-0">
         <div className="mx-auto min-h-full w-full max-w-[1680px]">
           <Outlet />
         </div>
