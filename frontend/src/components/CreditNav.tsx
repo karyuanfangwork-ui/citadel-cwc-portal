@@ -152,8 +152,8 @@ const CreditNav: React.FC = () => {
   }, [measureAndCompute]);
 
   return (
-    <nav className="sticky top-0 z-[60] bg-white border-b border-[var(--border,#e5e7eb)]" ref={navRef}>
-      <div className="credit-nav-items max-w-[1200px] mx-auto flex items-center gap-1 px-4 sm:px-8">
+    <nav className="sticky top-0 z-[60] box-border w-full min-w-0 max-w-full bg-white border-b border-[var(--border,#e5e7eb)]" ref={navRef}>
+      <div className="credit-nav-items box-border mx-auto flex w-full min-w-0 max-w-[1200px] items-center gap-1 overflow-x-clip px-4 sm:px-8">
         {primaryItems.map(item => (
           <Link
             key={item.to}
