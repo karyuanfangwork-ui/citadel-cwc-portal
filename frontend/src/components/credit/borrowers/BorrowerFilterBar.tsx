@@ -48,8 +48,16 @@ const BorrowerFilterBar: React.FC<BorrowerFilterBarProps> = ({ filters, onFilter
 
   return (
     <section aria-label="Borrower search and filters" style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)', marginBottom: 20 }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .borrower-filter-search {
+            flex: 1 1 100%;
+            max-width: none;
+          }
+        }
+      `}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, flexWrap: 'wrap' }}>
-        <label style={{ position: 'relative', flex: '1 1 280px', minWidth: 0, maxWidth: 620 }}>
+        <label className="borrower-filter-search" style={{ position: 'relative', flex: '1 1 280px', minWidth: 0, maxWidth: 620 }}>
           <span className="material-symbols-outlined" aria-hidden="true" style={{ position: 'absolute', left: 12, top: 10, fontSize: 18, color: 'var(--cr-outline)' }}>search</span>
           <input
             type="search"
