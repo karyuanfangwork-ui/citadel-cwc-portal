@@ -19,9 +19,9 @@ interface ActivityItem {
 }
 
 interface AlertsData {
-  highDsr: { count: number; thresholdPct: number };
-  expiredBureau: { count: number; maxAgeDays: number };
-  amlReview: { count: number };
+  highDsr: { count: number; thresholdPct: number; filterUrl: string };
+  expiredBureau: { count: number; maxAgeDays: number; filterUrl: string };
+  amlReview: { count: number; filterUrl: string };
 }
 
 interface ManagerLaneProps {
@@ -79,18 +79,21 @@ const ManagerLane: React.FC<ManagerLaneProps> = ({ pipeline, teamPerf, activity,
       label: 'High DSR',
       count: alerts.highDsr.count,
       description: `Applications above the ${alerts.highDsr.thresholdPct}% debt service ratio threshold.`,
+      filterUrl: alerts.highDsr.filterUrl,
     },
     {
       id: 'expired-bureau',
       label: 'Expired bureau checks',
       count: alerts.expiredBureau.count,
       description: `Bureau checks older than ${alerts.expiredBureau.maxAgeDays} days need refreshing.`,
+      filterUrl: alerts.expiredBureau.filterUrl,
     },
     {
       id: 'aml-review',
       label: 'AML review',
       count: alerts.amlReview.count,
       description: 'Applications waiting for anti-money-laundering review.',
+      filterUrl: alerts.amlReview.filterUrl,
     },
   ].filter(alert => alert.count > 0) : [];
 
@@ -170,7 +173,7 @@ const ManagerLane: React.FC<ManagerLaneProps> = ({ pipeline, teamPerf, activity,
                     <span style={{ color: 'var(--cr-error, #b3261e)', fontSize: 20, fontWeight: 700 }}>{alert.count}</span>
                   </div>
                   <p style={{ color: 'var(--cr-on-surface-variant)', fontSize: 13, lineHeight: 1.4, margin: '6px 0 10px' }}>{alert.description}</p>
-                  <a href={`/credit/applications?alert=${alert.id}`} style={{ color: 'var(--cr-primary)', fontSize: 13, fontWeight: 600 }}>Review applications</a>
+                  <a href={alert.filterUrl} style={{ color: 'var(--cr-primary)', fontSize: 13, fontWeight: 600 }}>Review applications</a>
                 </li>
               ))}
             </ul>

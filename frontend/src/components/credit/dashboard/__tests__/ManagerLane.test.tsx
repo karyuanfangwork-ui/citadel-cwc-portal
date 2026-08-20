@@ -23,9 +23,9 @@ const teamPerf = {
 };
 
 const alerts = {
-  highDsr: { count: 2, thresholdPct: 60 },
-  expiredBureau: { count: 1, maxAgeDays: 30 },
-  amlReview: { count: 0 },
+  highDsr: { count: 2, thresholdPct: 60, filterUrl: '/credit/applications?filter=highDsr' },
+  expiredBureau: { count: 1, maxAgeDays: 30, filterUrl: '/credit/applications?filter=expiredBureau' },
+  amlReview: { count: 1, filterUrl: '/credit/applications?filter=amlReview' },
 };
 
 const renderLane = (overrides: Partial<ComponentProps<typeof ManagerLane>> = {}) => render(
@@ -62,13 +62,26 @@ describe('ManagerLane', () => {
     expect(within(teamRegion).getByRole('definition', { name: '4.5 days' })).toBeInTheDocument();
   });
 
-  it('uses labeled alert items and shows an explicit zero-alert state', () => {
+  it('uses each active alert backend filter URL', () => {
     renderLane();
 
     const alertsRegion = screen.getByRole('region', { name: 'Operational alerts' });
-    expect(within(alertsRegion).getByRole('listitem', { name: /High DSR.*2/ })).toBeInTheDocument();
+    const highDsrAlert = within(alertsRegion).getByRole('listitem', { name: /High DSR.*2/ });
+    const expiredBureauAlert = within(alertsRegion).getByRole('listitem', { name: /Expired bureau checks.*1/ });
+    const amlReviewAlert = within(alertsRegion).getByRole('listitem', { name: /AML review.*1/ });
 
-    renderLane({ alerts: { highDsr: { count: 0, thresholdPct: 60 }, expiredBureau: { count: 0, maxAgeDays: 30 }, amlReview: { count: 0 } } });
+    expect(within(highDsrAlert).getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/credit/applications?filter=highDsr');
+    expect(within(expiredBureauAlert).getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/credit/applications?filter=expiredBureau');
+    expect(within(amlReviewAlert).getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/credit/applications?filter=amlReview');
+  });
+
+  it('shows an explicit zero-alert state', () => {
+    renderLane({ alerts: {
+      highDsr: { count: 0, thresholdPct: 60, filterUrl: '/credit/applications?filter=highDsr' },
+      expiredBureau: { count: 0, maxAgeDays: 30, filterUrl: '/credit/applications?filter=expiredBureau' },
+      amlReview: { count: 0, filterUrl: '/credit/applications?filter=amlReview' },
+    } });
+
     expect(screen.getByText('No operational alerts.')).toBeInTheDocument();
   });
 
