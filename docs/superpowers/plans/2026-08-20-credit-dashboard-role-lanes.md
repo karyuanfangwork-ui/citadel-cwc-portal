@@ -1665,7 +1665,53 @@ Fetch the approval inbox with `dashboardApi.getApprovalInbox()` only when `lane 
 
 Delete the now-unused `PriorityWorkQueue` and `NextActionsPanel` imports. Leave the component files in place — `CreditOfficerDashboard.test.tsx` still covers them and deleting them is out of scope.
 
-- [ ] **Step 5: Connect the three blocker flags**
+- [ ] **Step 5: Make the attention counts filter the lane instead of navigating away**
+
+Spec §3 requires the four attention counts to filter the lane below rather than
+navigate to a separate list page. `AttentionStrip` currently renders links to
+`/credit/applications?quickFilter=...`.
+
+Add an optional `onSelect` prop. When it is supplied, render buttons that call
+it; when it is absent, keep today's links so `AttentionStrip.test.tsx` stays
+green unedited:
+
+```tsx
+interface AttentionStripProps {
+  attention: { overdue: number; dueSoon: number; informationRequired: number; returned: number };
+  onSelect?: (key: 'overdue' | 'dueSoon' | 'informationRequired' | 'returned') => void;
+  active?: string | null;
+}
+```
+
+In `CreditDashboard.tsx`, hold `const [quickFilter, setQuickFilter] = useState<string | null>(null)`,
+pass `onSelect={key => setQuickFilter(k => (k === key ? null : key))}` and
+`active={quickFilter}`, and filter the items handed to `RmLane` before render:
+
+```tsx
+const FILTER_PREDICATES: Record<string, (i: MyWorkItem) => boolean> = {
+  overdue: i => i.slaStatus === 'OVERDUE',
+  dueSoon: i => i.slaStatus === 'WARNING',
+  informationRequired: i => i.state === 'COMPLIANCE_HOLD',
+  returned: i => i.state === 'KYC_REJECTED' || i.state === 'REFERRED_BACK',
+};
+const laneItems = quickFilter ? myAssigned.filter(FILTER_PREDICATES[quickFilter]) : myAssigned;
+```
+
+Add this test to `CreditDashboardLanes.test.tsx`:
+
+```tsx
+  it('filters the lane in place when an attention count is selected', async () => {
+    laneMock.mockReturnValue({ lane: 'rm', lanes: ['rm'], setLane: vi.fn() });
+    render(<MemoryRouter><CreditDashboard /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole('button', { name: /^Returned:/ }));
+    expect(screen.getByRole('heading', { name: /Needs you/ })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
+  });
+```
+
+Import `userEvent` from `@testing-library/user-event` at the top of that file.
+
+- [ ] **Step 6: Connect the three blocker flags**
 
 The `OperationalAlerts` data (`highDsr`, `expiredBureau`, `amlReview`) is computed per-branch as counts with filter URLs, not per application. In `dashboard.service.ts`, extend the existing alerts query to also return the matching application IDs, build three `Set<string>`s once per request, and replace the hardcoded flags in `toMyWorkItem`:
 
@@ -1679,13 +1725,13 @@ The `OperationalAlerts` data (`highDsr`, `expiredBureau`, `amlReview`) is comput
 
 If the alerts are computed by an aggregate that cannot cheaply return IDs, leave the flags `false`, keep rungs 4-6 of the ladder dormant, and say so explicitly in the commit message. Do not add a per-row query.
 
-- [ ] **Step 6: Run the full frontend and backend suites**
+- [ ] **Step 7: Run the full frontend and backend suites**
 
 Run: `cd frontend && npx vitest run src/components/credit/ && npx tsc --noEmit`
 Run: `cd backend && npx jest src/credit/ && npx tsc --noEmit`
 Expected: all PASS, both typechecks clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/pages/credit/CreditDashboard.tsx frontend/src/components/credit/dashboard/ backend/src/credit/services/dashboard.service.ts
@@ -1784,3 +1830,4 @@ git commit -m "test(credit): add E2E coverage for dashboard role lanes"
 - [ ] Analytics widgets still render, in the manager lane.
 - [ ] A multi-hat user can switch lanes and the choice persists.
 - [ ] `PriorityWorkQueue` and `NextActionsPanel` are no longer both fed the same array.
+- [ ] Selecting an attention count filters the lane in place rather than navigating away.
