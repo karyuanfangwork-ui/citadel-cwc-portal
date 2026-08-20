@@ -7,9 +7,27 @@ import { hasPermission } from '../src/utils/permissions';
 import BorrowerKpiCards from '../src/components/credit/borrowers/BorrowerKpiCards';
 import BorrowerFilterBar, { BorrowerFilterState } from '../src/components/credit/borrowers/BorrowerFilterBar';
 import BorrowerDataTable from '../src/components/credit/borrowers/BorrowerDataTable';
+import BorrowerCardList from '../src/components/credit/borrowers/BorrowerCardList';
 
 const parsePage = (value: string | null, fallback: number) => { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; };
 const parseLimit = (value: string | null) => { const parsed = Number(value); return [20, 40, 60, 100].includes(parsed) ? parsed : 20; };
+const MOBILE_BREAKPOINT = '(max-width: 767px)';
+
+const useMobileBorrowerPresentation = () => {
+  const getMatches = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_BREAKPOINT).matches;
+  const [isMobile, setIsMobile] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mediaQuery = window.matchMedia(MOBILE_BREAKPOINT);
+    const sync = () => setIsMobile(mediaQuery.matches);
+    sync();
+    mediaQuery.addEventListener?.('change', sync);
+    return () => mediaQuery.removeEventListener?.('change', sync);
+  }, []);
+
+  return isMobile;
+};
 
 const BorrowerProfileList: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +35,7 @@ const BorrowerProfileList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const canCreate = hasPermission(user, 'credit:create');
   const canWrite = hasPermission(user, 'credit:write');
+  const isMobile = useMobileBorrowerPresentation();
   const queryState = React.useMemo(() => ({
     search: searchParams.get('q') || '',
     segment: searchParams.get('segment') || '',
@@ -102,8 +121,11 @@ const BorrowerProfileList: React.FC = () => {
     </header>
     <BorrowerKpiCards {...stats} scope="global" />
     <BorrowerFilterBar filters={filters} onFilterChange={updateFilters} />
-    <div style={{ background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)', overflow: 'hidden' }}>
-      {error ? <div role="alert" style={{ padding: 32, textAlign: 'center' }}><p>{error}</p><button type="button" onClick={() => void fetchBorrowers()}>Retry</button></div> : <BorrowerDataTable profiles={response.items} loading={loading} sortBy={queryState.sort} sortDirection={queryState.direction} canCreate={canCreate} canWrite={canWrite} onSort={onSort} onRowClick={(id) => navigate(`/credit/borrowers/${id}`)} onNameClick={(id) => navigate(`/credit/borrowers/${id}`)} onActiveApplicationsClick={(id) => navigate(`/credit/applications?borrowerId=${encodeURIComponent(id)}&status=active`)} onActionClick={handleActionClick} onClearFilters={() => updateFilters({ search: '', segmentFilter: '', statusFilter: '', activeApplicationFilter: '' })} />}
+    <div className="borrower-results-surface" style={{ minWidth: 0, background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)', overflow: 'hidden' }}>
+      {error ? <div role="alert" style={{ padding: 32, textAlign: 'center' }}><p>{error}</p><button type="button" onClick={() => void fetchBorrowers()}>Retry</button></div> : <>
+        <div className="borrower-desktop-presentation" hidden={isMobile}><BorrowerDataTable profiles={response.items} loading={loading} sortBy={queryState.sort} sortDirection={queryState.direction} canCreate={canCreate} canWrite={canWrite} onSort={onSort} onRowClick={(id) => navigate(`/credit/borrowers/${id}`)} onNameClick={(id) => navigate(`/credit/borrowers/${id}`)} onActiveApplicationsClick={(id) => navigate(`/credit/applications?borrowerId=${encodeURIComponent(id)}&status=active`)} onActionClick={handleActionClick} onClearFilters={() => updateFilters({ search: '', segmentFilter: '', statusFilter: '', activeApplicationFilter: '' })} /></div>
+        <div className="borrower-mobile-presentation" hidden={!isMobile}><BorrowerCardList profiles={response.items} canCreate={canCreate} canWrite={canWrite} onRowClick={(id) => navigate(`/credit/borrowers/${id}`)} onActiveApplicationsClick={(id) => navigate(`/credit/applications?borrowerId=${encodeURIComponent(id)}&status=active`)} onActionClick={handleActionClick} onClearFilters={() => updateFilters({ search: '', segmentFilter: '', statusFilter: '', activeApplicationFilter: '' })} /></div>
+      </>}
       {!loading && !error && response.pagination.totalPages > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, borderTop: '1px solid var(--cr-outline-variant)' }}><span style={{ color: 'var(--cr-on-surface-variant)', fontSize: 'var(--cr-text-body-sm)' }}>Page {response.pagination.page} of {response.pagination.totalPages}</span><div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}><button type="button" disabled={queryState.page <= 1} onClick={() => goToPage(queryState.page - 1)}>Previous</button>{pageNumbers.map((page) => <button type="button" key={page} aria-current={page === queryState.page ? 'page' : undefined} onClick={() => goToPage(page)}>{page}</button>)}<button type="button" disabled={queryState.page >= response.pagination.totalPages} onClick={() => goToPage(queryState.page + 1)}>Next</button></div></div>}
     </div>
   </div>;

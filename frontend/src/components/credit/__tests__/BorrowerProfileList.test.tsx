@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +21,10 @@ const borrower = {
   id: 'borrower-1', borrowerNumber: 'BRW-000001', name: 'Ahmad Enterprise', segment: 'SME', legalType: 'CORPORATE', maskedIdentifier: '******-10-1234', primaryContact: 'a***@example.test', relationshipOwner: { id: 'rm-1', name: 'Relationship Manager' }, activeApplicationCount: 2, totalExposure: 45000, status: 'ACTIVE', dataQuality: 'COMPLETE' as const, missingFields: [] as string[], updatedAt: '2026-08-11T00:00:00.000Z',
 };
 
-const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+};
 
 beforeEach(() => {
   mocks.user.permissions = ['credit:read', 'credit:create'];
@@ -34,22 +37,35 @@ describe('BorrowerProfileList', () => {
     render(<MemoryRouter initialEntries={['/credit/borrowers?q=Ahmad&segment=SME']}><BorrowerProfileList /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: 'Borrower Management' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create Borrower/ })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
-    expect(screen.getByText('******-10-1234')).toBeInTheDocument();
-    expect(screen.getByText('a***@example.test')).toBeInTheDocument();
-    expect(screen.queryByText('ahmad@example.test')).not.toBeInTheDocument();
-    expect(screen.getByText(/45,000/)).toBeInTheDocument();
-    expect(screen.getByText('Relationship Manager')).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Borrower list' });
+    await waitFor(() => expect(within(table).getByText('Ahmad Enterprise')).toBeInTheDocument());
+    expect(within(table).getByText('******-10-1234')).toBeInTheDocument();
+    expect(within(table).getByText('a***@example.test')).toBeInTheDocument();
+    expect(within(table).queryByText('ahmad@example.test')).not.toBeInTheDocument();
+    expect(within(table).getByText(/45,000/)).toBeInTheDocument();
+    expect(within(table).getByText('Relationship Manager')).toBeInTheDocument();
     expect(screen.getByRole('searchbox')).toHaveValue('Ahmad');
     expect(mocks.listBorrowers).toHaveBeenCalledWith(expect.objectContaining({ search: 'Ahmad', segment: 'SME' }), expect.any(AbortSignal));
   });
 
   it('keeps active application count as an accessible navigation action', async () => {
     render(<MemoryRouter><BorrowerProfileList /><LocationProbe /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /2 active applications/i }));
+    const table = await screen.findByRole('table', { name: 'Borrower list' });
+    await waitFor(() => expect(within(table).getByText('Ahmad Enterprise')).toBeInTheDocument());
+    fireEvent.click(within(table).getByRole('button', { name: /2 active applications/i }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('borrowerId=borrower-1'));
     expect(screen.getByTestId('location')).toHaveTextContent('status=active');
+  });
+
+  it('navigates to the borrower 360 view when the row is clicked', async () => {
+    render(<MemoryRouter initialEntries={['/credit/borrowers']}><BorrowerProfileList /><LocationProbe /></MemoryRouter>);
+    const table = await screen.findByRole('table', { name: 'Borrower list' });
+    await waitFor(() => expect(within(table).getByText('Ahmad Enterprise')).toBeInTheDocument());
+
+    fireEvent.click(within(table).getByRole('row', { name: /Ahmad Enterprise/i }));
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/credit/borrowers/borrower-1'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('preserves URL sort state in the operational request and updates it from the table', async () => {
@@ -70,7 +86,8 @@ describe('BorrowerProfileList', () => {
   it('groups the borrower heading, count, and create action into the page header', async () => {
     render(<MemoryRouter><BorrowerProfileList /></MemoryRouter>);
 
-    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
+    const table = await screen.findByRole('table', { name: 'Borrower list' });
+    await waitFor(() => expect(within(table).getByText('Ahmad Enterprise')).toBeInTheDocument());
 
     const pageHeader = screen.getByRole('region', { name: 'Borrower list heading' });
     expect(pageHeader).toContainElement(screen.getByRole('heading', { name: 'Borrower Management' }));
@@ -81,12 +98,13 @@ describe('BorrowerProfileList', () => {
   it('exposes coherent desktop and mobile borrower-list regions', async () => {
     render(<MemoryRouter><BorrowerProfileList /></MemoryRouter>);
 
-    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
+    const table = await screen.findByRole('table', { name: 'Borrower list' });
+    await waitFor(() => expect(within(table).getByText('Ahmad Enterprise')).toBeInTheDocument());
 
     expect(screen.getByRole('heading', { name: 'Borrower Management' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Borrower summary' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: /search borrowers by name, borrower ID, or identifier/i })).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: 'Borrower list' })).toBeInTheDocument();
+    expect(table).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Borrower cards', hidden: true })).toBeInTheDocument();
   });
 });
