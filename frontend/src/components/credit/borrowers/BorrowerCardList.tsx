@@ -6,6 +6,7 @@ import BorrowerStatusBadge from './BorrowerStatusBadge';
 
 export interface BorrowerCardListProps {
   profiles: BorrowerListItem[];
+  loading?: boolean;
   canCreate?: boolean;
   canWrite?: boolean;
   onRowClick?: (id: string) => void;
@@ -22,6 +23,7 @@ const menuItemStyle: React.CSSProperties = { display: 'block', width: '100%', pa
 
 const BorrowerCardList: React.FC<BorrowerCardListProps> = ({
   profiles,
+  loading = false,
   canCreate = false,
   canWrite = true,
   onRowClick,
@@ -32,11 +34,46 @@ const BorrowerCardList: React.FC<BorrowerCardListProps> = ({
 }) => {
   const [openDetailsId, setOpenDetailsId] = React.useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (openMenuId === null) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenMenuId(null);
+    };
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setOpenMenuId(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+    };
+  }, [openMenuId]);
 
   const openBorrower = (id: string) => {
     if (onRowClick) onRowClick(id);
     else onOpen360?.(id);
   };
+
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLElement>, id: string) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openBorrower(id);
+    }
+  };
+
+  if (loading) {
+    return (
+      <section aria-label="Borrower cards" style={{ display: 'grid', gap: 12, padding: 12 }}>
+        <div role="status" aria-label="Loading borrowers" style={{ display: 'grid', gap: 12 }}>
+          {[1, 2, 3].map((row) => <div key={row} aria-hidden="true" style={{ height: 156, borderRadius: 'var(--cr-radius-lg)', background: 'var(--cr-surface-container-low)', animation: 'pulse 1.5s ease-in-out infinite' }} />)}
+        </div>
+      </section>
+    );
+  }
 
   if (profiles.length === 0) {
     return (
@@ -59,13 +96,13 @@ const BorrowerCardList: React.FC<BorrowerCardListProps> = ({
         const menuId = `borrower-actions-${profile.id}`;
 
         return (
-          <article key={profile.id} style={{ minWidth: 0, padding: 16, border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)', background: 'var(--cr-surface-container-lowest)', boxShadow: 'var(--cr-shadow-card)' }}>
+          <article key={profile.id} tabIndex={0} aria-label={`${title} borrower card`} onClick={(event) => { if (event.target === event.currentTarget) openBorrower(profile.id); }} onKeyDown={(event) => handleCardKeyDown(event, profile.id)} style={{ minWidth: 0, padding: 16, border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)', background: 'var(--cr-surface-container-lowest)', boxShadow: 'var(--cr-shadow-card)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ minWidth: 0 }}>
                 <button type="button" aria-label={`Open ${title} in Borrower 360`} onClick={() => openBorrower(profile.id)} style={{ maxWidth: '100%', padding: 0, border: 0, background: 'transparent', color: 'var(--cr-primary)', cursor: 'pointer', font: 'inherit', fontWeight: 'var(--cr-fw-label)', fontSize: 'var(--cr-text-body-lg)', textAlign: 'left', overflowWrap: 'anywhere' }}>{title}</button>
                 <div style={{ marginTop: 4, color: 'var(--cr-on-surface-variant)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 'var(--cr-text-body-sm)' }}>{profile.borrowerNumber || '—'}</div>
               </div>
-              <div style={{ position: 'relative', flex: '0 0 auto' }}>
+              <div ref={menuOpen ? menuRef : undefined} style={{ position: 'relative', flex: '0 0 auto' }}>
                 <button type="button" aria-label={`Actions for ${title}`} aria-expanded={menuOpen} aria-controls={menuOpen ? menuId : undefined} onClick={() => setOpenMenuId(menuOpen ? null : profile.id)} style={{ display: 'inline-grid', width: 36, height: 36, placeItems: 'center', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)', background: 'var(--cr-surface-container-lowest)', color: 'var(--cr-on-surface)', cursor: 'pointer' }}><span className="material-symbols-outlined" aria-hidden="true">more_vert</span></button>
                 {menuOpen && <div id={menuId} role="menu" style={{ position: 'absolute', right: 0, top: 40, zIndex: 2, minWidth: 170, overflow: 'hidden', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)', background: 'var(--cr-surface-container-lowest)', boxShadow: 'var(--cr-shadow-card)' }}>
                   <button role="menuitem" type="button" onClick={() => { setOpenMenuId(null); onActionClick(profile.id, 'view'); }} style={menuItemStyle}>Open 360 View</button>
