@@ -23,30 +23,32 @@ const BorrowerKpiCards: React.FC<BorrowerKpiData> = (data) => {
   const scopeLabel = isFiltered ? 'Filtered borrowers' : 'All borrowers';
 
   return (
-    <div aria-label="Borrower summary" role="region" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+    <section aria-label="Borrower summary" style={{ marginBottom: 20 }}>
       {isFiltered && data.filteredTotal !== undefined && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+        <div style={{ marginBottom: 8, fontSize: 'var(--cr-text-label-md)', color: 'var(--cr-on-surface-variant)', fontWeight: 'var(--cr-fw-label)' }}>
           Showing {data.filteredTotal.toLocaleString()} of {data.total.toLocaleString()} total borrowers
         </div>
       )}
       {!isFiltered && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+        <div style={{ marginBottom: 8, fontSize: 'var(--cr-text-label-md)', color: 'var(--cr-on-surface-variant)', fontWeight: 'var(--cr-fw-label)' }}>
           {scopeLabel}
         </div>
       )}
+      <ul aria-label="Borrower summary metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 12, margin: 0, padding: 0, listStyle: 'none' }}>
       {CARDS.map((card) => {
         const value = data[card.key];
         const showFiltered = isFiltered && card.key === 'total' && data.filteredTotal !== undefined;
         return (
-          <div key={card.key} style={{ minWidth: 0, padding: '12px 16px', background: '#fff', border: '1px solid #c6c6cd', borderRadius: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#45464d', fontSize: 12 }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16, color: card.color }}>{card.icon}</span>{card.label}</div>
-            <div style={{ marginTop: 4, color: '#191c1e', fontSize: 24, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          <li key={card.key} style={{ minWidth: 0, padding: '16px', background: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--cr-on-surface-variant)', fontSize: 'var(--cr-text-label-md)', fontWeight: 'var(--cr-fw-label)' }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16, color: card.color }}>{card.icon}</span>{card.label}</div>
+            <div style={{ marginTop: 6, color: 'var(--cr-on-surface)', fontFamily: 'var(--cr-font-display)', fontSize: 'var(--cr-text-headline-lg)', fontWeight: 'var(--cr-fw-display)', fontVariantNumeric: 'tabular-nums' }}>
               {showFiltered ? data.filteredTotal!.toLocaleString() : (typeof value === 'number' ? value.toLocaleString() : value)}
             </div>
-          </div>
+          </li>
         );
       })}
-    </div>
+      </ul>
+    </section>
   );
 };
 

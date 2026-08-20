@@ -67,6 +67,17 @@ describe('BorrowerProfileList', () => {
     await waitFor(() => expect(mocks.listBorrowers).toHaveBeenCalled());
   });
 
+  it('groups the borrower heading, count, and create action into the page header', async () => {
+    render(<MemoryRouter><BorrowerProfileList /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText('Ahmad Enterprise')).toBeInTheDocument());
+
+    const pageHeader = screen.getByRole('region', { name: 'Borrower list heading' });
+    expect(pageHeader).toContainElement(screen.getByRole('heading', { name: 'Borrower Management' }));
+    expect(pageHeader).toHaveTextContent('1 borrowers');
+    expect(pageHeader).toContainElement(screen.getByRole('button', { name: /Create Borrower/ }));
+  });
+
   it('exposes coherent desktop and mobile borrower-list regions', async () => {
     render(<MemoryRouter><BorrowerProfileList /></MemoryRouter>);
 
