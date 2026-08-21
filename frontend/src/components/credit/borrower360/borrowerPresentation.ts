@@ -53,6 +53,24 @@ export function formatMyr(value: number | string | null | undefined): string {
   }).format(number);
 }
 
+/** Format a Malaysian 12-digit NRIC while leaving passport values unchanged. */
+export function formatMalaysianNric(value: string | null | undefined): string {
+  if (!value) return '—';
+  const digits = value.replace(/\D/g, '');
+  return /^\d{12}$/.test(digits)
+    ? `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`
+    : value;
+}
+
+/** Format numeric NRIC input progressively; preserve passport/alphanumeric input. */
+export function formatMalaysianNricInput(value: string): string {
+  if (!/^[\d\s-]*$/.test(value)) return value;
+  const digits = value.replace(/\D/g, '').slice(0, 12);
+  if (digits.length <= 6) return digits;
+  if (digits.length <= 8) return `${digits.slice(0, 6)}-${digits.slice(6)}`;
+  return `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`;
+}
+
 export function getApplicationStateTone(state: ApplicationState): 'neutral' | 'info' | 'warn' | 'pos' | 'neg' {
   if (['REJECTED', 'WITHDRAWN', 'CLOSED', 'KYC_REJECTED'].includes(state)) return 'neg';
   if (['APPROVED', 'ACCEPTED', 'DISBURSED', 'ACTIVE'].includes(state)) return 'pos';

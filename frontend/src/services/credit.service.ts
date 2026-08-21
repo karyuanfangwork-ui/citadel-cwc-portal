@@ -15,7 +15,7 @@ import type {
 // ── Credit Module Types ───────────────────────────────────────
 
 export type BorrowerProfileStatus = 'DRAFT' | 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-export type DocumentType = 'NRIC' | 'PASSPORT' | 'BUSINESS_REG' | 'TAX_RETURN' | 'BANK_STATEMENT' | 'FINANCIAL_STATEMENT' | 'UTILITY_BILL' | 'OTHER';
+export type DocumentType = 'NRIC' | 'PASSPORT' | 'BUSINESS_REG' | 'PAYSLIP' | 'TAX_RETURN' | 'BANK_STATEMENT' | 'FINANCIAL_STATEMENT' | 'UTILITY_BILL' | 'OTHER';
 export type DocumentStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
 
 export type ApplicationState =
@@ -280,6 +280,13 @@ export interface BorrowerRiskAssessment {
   assessmentImpact: 'INCOMPLETE' | 'READY' | 'NOT_CALCULATED';
 }
 
+export interface RatingBand {
+  rating: string;
+  scoreMin: number;
+  scoreMax: number;
+  riskCategory: 'LOW' | 'MODERATE' | 'HIGH' | 'PROHIBITED';
+}
+
 export interface Borrower360Summary {
   borrowerId: string;
   borrowerType: string;
@@ -294,6 +301,13 @@ export interface Borrower360Summary {
   totalExposure: number;
   activeApps: number;
   docCompletionPct: number;
+  documentChecklist?: {
+    requiredCount: number;
+    collectedCount: number;
+    outstandingCount: number;
+    completionPct: number;
+    outstandingGroups: Array<string | string[]>;
+  };
   facilityCount: number;
   compliancePass: boolean;
   bureau: Borrower360Bureau;
@@ -421,6 +435,33 @@ export interface CreditDocument {
   createdAt?: string;
   uploader?: CreditUserRef;
   verifier?: CreditUserRef;
+}
+
+const DOCUMENT_TYPE_BY_CLASSIFICATION: Record<string, DocumentType> = {
+  NRIC_PASSPORT: 'NRIC',
+  SSM_CERT: 'BUSINESS_REG',
+  TAX_RETURN: 'TAX_RETURN',
+  BANK_STATEMENT: 'BANK_STATEMENT',
+  AUDITED_FINANCIALS: 'FINANCIAL_STATEMENT',
+  MANAGEMENT_ACCOUNTS: 'FINANCIAL_STATEMENT',
+};
+
+/** Normalize the backend CreditDocument model for legacy Borrower 360 consumers. */
+export function normalizeCreditDocument(document: any): CreditDocument {
+  const verificationStatus = document.verificationStatus ?? document.status ?? 'PENDING';
+  return {
+    ...document,
+    documentType: document.documentType ?? DOCUMENT_TYPE_BY_CLASSIFICATION[document.classification] ?? 'OTHER',
+    status: verificationStatus,
+    verificationStatus,
+    fileSize: document.fileSize ?? 0,
+    mimeType: document.mimeType ?? 'application/octet-stream',
+    verifiedAt: document.verifiedAt ?? null,
+    verifiedBy: document.verifiedBy ?? document.verifiedById ?? null,
+    rejectionReason: document.rejectionReason ?? null,
+    uploadedAt: document.uploadedAt ?? document.createdAt ?? new Date(0).toISOString(),
+    uploadedBy: document.uploadedBy ?? document.uploadedById ?? '',
+  };
 }
 
 export interface DocumentRequirementLinkedDoc {
@@ -600,6 +641,7 @@ export interface CreditApplication {
   productName?: string;
   reviewedBy?: string | null;
   lane?: string | null;
+  laneReason?: string | null;
   // relations
   borrowerProfile?: BorrowerProfile;
   rm?: CreditUserRef;
@@ -653,6 +695,21 @@ export interface CreditFacility {
   recommendedAmount?: number | string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SubmissionReadinessIssue {
+  field: string;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
+  target?: string;
+  tab?: string;
+}
+
+export interface SubmissionReadinessResult {
+  ready: boolean;
+  errors: SubmissionReadinessIssue[];
+  warnings: SubmissionReadinessIssue[];
+  satisfied: Array<SubmissionReadinessIssue & { severity: 'info' }>;
 }
 
 export interface RequestItem {
@@ -1176,6 +1233,11 @@ const creditService = {
     return res.data.data;
   },
 
+  async getActiveRatingBands() {
+    const res = await apiClient.get('/credit/rating-bands/active');
+    return res.data.data.bands as RatingBand[];
+  },
+
   async createBorrowerProfile(data: CreateBorrowerProfilePayload) {
     const res = await apiClient.post('/credit/borrowers', data);
     return {
@@ -1216,6 +1278,21 @@ const creditService = {
     formData.append('classification', classification);
     formData.append('applicationId', '');
     const res = await apiClient.post('/credit/credit-documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data.document as CreditDocument;
+  },
+
+  async updateDocument(documentId: string, data: { classification?: string; description?: string | null; expectedUpdatedAt?: string }) {
+    const res = await apiClient.patch(`/credit/credit-documents/${documentId}`, data);
+    return res.data.data.document as CreditDocument;
+  },
+
+  async replaceDocument(documentId: string, file: File, changeSummary?: string) {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (changeSummary) formData.append('changeSummary', changeSummary);
+    const res = await apiClient.post(`/credit/credit-documents/${documentId}/replace`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data.document as CreditDocument;
@@ -1304,13 +1381,15 @@ const creditService = {
 
   // Documents
   async listDocuments(borrowerProfileId: string) {
-    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/documents`);
-    return res.data.data.documents as CreditDocument[];
+    const res = await apiClient.get('/credit/credit-documents', {
+      params: { borrowerProfileId, page: 1, limit: 100 },
+    });
+    return (res.data.data.documents as unknown[]).map(normalizeCreditDocument);
   },
 
   async listApplicationDocuments(applicationId: string) {
     const res = await apiClient.get(`/credit/credit-documents`, { params: { applicationId } });
-    return res.data.data.documents as CreditDocument[];
+    return (res.data.data.documents as unknown[]).map(normalizeCreditDocument);
   },
 
   async listDocumentRequirements(applicationId: string) {
@@ -1334,7 +1413,11 @@ const creditService = {
   },
 
   async uploadDocument(borrowerProfileId: string, formData: FormData) {
-    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/documents`, formData, {
+    if (!formData.has('borrowerProfileId')) formData.append('borrowerProfileId', borrowerProfileId);
+    if (!formData.has('classification') && formData.has('documentType')) {
+      formData.append('classification', String(formData.get('documentType')));
+    }
+    const res = await apiClient.post('/credit/credit-documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data.document as CreditDocument;
@@ -1381,7 +1464,7 @@ const creditService = {
   },
 
   async deleteDocument(documentId: string) {
-    await apiClient.delete(`/credit/documents/${documentId}`);
+    await apiClient.delete(`/credit/credit-documents/${documentId}`);
   },
 
   // Credit Applications
@@ -1433,12 +1516,7 @@ const creditService = {
     await apiClient.delete(`/credit/applications/${id}`);
   },
 
-  async checkReadiness(id: string): Promise<{
-    ready: boolean;
-    errors: { field: string; message: string; severity: 'error' | 'warning' }[];
-    warnings: { field: string; message: string; severity: 'error' | 'warning' }[];
-    satisfied: { field: string; message: string; severity: 'info' }[];
-  }> {
+  async checkReadiness(id: string): Promise<SubmissionReadinessResult> {
     const res = await apiClient.get(`/credit/applications/${id}/readiness`);
     return res.data.data;
   },

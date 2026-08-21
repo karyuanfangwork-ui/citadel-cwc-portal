@@ -3,6 +3,8 @@ import {
   formatApplicationState,
   formatBorrowerDate,
   formatBorrowerType,
+  formatMalaysianNric,
+  formatMalaysianNricInput,
   formatMyr,
   formatProductType,
   getApplicationStateTone,
@@ -18,6 +20,13 @@ describe('borrower presentation helpers', () => {
 
   it('formats MYR with no decimal places', () => {
     expect(formatMyr(500000)).toMatch(/RM\s?500,000/);
+  });
+
+  it('formats Malaysian NRIC values but preserves passport values', () => {
+    expect(formatMalaysianNric('721201081111')).toBe('721201-08-1111');
+    expect(formatMalaysianNric('A12345678')).toBe('A12345678');
+    expect(formatMalaysianNricInput('721201081111')).toBe('721201-08-1111');
+    expect(formatMalaysianNricInput('A12345678')).toBe('A12345678');
   });
 
   it('returns an em dash for missing or invalid display values', () => {

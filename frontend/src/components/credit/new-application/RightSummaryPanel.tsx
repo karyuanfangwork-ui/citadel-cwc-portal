@@ -65,8 +65,8 @@ export default function RightSummaryPanel({
           <div className="mt-2 space-y-2 text-sm" style={{ color: 'var(--cr-on-surface)' }}>
             <QuickCheck ok={applicantSelected} label="Applicant selected" />
             <QuickCheck ok={productSelected} label="Product chosen" />
-            <QuickCheck ok={purposeCaptured} label="Purpose captured" />
-            <QuickCheck ok={requiredDocsComplete} label="Required docs complete" />
+            <QuickCheck ok={Boolean(amountLabel && amountLabel !== '—')} label="Requested amount captured" />
+            <QuickCheck ok={true} label="Draft can be created before later-stage requirements" />
           </div>
         </div>
 

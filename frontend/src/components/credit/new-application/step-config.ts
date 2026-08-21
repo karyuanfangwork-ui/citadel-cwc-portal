@@ -1,11 +1,9 @@
 export type WizardStep =
-  | 'applicant-search'
-  | 'applicant-selection'
-  | 'product-selection'
-  | 'application-details'
-  | 'financial-information'
-  | 'documents'
-  | 'review-submit';
+  | 'borrower'
+  | 'loan-request'
+  | 'facility'
+  | 'assignment'
+  | 'review';
 
 export interface WizardStepConfig {
   key: WizardStep;
@@ -22,13 +20,11 @@ export interface DocumentTemplate {
 export const STORAGE_KEY = 'credit:new-application-wizard:v1';
 
 export const STEPS: WizardStepConfig[] = [
-  { key: 'applicant-search', title: 'Applicant Search', subtitle: 'Find an existing borrower before originating a new credit request.' },
-  { key: 'applicant-selection', title: 'Applicant Selection', subtitle: 'Bind an existing borrower or create a new applicant safely.' },
-  { key: 'product-selection', title: 'Product Selection', subtitle: 'Pick the product family and the core facility shape.' },
-  { key: 'application-details', title: 'Application Details', subtitle: 'Capture requested amount, tenor, purpose, and ownership fields.' },
-  { key: 'financial-information', title: 'Financial Information', subtitle: 'Add the financial inputs needed for early screening.' },
-  { key: 'documents', title: 'Documents', subtitle: 'Track required documents and their upload/verification state.' },
-  { key: 'review-submit', title: 'Review & Submit', subtitle: 'Validate blockers, review the payload, and create the application.' },
+  { key: 'borrower', title: 'Borrower', subtitle: 'Select an existing borrower from canonical Borrower Management.' },
+  { key: 'loan-request', title: 'Loan Request', subtitle: 'Capture product, amount, tenor, currency, and optional purpose.' },
+  { key: 'facility', title: 'Facility', subtitle: 'Structure the facility when the resolved processing lane requires it.' },
+  { key: 'assignment', title: 'Assignment', subtitle: 'Review the automatically resolved lane, RM, and branch.' },
+  { key: 'review', title: 'Review', subtitle: 'Create a DRAFT and continue submission requirements in Application 360.' },
 ];
 
 export const RETAIL_DOCUMENTS: DocumentTemplate[] = [

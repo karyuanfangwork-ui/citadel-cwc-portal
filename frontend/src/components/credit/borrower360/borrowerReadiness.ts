@@ -100,7 +100,13 @@ export function calculateBorrowerReadiness(input: {
   const documentsComplete = (summary?.docCompletionPct ?? 0) >= 80;
   applicableChecks += 1;
   if (documentsComplete) completedChecks += 1;
-  else actions.push(action('documents', 'WARNING', 'Complete documents', 'At least 80% of required documents should be available.', 'Review documents', 'documents'));
+  else {
+    const checklist = summary?.documentChecklist;
+    const description = checklist
+      ? `${checklist.collectedCount} of ${checklist.requiredCount} required document groups are ready; ${checklist.outstandingCount} remain. Upload at least ${Math.min(checklist.requiredCount, Math.ceil(checklist.requiredCount * 0.8))} to continue.`
+      : 'Required documents are incomplete. Review the document checklist.';
+    actions.push(action('documents', 'WARNING', 'Complete documents', description, 'Review documents', 'documents'));
+  }
 
   if (applications.length > 0) {
     applicableChecks += 1;

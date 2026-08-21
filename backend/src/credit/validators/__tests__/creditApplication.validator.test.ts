@@ -35,4 +35,16 @@ describe('createCreditApplicationSchema — amount & tenor', () => {
   it('rejects tenor above 360 months', () => {
     expect(parse({ requestedTenor: 361 }).success).toBe(false);
   });
+
+  it('accepts a DRAFT without a purpose or tenor', () => {
+    expect(parse({ purpose: null, requestedTenor: null }).success).toBe(true);
+  });
+
+  it('rejects an invalid borrower UUID', () => {
+    expect(parse({ borrowerProfileId: 'not-a-uuid' }).success).toBe(false);
+  });
+
+  it('rejects an unsupported product type', () => {
+    expect(parse({ productType: 'PERSONAL_FAST' }).success).toBe(false);
+  });
 });

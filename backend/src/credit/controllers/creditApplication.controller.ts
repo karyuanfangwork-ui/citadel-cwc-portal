@@ -359,7 +359,9 @@ class CreditApplicationController {
    */
   checkReadiness = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const result = await validateSubmissionReadiness(id);
+    const application = await prisma.creditApplication.findUnique({ where: { id }, select: { state: true } });
+    const stage = application?.state === 'CREDIT_ASSESSMENT' || application?.state === 'COMMITTEE_REVIEW' ? 'committee' : 'submission';
+    const result = await validateSubmissionReadiness(id, { stage });
     res.json({ status: 'success', data: result });
   });
 

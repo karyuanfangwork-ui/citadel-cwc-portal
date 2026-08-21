@@ -120,6 +120,57 @@ describe('validateSubmissionReadiness — mandatory purpose (submission stage)',
   });
 });
 
+describe('validateSubmissionReadiness — facility totals and financial requirements', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedGetNumberPolicy.mockImplementation(async (_key: string, fallback: number) => fallback);
+    mockDeviationFindMany.mockResolvedValue([]);
+    mockFinancialCount.mockResolvedValue(1);
+    mockRetailFindUnique.mockResolvedValue({ dsrPercent: 10, netDsrPercent: 10, dsrBasis: 'NET' });
+  });
+
+  it('does not require a separate facility for PERSONAL_FAST', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'PERSONAL_FAST', facilities: [] }));
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'facilities')).toBe(false);
+  });
+
+  it('requires a facility for SME/CORPORATE lanes', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'SME', facilities: [], borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } }));
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'facilities')).toBe(true);
+  });
+
+  it('blocks a divergent facility total without an approved exception', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'SME', requestedAmount: 100000, facilities: [{ id: 'f1', facilityType: 'TERM_LOAN', amount: 90000 }], borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } }));
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'facilities.total')).toBe(true);
+  });
+
+  it('accepts a divergent facility total when an approved exception exists', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'SME', requestedAmount: 100000, facilities: [{ id: 'f1', facilityType: 'TERM_LOAN', amount: 90000 }], borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } }));
+    mockDeviationFindMany.mockResolvedValue([{ policyRule: 'FACILITY_TOTAL', status: 'APPROVED' }]);
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'facilities.total')).toBe(false);
+    expect(result.satisfied.some((item) => item.field === 'facilities.total')).toBe(true);
+  });
+
+  it('blocks retail submission when income/DSR is missing but does not add committee-only controls', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'PERSONAL_FAST' }));
+    mockRetailFindUnique.mockResolvedValue(null);
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'retailIncome')).toBe(true);
+    expect(result.errors.some((error) => error.field === 'bureauChecklist')).toBe(false);
+  });
+
+  it('blocks SME submission when financial statements are missing', async () => {
+    mockFindUnique.mockResolvedValue(baseApp({ lane: 'SME', borrowerProfile: { ...baseApp().borrowerProfile, borrowerType: 'CORPORATE' } }));
+    mockFinancialCount.mockResolvedValue(0);
+    const result = await validateSubmissionReadiness('app-1', { stage: 'submission' });
+    expect(result.errors.some((error) => error.field === 'financials')).toBe(true);
+  });
+});
+
 describe('validateSubmissionReadiness — configurable retail DSR thresholds', () => {
   beforeEach(() => {
     jest.clearAllMocks();

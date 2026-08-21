@@ -1,6 +1,72 @@
 import React from 'react';
-import type { BorrowerRiskAssessment, BorrowerRiskAssessmentTarget } from '../../../services/credit.service';
+import creditService from '../../../services/credit.service';
+import type { BorrowerRiskAssessment, BorrowerRiskAssessmentTarget, RatingBand } from '../../../services/credit.service';
 import { OutlinedCard, StatusPill } from './primitives';
+
+const riskCategoryTone: Record<RatingBand['riskCategory'], 'pos' | 'warn' | 'neg' | 'neutral'> = {
+  LOW: 'pos',
+  MODERATE: 'warn',
+  HIGH: 'neg',
+  PROHIBITED: 'neg',
+};
+
+function useActiveRatingBands() {
+  const [bands, setBands] = React.useState<RatingBand[] | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    creditService
+      .getActiveRatingBands()
+      .then((result) => {
+        if (!cancelled) setBands(result);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Rating scale is unavailable right now.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { bands, error };
+}
+
+const RatingScaleLegend: React.FC<{ currentRating: string | null; bands: RatingBand[] | null; error: string | null }> = ({ currentRating, bands, error }) => {
+  return (
+    <OutlinedCard title="Rating scale">
+      {error ? (
+        <p className="text-sm text-fc-on-variant">{error}</p>
+      ) : !bands ? (
+        <p className="text-sm text-fc-on-variant">Loading rating scale…</p>
+      ) : (
+        <div className="space-y-2">
+          <ul className="space-y-1.5 text-sm text-fc-primary">
+            {[...bands]
+              .sort((a, b) => b.scoreMax - a.scoreMax)
+              .map((band) => (
+                <li key={band.rating} className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    <strong className={band.rating === currentRating ? 'underline' : undefined}>{band.rating}</strong>
+                    <span className="text-xs text-fc-on-variant">{band.scoreMin}–{band.scoreMax}</span>
+                  </span>
+                  <StatusPill label={band.riskCategory} tone={riskCategoryTone[band.riskCategory]} />
+                </li>
+              ))}
+            <li className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <strong className={currentRating === 'NR' ? 'underline' : undefined}>NR</strong>
+                <span className="text-xs text-fc-on-variant">Not rated</span>
+              </span>
+              <StatusPill label="No rating calculated" tone="neutral" />
+            </li>
+          </ul>
+          <p className="text-xs text-fc-on-variant">Score bands reflect the currently active rating configuration and may be adjusted by admins.</p>
+        </div>
+      )}
+    </OutlinedCard>
+  );
+};
 
 interface Props {
   assessment: BorrowerRiskAssessment | null;
@@ -35,6 +101,9 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
   };
   const state = statusCopy[current.ratingStatus];
   const firstInput = current.missingInputs[0];
+  const { bands, error: bandsError } = useActiveRatingBands();
+  const currentBand = bands?.find((band) => band.rating === current.effectiveRating) ?? null;
+  const isHighRiskCategory = currentBand?.riskCategory === 'HIGH' || currentBand?.riskCategory === 'PROHIBITED';
 
   return (
     <div className="space-y-4">
@@ -48,6 +117,12 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
           {canWrite ? <button type="button" onClick={onRecalculate} className="mt-2 font-bold underline">Try again</button> : null}
         </div>
       ) : null}
+      {isHighRiskCategory && currentBand ? (
+        <div role="alert" className="rounded-fc border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-bold">This rating falls in the {currentBand.riskCategory} risk category</p>
+          <p className="mt-1">A "{state.label}" assessment status means the required inputs are complete enough to run a decision — it does not mean the borrower will be approved. Ratings in the {currentBand.riskCategory} category are expected to receive a decline recommendation from the decision engine.</p>
+        </div>
+      ) : null}
       <section aria-labelledby="risk-assessment-heading" className="rounded-fc border border-fc-outline bg-fc-surface p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -57,6 +132,9 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
               <StatusPill label={state.label} tone={state.tone} />
             </h3>
             <p className="mt-2 max-w-2xl text-sm text-fc-on-variant"><strong>What this means:</strong> {state.meaning}</p>
+            {currentBand ? (
+              <p className="mt-2 max-w-2xl text-sm text-fc-on-variant"><strong>Risk category:</strong> {currentBand.riskCategory}</p>
+            ) : null}
           </div>
           {canWrite ? (
             <button type="button" onClick={onRecalculate} disabled={recalculating} className="rounded-fc bg-fc-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
@@ -99,6 +177,8 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
           <div className="space-y-2 text-sm"><p><span className="text-fc-on-variant">Base rating:</span> <strong>{current.baseRating ?? '—'}</strong></p><p><span className="text-fc-on-variant">Effective rating:</span> <strong>{current.effectiveRating ?? '—'}</strong></p><p><span className="text-fc-on-variant">Total score:</span> <strong>{current.score ?? '—'}</strong></p></div>
         </OutlinedCard>
       </div>
+
+      <RatingScaleLegend currentRating={current.effectiveRating} bands={bands} error={bandsError} />
     </div>
   );
 };

@@ -18,6 +18,8 @@ import { friendlyMessage } from '../../src/utils/errorMessages';
 import WizardActions from '../../src/components/credit/new-application/WizardActions';
 import RightSummaryPanel from '../../src/components/credit/new-application/RightSummaryPanel';
 import WizardStepper from '../../src/components/credit/new-application/WizardStepper';
+import FacilityStep, { FacilityDraft } from '../../src/components/credit/new-application/FacilityStep';
+import AssignmentStep from '../../src/components/credit/new-application/AssignmentStep';
 
 import {
   BUSINESS_DOCUMENTS,
@@ -72,6 +74,7 @@ type WizardDraft = {
   purpose: string;
   branchId: string;
   assignedRmId: string;
+  facilityDraft: FacilityDraft;
   financials: FinancialDraft;
   documents: DocumentState[];
 };
@@ -117,7 +120,7 @@ const initialFinancials: FinancialDraft = {
 };
 
 const initialDraft = (): WizardDraft => ({
-  currentStep: 'applicant-search',
+  currentStep: 'borrower',
   searchQuery: '',
   searchResults: [],
   selectedBorrower: null,
@@ -130,12 +133,27 @@ const initialDraft = (): WizardDraft => ({
   purpose: '',
   branchId: '',
   assignedRmId: '',
+  facilityDraft: { facilityType: 'TERM_LOAN', amount: '', tenorMonths: '', purpose: '' },
   financials: initialFinancials,
   documents: [...RETAIL_DOCUMENTS, ...BUSINESS_DOCUMENTS].map((doc) => ({ ...doc, fileName: null, completed: false })),
 });
 
 function getStepIndex(step: WizardStep): number {
   return STEPS.findIndex((item) => item.key === step);
+}
+
+function requiresSeparateFacility(borrowerType: string | undefined, requestedAmount: string): boolean {
+  if (borrowerType === 'PERSONAL_FAST') return false;
+  if (borrowerType === 'INDIVIDUAL') return Number(requestedAmount) > 150_000;
+  return ['SOLE_PROPRIETOR', 'CORPORATE'].includes(borrowerType || '');
+}
+
+function isCompatibleWizardDraft(value: Partial<WizardDraft> | null): value is Partial<WizardDraft> {
+  return Boolean(
+    value
+      && typeof value.currentStep === 'string'
+      && STEPS.some((step) => step.key === value.currentStep),
+  );
 }
 
 function getBorrowerDisplayName(profile: BorrowerProfile | null): string {
@@ -351,26 +369,20 @@ export default function CreditApplicationCreate() {
     if (!draft.productType) issues.push('Choose a product.');
     if (!draft.requestedAmount || Number(draft.requestedAmount) <= 0) issues.push('Requested amount must be greater than zero.');
     if (!draft.requestedTenor || Number(draft.requestedTenor) <= 0) issues.push('Requested tenor must be greater than zero.');
-    if (!draft.purpose.trim()) issues.push('Purpose is required.');
-    if (documentCompletion < 100) issues.push('Required documents are still outstanding.');
     return issues;
   }, [draft, documentCompletion]);
 
   const canAdvance = useMemo(() => {
     switch (draft.currentStep) {
-      case 'applicant-search':
+      case 'borrower':
         return true;
-      case 'applicant-selection':
-        return !!draft.selectedBorrower;
-      case 'product-selection':
-        return !!draft.productType;
-      case 'application-details':
-        return !!draft.requestedAmount && Number(draft.requestedAmount) > 0 && !!draft.requestedTenor && Number(draft.requestedTenor) > 0 && !!draft.purpose.trim();
-      case 'financial-information':
+      case 'loan-request':
+        return !!draft.selectedBorrower && !!draft.productType && !!draft.requestedAmount && Number(draft.requestedAmount) > 0 && (!draft.requestedTenor || Number(draft.requestedTenor) > 0);
+      case 'facility':
+        return !requiresSeparateFacility(selectedBorrower?.borrowerType, draft.requestedAmount) || (!!draft.facilityDraft.amount && Number(draft.facilityDraft.amount) > 0);
+      case 'assignment':
         return true;
-      case 'documents':
-        return documentCompletion > 0;
-      case 'review-submit':
+      case 'review':
         return validationIssues.length === 0;
       default:
         return false;
@@ -452,7 +464,15 @@ export default function CreditApplicationCreate() {
 
       if (cancelled) return;
 
-      const source = serverDraft ?? localDraft;
+      // The server may still contain a legacy borrower-creation draft with a
+      // numeric currentStep and nested formData. Never hydrate that payload
+      // into this wizard: it would make getStepIndex return -1 and crash the
+      // render when the step heading reads STEPS[currentStepIndex].title.
+      const source = isCompatibleWizardDraft(serverDraft)
+        ? serverDraft
+        : isCompatibleWizardDraft(localDraft)
+          ? localDraft
+          : null;
       if (source) {
         hydrateDraft(source);
         setRestored(true);
@@ -488,6 +508,7 @@ export default function CreditApplicationCreate() {
           ...current,
           applicantMode: 'existing',
           selectedBorrower: borrower,
+          currentStep: 'borrower',
         }));
         setBorrowerContextStatus('idle');
       } catch {
@@ -601,7 +622,7 @@ export default function CreditApplicationCreate() {
       ...prev,
       applicantMode: 'existing',
       selectedBorrower: profile,
-      currentStep: 'applicant-selection',
+      currentStep: 'loan-request',
     }));
   };
 
@@ -627,13 +648,27 @@ export default function CreditApplicationCreate() {
         borrowerProfileId: borrower.id,
         productType: draft.productType as CreditProductType,
         requestedAmount: Number(draft.requestedAmount),
-        requestedTenor: Number(draft.requestedTenor),
+        requestedTenor: draft.requestedTenor ? Number(draft.requestedTenor) : null,
         currency: draft.currency,
-        purpose: draft.purpose.trim(),
+        purpose: draft.purpose.trim() || null,
         branchId: draft.branchId || null,
         assignedRmId: draft.assignedRmId || defaultRm.assignedRmId || null,
       };
       const created = await creditService.createApplication(payload);
+      let facilityFailed = false;
+      if (requiresSeparateFacility(borrower.borrowerType, draft.requestedAmount)) {
+        try {
+          await creditService.createFacility(created.id, {
+            facilityType: draft.facilityDraft.facilityType,
+            amount: Number(draft.facilityDraft.amount || draft.requestedAmount),
+            tenorMonths: draft.facilityDraft.tenorMonths ? Number(draft.facilityDraft.tenorMonths) : (draft.requestedTenor ? Number(draft.requestedTenor) : null),
+            purpose: draft.facilityDraft.purpose || null,
+          });
+        } catch (facilityErr) {
+          facilityFailed = true;
+          console.error('Failed to create initial facility after application creation', facilityErr);
+        }
+      }
       try {
         await uploadWizardDocuments(created.id, borrower.id, draft.documents);
       } catch (uploadErr) {
@@ -650,8 +685,8 @@ export default function CreditApplicationCreate() {
       void creditService.deleteApplicationDraft().catch(() => {
         // stale server draft cleanup should not block redirect
       });
-      toast.success('Application created');
-      navigate(`/credit/applications/${created.id}?new=1`);
+      toast.success('Application draft created');
+      navigate(`/credit/applications/${created.id}?new=1${facilityFailed ? '&facility=failed' : ''}`);
     } catch (err) {
       toast.error(friendlyMessage(err, 'Failed to create application'));
     } finally {
@@ -692,7 +727,32 @@ export default function CreditApplicationCreate() {
   };
 
   const renderStep = () => {
-    switch (draft.currentStep) {
+    if (draft.currentStep === 'facility') {
+      const facilityRequired = requiresSeparateFacility(selectedBorrower?.borrowerType, draft.requestedAmount);
+      return (
+        <FacilityStep
+          required={facilityRequired}
+          requestedAmount={draft.requestedAmount}
+          requestedTenor={draft.requestedTenor}
+          value={draft.facilityDraft}
+          onChange={(facilityDraft) => setDraft((prev) => ({ ...prev, facilityDraft }))}
+        />
+      );
+    }
+    if (draft.currentStep === 'assignment') {
+      const facilityRequired = requiresSeparateFacility(selectedBorrower?.borrowerType, draft.requestedAmount);
+      return <AssignmentStep
+        lane={facilityRequired ? 'SME / CORPORATE (server-confirmed on create)' : 'PERSONAL_FAST (server-confirmed on create)'}
+        laneReason="The server derives the final processing lane from borrower type, requested amount, and policy thresholds."
+        branch={branches.find((branch) => branch.id === draft.branchId) ?? null}
+        canOverride={false}
+      />;
+    }
+
+    const legacyStep: string = draft.currentStep === 'borrower'
+      ? (selectedBorrower ? 'applicant-selection' : 'applicant-search')
+      : draft.currentStep === 'loan-request' ? 'application-details' : 'review-submit';
+    switch (legacyStep) {
       case 'applicant-search':
         return (
           <div className="space-y-4">
@@ -851,7 +911,14 @@ export default function CreditApplicationCreate() {
         );
       case 'application-details':
         return (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              {PRODUCT_OPTIONS.map((product) => {
+                const active = draft.productType === product.value;
+                return <button key={product.value} type="button" onClick={() => setDraft((prev) => ({ ...prev, productType: product.value }))} className="rounded-lg border p-3 text-left" style={{ borderColor: active ? 'var(--cr-secondary)' : 'var(--cr-outline-variant)', background: active ? 'var(--cr-secondary-fixed)' : 'white' }}><p className="text-sm font-semibold">{product.label}</p><p className="mt-1 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>{product.description}</p></button>;
+              })}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-semibold">Requested Amount</label>
               <input
@@ -902,15 +969,9 @@ export default function CreditApplicationCreate() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-semibold">Relationship Manager ID</label>
-              <input
-                value={draft.assignedRmId}
-                onChange={(e) => setDraft((prev) => ({ ...prev, assignedRmId: e.target.value }))}
-                placeholder="Optional override"
-                className="w-full rounded border px-3 py-2 text-sm"
-                style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
-              />
+            <div className="rounded border p-3 text-sm" style={{ borderColor: 'var(--cr-outline-variant)', background: 'var(--cr-surface-container-low)' }}>
+              <p className="font-semibold">Assignment is resolved automatically</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>Review the resolved RM and branch on the Assignment step. Staff IDs are not entered here.</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-semibold">Purpose of Financing</label>
@@ -921,6 +982,7 @@ export default function CreditApplicationCreate() {
                 className="w-full rounded border px-3 py-2 text-sm resize-vertical"
                 style={{ borderColor: 'var(--cr-outline-variant)', background: 'white' }}
               />
+            </div>
             </div>
           </div>
         );
@@ -1132,7 +1194,7 @@ export default function CreditApplicationCreate() {
                 canSubmit={validationIssues.length === 0}
                 savingDraft={savingDraft}
                 submitting={submitting}
-                isReviewStep={draft.currentStep === 'review-submit'}
+                isReviewStep={draft.currentStep === 'review'}
                 onPrevious={movePrevious}
                 onSaveDraft={persistDraft}
                 onNext={moveNext}

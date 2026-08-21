@@ -126,7 +126,7 @@ describe('validateSubmissionReadiness — DRAFT submission gate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.creditApplication.findUnique.mockResolvedValue(BASE_APPLICATION);
-    mockPrisma.retailIncome.findUnique.mockResolvedValue(null);
+    mockPrisma.retailIncome.findUnique.mockResolvedValue({ dsrPercent: 10, netDsrPercent: 10 });
     mockPrisma.financialStatement.count.mockResolvedValue(0);
     mockPrisma.eclSnapshot.count.mockResolvedValue(0);
   });

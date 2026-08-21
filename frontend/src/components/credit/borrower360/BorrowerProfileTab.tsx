@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { BorrowerProfile } from '../../../services/credit.service';
 import { piiRevealApi } from '../../../services/credit.service';
 import { OutlinedCard, StatusPill } from './primitives';
+import { formatMalaysianNric } from './borrowerPresentation';
 
 interface BorrowerProfileTabProps {
   profile: BorrowerProfile;
@@ -73,7 +74,7 @@ const BorrowerProfileTab: React.FC<BorrowerProfileTabProps> = ({ profile, canWri
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ProfileField label="Borrower type" value={display(profile.borrowerType).replace(/_/g, ' ')} />
             <ProfileField label="Name" value={display(profile.name)} />
-            {isIndividual ? <ProfileField label="NRIC / Passport" value={profile.nricPassport ? <NricReveal borrowerId={profile.id} value={profile.nricPassport} /> : 'Not specified'} /> : null}
+            {isIndividual ? <ProfileField label="NRIC / Passport" value={profile.nricPassport ? <NricReveal borrowerId={profile.id} value={formatMalaysianNric(profile.nricPassport)} /> : 'Not specified'} /> : null}
             {isIndividual ? <ProfileField label="Nationality" value={display(profile.nationality)} /> : null}
             {isBusiness ? <ProfileField label="Registration number" value={display(profile.registrationNumber)} /> : null}
             <ProfileField label="Date of birth" value={formatDate(profile.dateOfBirth)} />

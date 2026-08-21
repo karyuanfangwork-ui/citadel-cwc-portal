@@ -117,6 +117,7 @@ const CreditApplicationDetail: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isNewApplication = searchParams.get('new') === '1';
+  const facilityCreationFailed = searchParams.get('facility') === 'failed';
 
   const getDefaultTab360 = (state: string): DetailTab360 => {
     if (state === 'COMPLIANCE_HOLD') return 'credit-bureau';
@@ -158,9 +159,9 @@ const CreditApplicationDetail: React.FC = () => {
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [readiness, setReadiness] = useState<{
     ready: boolean;
-    errors: { field: string; message: string; severity: string }[];
-    warnings: { field: string; message: string; severity: string }[];
-    satisfied: { field: string; message: string; severity: string }[];
+    errors: { field: string; message: string; severity: string; tab?: string; target?: string }[];
+    warnings: { field: string; message: string; severity: string; tab?: string; target?: string }[];
+    satisfied: { field: string; message: string; severity: string; tab?: string; target?: string }[];
   } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [esignReady, setEsignReady] = useState<{ ready: boolean; signedLoo: { id: string; fileName: string; verificationStatus: string } | null } | null>(null);
@@ -322,7 +323,7 @@ const CreditApplicationDetail: React.FC = () => {
     try {
       setTransitioning(true);
       await creditService.transitionApplication(id, { action, reason: transitionReason || undefined });
-      toast.success('Application transitioned successfully');
+      toast.success(action === 'submit' ? 'Application submitted — next stage: KYC Review' : 'Application transitioned successfully');
       setTransitionReason('');
       setReasonError(false);
       setShowTransitionDialog(null);
@@ -331,7 +332,13 @@ const CreditApplicationDetail: React.FC = () => {
       fetchTransitions();
       setReadiness(null);
       setEsignReady(null);
-    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to transition application')); }
+    } catch (e) {
+      console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to transition application'));
+      if ((action === 'submit' || action === 'resubmit') && id) {
+        creditService.checkReadiness(id).then(setReadiness).catch(() => {});
+      }
+    }
     finally { setTransitioning(false); }
   };
 
@@ -477,10 +484,6 @@ const CreditApplicationDetail: React.FC = () => {
   phaseCompletionRef.current = phaseCompletion;
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
 
-  const draftSubmissionBlockingPhases = ['s1', 's2', 's3', 's4', 's5'] as const;
-  const hasDraftSubmissionBlockers = draftSubmissionBlockingPhases.some(
-    (phase) => phaseCompletion[phase] === 'incomplete',
-  );
 
   const requiredPhases = Object.values(phaseCompletion).filter(s => s !== 'optional');
   const completedPhases = requiredPhases.filter(s => s === 'complete').length;
@@ -514,7 +517,7 @@ const CreditApplicationDetail: React.FC = () => {
           icon: 'notification_important',
           title: e.message.slice(0, 60),
           description: e.field || '',
-          action: { label: 'Fix now', tab: 'loan-request' },
+          action: { label: 'Fix now', tab: e.tab || 'loan-request' },
         });
       });
     }
@@ -526,15 +529,6 @@ const CreditApplicationDetail: React.FC = () => {
         title: slaDaysLeft <= 0 ? 'SLA Overdue' : 'SLA Expiring Soon',
         description: slaDaysLeft <= 0 ? 'Application is past SLA target' : `Only ${slaDaysLeft} day${slaDaysLeft !== 1 ? 's' : ''} remaining`,
         action: { label: 'View details', tab: 'approvals' },
-      });
-    }
-    if (incompleteCount > 0 && currentState === 'DRAFT') {
-      alerts.push({
-        id: 'incomplete-sections',
-        severity: 'warning',
-        icon: 'assignment_late',
-        title: `${incompleteCount} section${incompleteCount !== 1 ? 's' : ''} incomplete`,
-        description: 'Complete all sections before submitting',
       });
     }
     return alerts;
@@ -571,8 +565,12 @@ const CreditApplicationDetail: React.FC = () => {
 
   // Next required action text for StatusWidget
   const nextRequiredAction = (() => {
-    if (nextIncompleteTab && nextIncompleteTabLabel) return `Complete: ${nextIncompleteTabLabel}`;
-    if (currentState === 'DRAFT') return 'Complete all sections to submit';
+    if (currentState === 'DRAFT' && readiness?.errors?.[0]) {
+      const blocker = readiness.errors[0];
+      return `Resolve: ${blocker.message}`;
+    }
+    if (currentState === 'DRAFT' && readinessLoading) return 'Checking submission readiness…';
+    if (nextIncompleteTab && nextIncompleteTabLabel) return `Review: ${nextIncompleteTabLabel}`;
     return null;
   })();
 
@@ -715,7 +713,7 @@ const CreditApplicationDetail: React.FC = () => {
             segment={segment}
             onShowTransitionDialog={(action) => {
               const isSubmitAction = currentState === 'DRAFT' || currentState === 'REFERRED_BACK' || action === 'submit_to_committee';
-              if (isSubmitAction && hasDraftSubmissionBlockers) {
+              if (isSubmitAction && readiness && !readiness.ready) {
                 pendingTransitionRef.current = action;
                 setReadinessModalOpen(true);
                 return;
@@ -768,11 +766,12 @@ const CreditApplicationDetail: React.FC = () => {
               <div className="mb-4 p-4 rounded-lg flex items-start gap-3" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
                 <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-blue-800 mb-1">Application created — complete all 7 sections to submit</p>
+                  <p className="text-sm font-bold text-blue-800 mb-1">Application Draft Created</p>
+                  <p className="text-xs font-semibold text-blue-800">{app.applicationNo} · {getBorrowerDisplayName(app.borrowerProfile)} · Status: Draft</p>
                   <p className="text-xs text-blue-700">
-                    Start with <strong>S1 Loan Request</strong> (already pre-filled), then work through S2–S7.
-                    When all sections are green, use <strong>Submit for KYC Review</strong> in the header.
+                    Review the server-owned submission requirements below. When the blockers are resolved, use <strong>Submit for KYC Review</strong> in the header.
                   </p>
+                  {facilityCreationFailed && <p className="mt-2 text-xs font-semibold text-rose-700">The initial facility could not be saved. Open Application Details and add it before submitting.</p>}
                 </div>
                 <button
                   onClick={() => setShowOnboardingBanner(false)}
@@ -1074,7 +1073,7 @@ const CreditApplicationDetail: React.FC = () => {
         open={readinessModalOpen}
         onClose={() => { setReadinessModalOpen(false); pendingTransitionRef.current = null; }}
         phaseCompletion={phaseCompletion}
-        lane={lane}
+        readiness={readiness}
         onSubmitAnyway={() => {
           const action = pendingTransitionRef.current;
           setReadinessModalOpen(false);

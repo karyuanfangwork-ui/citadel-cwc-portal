@@ -5,8 +5,8 @@ import BorrowerReadinessStrip from '../BorrowerReadinessStrip';
 describe('Borrower workspace accessibility', () => {
   it('exposes readiness status, live updates, and progress semantics', () => {
     render(<BorrowerReadinessStrip readiness={{ status: 'BLOCKED', completionPct: 40, outstandingCount: 3, actions: [{ id: 'bureau', severity: 'WARNING', title: 'Refresh bureau report', description: 'The report is stale.', actionLabel: 'Upload bureau report', target: 'bureau' }] }} onAction={vi.fn()} />);
-    expect(screen.getByText('Not ready')).toBeVisible();
-    expect(screen.getByText(/3 items need attention/i)).toBeVisible();
+    expect(screen.getByText('Application blocked')).toBeVisible();
+    expect(screen.getByText(/3 follow-up steps remain before assessment/i)).toBeVisible();
     expect(screen.getByRole('progressbar', { name: 'Readiness completion' })).toHaveAttribute('aria-valuenow', '40');
     expect(screen.getByRole('button', { name: 'Upload bureau report' })).toBeVisible();
   });

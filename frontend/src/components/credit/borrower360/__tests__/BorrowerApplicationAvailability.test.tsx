@@ -29,8 +29,6 @@ describe('BorrowerWorkspaceHeader application availability', () => {
       canCreate: true,
       onPrimaryAction: () => undefined,
       onEdit: () => undefined,
-      onUploadBureau: () => undefined,
-      onRunKyc: () => undefined,
       onRecalculateRisk: () => undefined,
       applicationsAvailable: false,
     };

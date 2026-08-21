@@ -5,6 +5,7 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   NRIC: 'NRIC',
   PASSPORT: 'Passport',
   BUSINESS_REG: 'Business Registration',
+  PAYSLIP: 'Payslip',
   TAX_RETURN: 'Tax Return',
   BANK_STATEMENT: 'Bank Statement',
   FINANCIAL_STATEMENT: 'Financial Statement',
@@ -16,11 +17,24 @@ const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
   NRIC: 'badge',
   PASSPORT: 'flight',
   BUSINESS_REG: 'corporate_fare',
+  PAYSLIP: 'payments',
   TAX_RETURN: 'receipt_long',
   BANK_STATEMENT: 'account_balance',
   FINANCIAL_STATEMENT: 'monitoring',
   UTILITY_BILL: 'receipt',
   OTHER: 'description',
+};
+
+const DOCUMENT_CLASS_BY_TYPE: Record<DocumentType, string> = {
+  NRIC: 'NRIC_PASSPORT',
+  PASSPORT: 'NRIC_PASSPORT',
+  BUSINESS_REG: 'SSM_CERT',
+  PAYSLIP: 'PAYSLIP',
+  TAX_RETURN: 'TAX_RETURN',
+  BANK_STATEMENT: 'BANK_STATEMENT',
+  FINANCIAL_STATEMENT: 'AUDITED_FINANCIALS',
+  UTILITY_BILL: 'OTHER',
+  OTHER: 'OTHER',
 };
 
 const STATUS_BADGE_STYLES: Record<DocumentStatus, { bg: string; text: string; label: string }> = {
@@ -35,6 +49,7 @@ interface DocumentUploadProps {
   onUploaded?: () => void;
   onVerify?: (docId: string) => void;
   onReject?: (docId: string, reason: string) => void;
+  onReplace?: (docId: string, file: File) => void | Promise<void>;
   onDelete?: (docId: string) => void;
   canUpload?: boolean;
   canVerify?: boolean;
@@ -46,6 +61,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   onUploaded,
   onVerify,
   onReject,
+  onReplace,
   onDelete,
   canUpload = true,
   canVerify = false,
@@ -58,6 +74,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedFiles(e.target.files);
@@ -80,10 +97,11 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
     setError(null);
     try {
       for (let i = 0; i < selectedFiles.length; i++) {
-        const formData = new FormData();
-        formData.append('file', selectedFiles[i]);
-        formData.append('documentType', documentType);
-        await creditService.uploadDocument(borrowerProfileId, formData);
+        await creditService.uploadBorrowerDocument(
+          borrowerProfileId,
+          selectedFiles[i],
+          DOCUMENT_CLASS_BY_TYPE[documentType],
+        );
       }
       setSelectedFiles(null);
       setShowUpload(false);
@@ -220,7 +238,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-text-secondary mt-0.5">
-                    <span>{DOCUMENT_TYPE_LABELS[doc.documentType]}</span>
+                    <span>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.classification || 'Document'}</span>
                     <span>·</span>
                     <span>{formatFileSize(doc.fileSize)}</span>
                     <span>·</span>
@@ -231,6 +249,34 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {onReplace && (
+                    <>
+                      <input
+                        id={`replace-document-${doc.id}`}
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            setReplacingId(doc.id);
+                            void Promise.resolve(onReplace(doc.id, file))
+                              .catch((error: any) => setError(error?.message || 'Replacement failed. Please try again.'))
+                              .finally(() => setReplacingId(null));
+                          }
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                      <label
+                        htmlFor={`replace-document-${doc.id}`}
+                        className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition-colors ${replacingId === doc.id ? 'cursor-wait bg-gray-100 text-gray-500' : 'cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                        title="Replace document"
+                      >
+                        <span className="material-symbols-outlined text-sm">sync</span>
+                        {replacingId === doc.id ? 'Replacing…' : 'Replace'}
+                      </label>
+                    </>
+                  )}
                   {canVerify && doc.status === 'PENDING' && (
                     <>
                       <button

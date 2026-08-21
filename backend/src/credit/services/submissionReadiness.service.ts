@@ -40,6 +40,8 @@ export interface ReadinessIssue {
   field: string;
   message: string;
   severity: 'error' | 'warning' | 'info';
+  target?: string;
+  tab?: string;
 }
 
 export interface ReadinessResult {
@@ -158,6 +160,9 @@ export async function validateSubmissionReadiness(
     getNumberPolicy('readiness.dscr.warn_below', 1.1, ruleScope),
     getNumberPolicy('readiness.exposure.warning_utilisation_pct', 90, ruleScope),
   ]);
+  const isRetailBorrower = ['INDIVIDUAL', 'SOLE_PROPRIETOR'].includes(
+    application.borrowerProfile.borrowerType as string,
+  );
 
   if (stage === 'submission') {
     const fieldCheck = await checkRequiredFields(ruleScope, application as Record<string, any>);
@@ -166,6 +171,8 @@ export async function validateSubmissionReadiness(
         field: missing.fieldPath,
         message: `Required field missing: ${missing.label}`,
         severity: 'error',
+        target: missing.fieldPath,
+        tab: missing.fieldPath.startsWith('financial') ? 'financial-profile' : undefined,
       });
     }
 
@@ -176,7 +183,38 @@ export async function validateSubmissionReadiness(
         field: 'purpose',
         message: 'Loan purpose is required before submission',
         severity: 'error',
+        target: 'purpose',
+        tab: 'application-details',
       });
+    }
+
+    const requestedAmount = Number(application.requestedAmount);
+    const facilityTotal = application.facilities.reduce((sum, facility) => sum + Number(facility.amount ?? 0), 0);
+    if (application.lane !== 'PERSONAL_FAST' && application.facilities.length > 0 && Number.isFinite(requestedAmount) && Math.abs(facilityTotal - requestedAmount) > 0.01) {
+      const totalException = await hasApprovedDeviation(applicationId, 'FACILITY_TOTAL');
+      if (!totalException) {
+        errors.push({
+          field: 'facilities.total',
+          message: `Facility total (${facilityTotal.toFixed(2)}) must equal requested amount (${requestedAmount.toFixed(2)}) before submission`,
+          severity: 'error',
+          target: 'facilities.total',
+          tab: 'application-details',
+        });
+      } else {
+        satisfied.push({ field: 'facilities.total', message: 'Facility total variance is covered by an approved policy deviation.', severity: 'info' });
+      }
+    }
+
+    if (isRetailBorrower) {
+      const retailIncome = await prisma.retailIncome.findUnique({ where: { applicationId }, select: { dsrPercent: true, netDsrPercent: true } });
+      if (!retailIncome) {
+        errors.push({ field: 'retailIncome', message: 'Retail income and DSR assessment is required before submission', severity: 'error', target: 'retailIncome', tab: 'financial-profile' });
+      }
+    } else {
+      const financialCount = await prisma.financialStatement.count({ where: { borrowerProfileId: application.borrowerProfileId } });
+      if (financialCount === 0) {
+        errors.push({ field: 'financials', message: 'At least one financial statement is required before submission', severity: 'error', target: 'financials', tab: 'financial-profile' });
+      }
     }
   }
 
@@ -278,19 +316,18 @@ export async function validateSubmissionReadiness(
   // ---- Check 7: Financials warning (corporate/joint only) ----
   // Retail borrowers (INDIVIDUAL/SOLE_PROPRIETOR) use retail income/DSR instead
   // of financial statements, so this check does not apply to them.
-  const isRetailBorrower = ['INDIVIDUAL', 'SOLE_PROPRIETOR'].includes(
-    application.borrowerProfile.borrowerType as string
-  );
+
   if (!isRetailBorrower) {
     const financialCount = await prisma.financialStatement.count({
       where: { borrowerProfileId: application.borrowerProfileId },
     });
     if (financialCount === 0) {
-      warnings.push({
+      const issue = {
         field: 'financials',
         message: 'No financial statements uploaded — review may be delayed',
-        severity: 'warning',
-      });
+        severity: 'warning' as const,
+      };
+      if (stage === 'committee') warnings.push(issue);
     }
   }
 

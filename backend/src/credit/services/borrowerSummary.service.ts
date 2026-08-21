@@ -172,6 +172,13 @@ export async function getBorrowerSummary(borrowerId: string) {
     totalExposure: Number(profile.totalExposure ?? 0),
     activeApps,
     docCompletionPct: docCompletion.completionPct,
+    documentChecklist: {
+      requiredCount: docCompletion.requiredCount,
+      collectedCount: docCompletion.collectedCount,
+      outstandingCount: docCompletion.requiredCount - docCompletion.collectedCount,
+      completionPct: docCompletion.completionPct,
+      outstandingGroups: docCompletion.outstandingGroups,
+    },
     facilityCount: facilities.length,
     compliancePass: Boolean(profile.kycVerifiedAt) && !profile.isSanctionedEntity,
     bureau: {

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import type { Borrower360Summary, BorrowerProfile } from '../../../services/credit.service';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
-import { formatBorrowerType } from './borrowerPresentation';
+import { formatBorrowerType, formatMalaysianNric } from './borrowerPresentation';
 import { StatusPill } from './primitives';
 
 export interface BorrowerWorkspaceHeaderProps {
@@ -15,8 +15,6 @@ export interface BorrowerWorkspaceHeaderProps {
   applicationReady?: boolean;
   onPrimaryAction: () => void;
   onEdit: () => void;
-  onUploadBureau: () => void;
-  onRunKyc: () => void;
   onRecalculateRisk: () => void;
 }
 
@@ -32,7 +30,7 @@ const ActionButton: React.FC<{ label: string; icon: string; onClick: () => void;
 );
 
 const BorrowerWorkspaceHeader: React.FC<BorrowerWorkspaceHeaderProps> = ({
-  profile, summary, primaryAction, applicationsAvailable = true, applicationReady = true, canWrite, canCreate, onPrimaryAction, onEdit, onUploadBureau, onRunKyc, onRecalculateRisk,
+  profile, summary, primaryAction, applicationsAvailable = true, applicationReady = true, canWrite, canCreate, onPrimaryAction, onEdit, onRecalculateRisk,
 }) => {
   const name = getBorrowerDisplayName(profile);
   const risk = profile.creditRiskRating || summary?.riskRating?.effective;
@@ -48,7 +46,7 @@ const BorrowerWorkspaceHeader: React.FC<BorrowerWorkspaceHeaderProps> = ({
         <div className="min-w-0 space-y-2">
           <h1 id="borrower-workspace-heading" className="font-display text-headline-lg text-fc-primary">{name}</h1>
           <div className="flex flex-wrap items-center gap-2 text-sm text-fc-on-variant">
-            <span>{profile.registrationNumber || profile.nricPassport || 'Identity reference unavailable'}</span>
+            <span>{profile.registrationNumber || (profile.nricPassport ? formatMalaysianNric(profile.nricPassport) : 'Identity reference unavailable')}</span>
             <span aria-hidden="true">•</span><span>{formatBorrowerType(profile.borrowerType)}</span>
             {profile.account?.name ? <><span aria-hidden="true">•</span><span>{profile.account.name}</span></> : null}
           </div>
@@ -62,8 +60,6 @@ const BorrowerWorkspaceHeader: React.FC<BorrowerWorkspaceHeaderProps> = ({
           {applicationsAvailable && (primaryAction.label !== 'Start application' || (canCreate && applicationReady)) ? <ActionButton label={primaryAction.label} icon="arrow_forward" onClick={onPrimaryAction} primary /> : null}
           {canWrite ? <>
             <ActionButton label="Edit borrower" icon="edit" onClick={onEdit} />
-            <ActionButton label="Upload bureau report" icon="upload_file" onClick={onUploadBureau} />
-            <ActionButton label="Verify KYC" icon="fingerprint" onClick={onRunKyc} />
             <ActionButton label="Recalculate risk" icon="calculate" onClick={onRecalculateRisk} />
           </> : null}
         </div>

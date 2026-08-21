@@ -1,7 +1,11 @@
 import { ApplicationState, FacilityType } from '../../src/services/credit.service';
 
-export const formatCurrency = (val: number | string | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
+export const formatCurrency = (val: number | string | null, currency = 'MYR') => {
+  if (val == null) return '—';
+  const amount = Number(val);
+  if (!Number.isFinite(amount)) return 'Data quality error';
+  return new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(amount);
+};
 
 export const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';

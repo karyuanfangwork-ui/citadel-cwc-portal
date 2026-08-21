@@ -20,7 +20,7 @@ const summary: Borrower360Summary = {
 };
 
 const renderHeader = (overrides: Partial<React.ComponentProps<typeof BorrowerWorkspaceHeader>> = {}) => render(
-  <MemoryRouter><BorrowerWorkspaceHeader profile={profile} summary={summary} primaryAction={{ label: 'Continue application', applicationId: 'app-1' }} canWrite canCreate onPrimaryAction={vi.fn()} onEdit={vi.fn()} onUploadBureau={vi.fn()} onRunKyc={vi.fn()} onRecalculateRisk={vi.fn()} {...overrides} /></MemoryRouter>,
+  <MemoryRouter><BorrowerWorkspaceHeader profile={profile} summary={summary} primaryAction={{ label: 'Continue application', applicationId: 'app-1' }} canWrite canCreate onPrimaryAction={vi.fn()} onEdit={vi.fn()} onRecalculateRisk={vi.fn()} {...overrides} /></MemoryRouter>,
 );
 
 describe('BorrowerWorkspaceHeader', () => {
@@ -28,6 +28,10 @@ describe('BorrowerWorkspaceHeader', () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Ahmad bin Rahman' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Continue application' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit borrower' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Upload bureau report' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Verify KYC' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalculate risk' })).toBeVisible();
   });
 
   it('hides write actions for read-only users', () => {
@@ -41,8 +45,8 @@ describe('BorrowerReadinessStrip', () => {
   it('renders readiness status, count, and action label', () => {
     const onAction = vi.fn();
     render(<BorrowerReadinessStrip readiness={{ status: 'BLOCKED', completionPct: 40, outstandingCount: 3, actions: [{ id: 'bureau', severity: 'WARNING', title: 'Refresh bureau', description: 'Report is stale.', actionLabel: 'Upload bureau report', target: 'bureau' }] }} onAction={onAction} />);
-    expect(screen.getByText('Not ready')).toBeVisible();
-    expect(screen.getByText(/3 items need attention/i)).toBeVisible();
+    expect(screen.getByText('Application blocked')).toBeVisible();
+    expect(screen.getByText(/3 follow-up steps remain before assessment/i)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Upload bureau report' }));
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'bureau' }));
   });

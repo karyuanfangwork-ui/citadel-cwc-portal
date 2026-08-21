@@ -35,6 +35,7 @@ describe('ReadinessChecklistModal', () => {
         phaseCompletion={COMPLETE_PHASES}
         onSubmitAnyway={onSubmit}
         onNavigateToSection={vi.fn()}
+        readiness={{ ready: true, errors: [], warnings: [], satisfied: [] }}
       />,
     );
 
@@ -55,12 +56,21 @@ describe('ReadinessChecklistModal', () => {
         phaseCompletion={INCOMPLETE_PHASES}
         onSubmitAnyway={onSubmit}
         onNavigateToSection={vi.fn()}
+        readiness={{
+          ready: false,
+          errors: [
+            { field: 'requestedAmount', message: 'Requested amount is required', severity: 'error', tab: 'loan-request' },
+            { field: 'financials', message: 'Financial statements are required', severity: 'error', tab: 'financial-profile' },
+          ],
+          warnings: [],
+          satisfied: [],
+        }}
       />,
     );
 
-    const button = screen.getByRole('button', { name: /complete sections to submit/i });
+    const button = screen.getByRole('button', { name: /resolve submission requirements/i });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Complete 2 required sections before submitting');
+    expect(button).toHaveAttribute('title', 'Resolve the server-reported submission requirements before submitting');
 
     fireEvent.click(button);
     expect(onSubmit).not.toHaveBeenCalled();

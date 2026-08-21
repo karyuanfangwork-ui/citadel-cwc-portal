@@ -48,7 +48,7 @@ export default function WizardActions({
             className="rounded px-5 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ background: 'var(--cr-primary)', color: 'var(--cr-on-primary)', border: 'none' }}
           >
-            {submitting ? 'Creating…' : 'Create Application'}
+            {submitting ? 'Creating…' : 'Create Draft'}
           </button>
         ) : (
           <button

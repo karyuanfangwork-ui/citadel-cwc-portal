@@ -14,7 +14,7 @@ import { recalcScore } from './recalc.service';
 import { enforceCommitteeEntryGate, isCommitteeEntryAction } from './committeeEntryGate';
 import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
-import { getBorrowerApplicationReadiness } from './borrowerApplicationReadiness.service';
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -586,6 +586,8 @@ class CreditApplicationService {
               borrowerType: true,
               name: true,
               creditRiskRating: true,
+              account: { select: { id: true, name: true, registrationNumber: true } },
+              contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
             },
           },
           branch: { select: { id: true, code: true, name: true } },
@@ -839,14 +841,12 @@ class CreditApplicationService {
    * Create a new credit application.
    */
   async createApplication(data: CreateCreditApplicationData, actorId?: string) {
-    const borrowerReadiness = await getBorrowerApplicationReadiness(data.borrowerProfileId);
-    if (!borrowerReadiness) {
+    const borrower = await prisma.borrowerProfile.findFirst({
+      where: { id: data.borrowerProfileId, deletedAt: null },
+      select: { id: true, borrowerType: true, annualTurnover: true },
+    });
+    if (!borrower) {
       throw new AppError('Borrower profile not found', 404);
-    }
-    if (!borrowerReadiness.ready) {
-      throw new AppError('Borrower is not ready to start an application', 422, {
-        blockers: borrowerReadiness.blockers,
-      });
     }
 
     const applicationNo = await generateApplicationNo();
@@ -894,14 +894,16 @@ class CreditApplicationService {
     });
 
     // P2-2: Determine and persist the processing lane
+    let laneReason: string | null = null;
     try {
       const { persistLane } = await import('./lane.service');
-      await persistLane(application.id);
+      const determination = await persistLane(application.id);
+      laneReason = determination.reason;
     } catch (_e) {
       // Non-blocking — lane defaults to CORPORATE if determination fails
     }
 
-    return application;
+    return { ...application, laneReason };
   }
 
   /**

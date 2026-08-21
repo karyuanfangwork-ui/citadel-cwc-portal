@@ -3,6 +3,7 @@ import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
 import Combobox, { ComboboxOption } from '../ui/Combobox';
 import creditService, { BorrowerProfile } from '../../services/credit.service';
+import { formatMalaysianNricInput } from './borrower360/borrowerPresentation';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -313,7 +314,7 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 <input
                   type="text"
                   value={form.nricPassport}
-                  onChange={e => set('nricPassport', e.target.value)}
+                  onChange={e => set('nricPassport', formatMalaysianNricInput(e.target.value))}
                   placeholder="e.g. 901234-14-5678"
                   className={fieldErrors.nricPassport ? errorInputCls : inputCls}
                 />

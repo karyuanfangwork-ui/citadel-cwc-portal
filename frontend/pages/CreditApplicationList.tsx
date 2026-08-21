@@ -5,7 +5,6 @@ import creditService, {
   ApplicationState,
   CreditProductType,
   Pagination,
-  BorrowerProfile,
   ApplicationSummary,
   dashboardApi,
   branchApi,
@@ -20,7 +19,6 @@ import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummary
 import {
   formatCurrency,
   STATE_COLORS,
-  getSmartDefaults,
   VISIBLE_PRODUCT_TYPES,
   VISIBLE_PRODUCT_LABELS,
   HIDDEN_PRODUCT_TYPES,
@@ -48,8 +46,6 @@ const PRODUCT_LABELS: Record<string, string> = {
   ...VISIBLE_PRODUCT_LABELS,
   ...Object.fromEntries(HIDDEN_PRODUCT_TYPES.map(t => [t, t === 'SYNDICATED' ? 'Syndicated' : 'Project Finance'])),
 };
-
-const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
 type QuickFilterKey = 'all' | 'mine' | 'pendingApproval' | 'overdueSla' | 'inCommittee' | 'offers';
 
@@ -153,11 +149,7 @@ const CreditApplicationList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState<Partial<CreditApplication>>({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
-  const [saving, setSaving] = useState(false);
-  const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
-  const [loadingBorrowers, setLoadingBorrowers] = useState(false);
+
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [summary, setSummary] = useState<ApplicationSummary | null>(null);
   const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('credit-applications');
@@ -228,15 +220,6 @@ const CreditApplicationList: React.FC = () => {
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
   useEffect(() => { branchApi.list().then(setBranches).catch(() => {}); }, []);
 
-  useEffect(() => {
-    if (showCreate && borrowerProfiles.length === 0) {
-      setLoadingBorrowers(true);
-      creditService.listBorrowerProfiles({ limit: 200 })
-        .then(res => setBorrowerProfiles(res.profiles))
-        .catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load borrower profiles')); })
-        .finally(() => setLoadingBorrowers(false));
-    }
-  }, [showCreate, borrowerProfiles.length]);
 
   useEffect(() => {
     creditService.getApplicationSummary()
@@ -251,34 +234,6 @@ const CreditApplicationList: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload: Record<string, any> = { ...form };
-    if (['requestedAmount', 'requestedTenor'].some(k => k in payload)) {
-      for (const k of ['requestedAmount', 'requestedTenor']) {
-        if (payload[k] !== undefined && payload[k] !== null && payload[k] !== '') {
-          payload[k] = Number(payload[k]);
-          if (isNaN(payload[k])) delete payload[k];
-        }
-      }
-    }
-    if (borrowerFilter) payload.borrowerProfileId = borrowerFilter;
-    const { assignedRmId } = getSmartDefaults({ currentUser: user, productType: form.productType });
-    if (assignedRmId) payload.assignedRmId = assignedRmId;
-    try {
-      setSaving(true);
-      const newApp = await creditService.createApplication(payload);
-      toast.success('Application submitted successfully');
-      setShowCreate(false);
-      setForm({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
-      navigate(`/credit/applications/${newApp.id}?new=1`);
-    } catch (e) {
-      console.error(e);
-      toast.error(friendlyMessage(e, 'Failed to create application'));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleClone = async (applicationId: string) => {
     try {
@@ -499,89 +454,7 @@ const CreditApplicationList: React.FC = () => {
         </div>
       </div>
 
-      {showCreate && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCreate(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="credit-module relative mx-4 flex max-h-[85vh] w-full max-w-lg flex-col" style={{ background: 'var(--cr-surface-container-lowest)', borderRadius: 'var(--cr-radius-lg)', boxShadow: '0 4px 18px rgba(0,0,0,0.12)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex flex-shrink-0 items-center justify-between border-b p-6" style={{ borderColor: 'var(--cr-outline-variant)' }}>
-              <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--cr-font-display)', color: 'var(--cr-on-surface)' }}>New Credit Application</h2>
-              <button onClick={() => setShowCreate(false)} aria-label="Close dialog" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cr-on-surface-variant)' }}>
-                <span className="material-symbols-outlined" aria-hidden="true">close</span>
-              </button>
-            </div>
-            <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
-              <div className="flex-1 space-y-4 overflow-y-auto p-6">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Product Type *</label>
-                  <select required value={form.productType || ''} onChange={e => setForm(f => ({ ...f, productType: e.target.value as CreditProductType }))} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }}>
-                    {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                </div>
 
-                {hasPermission(user, 'credit:admin') && branches.length > 0 && (
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Branch</label>
-                    <select value={form.branchId || ''} onChange={e => setForm(f => ({ ...f, branchId: e.target.value || null }))} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }}>
-                      <option value="">— Default to RM's branch —</option>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Requested Amount *</label>
-                    <input required type="number" min="0" value={form.requestedAmount ?? ''} onChange={e => setForm(f => ({ ...f, requestedAmount: Number(e.target.value) }))} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Currency *</label>
-                    <select required value={form.currency || 'MYR'} onChange={e => setForm(f => ({ ...f, currency: e.target.value as any }))} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }}>
-                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Tenure (months) *</label>
-                    <input required type="number" min="1" value={form.requestedTenor ?? ''} onChange={e => setForm(f => ({ ...f, requestedTenor: Number(e.target.value) }))} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Borrower *</label>
-                    <select required value={form.borrowerProfileId || borrowerFilter || ''} onChange={e => setForm(f => ({ ...f, borrowerProfileId: e.target.value }))} disabled={!!borrowerFilter} className="w-full border px-4 py-2 text-sm outline-none focus:ring-1 disabled:bg-gray-50" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }}>
-                      <option value="">— Select borrower —</option>
-                      {borrowerProfiles.map(bp => (
-                        <option key={bp.id} value={bp.id}>
-                          {getBorrowerDisplayName(bp)} {bp.borrowerType === 'INDIVIDUAL' ? '(Individual)' : '(Corporate)'}
-                        </option>
-                      ))}
-                    </select>
-                    {!loadingBorrowers && borrowerProfiles.length === 0 && !borrowerFilter && (
-                      <p className="mt-1.5 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>
-                        No borrower profiles yet.{' '}
-                        <Link to="/credit/borrowers" style={{ color: 'var(--cr-secondary)', fontWeight: 700 }} onClick={() => setShowCreate(false)}>
-                          Go to Borrower Profiles to create one
-                        </Link>
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-semibold" style={{ color: 'var(--cr-on-surface)' }}>Purpose</label>
-                  <textarea rows={3} value={form.purpose ?? ''} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))} className="w-full resize-none border px-4 py-2 text-sm outline-none focus:ring-1" style={{ borderColor: 'var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)' }} />
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 justify-end gap-3 border-t px-6 py-4" style={{ borderColor: 'var(--cr-outline-variant)' }}>
-                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 text-sm font-bold" style={{ background: 'white', border: '1px solid var(--cr-outline-variant)', borderRadius: 'var(--cr-radius)', cursor: 'pointer', color: 'var(--cr-on-surface-variant)' }}>Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-bold disabled:opacity-50" style={{ background: 'var(--cr-primary)', color: 'var(--cr-on-primary)', border: 'none', borderRadius: 'var(--cr-radius)', cursor: 'pointer' }}>
-                  {saving ? 'Creating...' : 'Create Application'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   );
 };

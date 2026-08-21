@@ -15,7 +15,7 @@ const AssessmentReadinessChecklist: React.FC<Props> = ({ profile, summary, asses
     { label: 'KYC verification', ready: Boolean(profile.kycVerifiedAt), target: 'kyc' as const },
     { label: 'Income / DSR', ready: Boolean(summary?.income), target: 'income' as const },
     { label: 'Bureau evidence', ready: Boolean(summary?.bureau.uploadedAt && !summary.bureau.stale), target: 'bureau' as const },
-    { label: 'Required documents', ready: (summary?.docCompletionPct ?? 0) >= 100, target: 'documents' as const },
+    { label: 'Required documents', ready: (summary?.docCompletionPct ?? 0) >= 80, target: 'documents' as const },
     { label: 'Risk calculation', ready: assessment?.ratingStatus === 'DECISION_READY', target: 'risk' as const },
   ];
 

@@ -17,6 +17,9 @@ import { calculateBorrowerReadiness, getPrimaryApplicationAction, type BorrowerN
 import RiskAssessmentResultCard from '../src/components/credit/borrower360/RiskAssessmentResultCard';
 import AssessmentReadinessChecklist from '../src/components/credit/borrower360/AssessmentReadinessChecklist';
 import ExposureFacilitiesTab from '../src/components/credit/borrower360/ExposureFacilitiesTab';
+import DocumentUpload from '../src/components/credit/DocumentUpload';
+import DocumentChecklistSummary from '../src/components/credit/borrower360/DocumentChecklistSummary';
+import { KpiCell, OutlinedCard, StatusPill } from '../src/components/credit/borrower360/primitives';
 import type { BorrowerRiskAssessmentTarget } from '../src/services/credit.service';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -130,6 +133,9 @@ const BorrowerProfileDetail: React.FC = () => {
   const [exposure, setExposure] = useState<BorrowerExposurePresentation | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
   const [exposureError, setExposureError] = useState<string | null>(null);
+  const [borrowerDocuments, setBorrowerDocuments] = useState<NonNullable<BorrowerProfile['documents']>>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [showLinkCrm, setShowLinkCrm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBureauModal, setShowBureauModal] = useState(false);
@@ -276,9 +282,25 @@ const BorrowerProfileDetail: React.FC = () => {
     }
   }, [id]);
 
+  const fetchDocuments = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoadingDocuments(true);
+      const documents = await creditService.listDocuments(id);
+      setBorrowerDocuments(documents);
+      setDocumentsError(null);
+    } catch (e) {
+      console.error(e);
+      setDocumentsError('Documents could not be loaded.');
+    } finally {
+      setLoadingDocuments(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (activeTab === 'overview' || activeTab === 'exposure') void fetchExposure();
-  }, [activeTab, fetchExposure]);
+    if (activeTab === 'documents') void fetchDocuments();
+  }, [activeTab, fetchDocuments, fetchExposure]);
 
   if (loading) return (
     <div className="w-full px-4 py-8 sm:px-8" style={{ paddingBottom: '2rem' }}>
@@ -304,6 +326,7 @@ const BorrowerProfileDetail: React.FC = () => {
   );
   const applicationReady = borrower360Summary?.applicationReadiness?.ready ?? readiness.status !== 'BLOCKED';
   const milestone = (ready: boolean) => ready ? 'READY' : 'BLOCKED';
+  const assessmentMilestone = readiness.status === 'READY' ? 'READY' : readiness.status === 'WARNING' ? 'NEEDS REVIEW' : 'BLOCKED';
 
   return (
     <>
@@ -321,24 +344,19 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
         {onboarding && (
           <section role="status" aria-labelledby="borrower-created-heading" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-700">Borrower created</p>
                 <h1 id="borrower-created-heading" className="mt-1 text-lg font-bold">{displayName(profile)}</h1>
                 <p className="mt-1 text-sm">Borrower number {onboarding.borrowerNumber || '—'} · {profile.isActive ? 'Active' : 'Inactive'}</p>
                 {onboarding.status === 'REQUIRES_FOLLOW_UP' && <p className="mt-2 text-sm font-semibold text-amber-800">Some onboarding actions require follow-up. Review the stages below and use the relevant Borrower 360 action.</p>}
               </div>
-              <Link to={applicationReady ? `/credit/applications/new?borrowerId=${profile.id}` : '#borrower-readiness-heading'} className="rounded-lg bg-emerald-700 px-3 py-2 text-center text-xs font-bold text-white no-underline">
-                {applicationReady ? 'Create credit application' : 'Complete required information'}
-              </Link>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                ['Created', true],
-                ['Profile complete', profileComplete],
-                ['Application ready', applicationReady],
-                ['Assessment ready', readiness.status === 'READY'],
-              ].map(([label, ready]) => <div key={String(label)} className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">{label}</p><p className="mt-1 text-xs font-bold">{milestone(Boolean(ready))}</p></div>)}
+              <div className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">Created</p><p className="mt-1 text-xs font-bold">READY</p></div>
+              <div className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">Profile complete</p><p className="mt-1 text-xs font-bold">{milestone(profileComplete)}</p></div>
+              <div className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">Application ready</p><p className="mt-1 text-xs font-bold">{milestone(applicationReady)}</p></div>
+              <div className="rounded-lg border border-emerald-200 bg-white/70 p-3"><p className="text-xs font-semibold">Assessment follow-up</p><p className="mt-1 text-xs font-bold">{assessmentMilestone}</p></div>
             </div>
             {onboarding.stages.some(stage => stage.status === 'FAILED') && <ul className="mt-3 list-disc pl-5 text-xs text-amber-800">{onboarding.stages.filter(stage => stage.status === 'FAILED').map(stage => <li key={stage.name}>{stage.name}: {stage.message || 'Follow-up action failed.'}</li>)}</ul>}
           </section>
@@ -357,8 +375,6 @@ const BorrowerProfileDetail: React.FC = () => {
             else navigate(`/credit/applications/new?borrowerId=${profile.id}`);
           }}
           onEdit={() => setShowEditModal(true)}
-          onUploadBureau={() => setShowBureauModal(true)}
-          onRunKyc={handleRunKyc}
           onRecalculateRisk={handleRecalculateRisk}
         />
 
@@ -621,61 +637,99 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {activeTab === 'bureau' && (
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Bureau Report</h3>
-            {(borrower360Summary?.bureauFacilities ?? []).length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-bg-subtle text-[10px] uppercase tracking-wide text-text-secondary">
-                      <th className="px-3 py-2">Facility</th>
-                      <th className="px-3 py-2">Lender</th>
-                      <th className="px-3 py-2 text-right">Balance</th>
-                      <th className="px-3 py-2 text-right">Installment</th>
-                      <th className="px-3 py-2 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {borrower360Summary!.bureauFacilities.map((facility) => (
-                      <tr key={facility.id} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 font-semibold text-text-primary">{FACILITY_TYPE_LABELS[facility.facilityType] ?? facility.facilityType}</td>
-                        <td className="px-3 py-2 text-text-secondary">{facility.lender ?? '—'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(facility.balance)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(facility.installment)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800">
-                            {facility.conductStatus ?? '—'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div role="tabpanel" aria-label="Bureau" className="space-y-4">
+            <section className="rounded-fc border border-fc-outline bg-fc-surface p-4" aria-labelledby="bureau-tab-heading">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 id="bureau-tab-heading" className="font-display text-headline-md text-fc-primary">Bureau report</h2>
+                    <StatusPill
+                      label={borrower360Summary?.bureau.stale ? 'Refresh required' : borrower360Summary?.bureau.uploadedAt ? 'Current' : 'Not available'}
+                      tone={borrower360Summary?.bureau.stale ? 'warn' : borrower360Summary?.bureau.uploadedAt ? 'pos' : 'neutral'}
+                    />
+                  </div>
+                  <p className="mt-1 max-w-2xl text-sm text-fc-on-variant">Review the latest reported facilities, repayment conduct, and bureau freshness used in borrower assessment.</p>
+                </div>
+                {canWrite ? (
+                  <button type="button" onClick={() => setShowBureauModal(true)} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-fc border border-fc-primary bg-fc-primary px-3 py-2 text-sm font-semibold text-white hover:opacity-90">
+                    <span aria-hidden="true" className="material-symbols-outlined text-[18px]">upload_file</span>
+                    Upload bureau report
+                  </button>
+                ) : null}
               </div>
-            ) : (
-              <p className="text-sm text-text-secondary italic">No bureau report on file yet.</p>
-            )}
+            </section>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <KpiCell label="Source" value={borrower360Summary?.bureau.source ?? '—'} tone={borrower360Summary?.bureau.source ? 'info' : 'neutral'} />
+              <KpiCell label="Report date" value={borrower360Summary?.bureau.uploadedAt ? new Date(borrower360Summary.bureau.uploadedAt).toLocaleDateString() : '—'} />
+              <KpiCell label="Age" value={borrower360Summary?.bureau.daysOld != null ? `${borrower360Summary.bureau.daysOld}d` : '—'} tone={borrower360Summary?.bureau.stale ? 'warn' : 'neutral'} />
+              <KpiCell label="Bureau score" value={borrower360Summary?.creditScore ?? '—'} tone={borrower360Summary?.creditScore != null ? 'default' : 'neutral'} />
+              <KpiCell label="Facilities" value={borrower360Summary?.bureauFacilities.length ?? 0} />
+            </div>
+
+            <OutlinedCard title="Reported facilities" action={<span className="text-xs text-fc-on-variant">{borrower360Summary?.bureauFacilities.length ?? 0} total</span>}>
+              {(borrower360Summary?.bureauFacilities ?? []).length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-fc-outline text-[10px] uppercase tracking-wide text-fc-on-variant">
+                        <th className="px-3 py-2">Facility</th>
+                        <th className="px-3 py-2">Lender</th>
+                        <th className="px-3 py-2 text-right">Balance</th>
+                        <th className="px-3 py-2 text-right">Installment</th>
+                        <th className="px-3 py-2 text-center">Conduct</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {borrower360Summary!.bureauFacilities.map((facility) => (
+                        <tr key={facility.id} className="border-b border-fc-outline last:border-0">
+                          <td className="px-3 py-3 font-semibold text-fc-primary">{FACILITY_TYPE_LABELS[facility.facilityType] ?? facility.facilityType}</td>
+                          <td className="px-3 py-3 text-fc-on-variant">{facility.lender ?? '—'}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-fc-primary">{formatCurrency(facility.balance)}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-fc-primary">{formatCurrency(facility.installment)}</td>
+                          <td className="px-3 py-3 text-center"><StatusPill label={facility.conductStatus ?? 'Not reported'} tone={facility.conductStatus ? 'pos' : 'neutral'} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-fc border border-dashed border-fc-outline bg-fc-surface-low p-8 text-center">
+                  <span aria-hidden="true" className="material-symbols-outlined text-4xl text-fc-on-variant">account_balance</span>
+                  <h3 className="mt-3 text-sm font-bold text-fc-primary">No bureau report on file</h3>
+                  <p className="mt-1 max-w-md text-sm text-fc-on-variant">Upload the latest bureau report to record facilities and include bureau information in borrower assessment.</p>
+                  {canWrite ? <button type="button" onClick={() => setShowBureauModal(true)} className="mt-4 rounded-fc border border-fc-primary px-3 py-2 text-xs font-bold text-fc-primary hover:bg-fc-surface-low">Upload bureau report</button> : null}
+                </div>
+              )}
+            </OutlinedCard>
           </div>
         )}
 
         {activeTab === 'documents' && (
-          <div role="tabpanel" aria-label="Documents" className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Documents</h3>
-            {(profile.documents ?? []).length > 0 ? (
-              <div className="space-y-3">
-                {(profile.documents ?? []).map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between gap-4 rounded-lg border border-border bg-bg-subtle px-4 py-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text-primary">{doc.fileName}</p>
-                      <p className="text-xs text-text-secondary">{doc.documentType} · {doc.status}</p>
-                    </div>
-                    <span className="text-xs text-text-secondary tabular-nums">{doc.fileSize?.toLocaleString?.() ?? doc.fileSize} bytes</span>
-                  </div>
-                ))}
+          <div role="tabpanel" aria-label="Documents" className="space-y-4">
+            <OutlinedCard title="Documents">
+            {loadingDocuments ? <p className="text-sm text-text-secondary">Loading documents…</p> : documentsError ? (
+              <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p>{documentsError}</p>
+                <button type="button" onClick={fetchDocuments} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white">Retry</button>
               </div>
             ) : (
-              <p className="text-sm text-text-secondary italic">No borrower documents recorded yet.</p>
+              <div className="space-y-4">
+                <DocumentChecklistSummary checklist={borrower360Summary?.documentChecklist} />
+                <DocumentUpload
+                  borrowerProfileId={profile.id}
+                  documents={borrowerDocuments}
+                  canUpload={canWrite}
+                  canVerify={canWrite}
+                  onUploaded={() => { void fetchDocuments(); void fetchProfile(); }}
+                  onReplace={canWrite ? async (documentId, file) => { await creditService.replaceDocument(documentId, file); await fetchDocuments(); await fetchProfile(); } : undefined}
+                  onVerify={async (documentId) => { await creditService.verifyDocument(documentId); await fetchDocuments(); await fetchProfile(); }}
+                  onReject={async (documentId, reason) => { await creditService.rejectDocument(documentId, reason); await fetchDocuments(); await fetchProfile(); }}
+                  onDelete={hasPermission(user, 'credit:admin') ? async (documentId) => { await creditService.deleteDocument(documentId); await fetchDocuments(); await fetchProfile(); } : undefined}
+                />
+              </div>
             )}
+            </OutlinedCard>
           </div>
         )}
 

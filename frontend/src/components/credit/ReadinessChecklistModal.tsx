@@ -5,6 +5,12 @@ export interface ReadinessChecklistModalProps {
   open: boolean;
   onClose: () => void;
   phaseCompletion: Record<string, PhaseStatus>;
+  readiness?: {
+    ready: boolean;
+    errors: Array<{ field: string; message: string; severity: string; tab?: string; target?: string }>;
+    warnings: Array<{ field: string; message: string; severity: string; tab?: string; target?: string }>;
+    satisfied: Array<{ field: string; message: string; severity: string; tab?: string; target?: string }>;
+  } | null;
   onSubmitAnyway: () => void;
   onNavigateToSection: (tabId: string) => void;
   /** Processing lane — when PERSONAL_FAST, s4 navigates to credit-checks (combined section) */
@@ -37,6 +43,7 @@ const STATUS_CONFIG: Record<string, { icon: string; color: string; label: string
   complete: { icon: 'check_circle', color: 'text-green-600', label: 'Complete' },
   incomplete: { icon: 'warning', color: 'text-amber-500', label: 'Incomplete' },
   optional: { icon: 'radio_button_unchecked', color: 'text-gray-400', label: 'Optional' },
+  warning: { icon: 'warning', color: 'text-amber-500', label: 'Warning' },
 };
 
 const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
@@ -46,6 +53,7 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
   onSubmitAnyway,
   onNavigateToSection,
   lane,
+  readiness,
 }) => {
   if (!open) return null;
 
@@ -54,10 +62,17 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
     ? { ...PHASE_TO_TAB_MAP, s4: 'credit-checks', s5: 'credit-checks' }
     : PHASE_TO_TAB_MAP;
 
-  const entries = Object.entries(phaseCompletion);
-  const requiredKeys = new Set(['s1', 's2', 's3', 's4', 's5']);
-  const incompleteRequired = entries.filter(([key, status]) => requiredKeys.has(key) && status === 'incomplete');
-  const allReady = incompleteRequired.length === 0;
+  const readinessIssues = readiness ? [...readiness.errors, ...readiness.warnings, ...readiness.satisfied] : [];
+  const entries = readiness
+    ? readinessIssues.map((issue) => [issue.field, issue.severity === 'error' ? 'incomplete' : issue.severity === 'warning' ? 'warning' : 'complete'] as [string, string])
+    : Object.entries(phaseCompletion);
+  const readinessByField = new Map(readinessIssues.map((issue) => [issue.field, issue]));
+  const incompleteRequired = readiness
+    ? readiness.errors
+    : entries.filter(([, status]) => status === 'incomplete');
+  // Submission must remain fail-closed when the server result is unavailable.
+  // phaseCompletion is retained for visual context only.
+  const allReady = readiness?.ready === true && readiness.errors.length === 0;
 
   return (
     <div
@@ -85,7 +100,9 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
               <p className="text-xs text-text-secondary mt-0.5">
                 {allReady
                   ? 'All required sections are complete.'
-                  : `${incompleteRequired.length} required section${incompleteRequired.length > 1 ? 's' : ''} incomplete`}
+                  : readiness
+                    ? `${incompleteRequired.length} server requirement${incompleteRequired.length !== 1 ? 's' : ''} blocking submission`
+                    : 'Checking server submission readiness…'}
               </p>
             </div>
           </div>
@@ -95,8 +112,9 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
         <div className="p-6 space-y-2 max-h-[50vh] overflow-y-auto">
           {entries.map(([key, status]) => {
             const config = STATUS_CONFIG[status] || STATUS_CONFIG.optional;
-            const label = PHASE_LABELS[key] || key;
-            const tabId = phaseToTab[key] || key;
+            const issue = readinessByField.get(key);
+            const label = issue?.message || PHASE_LABELS[key] || key;
+            const tabId = issue?.tab || phaseToTab[key] || key;
             const isIncomplete = status === 'incomplete' && key !== 'meta';
             return (
               <div
@@ -145,7 +163,7 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
           <button
             onClick={allReady ? onSubmitAnyway : undefined}
             disabled={!allReady}
-            title={!allReady ? `Complete ${incompleteRequired.length} required section${incompleteRequired.length > 1 ? 's' : ''} before submitting` : undefined}
+            title={!allReady ? 'Resolve the server-reported submission requirements before submitting' : undefined}
             className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${
               allReady
                 ? 'bg-green-600 text-white hover:bg-green-700'
@@ -153,7 +171,7 @@ const ReadinessChecklistModal: React.FC<ReadinessChecklistModalProps> = ({
             }`}
             style={{ border: 'none', cursor: allReady ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}
           >
-            {allReady ? 'Submit for Review' : 'Complete sections to submit'}
+            {allReady ? 'Submit for Review' : 'Resolve submission requirements'}
           </button>
         </div>
       </div>

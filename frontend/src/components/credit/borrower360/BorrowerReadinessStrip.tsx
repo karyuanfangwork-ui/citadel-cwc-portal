@@ -9,12 +9,18 @@ export interface BorrowerReadinessStripProps {
 }
 
 const STATUS_LABEL: Record<BorrowerReadiness['status'], string> = {
-  READY: 'Ready', WARNING: 'Needs attention', BLOCKED: 'Not ready',
+  READY: 'Ready', WARNING: 'Application ready — follow-up needed', BLOCKED: 'Application blocked',
 };
 
 const BorrowerReadinessStrip: React.FC<BorrowerReadinessStripProps> = ({ readiness, onAction }) => {
   const firstAction = readiness.actions[0];
-  const outstandingLabel = readiness.outstandingCount === 1 ? 'item needs attention' : 'items need attention';
+  const blockers = readiness.actions.filter((action) => action.severity === 'BLOCKER').length;
+  const followUps = Math.max(readiness.outstandingCount - blockers, 0);
+  const progressMessage = blockers > 0
+    ? `${blockers} required ${blockers === 1 ? 'step blocks' : 'steps block'} application readiness`
+    : followUps > 0
+      ? `${followUps} follow-up ${followUps === 1 ? 'step remains' : 'steps remain'} before assessment`
+      : 'All required checks are complete';
 
   return (
     <section className="rounded-fc border border-fc-outline bg-fc-surface p-4" aria-labelledby="borrower-readiness-heading" aria-live="polite">
@@ -24,7 +30,7 @@ const BorrowerReadinessStrip: React.FC<BorrowerReadinessStripProps> = ({ readine
           <div>
             <h2 id="borrower-readiness-heading" className="text-sm font-bold text-fc-primary">Borrower readiness</h2>
             <p className="text-xs text-fc-on-variant">
-              {readiness.outstandingCount > 0 ? `${readiness.outstandingCount} ${outstandingLabel}` : 'All required checks are complete'}
+              {progressMessage}
             </p>
           </div>
         </div>
@@ -37,7 +43,7 @@ const BorrowerReadinessStrip: React.FC<BorrowerReadinessStripProps> = ({ readine
       </div>
       {firstAction ? (
         <div className="mt-4 flex flex-col gap-2 border-t border-fc-outline pt-3 md:flex-row md:items-center md:justify-between">
-          <p className="text-sm text-fc-on-variant"><strong className="text-fc-primary">{firstAction.title}:</strong> {firstAction.description}</p>
+          <p className="text-sm text-fc-on-variant"><strong className="text-fc-primary">Next step: {firstAction.title}</strong><br />{firstAction.description}</p>
           <button type="button" onClick={() => onAction(firstAction)} className="shrink-0 self-start rounded-fc border border-fc-primary px-3 py-2 text-xs font-bold text-fc-primary hover:bg-fc-surface-low md:self-auto">
             {firstAction.actionLabel}
           </button>
