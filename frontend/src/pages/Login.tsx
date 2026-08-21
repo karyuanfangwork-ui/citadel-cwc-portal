@@ -308,7 +308,7 @@ const Login = () => {
             <img src={citadelLogo} alt="Citadel" style={{ width: '28px', height: '28px', flexShrink: 0, display: 'block', overflow: 'hidden' }} />
             <div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-brand-700)', letterSpacing: '0.8px' }}>CITADEL</div>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-tertiary)', letterSpacing: '1.5px', marginTop: '1px' }}>WORKPLACE CONNECT</div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: '#475569', letterSpacing: '1.5px', marginTop: '1px' }}>WORKPLACE CONNECT</div>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Borrower360Summary, BorrowerProfile } from '../../../../services/credit.service';
+import type { Borrower360Summary, BorrowerProfile, BorrowerExposurePresentation } from '../../../../services/credit.service';
 import BorrowerOverview from '../BorrowerOverview';
 
 vi.mock('../RetailOverview', () => ({ default: () => <div>Income vs Commitment</div> }));
@@ -22,6 +22,11 @@ const summary: Borrower360Summary = {
 };
 const readiness = { status: 'BLOCKED' as const, completionPct: 0, outstandingCount: 1, actions: [{ id: 'kyc', severity: 'BLOCKER' as const, title: 'Verify KYC', description: 'Required', actionLabel: 'Verify KYC', target: 'profile' as const }] };
 const props = (borrowerType = 'INDIVIDUAL') => ({ profile: profile(borrowerType), summary, applications: [], readiness, activity: [], canWrite: true, onAction: vi.fn(), onEditIncome: vi.fn(), onViewExposure: vi.fn() });
+const exposurePresentation: BorrowerExposurePresentation = {
+  contractVersion: 1, borrowerProfileId: 'borrower-1', baseCurrency: 'MYR', calculatedAt: '2026-08-21T00:00:00.000Z', includedStates: ['ACTIVE'],
+  summary: { currentExposure: 125000, exposureLimit: 200000, availableHeadroom: 75000, utilizationPct: 62.5, status: 'WITHIN_LIMIT' },
+  facilities: [], projection: null, groupExposure: null,
+};
 
 describe('BorrowerOverview', () => {
   it('does not present unavailable applications as an empty result', () => {
@@ -40,5 +45,12 @@ describe('BorrowerOverview', () => {
     render(<BorrowerOverview {...props('CORPORATE')} />);
     expect(screen.getByText('Business information')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Edit income/i })).not.toBeInTheDocument();
+  });
+
+  it('uses the detailed exposure presentation for Overview parity', () => {
+    render(<BorrowerOverview {...props()} exposurePresentation={exposurePresentation} />);
+    expect(screen.getByText(/RM\s*125,000/)).toBeVisible();
+    expect(screen.getByText('WITHIN LIMIT')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'View exposure & facilities' })).toBeVisible();
   });
 });

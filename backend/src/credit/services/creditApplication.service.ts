@@ -14,6 +14,7 @@ import { recalcScore } from './recalc.service';
 import { enforceCommitteeEntryGate, isCommitteeEntryAction } from './committeeEntryGate';
 import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
+import { getBorrowerApplicationReadiness } from './borrowerApplicationReadiness.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -838,6 +839,16 @@ class CreditApplicationService {
    * Create a new credit application.
    */
   async createApplication(data: CreateCreditApplicationData, actorId?: string) {
+    const borrowerReadiness = await getBorrowerApplicationReadiness(data.borrowerProfileId);
+    if (!borrowerReadiness) {
+      throw new AppError('Borrower profile not found', 404);
+    }
+    if (!borrowerReadiness.ready) {
+      throw new AppError('Borrower is not ready to start an application', 422, {
+        blockers: borrowerReadiness.blockers,
+      });
+    }
+
     const applicationNo = await generateApplicationNo();
 
     const effectiveRmId = data.assignedRmId ?? actorId;  // ← auto-assign creating user as RM when none specified

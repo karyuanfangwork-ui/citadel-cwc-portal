@@ -43,11 +43,6 @@ const BorrowerReadinessStrip: React.FC<BorrowerReadinessStripProps> = ({ readine
           </button>
         </div>
       ) : null}
-      {readiness.actions.length > 1 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {readiness.actions.slice(1).map((item) => <button key={item.id} type="button" onClick={() => onAction(item)} className="text-xs font-semibold text-fc-primary underline">{item.actionLabel}</button>)}
-        </div>
-      ) : null}
     </section>
   );
 };

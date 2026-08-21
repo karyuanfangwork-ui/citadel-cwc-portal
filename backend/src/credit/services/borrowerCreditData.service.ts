@@ -34,6 +34,7 @@ export interface BureauFacilityInput {
 
 export interface BureauReportInput {
   source: string;
+  creditScore?: number | null;
   reportDate?: string | null;
   fileName?: string | null;
   filePath?: string | null;
@@ -248,6 +249,26 @@ export async function createBureauReport(borrowerId: string, data: BureauReportI
     data.fileName ?? undefined,
     actorId,
   );
+
+  if (data.creditScore != null) {
+    const scoreBand = scoreBandFor(data.creditScore);
+    await prisma.borrowerCreditProfile.upsert({
+      where: { borrowerId },
+      create: {
+        borrowerId,
+        creditScore: data.creditScore,
+        scoreBand,
+        scoreSource: data.source === 'CTOS' ? 'CTOS' : 'MANUAL',
+        scoreAsOf: data.reportDate ? new Date(data.reportDate) : null,
+      },
+      update: {
+        creditScore: data.creditScore,
+        scoreBand,
+        scoreSource: data.source === 'CTOS' ? 'CTOS' : 'MANUAL',
+        scoreAsOf: data.reportDate ? new Date(data.reportDate) : null,
+      },
+    });
+  }
 
   return report;
 }

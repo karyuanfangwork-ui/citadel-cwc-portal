@@ -30,6 +30,7 @@ export const createBureauReportSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
     source: z.enum(['CTOS', 'CCRIS_BORROWER_UPLOAD']),
+    creditScore: z.number().int().min(0).max(999).optional(),
     reportDate: z.string().datetime().nullable().optional(),
     fileName: z.string().max(255).nullable().optional(),
     filePath: z.string().max(500).nullable().optional(),

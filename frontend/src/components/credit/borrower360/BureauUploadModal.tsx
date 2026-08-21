@@ -53,8 +53,8 @@ const toNumberOrNull = (value: string) => {
 const BureauUploadModal: React.FC<BureauUploadModalProps> = ({ borrowerId, open, onClose, onSaved }) => {
   const [source, setSource] = useState<'CTOS' | 'CCRIS_BORROWER_UPLOAD'>('CTOS');
   const [reportDate, setReportDate] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [filePath, setFilePath] = useState('');
+  const [creditScore, setCreditScore] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [facilities, setFacilities] = useState<BureauFacilityDraft[]>([emptyFacility()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +63,8 @@ const BureauUploadModal: React.FC<BureauUploadModalProps> = ({ borrowerId, open,
     if (!open) return;
     setSource('CTOS');
     setReportDate('');
-    setFileName('');
-    setFilePath('');
+    setCreditScore('');
+    setSelectedFile(null);
     setFacilities([emptyFacility()]);
     setSaving(false);
     setError(null);
@@ -81,13 +81,24 @@ const BureauUploadModal: React.FC<BureauUploadModalProps> = ({ borrowerId, open,
 
   const handleSubmit = async () => {
     setError(null);
+    if (!selectedFile) {
+      setError('Select the bureau report file before saving.');
+      return;
+    }
+    const parsedScore = Number(creditScore);
+    if (!creditScore.trim() || !Number.isInteger(parsedScore) || parsedScore < 0 || parsedScore > 999) {
+      setError('Enter a valid bureau credit score from 0 to 999.');
+      return;
+    }
     setSaving(true);
     try {
+      const uploadedDocument = await creditService.uploadBorrowerDocument(borrowerId, selectedFile, 'CREDIT_BUREAU_REPORT');
       const payload = {
         source,
+        creditScore: parsedScore,
         reportDate: reportDate ? new Date(reportDate).toISOString() : null,
-        fileName: fileName.trim() || null,
-        filePath: filePath.trim() || null,
+        fileName: uploadedDocument.fileName,
+        filePath: uploadedDocument.filePath,
         facilities: summary.map((facility) => ({
           facilityType: facility.facilityType.trim(),
           lender: facility.lender.trim() || null,
@@ -151,30 +162,20 @@ const BureauUploadModal: React.FC<BureauUploadModalProps> = ({ borrowerId, open,
               type="date"
               value={reportDate}
               onChange={(e) => setReportDate(e.target.value)}
+              aria-label="Report date"
               className="w-full rounded-fc border border-cwc-border bg-white px-3 py-2 text-sm"
             />
           </label>
 
           <label className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-fc-on-variant">File Name</span>
-            <input
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="ctos-report.pdf"
-              className="w-full rounded-fc border border-cwc-border bg-white px-3 py-2 text-sm"
-            />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-fc-on-variant">Bureau credit score</span>
+            <input type="number" min="0" max="999" step="1" value={creditScore} onChange={(e) => setCreditScore(e.target.value)} aria-label="Bureau credit score" placeholder="0–999" className="w-full rounded-fc border border-cwc-border bg-white px-3 py-2 text-sm" />
           </label>
 
           <label className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-fc-on-variant">File Path</span>
-            <input
-              type="text"
-              value={filePath}
-              onChange={(e) => setFilePath(e.target.value)}
-              placeholder="/uploads/bureau/ctos-report.pdf"
-              className="w-full rounded-fc border border-cwc-border bg-white px-3 py-2 text-sm"
-            />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-fc-on-variant">Report file</span>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} aria-label="Report file" className="w-full rounded-fc border border-cwc-border bg-white px-3 py-2 text-sm" />
+            <span className="block text-xs text-fc-on-variant">PDF or image; the file is stored as a credit document.</span>
           </label>
         </div>
 

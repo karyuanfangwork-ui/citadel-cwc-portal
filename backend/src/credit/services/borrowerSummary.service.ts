@@ -1,7 +1,9 @@
 import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
 import { bureauFreshness } from './borrowerCreditData.service';
+import { getBorrowerApplicationReadiness } from './borrowerApplicationReadiness.service';
 import { getLatestBorrowerRiskRun } from './borrowerScoring.service';
+import { buildBorrowerRiskPresentation } from './borrowerRiskPresentation.service';
 
 export type AlertTone = 'warn' | 'neg';
 
@@ -122,9 +124,29 @@ export async function getBorrowerSummary(borrowerId: string) {
   ]);
 
   const fresh = bureauFreshness(latestBureauReport?.uploadedAt ?? null);
+  const applicationReadiness = await getBorrowerApplicationReadiness(borrowerId);
   const activeApps = applications.filter((application: { state: string }) => !['CLOSED', 'REJECTED', 'WITHDRAWN'].includes(application.state)).length;
   const docCompletion = computeDocumentCompletion(profile.borrowerType, documents);
   const facilities = latestBureauReport?.facilities ?? [];
+  const riskAssessment = buildBorrowerRiskPresentation({
+    riskRun: latestRiskRun
+      ? {
+          effectiveRiskRating: latestRiskRun.effectiveRiskRating,
+          baseRiskRating: latestRiskRun.baseRiskRating,
+          totalScore: Number(latestRiskRun.totalScore),
+          scorecardVersion: latestRiskRun.scorecardVersion,
+          runAt: latestRiskRun.runAt,
+          missingInputs: latestRiskRun.missingInputs,
+          reasonCodes: latestRiskRun.reasonCodes,
+          bureauCapsApplied: latestRiskRun.bureauCapsApplied,
+        }
+      : null,
+    bureau: { stale: fresh.stale, uploadedAt: latestBureauReport?.uploadedAt ?? null },
+    applicationReadiness,
+    docCompletionPct: docCompletion.completionPct,
+    kycVerified: Boolean(profile.kycVerifiedAt),
+    compliancePass: Boolean(profile.kycVerifiedAt) && !profile.isSanctionedEntity,
+  });
 
   return {
     borrowerId,
@@ -142,6 +164,7 @@ export async function getBorrowerSummary(borrowerId: string) {
           bureauCapsApplied: latestRiskRun.bureauCapsApplied ?? [],
         }
       : null,
+    riskAssessment,
     creditScore: creditProfile?.creditScore ?? null,
     scoreBand: creditProfile?.scoreBand ?? null,
     dsrPercent: creditProfile?.dsrPercent != null ? Number(creditProfile.dsrPercent) : null,
@@ -166,9 +189,22 @@ export async function getBorrowerSummary(borrowerId: string) {
             Number(income.existingLoanCommitment) +
             Number(income.otherCommitments),
           netIncome: income.monthlyNetIncome != null ? Number(income.monthlyNetIncome) : null,
+          details: {
+            employmentType: income.employmentType,
+            employerName: income.employerName,
+            monthlyGrossIncome: Number(income.monthlyGrossIncome),
+            epfMonthlyAmount: income.epfMonthlyAmount != null ? Number(income.epfMonthlyAmount) : null,
+            monthlyTaxDeduction: Number(income.monthlyTaxDeduction),
+            monthlySocsoDeduction: Number(income.monthlySocsoDeduction),
+            hirePurchaseCommitment: Number(income.hirePurchaseCommitment),
+            creditCardCommitment: Number(income.creditCardCommitment),
+            existingLoanCommitment: Number(income.existingLoanCommitment),
+            otherCommitments: Number(income.otherCommitments),
+          },
         }
       : null,
     bureauFacilities: facilities,
     alerts: buildAlerts({ bureauStale: fresh.stale, missingDocs: docCompletion.completionPct < 100 }),
+    applicationReadiness,
   };
 }

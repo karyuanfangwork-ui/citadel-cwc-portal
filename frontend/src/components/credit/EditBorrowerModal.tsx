@@ -7,8 +7,7 @@ import creditService, { BorrowerProfile } from '../../services/credit.service';
 // ── Types ────────────────────────────────────────────────────────────────
 
 type BorrowerType = 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR' | 'JOINT';
-type RiskRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'CC' | 'C' | 'D' | 'NR';
-type AmlRiskTier = 'LOW' | 'MEDIUM' | 'HIGH' | 'PROHIBITED';
+
 
 export interface EditBorrowerModalProps {
   profile: BorrowerProfile;
@@ -21,18 +20,17 @@ interface FormState {
   name: string;
   borrowerType: string;
   isActive: boolean;
-  creditRiskRating: string;
-  amlRiskTier: string;
-  isSanctionedEntity: boolean;
-  exposureLimit: string;
+
   occupation: string;
   employer: string;
   annualIncome: string;
   netWorth: string;
+  exposureLimit: string;
   sourceOfWealth: string;
   purposeOfAccount: string;
   // Identity fields (CRM-independent, Phase 3)
   nricPassport: string;
+  nationality: string;
   phone: string;
   email: string;
   address: string;
@@ -63,26 +61,6 @@ const BORROWER_TYPE_OPTIONS: ComboboxOption[] = [
   { value: 'JOINT', label: 'Joint', icon: 'group' },
 ];
 
-const RISK_RATING_OPTIONS: ComboboxOption[] = [
-  { value: 'AAA', label: 'AAA — Prime' },
-  { value: 'AA', label: 'AA — High Grade' },
-  { value: 'A', label: 'A — Upper Medium Grade' },
-  { value: 'BBB', label: 'BBB — Medium Grade' },
-  { value: 'BB', label: 'BB — Speculative' },
-  { value: 'B', label: 'B — Highly Speculative' },
-  { value: 'CCC', label: 'CCC — Substantial Risk' },
-  { value: 'CC', label: 'CC — Extremely Speculative' },
-  { value: 'C', label: 'C — Near Default' },
-  { value: 'D', label: 'D — Default' },
-  { value: 'NR', label: 'NR — Not Rated' },
-];
-
-const AML_TIER_OPTIONS: ComboboxOption[] = [
-  { value: 'LOW', label: 'Low Risk', icon: 'check_circle' },
-  { value: 'MEDIUM', label: 'Medium Risk', icon: 'warning' },
-  { value: 'HIGH', label: 'High Risk', icon: 'error' },
-  { value: 'PROHIBITED', label: 'Prohibited', icon: 'block' },
-];
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -93,17 +71,16 @@ const formStateFromProfile = (p: BorrowerProfile): FormState => ({
   name: p.name ?? '',
   borrowerType: p.borrowerType ?? 'CORPORATE',
   isActive: p.isActive ?? true,
-  creditRiskRating: p.creditRiskRating ?? '',
-  amlRiskTier: p.amlRiskTier ?? '',
-  isSanctionedEntity: p.isSanctionedEntity ?? false,
-  exposureLimit: toStr(p.exposureLimit),
+
   occupation: p.occupation ?? '',
   employer: p.employer ?? '',
   annualIncome: toStr(p.annualIncome),
   netWorth: toStr(p.netWorth),
+  exposureLimit: toStr(p.exposureLimit),
   sourceOfWealth: p.sourceOfWealth ?? '',
   purposeOfAccount: p.purposeOfAccount ?? '',
   nricPassport: p.nricPassport ?? '',
+  nationality: p.nationality ?? '',
   phone: p.phone ?? '',
   email: p.email ?? '',
   address: p.address ?? '',
@@ -159,11 +136,10 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
     const payload: Record<string, any> = {};
 
     const stringFields: (keyof FormState)[] = [
-      'name', 'borrowerType', 'creditRiskRating', 'amlRiskTier',
-      'exposureLimit', 'occupation', 'employer', 'annualIncome',
-      'netWorth', 'sourceOfWealth', 'purposeOfAccount',
+      'name', 'borrowerType', 'occupation', 'employer', 'annualIncome',
+      'netWorth', 'exposureLimit', 'sourceOfWealth', 'purposeOfAccount',
       // Phase 3: Identity fields
-      'nricPassport', 'phone', 'email', 'address',
+      'nricPassport', 'nationality', 'phone', 'email', 'address',
       'registrationNumber', 'industry',
       // Borrower creation wizard — type-specific fields
       'dateOfBirth', 'dateOfIncorporation', 'businessNature', 'businessType',
@@ -171,16 +147,12 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
       'educationLevel', 'taxNumber', 'officePhone', 'preferredContactMethod',
       'mailingAddress',
     ];
-    const booleanFields: (keyof FormState)[] = ['isActive', 'isSanctionedEntity'];
+    const booleanFields: (keyof FormState)[] = ['isActive'];
 
     for (const field of stringFields) {
       if (form[field] !== original[field]) {
-        // For enum fields, empty string means null
-        if (['creditRiskRating', 'amlRiskTier'].includes(field)) {
-          payload[field] = form[field] === '' ? null : form[field];
-        }
         // For decimal fields, empty string means null
-        else if (['exposureLimit', 'annualIncome', 'netWorth'].includes(field)) {
+        if (['annualIncome', 'netWorth', 'exposureLimit'].includes(field)) {
           payload[field] = form[field] === '' ? null : form[field];
         } else {
           payload[field] = form[field] === '' ? null : form[field];
@@ -200,6 +172,16 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
   // ── Phase 6: Inline validation ──
   const validate = (): string | null => {
     const errs: Record<string, string> = {};
+    const isIndividual = form.borrowerType === 'INDIVIDUAL' || form.borrowerType === 'JOINT';
+    const isBusiness = form.borrowerType === 'CORPORATE' || form.borrowerType === 'SOLE_PROPRIETOR';
+    if (!form.name.trim()) errs.name = 'Name is required';
+    if (isIndividual && !form.nricPassport.trim()) errs.nricPassport = 'NRIC / Passport is required';
+    if (isIndividual && !form.dateOfBirth) errs.dateOfBirth = 'Date of Birth is required';
+    if (isIndividual && !form.nationality.trim()) errs.nationality = 'Nationality is required';
+    if (isBusiness && !form.registrationNumber.trim()) errs.registrationNumber = 'Registration Number is required';
+    if (isBusiness && !form.dateOfIncorporation) errs.dateOfIncorporation = 'Date of Incorporation is required';
+    if (isBusiness && !form.businessNature.trim()) errs.businessNature = 'Business Nature is required';
+    if (!form.phone.trim() && !form.email.trim()) errs.phoneOrEmail = 'Phone or email is required';
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       errs.email = 'Invalid email format';
     }
@@ -275,7 +257,7 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
 
           <div>
             <label className={labelCls}>
-              {isCrmLinked ? 'Display Name' : 'Full / Company Name'}
+              {isCrmLinked ? 'Display Name' : 'Full / Company Name'}{!isCrmLinked ? ' *' : ''}
             </label>
             <input
               type="text"
@@ -285,6 +267,7 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
               className={inputCls}
               disabled={isCrmLinked}
             />
+            {fieldErrors.name && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.name}</p>}
             {isCrmLinked && (
               <p className="text-[11px] text-text-tertiary mt-1">Name is managed by the linked CRM account</p>
             )}
@@ -326,7 +309,7 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
           {(form.borrowerType === 'INDIVIDUAL' || form.borrowerType === 'JOINT') && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-cwc-border">
               <div>
-                <label className={labelCls}>NRIC / Passport</label>
+                <label className={labelCls}>NRIC / Passport *</label>
                 <input
                   type="text"
                   value={form.nricPassport}
@@ -337,13 +320,14 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 {fieldErrors.nricPassport && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.nricPassport}</p>}
               </div>
               <div>
-                <label className={labelCls}>Date of Birth</label>
+                <label className={labelCls}>Date of Birth *</label>
                 <input
                   type="date"
                   value={form.dateOfBirth}
                   onChange={e => set('dateOfBirth', e.target.value)}
                   className={inputCls}
                 />
+                {fieldErrors.dateOfBirth && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.dateOfBirth}</p>}
               </div>
               <div>
                 <label className={labelCls}>Preferred Name</label>
@@ -354,6 +338,11 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                   placeholder="e.g. Ahmad"
                   className={inputCls}
                 />
+              </div>
+              <div>
+                <label className={labelCls}>Nationality *</label>
+                <input type="text" value={form.nationality} onChange={e => set('nationality', e.target.value)} placeholder="e.g. Malaysian" className={fieldErrors.nationality ? errorInputCls : inputCls} />
+                {fieldErrors.nationality && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.nationality}</p>}
               </div>
               <div>
                 <label className={labelCls}>Marital Status</label>
@@ -459,23 +448,25 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
           {(form.borrowerType === 'CORPORATE' || form.borrowerType === 'SOLE_PROPRIETOR') && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 mt-2 border-t border-cwc-border">
               <div>
-                <label className={labelCls}>Registration Number</label>
+                <label className={labelCls}>Registration Number *</label>
                 <input
                   type="text"
                   value={form.registrationNumber}
                   onChange={e => set('registrationNumber', e.target.value)}
                   placeholder="e.g. 202001234567 (1234567-A)"
-                  className={inputCls}
+                  className={fieldErrors.registrationNumber ? errorInputCls : inputCls}
                 />
+                {fieldErrors.registrationNumber && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.registrationNumber}</p>}
               </div>
               <div>
-                <label className={labelCls}>Date of Incorporation</label>
+                <label className={labelCls}>Date of Incorporation *</label>
                 <input
                   type="date"
                   value={form.dateOfIncorporation}
                   onChange={e => set('dateOfIncorporation', e.target.value)}
-                  className={inputCls}
+                  className={fieldErrors.dateOfIncorporation ? errorInputCls : inputCls}
                 />
+                {fieldErrors.dateOfIncorporation && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.dateOfIncorporation}</p>}
               </div>
               <div>
                 <label className={labelCls}>Business Type</label>
@@ -504,14 +495,15 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Business Nature</label>
+                <label className={labelCls}>Business Nature *</label>
                 <textarea
                   value={form.businessNature}
                   onChange={e => set('businessNature', e.target.value)}
                   placeholder="Brief description of the business activities"
-                  className={inputCls}
+                  className={fieldErrors.businessNature ? errorInputCls : inputCls}
                   rows={2}
                 />
+                {fieldErrors.businessNature && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.businessNature}</p>}
               </div>
               <div>
                 <label className={labelCls}>Authorized Representative</label>
@@ -603,62 +595,6 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
           )}
         </div>
 
-        {/* ── Credit Risk ── */}
-        <div className="flex flex-col gap-3 p-4 bg-surface-subtle rounded-cwc-md border border-cwc-border">
-          <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wide">Credit Risk</p>
-
-          <div>
-            <label className={labelCls}>Risk Rating</label>
-            <Combobox
-              options={RISK_RATING_OPTIONS}
-              value={form.creditRiskRating}
-              onChange={v => set('creditRiskRating', v === form.creditRiskRating ? '' : v)}
-              placeholder="Not rated"
-              clearable
-              searchable
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>AML Tier</label>
-            <Combobox
-              options={AML_TIER_OPTIONS}
-              value={form.amlRiskTier}
-              onChange={v => set('amlRiskTier', v === form.amlRiskTier ? '' : v)}
-              placeholder="Not assessed"
-              clearable
-              searchable
-            />
-          </div>
-
-          <div className="flex items-center justify-between py-1">
-            <label className="text-xs font-bold text-text-primary">Sanctioned Entity</label>
-            <button
-              type="button"
-              onClick={() => set('isSanctionedEntity', !form.isSanctionedEntity)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-300 ${
-                form.isSanctionedEntity ? 'bg-red-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  form.isSanctionedEntity ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div>
-            <label className={labelCls}>Exposure Limit (RM)</label>
-            <input
-              type="number"
-              value={form.exposureLimit}
-              onChange={e => set('exposureLimit', e.target.value)}
-              placeholder="e.g. 500000"
-              className={inputCls}
-            />
-          </div>
-        </div>
 
         {/* ── Business Information ── */}
         <div className="flex flex-col gap-3 p-4 bg-surface-subtle rounded-cwc-md border border-cwc-border">
@@ -704,6 +640,16 @@ const EditBorrowerModal: React.FC<EditBorrowerModalProps> = ({
                 type="number"
                 value={form.netWorth}
                 onChange={e => set('netWorth', e.target.value)}
+                placeholder="e.g. 500000"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Exposure Limit (RM)</label>
+              <input
+                type="number"
+                value={form.exposureLimit}
+                onChange={e => set('exposureLimit', e.target.value)}
                 placeholder="e.g. 500000"
                 className={inputCls}
               />

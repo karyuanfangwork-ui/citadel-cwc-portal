@@ -194,6 +194,7 @@ export interface BorrowerProfile {
   registrationNumber?: string | null;
   industry?: string | null;
   nricPassport?: string | null;
+  nationality?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -261,12 +262,31 @@ export interface BorrowerRiskRatingSummary {
   bureauCapsApplied: string[];
 }
 
+export type BorrowerRiskAssessmentStatus = 'NOT_CALCULATED' | 'CALCULATED' | 'INCOMPLETE' | 'DECISION_READY';
+export type BorrowerRiskAssessmentTarget = 'profile' | 'bureau' | 'income' | 'financials' | 'kyc' | 'documents' | 'risk';
+
+export interface BorrowerRiskAssessment {
+  ratingStatus: BorrowerRiskAssessmentStatus;
+  effectiveRating: string | null;
+  baseRating: string | null;
+  score: number | null;
+  scorecardVersion: number | null;
+  calculatedAt: string | null;
+  missingInputs: Array<{ code: string; title: string; description: string; target: BorrowerRiskAssessmentTarget; actionLabel: string }>;
+  reasonCodes: Array<{ code: string; label: string }>;
+  bureauCaps: Array<{ code: string; label: string }>;
+  nextAction: { target: BorrowerRiskAssessmentTarget; label: string } | null;
+  applicationImpact: 'ALLOWED' | 'BLOCKED' | 'NOT_AVAILABLE';
+  assessmentImpact: 'INCOMPLETE' | 'READY' | 'NOT_CALCULATED';
+}
+
 export interface Borrower360Summary {
   borrowerId: string;
   borrowerType: string;
   borrowerName: string | null;
   riskGrade: string | null;
   riskRating: BorrowerRiskRatingSummary | null;
+  riskAssessment?: BorrowerRiskAssessment;
   creditScore: number | null;
   scoreBand: string | null;
   dsrPercent: number | null;
@@ -277,7 +297,23 @@ export interface Borrower360Summary {
   facilityCount: number;
   compliancePass: boolean;
   bureau: Borrower360Bureau;
-  income: { gross: number; commitments: number; netIncome: number | null } | null;
+  income: {
+    gross: number;
+    commitments: number;
+    netIncome: number | null;
+    details: {
+      employmentType: string | null;
+      employerName: string | null;
+      monthlyGrossIncome: number;
+      epfMonthlyAmount: number | null;
+      monthlyTaxDeduction: number;
+      monthlySocsoDeduction: number;
+      hirePurchaseCommitment: number;
+      creditCardCommitment: number;
+      existingLoanCommitment: number;
+      otherCommitments: number;
+    };
+  } | null;
   bureauFacilities: Array<{
     id: string;
     facilityType: string;
@@ -287,6 +323,10 @@ export interface Borrower360Summary {
     conductStatus: string | null;
   }>;
   alerts: Borrower360Alert[];
+  applicationReadiness?: {
+    ready: boolean;
+    blockers: Array<{ code: string; title: string; description: string; target: 'profile' | 'income' | 'kyc' }>;
+  } | null;
 }
 
 export interface CreateBorrowerProfilePayload {
@@ -926,6 +966,47 @@ export interface ExposureFacility {
   currency: string;
 }
 
+export type ExposurePresentationStatus = 'NO_EXPOSURE' | 'WITHIN_LIMIT' | 'APPROACHING_LIMIT' | 'LIMIT_BREACHED' | 'LIMIT_NOT_CONFIGURED';
+
+export interface BorrowerExposurePresentation {
+  contractVersion: 1;
+  borrowerProfileId: string;
+  baseCurrency: 'MYR';
+  calculatedAt: string;
+  includedStates: string[];
+  summary: {
+    currentExposure: number;
+    exposureLimit: number | null;
+    availableHeadroom: number | null;
+    utilizationPct: number | null;
+    status: ExposurePresentationStatus;
+  };
+  facilities: Array<{
+    applicationId: string;
+    applicationNumber: string | null;
+    applicationState: string;
+    facilityType: string;
+    originalAmount: number;
+    approvedAmount: number | null;
+    currency: string;
+    baseCurrencyAmount: number;
+    undrawnAmount: number | null;
+  }>;
+  projection: {
+    requestedAmount: number;
+    projectedExposure: number;
+    projectedUtilizationPct: number | null;
+    status: ExposurePresentationStatus | null;
+    applicationId: string;
+  } | null;
+  groupExposure: {
+    groupId: string;
+    groupName: string;
+    totalExposure: number;
+    borrowerExposure: number;
+  } | null;
+}
+
 // ── Sprint 3: Scorecard Types ─────────────────────────────────
 
 export interface CreditScorecard {
@@ -1069,6 +1150,7 @@ const creditService = {
     id: string,
     data: {
       source: 'CTOS' | 'CCRIS_BORROWER_UPLOAD';
+      creditScore?: number | null;
       reportDate?: string | null;
       fileName?: string | null;
       filePath?: string | null;
@@ -1136,7 +1218,7 @@ const creditService = {
     const res = await apiClient.post('/credit/credit-documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return res.data.data;
+    return res.data.data.document as CreditDocument;
   },
 
   async updateBorrowerProfile(id: string, data: Partial<BorrowerProfile>) {
@@ -1828,6 +1910,10 @@ export const exposureApi = {
   async getExposure(borrowerProfileId: string) {
     const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/exposure`);
     return res.data.data as ExposureDashboardSummary;
+  },
+  async getPresentation(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/exposure/presentation`);
+    return res.data.data as BorrowerExposurePresentation;
   },
 };
 

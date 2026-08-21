@@ -19,7 +19,13 @@ test.describe('RM borrower workspace', () => {
     await expect(page.getByRole('tab', { name: 'Applications' })).toBeVisible();
     await page.getByRole('tab', { name: 'Applications' }).click();
     await expect(page).toHaveURL(/tab=applications/);
-    await expect(page.getByRole('tabpanel', { name: 'Applications' }).locator('a[href^="/credit/applications/"]').first()).toBeVisible();
+    const applicationsPanel = page.getByRole('tabpanel', { name: 'Applications' });
+    const applicationLink = applicationsPanel.locator('a[href^="/credit/applications/"]').first();
+    if (await applicationLink.count() > 0) {
+      await expect(applicationLink).toBeVisible();
+    } else {
+      await expect(applicationsPanel.getByRole('button', { name: 'Start application' })).toBeVisible();
+    }
   });
 
   test('preserves the selected tab in the URL', async ({ page }) => {
@@ -27,6 +33,16 @@ test.describe('RM borrower workspace', () => {
     await page.getByRole('tab', { name: 'Documents' }).click();
     await expect(page).toHaveURL(/tab=documents/);
     await expect(page.getByRole('tabpanel', { name: 'Documents' })).toContainText(/documents/i);
+  });
+
+  test('renders the guided risk assessment state and remediation context', async ({ page }) => {
+    await openFirstBorrower(page);
+    await page.getByRole('tab', { name: 'Risk & Compliance' }).click();
+    await expect(page).toHaveURL(/tab=risk/);
+    await expect(page.getByRole('tabpanel', { name: 'Risk & Compliance' })).toContainText(/assessment readiness/i);
+    await expect(page.getByText(/application draft/i)).toBeVisible();
+    await expect(page.getByRole('tabpanel', { name: 'Risk & Compliance' }).getByText('Decisioning', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /calculate risk rating|recalculate risk rating/i }).first()).toBeVisible();
   });
 
 });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import creditService, { BorrowerOnboardingPersistenceFailure, BorrowerProfile, Borrower360Activity, Borrower360Summary, BorrowerOnboardingResult, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
+import creditService, { BorrowerOnboardingPersistenceFailure, BorrowerProfile, Borrower360Activity, Borrower360Summary, BorrowerOnboardingResult, CreditApplication, exposureApi, BorrowerExposurePresentation, piiRevealApi } from '../src/services/credit.service';
 import BureauUploadModal from '../src/components/credit/borrower360/BureauUploadModal';
 import IncomeEditModal from '../src/components/credit/borrower360/IncomeEditModal';
 import { useAuth } from '../src/context/AuthContext';
@@ -12,7 +12,12 @@ import { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummary
 import BorrowerWorkspaceHeader from '../src/components/credit/borrower360/BorrowerWorkspaceHeader';
 import BorrowerOverview from '../src/components/credit/borrower360/BorrowerOverview';
 import BorrowerApplicationSummary from '../src/components/credit/borrower360/BorrowerApplicationSummary';
+import BorrowerProfileTab from '../src/components/credit/borrower360/BorrowerProfileTab';
 import { calculateBorrowerReadiness, getPrimaryApplicationAction, type BorrowerNextAction } from '../src/components/credit/borrower360/borrowerReadiness';
+import RiskAssessmentResultCard from '../src/components/credit/borrower360/RiskAssessmentResultCard';
+import AssessmentReadinessChecklist from '../src/components/credit/borrower360/AssessmentReadinessChecklist';
+import ExposureFacilitiesTab from '../src/components/credit/borrower360/ExposureFacilitiesTab';
+import type { BorrowerRiskAssessmentTarget } from '../src/services/credit.service';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -122,13 +127,15 @@ const BorrowerProfileDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const requestedTab = searchParams.get('tab') as DetailTab | null;
   const [activeTab, setActiveTab] = useState<DetailTab>(requestedTab && DETAIL_TABS.includes(requestedTab) ? requestedTab : 'overview');
-  const [exposure, setExposure] = useState<ExposureDashboardSummary | null>(null);
+  const [exposure, setExposure] = useState<BorrowerExposurePresentation | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
+  const [exposureError, setExposureError] = useState<string | null>(null);
   const [showLinkCrm, setShowLinkCrm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showBureauModal, setShowBureauModal] = useState(false);
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [riskCalculationError, setRiskCalculationError] = useState<string | null>(null);
   const [partyModal, setPartyModal] = useState<{ open: boolean; role: PartyRole }>({ open: false, role: 'director' });
 
   const canWrite = hasPermission(user, 'credit:write');
@@ -225,18 +232,53 @@ const BorrowerProfileDetail: React.FC = () => {
     }
   }, [id, navigate, profile?.id, selectTab]);
 
-  useEffect(() => {
-    if (activeTab === 'exposure' && id) {
-      (async () => {
-        try {
-          setLoadingExposure(true);
-          const data = await exposureApi.getExposure(id);
-          setExposure(data);
-        } catch (e) { console.error(e); }
-        finally { setLoadingExposure(false); }
-      })();
+  const handleRecalculateRisk = useCallback(async () => {
+    if (!profile || recalculating) return;
+    setRiskCalculationError(null);
+    setRecalculating(true);
+    try {
+      await creditService.calculateBorrowerRiskScore(profile.id);
+      toast.success('Risk rating recalculated');
+      selectTab('risk');
+      await fetchProfile();
+    } catch (e) {
+      console.error(e);
+      const message = (e as any)?.response?.data?.message || (e as any)?.message || 'The risk rating service returned an error.';
+      setRiskCalculationError(message);
+      toast.error('Failed to recalculate risk rating');
+    } finally {
+      setRecalculating(false);
     }
-  }, [activeTab, id]);
+  }, [fetchProfile, profile, recalculating, selectTab]);
+
+  const handleRiskAction = useCallback((target: BorrowerRiskAssessmentTarget) => {
+    if (target === 'profile') selectTab('profile');
+    if (target === 'income') setShowIncomeModal(true);
+    if (target === 'bureau') setShowBureauModal(true);
+    if (target === 'documents') selectTab('documents');
+    if (target === 'financials') selectTab('financials');
+    if (target === 'kyc') handleRunKyc();
+    if (target === 'risk') handleRecalculateRisk();
+  }, [handleRecalculateRisk, handleRunKyc, selectTab]);
+
+  const fetchExposure = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoadingExposure(true);
+      const data = await exposureApi.getPresentation(id);
+      setExposure(data);
+      setExposureError(null);
+    } catch (e) {
+      console.error(e);
+      setExposureError('Exposure data could not be loaded.');
+    } finally {
+      setLoadingExposure(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'overview' || activeTab === 'exposure') void fetchExposure();
+  }, [activeTab, fetchExposure]);
 
   if (loading) return (
     <div className="w-full px-4 py-8 sm:px-8" style={{ paddingBottom: '2rem' }}>
@@ -253,8 +295,14 @@ const BorrowerProfileDetail: React.FC = () => {
   const amlBadge = profile.amlRiskTier ? AML_BADGE[profile.amlRiskTier] : null;
   const applicationsAvailable = applicationError === null;
   const readiness = calculateBorrowerReadiness({ profile, summary: borrower360Summary, applications });
-  const profileComplete = Boolean(profile.name?.trim() && (profile.borrowerType === 'INDIVIDUAL' ? profile.nricPassport : profile.registrationNumber) && (profile.phone || profile.email));
-  const applicationReady = readiness.status !== 'BLOCKED';
+  const profileComplete = Boolean(
+    profile.name?.trim()
+      && (profile.borrowerType === 'INDIVIDUAL' || profile.borrowerType === 'JOINT'
+        ? profile.nricPassport && profile.dateOfBirth && profile.nationality
+        : profile.registrationNumber && profile.dateOfIncorporation && profile.businessNature)
+      && (profile.phone || profile.email),
+  );
+  const applicationReady = borrower360Summary?.applicationReadiness?.ready ?? readiness.status !== 'BLOCKED';
   const milestone = (ready: boolean) => ready ? 'READY' : 'BLOCKED';
 
   return (
@@ -300,6 +348,7 @@ const BorrowerProfileDetail: React.FC = () => {
           summary={borrower360Summary}
           primaryAction={getPrimaryApplicationAction(applications)}
           applicationsAvailable={applicationsAvailable}
+          applicationReady={applicationReady}
           canWrite={canWrite}
           canCreate={canCreate}
           onPrimaryAction={() => {
@@ -310,7 +359,7 @@ const BorrowerProfileDetail: React.FC = () => {
           onEdit={() => setShowEditModal(true)}
           onUploadBureau={() => setShowBureauModal(true)}
           onRunKyc={handleRunKyc}
-          onRecalculateRisk={() => selectTab('risk')}
+          onRecalculateRisk={handleRecalculateRisk}
         />
 
         {/* Tabs — 'financials' tab (Financial Spreading) only applies to non-INDIVIDUAL borrowers */}
@@ -321,7 +370,7 @@ const BorrowerProfileDetail: React.FC = () => {
             <button key={tab} onClick={() => selectTab(tab)} role="tab" aria-selected={activeTab === tab}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              {tab === 'risk' ? 'Risk & Compliance' : tab === 'bureau' ? 'Bureau' : tab === 'documents' ? 'Documents' : tab === 'applications' ? 'Applications' : tab}
+              {tab === 'risk' ? 'Risk & Compliance' : tab === 'bureau' ? 'Bureau' : tab === 'documents' ? 'Documents' : tab === 'applications' ? 'Applications' : tab === 'exposure' ? 'Exposure & Facilities' : tab}
             </button>
           ))}
         </div>
@@ -341,6 +390,7 @@ const BorrowerProfileDetail: React.FC = () => {
               summary={borrower360Summary}
               applications={applications}
               applicationsAvailable={applicationsAvailable}
+              exposurePresentation={exposure}
               readiness={readiness}
               activity={borrower360Activity}
               canWrite={canWrite}
@@ -352,6 +402,16 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {activeTab === 'profile' && (
+          <BorrowerProfileTab
+            profile={profile}
+            canWrite={canWrite}
+            onEdit={() => setShowEditModal(true)}
+            onEditIncome={() => setShowIncomeModal(true)}
+            onOpenRisk={() => selectTab('risk')}
+          />
+        )}
+
+        {false && activeTab === 'profile' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Unlinked CRM nudge */}
             {!profile.accountId && !profile.contactId && (
@@ -531,98 +591,32 @@ const BorrowerProfileDetail: React.FC = () => {
         )}
 
         {activeTab === 'risk' && (
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Risk & Compliance</h3>
-              {canWrite && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!profile) return;
-                    setRecalculating(true);
-                    try {
-                      await creditService.calculateBorrowerRiskScore(profile.id);
-                      toast.success('Risk rating recalculated');
-                      await fetchProfile();
-                    } catch (e) {
-                      console.error(e);
-                      toast.error('Failed to recalculate risk rating');
-                    } finally {
-                      setRecalculating(false);
-                    }
-                  }}
-                  disabled={recalculating}
-                  className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                >
-                  <span className="material-symbols-outlined text-base">{recalculating ? 'progress_activity' : 'refresh'}</span>
-                  {recalculating ? 'Recalculating…' : 'Recalculate Risk Rating'}
-                </button>
-              )}
+          <div role="tabpanel" aria-label="Risk & Compliance" className="space-y-4">
+            <RiskAssessmentResultCard
+              assessment={borrower360Summary?.riskAssessment ?? null}
+              canWrite={canWrite}
+              recalculating={recalculating}
+              recalculationError={riskCalculationError}
+              onRecalculate={handleRecalculateRisk}
+              onAction={handleRiskAction}
+            />
+            <AssessmentReadinessChecklist
+              profile={profile}
+              summary={borrower360Summary}
+              assessment={borrower360Summary?.riskAssessment ?? null}
+              onAction={handleRiskAction}
+            />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-fc border border-fc-outline bg-fc-surface p-4">
+                <h4 className="text-label-md font-bold uppercase tracking-wide text-fc-on-variant">Compliance evidence</h4>
+                <div className="mt-3 space-y-2 text-sm"><p><span className="text-fc-on-variant">AML tier:</span> <strong>{profile.amlRiskTier ?? 'Not assessed'}</strong></p><p><span className="text-fc-on-variant">Sanctioned entity:</span> <strong>{profile.isSanctionedEntity ? 'Yes — escalate' : 'No'}</strong></p><p><span className="text-fc-on-variant">Exposure limit:</span> <strong>{formatCurrency(profile.exposureLimit)}</strong></p><p><span className="text-fc-on-variant">Total exposure:</span> <strong>{formatCurrency(profile.totalExposure)}</strong></p></div>
+              </div>
+              <div className="rounded-fc border border-fc-outline bg-fc-surface p-4">
+                <h4 className="text-label-md font-bold uppercase tracking-wide text-fc-on-variant">Bureau freshness</h4>
+                <p className="mt-3 text-sm text-fc-primary">{borrower360Summary?.bureau.uploadedAt ? `Uploaded ${new Date(borrower360Summary.bureau.uploadedAt).toLocaleDateString()}` : 'Not available'}</p>
+                <p className="mt-1 text-xs text-fc-on-variant">{borrower360Summary?.bureau.stale ? 'Refresh required before decisioning.' : borrower360Summary?.bureau.uploadedAt ? 'Current within the configured freshness window.' : 'Upload a current bureau report to assess this borrower.'}</p>
+              </div>
             </div>
-            {[
-              { label: 'Risk Rating', value: profile.creditRiskRating ?? '—' },
-              { label: 'AML Tier', value: profile.amlRiskTier ?? '—' },
-              { label: 'Sanctioned Entity', value: profile.isSanctionedEntity ? 'Yes' : 'No' },
-              { label: 'Exposure Limit', value: formatCurrency(profile.exposureLimit) },
-              { label: 'Total Exposure', value: formatCurrency(profile.totalExposure) },
-            ].map((row) => (
-              <div key={row.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <span className="text-xs text-text-secondary w-32 shrink-0">{row.label}</span>
-                <span className="text-sm text-text-primary tabular-nums">{row.value}</span>
-              </div>
-            ))}
-            {borrower360Summary?.riskRating && (
-              <div className="mt-4 pt-4 border-t border-border space-y-2">
-                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Preliminary Risk Rating Detail</h4>
-                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-text-secondary w-32 shrink-0">Base Rating</span>
-                  <span className="text-sm text-text-primary tabular-nums">{borrower360Summary.riskRating.base}</span>
-                </div>
-                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-text-secondary w-32 shrink-0">Effective Rating</span>
-                  <span className="text-sm font-bold tabular-nums" style={{ color: RATING_COLOR(borrower360Summary.riskRating.effective) }}>
-                    {borrower360Summary.riskRating.effective}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-text-secondary w-32 shrink-0">Last Calculated</span>
-                  <span className="text-sm text-text-primary tabular-nums">
-                    {new Date(borrower360Summary.riskRating.calculatedAt).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-text-secondary w-32 shrink-0">Rating Version</span>
-                  <span className="text-sm text-text-primary tabular-nums">
-                    {borrower360Summary.riskRating.version != null ? `v${borrower360Summary.riskRating.version}` : '—'}
-                  </span>
-                </div>
-                {borrower360Summary.riskRating.reasonCodes.length > 0 && (
-                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
-                    <span className="text-xs text-text-secondary w-32 shrink-0">Key Risk Drivers</span>
-                    <span className="text-sm text-text-primary">
-                      {borrower360Summary.riskRating.reasonCodes.map((c) => c.label).join('; ')}
-                    </span>
-                  </div>
-                )}
-                {borrower360Summary.riskRating.missingInputs.length > 0 && (
-                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
-                    <span className="text-xs text-text-secondary w-32 shrink-0">Missing Inputs</span>
-                    <span className="text-sm text-amber-600">
-                      {borrower360Summary.riskRating.missingInputs.join(', ')}
-                    </span>
-                  </div>
-                )}
-                {borrower360Summary.riskRating.bureauCapsApplied.length > 0 && (
-                  <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
-                    <span className="text-xs text-text-secondary w-32 shrink-0">Bureau Caps Applied</span>
-                    <span className="text-sm text-text-primary">
-                      {borrower360Summary.riskRating.bureauCapsApplied.join(', ')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -845,96 +839,26 @@ const BorrowerProfileDetail: React.FC = () => {
 
         {/* Exposure tab */}
         {activeTab === 'exposure' && (
-          <div>
+          <div role="region" aria-label="Exposure & Facilities workspace">
             {loadingExposure ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} style={{ height: 60, borderRadius: 12, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
                 ))}
               </div>
+            ) : exposureError ? (
+              <div role="alert" className="rounded-fc border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                <p className="font-semibold">{exposureError}</p>
+                <button type="button" onClick={fetchExposure} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white">Retry</button>
+              </div>
             ) : !exposure ? (
-              <div className="bg-bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+              <div className="rounded-fc border border-fc-outline bg-fc-surface p-8 text-center text-fc-on-variant">
                 <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">account_balance</span>
                 <p className="font-semibold">No exposure data available</p>
                 <p className="text-sm mt-1">Exposure is calculated from approved facilities</p>
               </div>
             ) : (
-              <div>
-                {/* Total Exposure Card */}
-                <div className="bg-bg-surface border border-border rounded-xl p-6 mb-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center text-brand-700">
-                      <span className="material-symbols-outlined text-2xl">account_balance</span>
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Total Exposure</h3>
-                      <p className="text-3xl font-black text-text-primary">{formatCurrency(exposure.totalExposure)}</p>
-                      <p className="text-xs text-text-secondary">MYR</p>
-                    </div>
-                  </div>
-                  {exposure.limits.utilizationPct != null && (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-text-secondary">Overall Utilization</span>
-                        <span className="text-sm font-bold text-text-primary">{exposure.limits.utilizationPct.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="h-2.5 rounded-full transition-all" style={{
-                          width: `${Math.min(exposure.limits.utilizationPct, 100)}%`,
-                          background: exposure.limits.utilizationPct > 80 ? '#ef4444' : exposure.limits.utilizationPct > 60 ? '#f59e0b' : '#22c55e',
-                        }} />
-                      </div>
-                    </div>
-                  )}
-                  {exposure.limits.exposureLimit != null && (
-                    <div className="mt-3 flex items-center justify-between text-sm">
-                      <span className="text-text-secondary">Exposure Limit</span>
-                      <span className="font-bold text-text-primary">{formatCurrency(exposure.limits.exposureLimit)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Facilities List */}
-                {exposure.facilities.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Facilities</h3>
-                    <div className="space-y-3">
-                      {exposure.facilities.map((fac, i) => {
-                        const effectiveAmount = fac.approvedAmount ?? fac.amount;
-                        return (
-                          <div key={i} className="bg-bg-surface border border-border rounded-xl p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-brand-700 text-base">account_balance</span>
-                                <span className="text-sm font-bold text-text-primary">{FACILITY_TYPE_LABELS[fac.facilityType] || fac.facilityType.replace(/_/g, ' ')}</span>
-                              </div>
-                              <span className="text-[10px] font-bold bg-bg-subtle text-text-secondary px-2 py-0.5 rounded-full">{fac.currency}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-center">
-                              <div>
-                                <p className="text-[10px] text-text-secondary uppercase">Approved Amount</p>
-                                <p className="text-sm font-bold text-text-primary">{formatCurrency(effectiveAmount)}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-text-secondary uppercase">Applied Amount</p>
-                                <p className="text-sm font-bold text-text-secondary">{formatCurrency(fac.amount)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {exposure.facilities.length === 0 && exposure.totalExposure === 0 && (
-                  <div className="bg-bg-surface border border-border rounded-xl p-8 text-center text-text-secondary">
-                    <span className="material-symbols-outlined text-3xl block mb-2 opacity-30">info</span>
-                    <p className="font-semibold text-sm">No active or disbursed facilities</p>
-                    <p className="text-xs mt-1">Exposure is calculated from approved and active facilities</p>
-                  </div>
-                )}
-              </div>
+              <ExposureFacilitiesTab data={exposure} onRetry={fetchExposure} />
             )}
           </div>
         )}
@@ -979,6 +903,7 @@ const BorrowerProfileDetail: React.FC = () => {
         {profile && (
           <IncomeEditModal
             borrowerId={profile.id}
+            income={borrower360Summary?.income?.details ?? null}
             open={showIncomeModal}
             onClose={() => setShowIncomeModal(false)}
             onSaved={() => {

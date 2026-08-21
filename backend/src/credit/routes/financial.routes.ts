@@ -69,4 +69,11 @@ router.get(
   financialController.getExposure,
 );
 
+router.get(
+  '/:borrowerProfileId/exposure/presentation',
+  requirePermission('credit:read'),
+  assertBorrowerAccess(),
+  financialController.getExposurePresentation,
+);
+
 export default router;

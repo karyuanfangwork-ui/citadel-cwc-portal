@@ -732,6 +732,16 @@ class BorrowerProfileService {
   * If overrideDuplicate is true, skips the duplicate check (admin override).
   */
   async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; overrideReason?: string; duplicateExceptionId?: string; userId?: string; userPermissions?: string[] }) {
+    // Authorization must be evaluated before input validation so an unauthorised
+    // override cannot be used to probe validation behavior or bypass governance.
+    const overrideDuplicate = options?.overrideDuplicate ?? false;
+    if (overrideDuplicate && !options?.userPermissions?.includes('credit:admin')) {
+      throw Object.assign(
+        new Error('Overriding duplicate borrower detection requires the credit:admin permission.'),
+        { statusCode: 403 },
+      );
+    }
+
     const createIdentity = {
       borrowerType: data.borrowerType,
       name: data.name,
@@ -753,14 +763,7 @@ class BorrowerProfileService {
     // second record for what the system believes is the same person or company,
     // which splits exposure and KYC history. Require the permission, a real
     // reason, and an audit trail.
-    const overrideDuplicate = options?.overrideDuplicate ?? false;
     if (overrideDuplicate) {
-      if (!options?.userPermissions?.includes('credit:admin')) {
-        throw Object.assign(
-          new Error('Overriding duplicate borrower detection requires the credit:admin permission.'),
-          { statusCode: 403 },
-        );
-      }
       const reason = options?.overrideReason?.trim() ?? '';
       if (reason.length < 20) {
         throw Object.assign(

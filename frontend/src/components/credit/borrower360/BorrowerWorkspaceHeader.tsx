@@ -12,6 +12,7 @@ export interface BorrowerWorkspaceHeaderProps {
   applicationsAvailable?: boolean;
   canWrite: boolean;
   canCreate: boolean;
+  applicationReady?: boolean;
   onPrimaryAction: () => void;
   onEdit: () => void;
   onUploadBureau: () => void;
@@ -31,7 +32,7 @@ const ActionButton: React.FC<{ label: string; icon: string; onClick: () => void;
 );
 
 const BorrowerWorkspaceHeader: React.FC<BorrowerWorkspaceHeaderProps> = ({
-  profile, summary, primaryAction, applicationsAvailable = true, canWrite, canCreate, onPrimaryAction, onEdit, onUploadBureau, onRunKyc, onRecalculateRisk,
+  profile, summary, primaryAction, applicationsAvailable = true, applicationReady = true, canWrite, canCreate, onPrimaryAction, onEdit, onUploadBureau, onRunKyc, onRecalculateRisk,
 }) => {
   const name = getBorrowerDisplayName(profile);
   const risk = profile.creditRiskRating || summary?.riskRating?.effective;
@@ -58,7 +59,7 @@ const BorrowerWorkspaceHeader: React.FC<BorrowerWorkspaceHeaderProps> = ({
           </div>
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Borrower actions">
-          {applicationsAvailable && (canCreate || primaryAction.label === 'View application') ? <ActionButton label={primaryAction.label} icon="arrow_forward" onClick={onPrimaryAction} primary /> : null}
+          {applicationsAvailable && (primaryAction.label !== 'Start application' || (canCreate && applicationReady)) ? <ActionButton label={primaryAction.label} icon="arrow_forward" onClick={onPrimaryAction} primary /> : null}
           {canWrite ? <>
             <ActionButton label="Edit borrower" icon="edit" onClick={onEdit} />
             <ActionButton label="Upload bureau report" icon="upload_file" onClick={onUploadBureau} />

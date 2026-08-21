@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Borrower360Activity, Borrower360Summary, BorrowerProfile, CreditApplication } from '../../../services/credit.service';
+import type { Borrower360Activity, Borrower360Summary, BorrowerProfile, CreditApplication, BorrowerExposurePresentation } from '../../../services/credit.service';
 import type { BorrowerNextAction, BorrowerReadiness } from './borrowerReadiness';
 import BorrowerReadinessStrip from './BorrowerReadinessStrip';
 import BorrowerNextActions from './BorrowerNextActions';
@@ -21,9 +21,10 @@ export interface BorrowerOverviewProps {
   onAction: (action: BorrowerNextAction) => void;
   onEditIncome: () => void;
   onViewExposure: () => void;
+  exposurePresentation?: BorrowerExposurePresentation | null;
 }
 
-export const BorrowerOverview: React.FC<BorrowerOverviewProps> = ({ profile, summary, applications, applicationsAvailable = true, readiness, activity, canWrite, onAction, onEditIncome, onViewExposure }) => {
+export const BorrowerOverview: React.FC<BorrowerOverviewProps> = ({ profile, summary, applications, applicationsAvailable = true, readiness, activity, canWrite, onAction, onEditIncome, onViewExposure, exposurePresentation }) => {
   const onAlertAction = (label: string) => {
     if (label === 'Upload Bureau Report') onAction({ id: 'bureau', severity: 'WARNING', title: 'Refresh bureau report', description: 'The bureau report needs attention.', actionLabel: label, target: 'bureau' });
   };
@@ -34,7 +35,7 @@ export const BorrowerOverview: React.FC<BorrowerOverviewProps> = ({ profile, sum
       <h2 id="borrower-overview-heading" className="sr-only">Borrower overview</h2>
       <BorrowerReadinessStrip readiness={readiness} onAction={onAction} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2"><BorrowerNextActions actions={readiness.actions} onAction={onAction} />{applicationsAvailable ? <BorrowerApplicationSummary applications={applications} /> : null}</div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2"><BorrowerRelationshipSnapshot profile={profile} /><BorrowerExposureSnapshot profile={profile} summary={summary} onViewExposure={onViewExposure} /></div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2"><BorrowerRelationshipSnapshot profile={profile} /><BorrowerExposureSnapshot profile={profile} summary={summary} presentation={exposurePresentation} onViewExposure={onViewExposure} /></div>
       <BorrowerActivityTimeline activity={activity} />
       {summary ? (isCorporate ? <CorporateOverview profile={profile} summary={summary} activity={activity} onAlertAction={onAlertAction} includeAlerts={false} includeActivity={false} /> : <RetailOverview profile={profile} summary={summary} activity={activity} onAlertAction={onAlertAction} onEditIncome={onEditIncome} canWrite={canWrite} includeAlerts={false} includeActivity={false} />) : null}
     </section>

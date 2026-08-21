@@ -16,4 +16,21 @@ describe('Borrower workspace accessibility', () => {
     expect(screen.getByText('Ready')).toBeVisible();
     expect(screen.getByText('All required checks are complete')).toBeVisible();
   });
+
+  it('keeps secondary actions in the dedicated next-actions section', () => {
+    render(<BorrowerReadinessStrip readiness={{
+      status: 'BLOCKED',
+      completionPct: 40,
+      outstandingCount: 3,
+      actions: [
+        { id: 'income', severity: 'BLOCKER', title: 'Add income', description: 'Required', actionLabel: 'Edit income', target: 'income' },
+        { id: 'bureau', severity: 'WARNING', title: 'Refresh bureau', description: 'Stale', actionLabel: 'Upload bureau report', target: 'bureau' },
+        { id: 'documents', severity: 'WARNING', title: 'Complete documents', description: 'Missing', actionLabel: 'Review documents', target: 'documents' },
+      ],
+    }} onAction={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Edit income' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Upload bureau report' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review documents' })).not.toBeInTheDocument();
+  });
 });

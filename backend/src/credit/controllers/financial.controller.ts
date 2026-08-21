@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 import { financialService } from '../services/financial.service';
 import { requireUser } from '../utils/requireUser';
 import prisma from '../../utils/prisma';
+import { getBorrowerExposurePresentation } from '../services/borrowerExposurePresentation.service';
 
 class FinancialController {
   // ===========================================================================
@@ -296,6 +297,16 @@ class FinancialController {
 
     const result = await financialService.getExposure(borrowerProfileId);
 
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /borrowers/:borrowerProfileId/exposure/presentation
+   * Detailed Borrower 360 exposure and facilities presentation contract.
+   */
+  getExposurePresentation = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const borrowerProfileId = String(req.params.borrowerProfileId);
+    const result = await getBorrowerExposurePresentation(borrowerProfileId);
     res.json({ status: 'success', data: result });
   });
 }

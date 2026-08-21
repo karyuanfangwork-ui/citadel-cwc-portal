@@ -40,7 +40,8 @@ const action = (
   target: BorrowerNextAction['target'],
 ): BorrowerNextAction => ({ id, severity, title, description, actionLabel, target });
 
-const isBusinessBorrower = (profile: BorrowerProfile) => profile.borrowerType !== 'INDIVIDUAL';
+const isBusinessBorrower = (profile: BorrowerProfile) => ['CORPORATE', 'SOLE_PROPRIETOR'].includes(profile.borrowerType);
+const isIndividualBorrower = (profile: BorrowerProfile) => ['INDIVIDUAL', 'JOINT'].includes(profile.borrowerType);
 
 export function calculateBorrowerReadiness(input: {
   profile: BorrowerProfile;
@@ -52,12 +53,28 @@ export function calculateBorrowerReadiness(input: {
   let completedChecks = 0;
   let applicableChecks = 0;
 
-  const identityPresent = Boolean(
-    profile.name?.trim() && (isBusinessBorrower(profile) ? profile.registrationNumber : profile.nricPassport),
-  );
+  const identityChecks = [
+    { missing: !profile.name?.trim(), id: 'identity_name', title: 'Add borrower name', description: 'A borrower name is required before an application can be started.' },
+    ...(isIndividualBorrower(profile) ? [
+      { missing: !profile.nricPassport?.trim(), id: 'identity_reference', title: 'Add NRIC / Passport', description: 'The identity reference is required for this borrower type.' },
+      { missing: !profile.dateOfBirth, id: 'identity_dob', title: 'Add date of birth', description: 'Date of birth is required for this borrower type.' },
+      { missing: !profile.nationality?.trim(), id: 'identity_nationality', title: 'Add nationality', description: 'Nationality is required for this borrower type.' },
+    ] : []),
+    ...(isBusinessBorrower(profile) ? [
+      { missing: !profile.registrationNumber?.trim(), id: 'business_registration', title: 'Add registration number', description: 'The registration number is required for this borrower type.' },
+      { missing: !profile.dateOfIncorporation, id: 'business_incorporation', title: 'Add incorporation date', description: 'The incorporation date is required for this borrower type.' },
+      { missing: !profile.businessNature?.trim(), id: 'business_nature', title: 'Add business nature', description: 'Business nature is required for this borrower type.' },
+    ] : []),
+  ];
+  applicableChecks += identityChecks.length;
+  identityChecks.forEach((check) => {
+    if (check.missing) actions.push(action(check.id, 'BLOCKER', check.title, check.description, 'Edit borrower', 'profile'));
+    else completedChecks += 1;
+  });
+
   applicableChecks += 1;
-  if (identityPresent) completedChecks += 1;
-  else actions.push(action('identity', 'BLOCKER', 'Complete identity details', 'Add the borrower name and required identity reference.', 'Edit borrower', 'profile'));
+  if (profile.phone?.trim() || profile.email?.trim()) completedChecks += 1;
+  else actions.push(action('contact', 'BLOCKER', 'Add primary contact', 'At least one phone number or email is required before an application can be started.', 'Edit borrower', 'profile'));
 
   applicableChecks += 1;
   if (profile.kycVerifiedAt) completedChecks += 1;

@@ -15,6 +15,8 @@ jest.mock('../../../utils/prisma', () => ({
         businessNature: null,
         accountId: null,
         contactId: null,
+        phone: '+60123456789',
+        email: 'test@example.com',
       }),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({ id: 'bp-1', industry: 'TECH' }),
