@@ -246,13 +246,13 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
           )}
         </div>
 
-        <div className="bg-[#f4f5f7] p-8 rounded-xl border border-gray-100">
-          <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest block mb-4">
+        <div className="bg-white border border-gray-100 rounded-xl p-5 mb-6 shadow-sm">
+          <span className="text-[11px] font-semibold text-[#8993a4] uppercase tracking-wider block mb-2">
             Description
           </span>
           {request.serviceDesk?.code === 'IT' && request.description ? (
             <div
-              className="text-[#44546f] leading-relaxed text-lg tiptap-content"
+              className="text-[#101418] leading-relaxed text-sm tiptap-content"
               dangerouslySetInnerHTML={{
                 __html: DOMPurify.sanitize(request.description, {
                   ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'p', 'br'],
@@ -261,7 +261,7 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
               }}
             />
           ) : (
-            <p className="text-[#44546f] leading-relaxed text-lg">
+            <p className="text-[#101418] leading-relaxed text-sm">
               {request.description || 'No detailed description provided.'}
             </p>
           )}
