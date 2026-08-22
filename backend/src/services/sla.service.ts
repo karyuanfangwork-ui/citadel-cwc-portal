@@ -180,8 +180,8 @@ export async function checkEscalations(): Promise<number> {
           },
         }).catch(() => undefined);
 
-        // Notify matching escalation handlers only. Do not grant access by adding
-        // participants; authorization remains policy-driven when recipients open the request.
+        // Notify matching escalation handlers and grant explicit request access as
+        // escalation recipients. This is intentionally separate from manual participants.
         const escalationHandlers = await prisma.user.findMany({
           where: {
             isActive: true,
@@ -202,6 +202,21 @@ export async function checkEscalations(): Promise<number> {
             },
             relatedRequestId: req.id,
           });
+          await prisma.requestParticipant.upsert({
+            where: {
+              requestId_userId_participantRole: {
+                requestId: req.id,
+                userId: handler.id,
+                participantRole: 'ESCALATION_RECIPIENT',
+              },
+            },
+            update: {},
+            create: {
+              requestId: req.id,
+              userId: handler.id,
+              participantRole: 'ESCALATION_RECIPIENT',
+            },
+          }).catch(() => undefined);
         }
 
         logger.warn(`SLA escalation fired for request ${req.referenceNumber} (rule: ${rule.id}, +${rule.triggerHoursAfterBreach}h)`);

@@ -531,6 +531,7 @@ model EscalationRule {
 
   requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
 
+  @@unique([requestTypeId, triggerHoursAfterBreach])
   @@index([requestTypeId])
   @@index([tenantId])
   @@map("escalation_rules")
@@ -2644,11 +2645,11 @@ model CrmLead {
   industry     String? @db.VarChar(255)
   address      String? @db.Text
 
-  estimatedValue Decimal? @map("estimated_value") @db.Decimal(15, 2)
-  description    String?  @db.Text
-  remark        String?  @db.Text
+  estimatedValue    Decimal?  @map("estimated_value") @db.Decimal(15, 2)
+  description       String?   @db.Text
+  remark            String?   @db.Text
   emailDeliveryDate DateTime? @map("email_delivery_date") @db.Date
-  lostReason     String?  @map("lost_reason") @db.Text
+  lostReason        String?   @map("lost_reason") @db.Text
 
   // Conversion tracking
   convertedAt      DateTime? @map("converted_at") @db.Timestamp(6)
@@ -2670,14 +2671,14 @@ model CrmLead {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  owner        User          @relation("CrmLeadOwner", fields: [ownerId], references: [id])
-  account      CrmAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  contact      CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  activities   CrmActivity[] @relation("ActivityLead")
-  notes        CrmNote[]     @relation("NoteLead")
+  owner        User              @relation("CrmLeadOwner", fields: [ownerId], references: [id])
+  account      CrmAccount?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact      CrmContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activities   CrmActivity[]     @relation("ActivityLead")
+  notes        CrmNote[]         @relation("NoteLead")
   documents    CrmLeadDocument[]
-  territory    CrmTerritory? @relation("LeadTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
-  customFields Json?         @map("custom_fields")
+  territory    CrmTerritory?     @relation("LeadTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
+  customFields Json?             @map("custom_fields")
 
   @@index([ownerId])
   @@index([status])
@@ -2922,11 +2923,11 @@ model CrmActivity {
   durationMinutes Int?      @map("duration_minutes")
 
   // Structured operational reporting outcomes
-  callCategory       String? @map("call_category") @db.VarChar(30)
-  callOutcome        String? @map("call_outcome") @db.VarChar(30)
-  emailOutcome       String? @map("email_outcome") @db.VarChar(30)
-  meetingOutcome     String? @map("meeting_outcome") @db.VarChar(30)
-  engagementOutcome  String? @map("engagement_outcome") @db.VarChar(30)
+  callCategory      String? @map("call_category") @db.VarChar(30)
+  callOutcome       String? @map("call_outcome") @db.VarChar(30)
+  emailOutcome      String? @map("email_outcome") @db.VarChar(30)
+  meetingOutcome    String? @map("meeting_outcome") @db.VarChar(30)
+  engagementOutcome String? @map("engagement_outcome") @db.VarChar(30)
 
   // Activity Reminders (Sprint 2)
   reminderSent Boolean @default(false) @map("reminder_sent")
@@ -3097,22 +3098,22 @@ model CrmKycRecord {
 
 // CRM Import Job — tracks bulk data imports (CSV/XLSX)
 model CrmImportJob {
-  id            String    @id @default(uuid()) @db.Uuid
-  fileName      String    @map("file_name") @db.VarChar(255)
-  fileType      String    @map("file_type") @db.VarChar(10) // CSV | XLSX
-  entity        String    @db.VarChar(20) // LEAD | CONTACT | ACCOUNT | OPPORTUNITY
-  status        String    @default("PENDING") @db.VarChar(20) // PENDING | VALIDATING | PREVIEW | IMPORTING | COMPLETED | FAILED
-  totalRows     Int       @default(0) @map("total_rows")
-  importedRows  Int       @default(0) @map("imported_rows")
-  failedRows    Int       @default(0) @map("failed_rows")
-  errorReport   Json?     @map("error_report")
-  duplicateReport Json?   @map("duplicate_report")
-  columnMapping Json?     @map("column_mapping")
-  rawData       Json?     @map("raw_data") // Stores parsed rows for preview
-  createdBy     String    @map("created_by") @db.Uuid
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  completedAt   DateTime? @map("completed_at") @db.Timestamp(6)
+  id              String    @id @default(uuid()) @db.Uuid
+  fileName        String    @map("file_name") @db.VarChar(255)
+  fileType        String    @map("file_type") @db.VarChar(10) // CSV | XLSX
+  entity          String    @db.VarChar(20) // LEAD | CONTACT | ACCOUNT | OPPORTUNITY
+  status          String    @default("PENDING") @db.VarChar(20) // PENDING | VALIDATING | PREVIEW | IMPORTING | COMPLETED | FAILED
+  totalRows       Int       @default(0) @map("total_rows")
+  importedRows    Int       @default(0) @map("imported_rows")
+  failedRows      Int       @default(0) @map("failed_rows")
+  errorReport     Json?     @map("error_report")
+  duplicateReport Json?     @map("duplicate_report")
+  columnMapping   Json?     @map("column_mapping")
+  rawData         Json?     @map("raw_data") // Stores parsed rows for preview
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamp(6)
 
   user User @relation("CrmImportJobUser", fields: [createdBy], references: [id])
 
@@ -3376,17 +3377,19 @@ model AnnouncementRead {
 }
 
 model RequestParticipant {
-  id        String   @id @default(uuid()) @db.Uuid
-  requestId String   @map("request_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  addedById String   @map("added_by_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id              String   @id @default(uuid()) @db.Uuid
+  requestId       String   @map("request_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  addedById       String?  @map("added_by_id") @db.Uuid
+  participantRole String   @default("MANUAL") @map("participant_role") @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   user    User    @relation("RequestParticipants", fields: [userId], references: [id])
-  addedBy User    @relation("ParticipantAddedBy", fields: [addedById], references: [id])
+  addedBy User?   @relation("ParticipantAddedBy", fields: [addedById], references: [id])
 
-  @@unique([requestId, userId])
+  @@unique([requestId, userId, participantRole])
+  @@index([requestId, userId])
   @@index([userId])
   @@index([addedById])
   @@map("request_participants")

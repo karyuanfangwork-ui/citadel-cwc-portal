@@ -1,5 +1,35 @@
 import apiClient from './api';
 
+export interface EscalationRule {
+    id: string;
+    requestTypeId: string;
+    triggerHoursAfterBreach: number;
+    notifyRoles: string[];
+    label: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface EscalationRole {
+    id: string;
+    name: string;
+    description?: string | null;
+}
+
+export interface EscalationRuleWithDetails extends EscalationRule {
+    requestType: {
+        id: string;
+        name: string;
+        slaHours: number | null;
+        serviceCategory: {
+            id: string;
+            name: string;
+            serviceDesk: { id: string; name: string };
+        };
+    };
+}
+
 export const serviceDeskService = {
     async getAllServiceDesks() {
         const response = await apiClient.get('/service-desks');
@@ -132,6 +162,11 @@ export const serviceDeskService = {
     async getEscalationRules(requestTypeId: string) {
         const response = await apiClient.get(`/sla/request-types/${requestTypeId}/escalation-rules`);
         return response.data.data.rules;
+    },
+
+    async getEscalationRulesOverview(params?: { deskId?: string; categoryId?: string; requestTypeId?: string }) {
+        const response = await apiClient.get('/sla/escalation-rules/overview', { params });
+        return response.data.data.rules as EscalationRuleWithDetails[];
     },
 
     async createEscalationRule(data: { requestTypeId: string; triggerHoursAfterBreach: number; notifyRoles: string[]; label?: string }) {

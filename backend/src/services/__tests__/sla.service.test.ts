@@ -216,7 +216,10 @@ describe('checkEscalations', () => {
       }),
     );
     expect(mockPrisma.outboxEvent.create).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { requestId_userId_participantRole: { requestId: 'req-1', userId: 'admin-1', participantRole: 'ESCALATION_RECIPIENT' } },
+      create: { requestId: 'req-1', userId: 'admin-1', participantRole: 'ESCALATION_RECIPIENT' },
+    }));
     expect(mockNotify).toHaveBeenCalledTimes(1);
     expect(mockNotify).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'admin-1', eventType: 'SLA_ESCALATED' }),
@@ -322,13 +325,13 @@ describe('checkEscalations', () => {
     expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(2);
     expect(mockPrisma.slaEscalationEvent.upsert).toHaveBeenCalledTimes(2);
     expect(mockPrisma.outboxEvent.create).toHaveBeenCalledTimes(2);
-    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledTimes(2);
     expect(mockNotify).toHaveBeenCalledTimes(2);
 
     jest.useRealTimers();
   });
 
-  it('notifies ALL matching escalation handlers without adding participants', async () => {
+  it('notifies ALL matching escalation handlers and grants participant access', async () => {
     const breachedAt = new Date('2025-01-01T00:00:00Z');
     const now = new Date('2025-01-01T05:00:00Z');
 
@@ -347,7 +350,7 @@ describe('checkEscalations', () => {
       isActive: true,
     }]);
     mockPrisma.requestActivity.findFirst.mockResolvedValue(null);
-    // Multiple GROUP_DCEO users should ALL be notified without participant grants
+    // Multiple GROUP_DCEO users should ALL be notified and granted access
     mockPrisma.user.findMany.mockResolvedValue([
       { id: 'dceo-1' },
       { id: 'dceo-2' },
@@ -358,7 +361,9 @@ describe('checkEscalations', () => {
     expect(result).toBe(1);
     expect(mockPrisma.requestActivity.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.slaEscalationEvent.upsert).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.requestParticipant.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { requestId: 'req-5', userId: 'dceo-1', participantRole: 'ESCALATION_RECIPIENT' } }));
+    expect(mockPrisma.requestParticipant.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { requestId: 'req-5', userId: 'dceo-2', participantRole: 'ESCALATION_RECIPIENT' } }));
     // Both handlers notified
     expect(mockNotify).toHaveBeenCalledTimes(2);
     expect(mockNotify).toHaveBeenCalledWith(

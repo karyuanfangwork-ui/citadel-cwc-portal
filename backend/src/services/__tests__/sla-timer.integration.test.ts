@@ -185,7 +185,7 @@ describe('Task 17 SLA durable timers', () => {
     await expect(processSlaTimerJob(timer.id, { workerId: 'worker-a', now: new Date() })).resolves.toEqual({ processed: false, status: 'MISSING' });
   });
 
-  it('records escalation intent without granting request participant access', async () => {
+  it('records escalation intent and grants request participant access to recipients', async () => {
     const request = await createRequest('escalation');
     await prisma.requestActivity.create({
       data: {
@@ -206,6 +206,6 @@ describe('Task 17 SLA durable timers', () => {
 
     expect(fired).toBe(1);
     expect(await db.slaEscalationEvent.count({ where: { tenantId, requestId: request.id } })).toBe(1);
-    expect(await prisma.requestParticipant.count({ where: { requestId: request.id, userId: adminId } })).toBe(0);
+    expect(await prisma.requestParticipant.count({ where: { requestId: request.id, userId: adminId, participantRole: 'ESCALATION_RECIPIENT' } })).toBe(1);
   });
 });

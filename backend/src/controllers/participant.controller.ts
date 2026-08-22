@@ -64,8 +64,8 @@ class ParticipantController {
             throw new AppError('The requester is already associated with this request', 400);
         }
 
-        const existing = await prisma.requestParticipant.findUnique({
-            where: { requestId_userId: { requestId, userId } },
+        const existing = await prisma.requestParticipant.findFirst({
+            where: { requestId, userId, participantRole: 'MANUAL' },
         });
         if (existing) throw new AppError('User is already a participant', 409);
 
@@ -121,11 +121,14 @@ class ParticipantController {
         // P02-09: Use policy-based access check for 'manage' action
         await assertRequestAccess(req.user, requestId, { action: 'manage' });
 
-        await prisma.requestParticipant.delete({
-            where: { requestId_userId: { requestId, userId: targetUserId } },
-        }).catch(() => {
-            throw new AppError('Participant not found', 404);
+        const participant = await prisma.requestParticipant.findFirst({
+            where: { requestId, userId: targetUserId },
+            select: { id: true },
         });
+        if (!participant) {
+            throw new AppError('Participant not found', 404);
+        }
+        await prisma.requestParticipant.delete({ where: { id: participant.id } });
 
         await auditLog(req, 'PARTICIPANT_REMOVED', 'request', requestId, {
             userId: targetUserId,
