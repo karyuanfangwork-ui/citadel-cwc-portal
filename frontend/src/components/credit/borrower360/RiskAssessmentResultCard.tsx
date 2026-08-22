@@ -10,6 +10,20 @@ const riskCategoryTone: Record<RatingBand['riskCategory'], 'pos' | 'warn' | 'neg
   PROHIBITED: 'neg',
 };
 
+const FACTOR_LABELS: Record<string, string> = {
+  financial_performance: 'Financial performance',
+  leverage: 'Leverage',
+  liquidity: 'Liquidity',
+  cashflow: 'Cashflow / DSR',
+  management: 'Management quality',
+  industry: 'Industry outlook',
+  collateral: 'Collateral quality',
+  relationship: 'Relationship history',
+  market_conditions: 'Market conditions',
+};
+
+const factorLabel = (factorKey: string) => FACTOR_LABELS[factorKey] ?? factorKey.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+
 function useActiveRatingBands() {
   const [bands, setBands] = React.useState<RatingBand[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -95,6 +109,7 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
     missingInputs: [],
     reasonCodes: [],
     bureauCaps: [],
+    factorScores: [],
     nextAction: { target: 'risk' as const, label: 'Calculate risk rating' },
     applicationImpact: 'BLOCKED' as const,
     assessmentImpact: 'NOT_CALCULATED' as const,
@@ -174,7 +189,38 @@ const RiskAssessmentResultCard: React.FC<Props> = ({ assessment, canWrite, recal
           ) : <p className="text-sm text-fc-on-variant">No additional risk drivers were returned for this calculation.</p>}
         </OutlinedCard>
         <OutlinedCard title="Calculation detail">
-          <div className="space-y-2 text-sm"><p><span className="text-fc-on-variant">Base rating:</span> <strong>{current.baseRating ?? '—'}</strong></p><p><span className="text-fc-on-variant">Effective rating:</span> <strong>{current.effectiveRating ?? '—'}</strong></p><p><span className="text-fc-on-variant">Total score:</span> <strong>{current.score ?? '—'}</strong></p></div>
+          <div className="space-y-2 text-sm">
+            <p><span className="text-fc-on-variant">Base rating:</span> <strong>{current.baseRating ?? '—'}</strong></p>
+            <p><span className="text-fc-on-variant">Effective rating:</span> <strong>{current.effectiveRating ?? '—'}</strong></p>
+            <p><span className="text-fc-on-variant">Total score:</span> <strong>{current.score ?? '—'}</strong></p>
+            {currentBand ? <p><span className="text-fc-on-variant">Active rating band:</span> <strong>{currentBand.rating} ({currentBand.scoreMin}–{currentBand.scoreMax})</strong></p> : null}
+          </div>
+          {current.factorScores.length > 0 ? (
+            <details className="mt-4 rounded-fc border border-fc-outline bg-fc-surface">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-bold text-fc-primary">How this score was calculated</summary>
+              <div className="border-t border-fc-outline px-3 py-3">
+                <p className="mb-3 text-xs text-fc-on-variant">Each factor is scored from 0 to 100. The system multiplies the factor score by its weight and adds the weighted contributions to produce the total score.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[30rem] text-left text-xs">
+                    <thead className="text-fc-on-variant">
+                      <tr><th className="pb-2 pr-3 font-bold">Factor</th><th className="pb-2 px-3 text-right font-bold">Score</th><th className="pb-2 px-3 text-right font-bold">Weight</th><th className="pb-2 pl-3 text-right font-bold">Contribution</th></tr>
+                    </thead>
+                    <tbody>
+                      {current.factorScores.map((factor) => (
+                        <tr key={factor.factorKey} className="border-t border-fc-outline">
+                          <th scope="row" className="py-2 pr-3 font-medium text-fc-primary">{factorLabel(factor.factorKey)}</th>
+                          <td className="px-3 py-2 text-right text-fc-primary">{factor.score.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right text-fc-primary">{factor.weight.toFixed(1)}%</td>
+                          <td className="py-2 pl-3 text-right font-bold text-fc-primary">{factor.weightedScore.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-fc-on-variant">Total score <strong className="text-fc-primary">{current.score ?? '—'}</strong> maps to <strong className="text-fc-primary">{current.effectiveRating ?? '—'}</strong> using the active rating bands.</p>
+              </div>
+            </details>
+          ) : null}
         </OutlinedCard>
       </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
-  CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi, commentApi,
+  CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, SubmissionReadinessResult, signoffApi, dashboardApi, commentApi,
 } from '../src/services/credit.service';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
@@ -15,16 +15,22 @@ import ReadinessChecklistModal from '../src/components/credit/ReadinessChecklist
 
 // ── Application 360 Workspace Components ──
 import ApplicationWorkspaceHeader from '../src/components/credit/detail/ApplicationWorkspaceHeader';
-import ApplicationHorizontalTabs from '../src/components/credit/detail/ApplicationHorizontalTabs';
-import ApplicationKpiRow from '../src/components/credit/detail/ApplicationKpiRow';
 import ApplicationJourneyStepper from '../src/components/credit/detail/ApplicationJourneyStepper';
-import ApplicationSectionIndex from '../src/components/credit/detail/ApplicationSectionIndex';
+import ApplicationWorkspaceNavigation from '../src/components/credit/detail/ApplicationWorkspaceNavigation';
+import ApplicationPartiesWorkspace from '../src/components/credit/detail/ApplicationPartiesWorkspace';
+import FinancialsWorkspace from '../src/components/credit/detail/FinancialsWorkspace';
+import RiskComplianceWorkspace from '../src/components/credit/detail/RiskComplianceWorkspace';
+import AssessmentRecommendationWorkspace from '../src/components/credit/detail/AssessmentRecommendationWorkspace';
+import DecisionCompletionWorkspace from '../src/components/credit/detail/DecisionCompletionWorkspace';
+import {
+  APPLICATION_WORKSPACE_AREAS,
+  resolveWorkspaceAreaFromTab,
+  resolveWorkspaceLocationFromQuery,
+  ApplicationWorkspaceArea,
+} from '../src/components/credit/detail/applicationWorkspaceAreas';
 import ApplicationStatusWidget from '../src/components/credit/detail/ApplicationStatusWidget';
 import ApplicationSlaWidget from '../src/components/credit/detail/ApplicationSlaWidget';
 import ApplicationTeamWidget from '../src/components/credit/detail/ApplicationTeamWidget';
-import ApplicationPendingTasks from '../src/components/credit/detail/ApplicationPendingTasks';
-import ApplicationCustomerInsights from '../src/components/credit/detail/ApplicationCustomerInsights';
-import ApplicationNotesWidget from '../src/components/credit/detail/ApplicationNotesWidget';
 import SectionCompletionHeader, { CompletionStatus, CompletionItem } from '../src/components/credit/detail/SectionCompletionHeader';
 
 // ── Legacy panels (still used for mobile / fallback) ──
@@ -64,33 +70,14 @@ import {
   ProcessingLane as ProcessingLaneType,
   getBorrowerSegment,
   getJourneyStage,
+  getApplicationLifecycleState,
   // ── Application 360 Tab System ──
   DetailTab360,
-  ALL_TABS_360,
   TAB_TO_TAB360,
 } from './credit/creditUtils';
 import RejectionBanner from './credit/RejectionBanner';
 import PersonalFastView from './credit/PersonalFastView';
-
-// Maps phaseCompletion keys to the 360 tab IDs used in the section index
-const PHASE_TO_SECTION_TAB_360: Record<string, DetailTab360> = {
-  s1: 'application-details',
-  s2: 'customer-profile',
-  s3: 'financial-profile',
-  s4: 'risk-assessment',
-  s5: 'credit-bureau',
-  s6: 'collateral-guarantees',
-  s7: 'approvals',
-  meta: 'documents',
-};
-
-// Section index uses 360 tab IDs
-const SECTION_INDEX_TABS_360: DetailTab360[] = [
-  'overview', 'customer-profile', 'application-details', 'financial-profile',
-  'risk-assessment', 'credit-bureau', 'collateral-guarantees', 'documents', 'approvals', 'conditions-offer', 'disbursement', 'timeline-audit',
-];
-
-type SectionStatus = 'complete' | 'in-progress' | 'pending' | 'exception';
+import { buildApplicationReadinessViewModel } from '../src/components/credit/detail/applicationReadinessViewModel';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -128,20 +115,24 @@ const CreditApplicationDetail: React.FC = () => {
   // Resolve activeTab: support both old DetailTab URLs and new DetailTab360 URLs
   // If URL has a legacy tab param, redirect to the 360 equivalent
   const rawTab = searchParams.get('tab') || '';
-  const activeTab: DetailTab360 = (() => {
-    if (!rawTab) return app ? getDefaultTab360(app.state || app.status || 'DRAFT') : 'overview';
-    // Check if it's a 360 tab ID directly
-    if (ALL_TABS_360.includes(rawTab as DetailTab360)) return rawTab as DetailTab360;
-    // Map legacy tab ID to 360 equivalent
-    if (rawTab in TAB_TO_TAB360) return TAB_TO_TAB360[rawTab as DetailTab];
-    return 'overview';
-  })();
+  const rawArea = searchParams.get('area');
+  const tabLocation = resolveWorkspaceLocationFromQuery(rawTab, rawArea);
+  const activeTab: DetailTab360 = rawTab
+    ? tabLocation.tab
+    : app
+      ? getDefaultTab360(app.state || app.status || 'DRAFT')
+      : 'overview';
+  const activeArea = rawTab || rawArea
+    ? tabLocation.area
+    : resolveWorkspaceAreaFromTab(activeTab);
+  const activeLocalTab = tabLocation.localTab;
 
-  const setActiveTab = useCallback((tab: DetailTab360) => {
+  const setActiveTab = useCallback((tab: DetailTab360 | string) => {
     setSearchParams(prev => {
       prev.set('tab', tab);
+      prev.set('area', resolveWorkspaceAreaFromTab(tab));
       return prev;
-    }, { replace: true });
+    });
   }, [setSearchParams]);
 
   const advancedMemo = isFeatureEnabled('credit:advanced_memo');
@@ -155,15 +146,39 @@ const CreditApplicationDetail: React.FC = () => {
     setActiveTab(tab);
   }, [isDirty, confirmTabSwitch, setActiveTab]);
 
+  const handleAreaChange = useCallback((area: { id: ApplicationWorkspaceArea; defaultTab: DetailTab360 }) => {
+    if (isDirty && !confirmTabSwitch()) return;
+    const firstLocalTab = APPLICATION_WORKSPACE_AREAS.find(candidate => candidate.id === area.id)?.localTabs[0];
+    setSearchParams(prev => {
+      prev.set('area', area.id);
+      prev.set('tab', firstLocalTab?.urlTab ?? area.defaultTab);
+      return prev;
+    });
+  }, [isDirty, confirmTabSwitch, setSearchParams]);
+
+  const handleWorkspaceTabChange = useCallback((tab: string) => {
+    if (isDirty && !confirmTabSwitch()) return;
+    setSearchParams(prev => {
+      prev.set('area', activeArea);
+      prev.set('tab', tab);
+      return prev;
+    });
+  }, [activeArea, isDirty, confirmTabSwitch, setSearchParams]);
+
+  const handleWorkspaceDestination = useCallback((area: ApplicationWorkspaceArea, tab: string) => {
+    if (isDirty && !confirmTabSwitch()) return;
+    setSearchParams(prev => {
+      prev.set('area', area);
+      prev.set('tab', tab);
+      return prev;
+    });
+  }, [isDirty, confirmTabSwitch, setSearchParams]);
+
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
-  const [readiness, setReadiness] = useState<{
-    ready: boolean;
-    errors: { field: string; message: string; severity: string; tab?: string; target?: string }[];
-    warnings: { field: string; message: string; severity: string; tab?: string; target?: string }[];
-    satisfied: { field: string; message: string; severity: string; tab?: string; target?: string }[];
-  } | null>(null);
+  const [readiness, setReadiness] = useState<SubmissionReadinessResult | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
   const [esignReady, setEsignReady] = useState<{ ready: boolean; signedLoo: { id: string; fileName: string; verificationStatus: string } | null } | null>(null);
   const [esignLoading, setEsignLoading] = useState(false);
   const [signoffs, setSignoffs] = useState<ApplicationSignoff[]>([]);
@@ -174,6 +189,7 @@ const CreditApplicationDetail: React.FC = () => {
   const [reasonError, setReasonError] = useState(false);
   const [readinessModalOpen, setReadinessModalOpen] = useState(false);
   const pendingTransitionRef = useRef<string | null>(null);
+  const readinessRequestRef = useRef(0);
   const transitionDialogCancelRef = useRef<HTMLButtonElement>(null);
   const transitionTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -244,15 +260,37 @@ const CreditApplicationDetail: React.FC = () => {
     (role) => signoffs.some((s) => s.role === role && s.signedAt),
   );
 
-  useEffect(() => {
+  const fetchReadiness = useCallback(async () => {
     if (!id || !app) return;
-    if ((app.state || app.status) !== 'DRAFT') return;
+    const state = (app.state || app.status) as ApplicationState;
+    const terminalState = ['ACTIVE', 'CLOSED', 'WITHDRAWN'].includes(state);
+    if (terminalState) {
+      setReadiness(null);
+      setReadinessError(null);
+      setReadinessLoading(false);
+      return;
+    }
+
     setReadinessLoading(true);
-    creditService.checkReadiness(id)
-      .then(r => setReadiness(r))
-      .catch(() => { /* non-critical */ })
-      .finally(() => setReadinessLoading(false));
-  }, [id, app]);
+    setReadinessError(null);
+    const requestId = ++readinessRequestRef.current;
+    try {
+      const result = await creditService.checkReadiness(id);
+      if (requestId !== readinessRequestRef.current) return;
+      setReadiness(result);
+    } catch (error) {
+      if (requestId !== readinessRequestRef.current) return;
+      console.error('Failed to load application readiness', error);
+      setReadiness(null);
+      setReadinessError('Readiness request failed');
+    } finally {
+      if (requestId === readinessRequestRef.current) setReadinessLoading(false);
+    }
+  }, [id, app?.id, app?.state, app?.status]);
+
+  useEffect(() => {
+    fetchReadiness();
+  }, [fetchReadiness, activeTab]);
 
   useEffect(() => {
     if (!id || !app) return;
@@ -331,12 +369,16 @@ const CreditApplicationDetail: React.FC = () => {
       fetchApp();
       fetchTransitions();
       setReadiness(null);
+      setReadinessError(null);
       setEsignReady(null);
     } catch (e) {
       console.error(e);
       toast.error(friendlyMessage(e, 'Failed to transition application'));
       if ((action === 'submit' || action === 'resubmit') && id) {
-        creditService.checkReadiness(id).then(setReadiness).catch(() => {});
+        creditService.checkReadiness(id).then(result => {
+          setReadiness(result);
+          setReadinessError(null);
+        }).catch(() => setReadinessError('Readiness request failed'));
       }
     }
     finally { setTransitioning(false); }
@@ -493,6 +535,13 @@ const CreditApplicationDetail: React.FC = () => {
   // ── Application 360 derived data ──
   const segment = getBorrowerSegment(app.borrowerProfile?.borrowerType);
   const journeyStageIndex = getJourneyStage(currentState);
+  const lifecycleState = getApplicationLifecycleState(currentState);
+  const readinessViewModel = buildApplicationReadinessViewModel({
+    applicationState: currentState,
+    readiness,
+    readinessLoading,
+    readinessError,
+  });
 
   // SLA days remaining — use backend-provided target when available
   const slaDaysLeft = (() => {
@@ -509,15 +558,17 @@ const CreditApplicationDetail: React.FC = () => {
   // Critical alerts (kept for mobile fallback)
   const criticalAlerts: AlertItem[] = (() => {
     const alerts: AlertItem[] = [];
-    if (readiness?.errors) {
-      readiness.errors.forEach((e, i) => {
+    if (readinessViewModel.blockers.length > 0) {
+      readinessViewModel.blockers.forEach((blocker, i) => {
         alerts.push({
           id: `readiness-${i}`,
           severity: 'error',
           icon: 'notification_important',
-          title: e.message.slice(0, 60),
-          description: e.field || '',
-          action: { label: 'Fix now', tab: e.tab || 'loan-request' },
+          title: blocker.title,
+          description: blocker.description || '',
+          action: blocker.targetArea && blocker.targetLocalTab
+            ? { label: 'Fix now', tab: blocker.targetLocalTab, area: blocker.targetArea }
+            : undefined,
         });
       });
     }
@@ -539,40 +590,6 @@ const CreditApplicationDetail: React.FC = () => {
   const nextIncompleteGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === nextIncompleteTab));
   const nextIncompleteTabLabel = nextIncompleteGroup?.tabs.find(t => t.id === nextIncompleteTab)?.label || '';
   const nextIncompleteGroupLabel = nextIncompleteGroup?.label || '';
-
-  // ── Section statuses for ApplicationSectionIndex (360 tab IDs) ──
-  const sectionStatuses: Record<string, SectionStatus> = {};
-  for (const tabId of SECTION_INDEX_TABS_360) {
-    if (tabId === 'overview') {
-      sectionStatuses[tabId] = progressPct === 100 ? 'complete' : progressPct > 0 ? 'in-progress' : 'pending';
-    } else if (tabId === 'conditions-offer') {
-      sectionStatuses[tabId] = currentState === 'APPROVED' || currentState === 'OFFER' || currentState === 'ACCEPTED' ? 'in-progress' : 'pending';
-    } else if (tabId === 'timeline-audit') {
-      sectionStatuses[tabId] = 'pending'; // audit is always informational
-    } else {
-      // Map 360 tabId back to phase key
-      const phaseKey = Object.entries(PHASE_TO_SECTION_TAB_360).find(([, v]) => v === tabId)?.[0];
-      if (phaseKey) {
-        const s = phaseCompletion[phaseKey];
-        if (s === 'complete') sectionStatuses[tabId] = 'complete';
-        else if (s === 'incomplete') sectionStatuses[tabId] = 'in-progress';
-        else sectionStatuses[tabId] = s === 'optional' ? 'complete' : 'pending';
-      } else {
-        sectionStatuses[tabId] = 'pending';
-      }
-    }
-  }
-
-  // Next required action text for StatusWidget
-  const nextRequiredAction = (() => {
-    if (currentState === 'DRAFT' && readiness?.errors?.[0]) {
-      const blocker = readiness.errors[0];
-      return `Resolve: ${blocker.message}`;
-    }
-    if (currentState === 'DRAFT' && readinessLoading) return 'Checking submission readiness…';
-    if (nextIncompleteTab && nextIncompleteTabLabel) return `Review: ${nextIncompleteTabLabel}`;
-    return null;
-  })();
 
   // ── Render tab by 360 ID ──────────────────────────────────
   // Each 360 tab now renders its merged component directly.
@@ -611,12 +628,74 @@ const CreditApplicationDetail: React.FC = () => {
   };
 
   const renderTab = (tabId: DetailTab360): React.ReactNode => {
+    if (activeArea === 'application-parties' && app) {
+      return renderTabWithHeader(tabId, 's1', 'Application & Parties', (
+        <ApplicationPartiesWorkspace
+          application={app}
+          activeTab={activeLocalTab ?? 'application'}
+          onUpdated={updated => setApp(updated)}
+          onDirtyChange={setDirty}
+          advancedMemo={advancedMemo}
+        />
+      ));
+    }
+    if (activeArea === 'financials' && app) {
+      return renderTabWithHeader(tabId, 's3', 'Financials', (
+        <FinancialsWorkspace
+          application={app}
+          activeTab={activeLocalTab ?? 'statements'}
+          lane={lane}
+          onUpdated={updated => setApp(updated)}
+          onDirtyChange={setDirty}
+        />
+      ));
+    }
+    if (activeArea === 'risk-compliance' && app) {
+      return renderTabWithHeader(tabId, 's4', 'Risk & Compliance', (
+        <RiskComplianceWorkspace
+          application={app}
+          activeTab={activeLocalTab ?? 'bureau-kyc'}
+          integrations={integrations}
+          isFeatureEnabled={isFeatureEnabled}
+          onUpdated={updated => setApp(updated)}
+          onDirtyChange={setDirty}
+          onRefresh={fetchApp}
+        />
+      ));
+    }
+    if (activeArea === 'assessment-recommendation' && app) {
+      return renderTabWithHeader(tabId, 's7', 'Assessment & Recommendation', (
+        <AssessmentRecommendationWorkspace
+          application={app}
+          activeTab={(activeLocalTab as 'assessment' | 'deviations-mitigants' | 'recommendation' | 'ca-memo') ?? 'assessment'}
+          lane={lane}
+          isFeatureEnabled={isFeatureEnabled}
+          onUpdated={updated => setApp(updated)}
+          onDirtyChange={setDirty}
+          onRefresh={fetchApp}
+        />
+      ));
+    }
+    if (activeArea === 'decision-completion' && app) {
+      return renderTabWithHeader(tabId, 's7', 'Decision & Completion', (
+        <DecisionCompletionWorkspace
+          application={app}
+          facilities={facilities}
+          activeTab={(activeLocalTab as 'approvals' | 'decision-history' | 'conditions-offer' | 'completion') ?? 'approvals'}
+          onRefresh={fetchApp}
+          onUpdated={updated => setApp(updated)}
+        />
+      ));
+    }
     switch (tabId) {
       case 'overview': return (
         <ApplicationOverviewTab
           app={app!}
           facilities={facilities}
           readiness={readiness}
+          readinessLoading={readinessLoading}
+          readinessError={readinessError}
+          onRetryReadiness={fetchReadiness}
           slaDaysLeft={slaDaysLeft}
           formatTimeAgo={formatTimeAgo}
           onNavigate={(tab) => { const t360 = (TAB_TO_TAB360[tab as DetailTab] ?? tab) as DetailTab360; handleTabChange(t360); }}
@@ -626,6 +705,11 @@ const CreditApplicationDetail: React.FC = () => {
           commentPreviews={commentPreviews}
           onAddNote={() => handleTabChange('timeline-audit')}
           onOpenComments={() => handleTabChange('timeline-audit')}
+          onNavigateToWorkspace={handleWorkspaceDestination}
+          onSubmit={() => {
+            const submitTransition = transitions.find(t => t.toState === 'SUBMITTED' || t.action.toLowerCase().includes('submit'));
+            if (submitTransition) setShowTransitionDialog(submitTransition.action);
+          }}
           nextTab={nextIncompleteTab}
           nextGroupLabel={nextIncompleteGroupLabel}
           nextTabLabel={nextIncompleteTabLabel}
@@ -671,14 +755,6 @@ const CreditApplicationDetail: React.FC = () => {
     }
   };
 
-  // ── Notes for ApplicationNotesWidget ──
-  const notesForWidget = commentPreviews.map(c => ({
-    id: c.id,
-    author: c.author,
-    text: c.content,
-    createdAt: new Date().toISOString(), // approximate — real timestamp comes from API
-  }));
-
   return (
     <>
       <a href="#credit-detail-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-3 focus:py-1 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm focus:font-bold">
@@ -688,12 +764,16 @@ const CreditApplicationDetail: React.FC = () => {
       {/* ── Application 360 Workspace — 3-column layout ── */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden credit-module">
 
-        {/* ── Left Sidebar: Section Index (240px) — hidden for Personal Fast lane ── */}
+        {/* ── Primary Application Workspace Navigation — hidden for Personal Fast lane ── */}
         {lane !== 'PERSONAL_FAST' && (
-          <ApplicationSectionIndex
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            sectionStatuses={sectionStatuses}
+          <ApplicationWorkspaceNavigation
+            activeArea={activeArea}
+            activeTab={rawTab || activeTab}
+            onAreaChange={handleAreaChange}
+            onTabChange={handleWorkspaceTabChange}
+            borrowerType={app.borrowerProfile?.borrowerType}
+            lane={lane}
+            featureFlags={featureFlags}
           />
         )}
 
@@ -736,29 +816,16 @@ const CreditApplicationDetail: React.FC = () => {
             applicationNo={app.applicationNo ?? undefined}
           />
 
-          {/* ── KPI Row (8 cards) ── */}
-          <div style={{ padding: '16px 24px 0' }}>
-            <ApplicationKpiRow app={app} segment={segment} />
-          </div>
-
           {/* ── Journey Stepper (11 stages) ── */}
           <div style={{ padding: '12px 24px 0' }}>
             <ApplicationJourneyStepper
               currentStageIndex={journeyStageIndex}
-              onStageClick={(stage) => handleTabChange(stage.targetTab)}
+              lifecycleState={lifecycleState}
             />
           </div>
 
-          {/* ── Horizontal Tabs ── */}
-          {lane !== 'PERSONAL_FAST' && (
-            <ApplicationHorizontalTabs
-              visibleTabGroups={visibleTabGroups}
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              phaseCompletion={phaseCompletion}
-              documentCount={(app as any).documents?.length}
-            />
-          )}
+          {/* The legacy grouped horizontal tabs remain available as a compatibility component,
+              but are no longer rendered as a competing global navigation layer. */}
 
           {/* ── Tab Content ── */}
           <div className="p-6">
@@ -808,7 +875,7 @@ const CreditApplicationDetail: React.FC = () => {
               </div>
             )}
 
-            {currentState === 'DRAFT' && (readiness || readinessLoading) && (
+            {lane === 'PERSONAL_FAST' && currentState === 'DRAFT' && (readiness || readinessLoading) && (
               <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="material-symbols-outlined text-base" style={{ color: 'var(--cr-outline)' }}>checklist</span>
@@ -887,7 +954,7 @@ const CreditApplicationDetail: React.FC = () => {
         >
           <ApplicationStatusWidget
             currentState={currentState}
-            nextRequiredAction={nextRequiredAction}
+            nextRequiredAction={null}
           />
 
           <ApplicationSlaWidget
@@ -904,21 +971,6 @@ const CreditApplicationDetail: React.FC = () => {
             }}
           />
 
-          <ApplicationPendingTasks
-            app={app}
-            onNavigate={(targetTab) => handleTabChange(targetTab as DetailTab360)}
-          />
-
-          <ApplicationCustomerInsights
-            app={app}
-            segment={segment}
-          />
-
-          <ApplicationNotesWidget
-            notes={notesForWidget}
-            onAddNote={handleAddNote}
-            onViewAll={() => handleTabChange('timeline-audit')}
-          />
         </aside>
       </div>
 
@@ -926,7 +978,7 @@ const CreditApplicationDetail: React.FC = () => {
       <div className="lg:hidden p-4 space-y-4" style={{ backgroundColor: 'var(--cr-surface-bright, #fff)' }}>
         <ApplicationStatusWidget
           currentState={currentState}
-          nextRequiredAction={nextRequiredAction}
+          nextRequiredAction={null}
         />
         <ApplicationSlaWidget
           slaDaysLeft={slaDaysLeft}
@@ -936,7 +988,7 @@ const CreditApplicationDetail: React.FC = () => {
         {criticalAlerts.length > 0 && (
           <ApplicationAlertsPanel
             alerts={criticalAlerts}
-            onNavigate={(tab) => handleTabChange(tab as DetailTab360)}
+            onNavigate={(tab, area) => area ? handleWorkspaceDestination(area, tab) : handleTabChange(tab as DetailTab360)}
           />
         )}
       </div>

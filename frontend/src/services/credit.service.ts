@@ -275,6 +275,7 @@ export interface BorrowerRiskAssessment {
   missingInputs: Array<{ code: string; title: string; description: string; target: BorrowerRiskAssessmentTarget; actionLabel: string }>;
   reasonCodes: Array<{ code: string; label: string }>;
   bureauCaps: Array<{ code: string; label: string }>;
+  factorScores: Array<{ factorKey: string; score: number; weight: number; weightedScore: number }>;
   nextAction: { target: BorrowerRiskAssessmentTarget; label: string } | null;
   applicationImpact: 'ALLOWED' | 'BLOCKED' | 'NOT_AVAILABLE';
   assessmentImpact: 'INCOMPLETE' | 'READY' | 'NOT_CALCULATED';
@@ -650,6 +651,12 @@ export interface CreditApplication {
   facilities?: CreditFacility[];
   parties?: CreditApplicationParty[];
   approvals?: CreditApproval[];
+  retailIncome?: {
+    dsrPercent?: number | string | null;
+    netDsrPercent?: number | string | null;
+    dsrBasis?: string | null;
+    updatedAt?: string;
+  } | null;
 }
 
 export interface CreditIntegrationsStatus {
@@ -3662,6 +3669,7 @@ export interface CommentListResult {
 export interface ScoreStatus {
   lastScoreRunAt: string | null;
   lastFinancialsUpdatedAt: string | null;
+  staleInputSource?: string | null;
   isOutdated: boolean;
 }
 

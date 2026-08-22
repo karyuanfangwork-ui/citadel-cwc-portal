@@ -91,6 +91,67 @@ export const STEPPER_STAGES: { key: string; label: string; states: ApplicationSt
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
 ];
 
+// ── Application Workspace: business-facing lifecycle status ────────────
+
+export interface ApplicationLifecycleStage {
+  key: 'application' | 'underwriting' | 'credit-assessment' | 'committee-review' | 'approval' | 'conditions-offer' | 'completion';
+  label: string;
+  index: number;
+}
+
+export type ApplicationLifecycleStatus = 'current' | 'complete' | 'on-hold' | 'returned' | 'rejected' | 'withdrawn';
+
+export interface ApplicationLifecycleState {
+  stage: ApplicationLifecycleStage;
+  status: ApplicationLifecycleStatus;
+  explanation?: string;
+  isException: boolean;
+}
+
+export const APPLICATION_LIFECYCLE_STAGES: ApplicationLifecycleStage[] = [
+  { key: 'application', label: 'Application', index: 0 },
+  { key: 'underwriting', label: 'Underwriting', index: 1 },
+  { key: 'credit-assessment', label: 'Credit Assessment', index: 2 },
+  { key: 'committee-review', label: 'Committee Review', index: 3 },
+  { key: 'approval', label: 'Approval', index: 4 },
+  { key: 'conditions-offer', label: 'Conditions / Offer', index: 5 },
+  { key: 'completion', label: 'Completion', index: 6 },
+];
+
+const lifecycleStage = (key: ApplicationLifecycleStage['key']): ApplicationLifecycleStage =>
+  APPLICATION_LIFECYCLE_STAGES.find(stage => stage.key === key)!;
+
+const lifecycleState = (
+  key: ApplicationLifecycleStage['key'],
+  status: ApplicationLifecycleStatus = 'current',
+  explanation?: string,
+): ApplicationLifecycleState => ({
+  stage: lifecycleStage(key),
+  status,
+  explanation,
+  isException: status !== 'current' && status !== 'complete',
+});
+
+export function getApplicationLifecycleState(state: string | null | undefined): ApplicationLifecycleState {
+  switch (state) {
+    case 'UNDERWRITING': return lifecycleState('underwriting');
+    case 'CREDIT_ASSESSMENT': return lifecycleState('credit-assessment');
+    case 'COMMITTEE_REVIEW': return lifecycleState('committee-review');
+    case 'APPROVED': return lifecycleState('approval');
+    case 'CONDITION_FULFILMENT':
+    case 'OFFER': return lifecycleState('conditions-offer');
+    case 'ACCEPTED':
+    case 'DISBURSED':
+    case 'ACTIVE': return lifecycleState('completion');
+    case 'CLOSED': return lifecycleState('completion', 'complete', 'Application lifecycle is complete.');
+    case 'COMPLIANCE_HOLD': return lifecycleState('application', 'on-hold', 'Compliance review is holding the application.');
+    case 'REFERRED_BACK': return lifecycleState('credit-assessment', 'returned', 'Returned for rework. Review the reason and resume the assessment.');
+    case 'REJECTED': return lifecycleState('approval', 'rejected', 'The application was rejected.');
+    case 'WITHDRAWN': return lifecycleState('application', 'withdrawn', 'The application was withdrawn.');
+    default: return lifecycleState('application');
+  }
+}
+
 // ── Application 360: Borrower Segment Detection ──────────────────────
 
 export type BorrowerSegment = 'retail' | 'sme' | 'corporate';
@@ -146,30 +207,7 @@ export const JOURNEY_STAGES: JourneyStage[] = [
  * Pure frontend mapping — no backend state changes needed.
  */
 export function getJourneyStage(state: string | null | undefined): number {
-  if (!state) return 0;
-  const s = state as ApplicationState;
-  switch (s) {
-    case 'DRAFT': return 2;
-    case 'SUBMITTED':
-    case 'KYC_REVIEW': return 1;
-    case 'COMPLIANCE_HOLD': return 1;
-    case 'KYC_APPROVED': return 3;
-    case 'KYC_REJECTED': return 1;
-    case 'UNDERWRITING': return 4;
-    case 'CREDIT_ASSESSMENT': return 5;
-    case 'REFERRED_BACK': return 2;
-    case 'COMMITTEE_REVIEW': return 6;
-    case 'APPROVED': return 7;
-    case 'CONDITION_FULFILMENT': return 7;
-    case 'REJECTED': return 6;
-    case 'OFFER': return 7;
-    case 'ACCEPTED': return 8;
-    case 'DISBURSED': return 9;
-    case 'ACTIVE': return 10;
-    case 'CLOSED': return 10;
-    case 'WITHDRAWN': return 2;
-    default: return 0;
-  }
+  return getApplicationLifecycleState(state).stage.index;
 }
 
 /** Product types hidden from frontend dropdowns (bank-grade). */

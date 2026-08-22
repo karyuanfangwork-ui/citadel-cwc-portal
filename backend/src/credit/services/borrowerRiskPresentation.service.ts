@@ -19,6 +19,7 @@ export interface BorrowerRiskPresentationInput {
     missingInputs: unknown;
     reasonCodes: unknown;
     bureauCapsApplied: unknown;
+    factorScores: unknown;
   } | null;
   bureau: { stale: boolean; uploadedAt: Date | string | null };
   applicationReadiness: { ready: boolean; blockers: unknown[] } | null;
@@ -37,6 +38,7 @@ export interface BorrowerRiskPresentation {
   missingInputs: BorrowerRiskMissingInput[];
   reasonCodes: Array<{ code: string; label: string }>;
   bureauCaps: Array<{ code: string; label: string }>;
+  factorScores: Array<{ factorKey: string; score: number; weight: number; weightedScore: number }>;
   nextAction: { target: BorrowerRiskActionTarget; label: string } | null;
   applicationImpact: 'ALLOWED' | 'BLOCKED' | 'NOT_AVAILABLE';
   assessmentImpact: 'INCOMPLETE' | 'READY' | 'NOT_CALCULATED';
@@ -94,11 +96,25 @@ const asReasonCodes = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is { code: string; label: string } => Boolean(item && typeof item === 'object' && typeof (item as any).code === 'string' && typeof (item as any).label === 'string'))
   : [];
 
+const asFactorScores = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([factorKey, raw]) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const detail = raw as Record<string, unknown>;
+    const score = Number(detail.score);
+    const weight = Number(detail.weight);
+    const weightedScore = Number(detail.weightedScore);
+    if (![score, weight, weightedScore].every(Number.isFinite)) return [];
+    return [{ factorKey, score, weight, weightedScore }];
+  });
+};
+
 export function buildBorrowerRiskPresentation(input: BorrowerRiskPresentationInput): BorrowerRiskPresentation {
   if (!input.riskRun) {
     return {
       ratingStatus: 'NOT_CALCULATED', effectiveRating: null, baseRating: null, score: null,
       scorecardVersion: null, calculatedAt: null, missingInputs: [], reasonCodes: [], bureauCaps: [],
+      factorScores: [],
       nextAction: { target: 'risk', label: 'Calculate risk rating' }, applicationImpact: input.applicationReadiness?.ready ? 'ALLOWED' : 'BLOCKED',
       assessmentImpact: 'NOT_CALCULATED',
     };
@@ -126,6 +142,7 @@ export function buildBorrowerRiskPresentation(input: BorrowerRiskPresentationInp
     missingInputs,
     reasonCodes: asReasonCodes(input.riskRun.reasonCodes),
     bureauCaps: asStringArray(input.riskRun.bureauCapsApplied).map((code) => ({ code, label: CAP_LABELS[code] ?? 'Bureau policy cap applied' })),
+    factorScores: asFactorScores(input.riskRun.factorScores),
     nextAction: first ? { target: first.target, label: first.actionLabel } : { target: 'risk', label: 'Recalculate risk rating' },
     applicationImpact: input.applicationReadiness?.ready ? 'ALLOWED' : 'BLOCKED',
     assessmentImpact: decisionReady ? 'READY' : 'INCOMPLETE',

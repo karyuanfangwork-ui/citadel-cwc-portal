@@ -19,6 +19,7 @@ type Props = {
   application: CreditApplication;
   onUpdated?: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  readOnly?: boolean;
 };
 
 // ── Status badge for statements ──────────────────────────────────────────────
@@ -250,11 +251,13 @@ function LineItemEditor({
 function StatementModal({
   borrowerProfileId,
   existing,
+  readOnly = false,
   onClose,
   onSaved,
 }: {
   borrowerProfileId: string;
   existing?: FinancialStatement | null;
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -346,7 +349,7 @@ function StatementModal({
                 value={form.statementType}
                 onChange={e => setForm(f => ({ ...f, statementType: e.target.value as any }))}
                 className="w-full border rounded-md px-3 py-2 text-sm"
-                disabled={isEdit}
+                disabled={isEdit || readOnly}
               >
                 <option value="BS">Balance Sheet</option>
                 <option value="PL">Profit & Loss</option>
@@ -359,7 +362,7 @@ function StatementModal({
                 value={form.period}
                 onChange={e => setForm(f => ({ ...f, period: e.target.value as FinancialPeriod }))}
                 className="w-full border rounded-md px-3 py-2 text-sm"
-                disabled={isEdit}
+                disabled={isEdit || readOnly}
               >
                 <option value="ANNUAL">Annual</option>
                 <option value="QUARTERLY">Quarterly</option>
@@ -372,7 +375,7 @@ function StatementModal({
                 value={form.fiscalYearEnd}
                 onChange={e => setForm(f => ({ ...f, fiscalYearEnd: e.target.value }))}
                 className="w-full border rounded-md px-3 py-2 text-sm"
-                disabled={isEdit}
+                disabled={isEdit || readOnly}
               />
             </div>
             <div>
@@ -381,7 +384,7 @@ function StatementModal({
                 value={form.currency}
                 onChange={e => setForm(f => ({ ...f, currency: e.target.value as CurrencyCode }))}
                 className="w-full border rounded-md px-3 py-2 text-sm"
-                disabled={isEdit}
+                disabled={isEdit || readOnly}
               >
                 <option value="MYR">MYR</option>
                 <option value="USD">USD</option>
@@ -402,7 +405,7 @@ function StatementModal({
               </div>
             ) : (
               <div className="border rounded-lg p-3 bg-gray-50 max-h-[40vh] overflow-y-auto">
-                <LineItemEditor items={lineItems} onChange={setLineItems} />
+                <LineItemEditor items={lineItems} onChange={setLineItems} disabled={readOnly} />
               </div>
             )}
           </div>
@@ -436,13 +439,15 @@ function StatementModal({
             <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border rounded-md">
               Cancel
             </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !form.fiscalYearEnd}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : isEdit ? 'Update' : 'Create Statement'}
-            </button>
+            {!readOnly && (
+              <button
+                onClick={handleSave}
+                disabled={saving || !form.fiscalYearEnd}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : isEdit ? 'Update' : 'Create Statement'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -650,7 +655,7 @@ const SpreadViewTable: React.FC<SpreadProps> = ({ statements, lineItemsMap, rati
   );
 };
 
-const FinancialsTab: React.FC<Props> = ({ application }) => {
+const FinancialsTab: React.FC<Props> = ({ application, readOnly = application.state !== 'DRAFT' }) => {
   const [statements, setStatements] = useState<FinancialStatement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -734,13 +739,15 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
             <span className="material-symbols-outlined text-sm">view_column</span>
             Spread View
           </button>
-          <button
-            onClick={() => { setEditStatement(null); setShowModal(true); }}
-            className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            Add Statement
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => { setEditStatement(null); setShowModal(true); }}
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Add Statement
+            </button>
+          )}
         </div>
 
         {statements.length === 0 ? (
@@ -949,7 +956,7 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
 
                           {/* Actions */}
                           <div className="flex items-center gap-2 pt-2 border-t">
-                            {fs.status === 'DRAFT' && (
+                            {!readOnly && fs.status === 'DRAFT' && (
                               <button
                                 onClick={async () => {
                                   try {
@@ -964,13 +971,15 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
                                 Submit for Review
                               </button>
                             )}
-                            <button
-                              onClick={() => { setEditStatement(fs); setShowModal(true); }}
-                              className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
-                            >
-                              Edit Line Items
-                            </button>
-                            {fs.statementType === 'BS' && (
+                            {!readOnly && (
+                              <button
+                                onClick={() => { setEditStatement(fs); setShowModal(true); }}
+                                className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50"
+                              >
+                                Edit Line Items
+                              </button>
+                            )}
+                            {!readOnly && fs.statementType === 'BS' && (
                               <button
                                 onClick={async () => {
                                   try {
@@ -992,12 +1001,14 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
                       ) : (
                         <div className="p-4 text-center text-gray-400">
                           <p className="text-sm">No line items entered yet.</p>
-                          <button
-                            onClick={() => { setEditStatement(fs); setShowModal(true); }}
-                            className="mt-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Enter Line Items
-                          </button>
+                          {!readOnly && (
+                            <button
+                              onClick={() => { setEditStatement(fs); setShowModal(true); }}
+                              className="mt-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              Enter Line Items
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1171,6 +1182,7 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
         <StatementModal
           borrowerProfileId={bpId}
           existing={editStatement}
+          readOnly={readOnly}
           onClose={() => { setShowModal(false); setEditStatement(null); }}
           onSaved={() => {
             setShowModal(false);

@@ -139,6 +139,7 @@ export async function getBorrowerSummary(borrowerId: string) {
           missingInputs: latestRiskRun.missingInputs,
           reasonCodes: latestRiskRun.reasonCodes,
           bureauCapsApplied: latestRiskRun.bureauCapsApplied,
+          factorScores: latestRiskRun.factorScores,
         }
       : null,
     bureau: { stale: fresh.stale, uploadedAt: latestBureauReport?.uploadedAt ?? null },

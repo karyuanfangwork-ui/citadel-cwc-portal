@@ -9,12 +9,13 @@ import useAutosave from '../../../../src/hooks/useAutosave';
 
 type Props = {
   application: CreditApplication;
+  readOnly?: boolean;
   onUpdated: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
 
-const IndustryOutlookTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
-  const readOnly = application.state !== 'DRAFT';
+const IndustryOutlookTab: React.FC<Props> = ({ application, readOnly: readOnlyProp, onUpdated, onDirtyChange }) => {
+  const readOnly = readOnlyProp ?? application.state !== 'DRAFT';
   const [form, setForm] = useState<Partial<IndustryAssessment>>({});
   const dirtyKeys = useRef<Set<string>>(new Set());
 

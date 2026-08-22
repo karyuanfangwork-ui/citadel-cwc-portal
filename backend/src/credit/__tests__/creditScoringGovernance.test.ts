@@ -20,6 +20,8 @@ import {
   type FactorWeightEntry,
   type RatingBandEntry,
 } from '../validators/scoringValidators';
+import { CANONICAL_FACTOR_WEIGHTS, FACTOR_GROUPS } from '../services/scorecard.service';
+import { computeBorrowerTotalScore } from '../services/borrowerScoring.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,6 +57,26 @@ const validRatingBands: RatingBandEntry[] = [
 // ==========================================================================
 // 1. Factor weights sum to 100
 // ==========================================================================
+
+describe('Canonical runtime scorecard configuration', () => {
+  it('uses every runtime factor key and weights them as percentages summing to 100', () => {
+    expect(Object.keys(CANONICAL_FACTOR_WEIGHTS).sort()).toEqual([...FACTOR_GROUPS].sort());
+    expect(Object.values(CANONICAL_FACTOR_WEIGHTS).reduce((sum, weight) => sum + weight, 0)).toBe(100);
+  });
+
+  it('does not collapse a complete retail borrower input set to score zero', () => {
+    const result = computeBorrowerTotalScore({
+      ratioMap: {},
+      isRetail: true,
+      dsrPercent: 0,
+      creditScore: 600,
+      facilityConductStatuses: [],
+      hasFinancialStatement: false,
+      hasIncome: true,
+    }, CANONICAL_FACTOR_WEIGHTS);
+    expect(result.totalScore).toBe(62.5);
+  });
+});
 
 describe('P1.6 Scoring Governance — Factor weights', () => {
   describe('factorWeightsArraySchema', () => {

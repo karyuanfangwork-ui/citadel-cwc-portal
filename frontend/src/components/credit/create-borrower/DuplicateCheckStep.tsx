@@ -21,6 +21,14 @@ const BORROWER_TYPE_LABELS: Record<string, string> = {
   JOINT: 'Joint',
 };
 
+const isGovernedIdentityQuery = (value: string): boolean => {
+  if (value.includes('@')) return false;
+  const normalized = value.replace(/[\s-]/g, '');
+  // Malaysian NRICs are 12 digits; passports and business registrations may
+  // be alphanumeric. Names, emails, and mobile numbers remain list searches.
+  return /^\d{12}$/.test(normalized) || /^[A-Za-z][A-Za-z0-9]{3,30}$/.test(normalized);
+};
+
 const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, onProceed, onIdentityCheck, identityResult, identityChecking, identityError, canProceed = true, onRequestException, exceptionRequesting }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<BorrowerSearchResult[]>([]);
@@ -43,7 +51,12 @@ const DuplicateCheckStep: React.FC<DuplicateCheckStepProps> = ({ onUseExisting, 
     } finally {
       setSearching(false);
     }
-  }, [query]);
+    // Searching by an identity-shaped value must also complete the governed
+    // server-side check; the list search alone is not an authorization result.
+    if (onIdentityCheck && isGovernedIdentityQuery(q)) {
+      await onIdentityCheck(q);
+    }
+  }, [onIdentityCheck, query]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

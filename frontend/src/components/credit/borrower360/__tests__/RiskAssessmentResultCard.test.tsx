@@ -19,6 +19,10 @@ const assessment: BorrowerRiskAssessment = {
   }],
   reasonCodes: [],
   bureauCaps: [],
+  factorScores: [
+    { factorKey: 'financial_performance', score: 75, weight: 20, weightedScore: 15 },
+    { factorKey: 'cashflow', score: 50, weight: 30, weightedScore: 15 },
+  ],
   nextAction: { target: 'bureau', label: 'Upload bureau report' },
   applicationImpact: 'ALLOWED',
   assessmentImpact: 'INCOMPLETE',
@@ -44,5 +48,17 @@ describe('RiskAssessmentResultCard', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Service unavailable');
     expect(screen.getByRole('alert')).toHaveTextContent(/previous result remains visible/i);
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('explains the score calculation with factor scores, weights, and contributions', () => {
+    render(<RiskAssessmentResultCard assessment={assessment} canWrite recalculating={false} onRecalculate={vi.fn()} onAction={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('How this score was calculated'));
+    expect(screen.getByText('Financial performance')).toBeInTheDocument();
+    expect(screen.getByText('Cashflow / DSR')).toBeInTheDocument();
+    expect(screen.getByText('75.0')).toBeInTheDocument();
+    expect(screen.getByText('20.0%')).toBeInTheDocument();
+    expect(screen.getAllByText('15.00')).toHaveLength(2);
+    expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent?.replace(/\s+/g, ' ').includes('using the active rating bands.') === true)).toBeInTheDocument();
   });
 });

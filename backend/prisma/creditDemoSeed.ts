@@ -1,4 +1,5 @@
 import {
+  Prisma,
   PrismaClient,
   ApplicationState,
   ApplicationType,
@@ -43,6 +44,8 @@ import {
 
 } from '@prisma/client';
 import { AuditChainService } from '../src/credit/services/auditChain.service';
+import { CANONICAL_FACTOR_WEIGHTS } from '../src/credit/services/scorecard.service';
+import { FALLBACK_BANDS } from '../src/credit/services/ratingBand.service';
 const prisma = new PrismaClient();
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -899,15 +902,62 @@ async function seedScorecard(adminId: string) {
   let scorecard = await findExisting(prisma.creditScorecard, { name: 'Standard Credit Scoring Model v1' });
   if (!scorecard) {
     scorecard = await prisma.creditScorecard.create({
-      data: { name: 'Standard Credit Scoring Model v1', description: 'Primary credit scoring model incorporating financial strength, repayment capacity, collateral coverage, management quality, and industry risk.', isActive: true },
-    });
-    await prisma.creditScorecardVersion.create({
-      data: { scorecardId: scorecard.id, version: 1, factorWeights: { financialStrength: 0.30, repaymentCapacity: 0.25, collateralCoverage: 0.20, managementQuality: 0.15, industryRisk: 0.10 }, isActive: true, effectiveFrom: new Date('2026-01-01'), approvedById: adminId, approvedAt: new Date('2026-01-01') },
+      data: { name: 'Standard Credit Scoring Model v1', description: 'Primary credit scoring model using canonical financial performance, cashflow, collateral, management, and industry factors.', isActive: true },
     });
     console.log('  ✅ 1 scorecard (with version)');
   } else {
     console.log('  ⏭️  Scorecard already exists');
   }
+
+  const existingVersion = await prisma.creditScorecardVersion.findFirst({ where: { scorecardId: scorecard.id, version: 1 } });
+  const versionData: Prisma.CreditScorecardVersionUncheckedUpdateInput = {
+    factorWeights: { ...CANONICAL_FACTOR_WEIGHTS } as Prisma.InputJsonValue,
+    retailFactorWeights: { ...CANONICAL_FACTOR_WEIGHTS } as Prisma.InputJsonValue,
+    isActive: true,
+    effectiveFrom: new Date('2026-01-01'),
+    approvedById: adminId || null,
+    approvedAt: new Date('2026-01-01'),
+  };
+  if (existingVersion) {
+    await prisma.creditScorecardVersion.update({ where: { id: existingVersion.id }, data: versionData });
+  } else {
+    await prisma.creditScorecardVersion.create({
+      data: {
+        scorecardId: scorecard.id,
+        version: 1,
+        factorWeights: { ...CANONICAL_FACTOR_WEIGHTS } as Prisma.InputJsonValue,
+        retailFactorWeights: { ...CANONICAL_FACTOR_WEIGHTS } as Prisma.InputJsonValue,
+        isActive: true,
+        effectiveFrom: new Date('2026-01-01'),
+        approvedById: adminId || null,
+        approvedAt: new Date('2026-01-01'),
+      },
+    });
+  }
+
+  // Keep the demo environment on the governed active rating scale. Without
+  // this set the scorer falls back to deprecated hardcoded thresholds.
+  for (const band of FALLBACK_BANDS) {
+    const existingBand = await prisma.ratingBandConfig.findFirst({
+      where: { name: 'Standard Risk Rating Bands v1', version: 1, rating: band.rating },
+    });
+    const bandData = {
+      scoreMin: band.scoreMin,
+      scoreMax: band.scoreMax,
+      rating: band.rating,
+      riskCategory: band.riskCategory,
+      status: 'ACTIVE',
+      name: 'Standard Risk Rating Bands v1',
+      description: 'Canonical score-to-rating bands for the local credit demo environment.',
+      effectiveFrom: new Date('2026-01-01'),
+      effectiveTo: null,
+      version: 1,
+      approvedById: adminId || null,
+    };
+    if (existingBand) await prisma.ratingBandConfig.update({ where: { id: existingBand.id }, data: bandData });
+    else await prisma.ratingBandConfig.create({ data: bandData });
+  }
+  console.log(`  ✅ Canonical scorecard weights and ${FALLBACK_BANDS.length} active rating bands`);
   return scorecard;
 }
 

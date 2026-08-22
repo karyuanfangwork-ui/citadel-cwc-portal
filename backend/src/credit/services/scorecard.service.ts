@@ -20,6 +20,25 @@ export const FACTOR_GROUPS = [
 
 export type FactorGroup = (typeof FACTOR_GROUPS)[number];
 
+/**
+ * Canonical demo/default weights. Values are percentages, matching the
+ * FactorWeights contract and the scoring governance validators.
+ *
+ * Keep this shape aligned with FACTOR_GROUPS: silently accepting legacy names
+ * would make every runtime lookup resolve to zero.
+ */
+export const CANONICAL_FACTOR_WEIGHTS: FactorWeights = {
+  financial_performance: 30,
+  leverage: 0,
+  liquidity: 0,
+  cashflow: 25,
+  management: 15,
+  industry: 10,
+  collateral: 20,
+  relationship: 0,
+  market_conditions: 0,
+};
+
 export interface FactorWeights {
   financial_performance: number;
   leverage: number;

@@ -56,6 +56,13 @@ const ApplicationWorkspaceHeader: React.FC<ApplicationWorkspaceHeaderProps> = ({
 
   const statusLabel = STATE_LABELS[currentState] || currentState.replace(/_/g, ' ');
   const segmentColor = SEGMENT_COLORS[segment];
+  const borrowerTypeLabel: Record<string, string> = {
+    INDIVIDUAL: 'Individual',
+    JOINT: 'Joint',
+    SOLE_PROPRIETOR: 'Sole Proprietor',
+    CORPORATE: 'Corporate',
+  };
+  const displaySegmentLabel = borrowerTypeLabel[app.borrowerProfile?.borrowerType ?? ''] || SEGMENT_LABELS[segment];
   const borrowerName = getBorrowerDisplayName(app.borrowerProfile) || app.id.slice(0, 8);
   const appNo = app.applicationNo || app.id.slice(0, 8);
 
@@ -107,7 +114,7 @@ const ApplicationWorkspaceHeader: React.FC<ApplicationWorkspaceHeaderProps> = ({
             whiteSpace: 'nowrap',
           }}
         >
-          {SEGMENT_LABELS[segment]}
+          {displaySegmentLabel}
         </span>
       </div>
 

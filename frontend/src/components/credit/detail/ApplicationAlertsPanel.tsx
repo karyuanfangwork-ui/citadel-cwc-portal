@@ -7,6 +7,7 @@
  * Uses Financial Core design tokens (--cr-*).
  */
 import React from 'react';
+import { ApplicationWorkspaceArea } from './applicationWorkspaceAreas';
 
 export interface AlertItem {
   id: string;
@@ -17,12 +18,13 @@ export interface AlertItem {
   action?: {
     label: string;
     tab: string;
+    area?: ApplicationWorkspaceArea;
   };
 }
 
 interface ApplicationAlertsPanelProps {
   alerts: AlertItem[];
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, area?: ApplicationWorkspaceArea) => void;
 }
 
 const severityStyles: Record<string, { bg: string; border: string; iconColor: string }> = {
@@ -88,7 +90,7 @@ const ApplicationAlertsPanel: React.FC<ApplicationAlertsPanelProps> = ({
                   </span>
                   {alert.action && (
                     <button
-                      onClick={() => onNavigate(alert.action!.tab)}
+                      onClick={() => onNavigate(alert.action!.tab, alert.action!.area)}
                       className="mt-1 text-left font-bold"
                       style={{
                         fontSize: 12,

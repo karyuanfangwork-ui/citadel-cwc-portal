@@ -26,6 +26,7 @@ import creditService, {
   CreditApproval,
   FinancialStatement,
   ApprovalDecision,
+  SubmissionReadinessResult,
 } from '../../../services/credit.service';
 import {
   DetailTab,
@@ -37,7 +38,9 @@ import {
   SEGMENT_LABELS,
 } from '../../../../pages/credit/creditUtils';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
-import CreditDecisionSummaryCard from './CreditDecisionSummaryCard';
+import ApplicationReadinessPanel from './ApplicationReadinessPanel';
+import { ApplicationWorkspaceArea } from './applicationWorkspaceAreas';
+import { buildApplicationReadinessViewModel } from './applicationReadinessViewModel';
 
 // ── Readiness field → human-readable label mapping ──────────────────────
 
@@ -84,7 +87,7 @@ const CATEGORY_ICON: Record<string, string> = {
 };
 
 // Map readiness fields to tabs for navigation
-const FIELD_TO_TAB: Record<string, DetailTab> = {
+const FIELD_TO_TAB: Record<string, string> = {
   application: 'loan-request',
   facilities: 'facilities',
   borrowerProfile: 'borrower-profile',
@@ -95,7 +98,7 @@ const FIELD_TO_TAB: Record<string, DetailTab> = {
   financials: 'financials',
   bureauChecks: 'credit-checks-risk',
   bureauChecklist: 'credit-checks-risk',
-  retailIncome: 'sme-financials',
+  retailIncome: 'financial-profile',
   exposureLimit: 'risk-score',
   fatcaCrs: 'borrower-profile',
 };
@@ -158,12 +161,10 @@ interface CommentPreview {
 interface ApplicationOverviewTabProps {
   app: CreditApplication;
   facilities: CreditFacility[];
-  readiness: {
-    ready: boolean;
-    errors: { field: string; message: string; severity: string }[];
-    warnings: { field: string; message: string; severity: string }[];
-    satisfied: { field: string; message: string; severity: string }[];
-  } | null;
+  readiness: SubmissionReadinessResult | null;
+  readinessLoading?: boolean;
+  readinessError?: string | null;
+  onRetryReadiness?: () => void;
   slaDaysLeft: number | null;
   formatTimeAgo: (date: Date) => string;
   onNavigate: (tab: DetailTab) => void;
@@ -186,6 +187,8 @@ interface ApplicationOverviewTabProps {
   currentJourneyIndex?: number;
   /** Segment for KPI row traffic-light gating */
   segment?: BorrowerSegment;
+  onNavigateToWorkspace?: (area: ApplicationWorkspaceArea, tab: string) => void;
+  onSubmit?: () => void;
 }
 
 // ── Reusable sub-components ────────────────────────────────────────────
@@ -317,18 +320,17 @@ const RiskSnapshotSection: React.FC<{
 }> = ({ app, onNavigate }) => {
   const bp = app.borrowerProfile;
   const _app = app as any;
+  const borrowerType = bp?.borrowerType;
+  const isRetail = borrowerType === 'INDIVIDUAL' || borrowerType === 'JOINT' || borrowerType === 'SOLE_PROPRIETOR';
 
   // Derive risk metrics — prefer the flattened score run fields from getApplication
   const riskGrade = app.riskRating || bp?.creditRiskRating || null;
   const snapshot = (app as any).inputSnapshot;
-  const dscr = snapshot?.dsrPercent != null
-    ? Number(snapshot.dsrPercent) >= 100
-      ? Number((Number(snapshot.dsrPercent) / 100).toFixed(2))
-      : null
-    : _app.dscr ?? null;
+  const dscr = _app.dscr ?? snapshot?.dscr ?? null;
+  const dsr = app.retailIncome?.netDsrPercent ?? app.retailIncome?.dsrPercent ?? snapshot?.netDsrPercent ?? snapshot?.dsrPercent ?? null;
   const debtToEquity = _app.debtToEquity ?? null;
   const collateralCoverage = _app.collateralCoverage ?? null;
-  const internalRating = app.riskRating ?? _app.internalRating ?? null;
+
 
   const riskColor = (() => {
     if (!riskGrade) return 'var(--cr-outline)';
@@ -387,13 +389,38 @@ const RiskSnapshotSection: React.FC<{
 
   return (
     <SectionCard icon="shield" title="Credit Risk Snapshot" onGoTo={() => onNavigate('risk-score')} goToLabel="Go to Risk →">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <RiskCard label="Risk Grade" value={riskGrade || 'NR'} sublabel={riskGrade ? 'Internal scorecard rating' : 'Not rated'} color={riskColor} />
-        <RiskCard label="DSCR" value={dscr != null ? `${dscr}x` : '—'} sublabel={dscr != null ? (dscr >= 1.5 ? 'Healthy' : dscr >= 1.25 ? 'Adequate' : 'Below threshold') : undefined} color={dscrColor} />
-        <RiskCard label="Debt-to-Equity" value={debtToEquity != null ? `${debtToEquity}x` : '—'} sublabel={debtToEquity != null ? (debtToEquity <= 1 ? 'Low leverage' : debtToEquity <= 2 ? 'Moderate' : 'High leverage') : undefined} color={deColor} />
-        <RiskCard label="Collateral Coverage" value={collateralCoverage != null ? `${collateralCoverage}%` : '—'} sublabel={collateralCoverage != null ? (collateralCoverage >= 150 ? 'Well covered' : collateralCoverage >= 100 ? 'Adequate' : 'Under-collateralised') : undefined} color={ccColor} />
-        <RiskCard label="Internal Rating" value={internalRating || '—'} sublabel={internalRating ? 'Internal assessment' : 'Pending'} color={internalRating ? '#2563eb' : 'var(--cr-outline)'} />
+      {isRetail ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <RiskCard label="Application Rating" value={riskGrade || 'NR'} sublabel={riskGrade ? 'Application scorecard rating' : 'Not rated'} color={riskColor} />
+          <RiskCard label="DSR" value={dsr != null ? `${Number(dsr).toFixed(1)}%` : 'Not available'} sublabel={dsr != null ? 'Repayment capacity' : 'Complete income assessment'} color={dsr != null ? dscrColor : 'var(--cr-outline)'} />
+          <RiskCard label="Bureau" value={snapshot?.bureauFresh === true ? 'Fresh' : snapshot?.bureauFresh === false ? 'Refresh required' : 'Not checked'} sublabel="Bureau evidence" color={snapshot?.bureauFresh === true ? '#16a34a' : snapshot?.bureauFresh === false ? '#d97706' : 'var(--cr-outline)'} />
+          <RiskCard label="Score" value={app.totalScore != null ? Number(app.totalScore).toFixed(1) : 'Not calculated'} sublabel="Application score" color="#2563eb" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <RiskCard label="Application Rating" value={riskGrade || 'NR'} sublabel={riskGrade ? 'Application scorecard rating' : 'Not rated'} color={riskColor} />
+          <RiskCard label="DSCR" value={dscr != null ? `${dscr}x` : 'Not available'} sublabel={dscr != null ? (dscr >= 1.5 ? 'Healthy' : dscr >= 1.25 ? 'Adequate' : 'Below threshold') : 'Financial statements required'} color={dscrColor} />
+          <RiskCard label="Debt-to-Equity" value={debtToEquity != null ? `${debtToEquity}x` : 'Not available'} sublabel={debtToEquity != null ? (debtToEquity <= 1 ? 'Low leverage' : debtToEquity <= 2 ? 'Moderate' : 'High leverage') : 'Financial statements required'} color={deColor} />
+          <RiskCard label="Collateral Coverage" value={collateralCoverage != null ? `${collateralCoverage}%` : 'Not available'} sublabel={collateralCoverage != null ? (collateralCoverage >= 150 ? 'Well covered' : collateralCoverage >= 100 ? 'Adequate' : 'Under-collateralised') : 'Collateral assessment required'} color={ccColor} />
+        </div>
+      )}
+    </SectionCard>
+  );
+};
+
+const ApplicationDecisionSnapshot: React.FC<{ app: CreditApplication; onNavigate: (tab: DetailTab) => void }> = ({ app, onNavigate }) => {
+  const rating = app.riskRating || 'Not calculated';
+  const recommendation = ['CCC', 'CC', 'C', 'D'].includes(app.riskRating ?? '') ? 'Reject' : ['BBB', 'BB', 'B'].includes(app.riskRating ?? '') ? 'Conditional' : app.riskRating ? 'Approve' : 'Conditional';
+  const status = app.missingInputs && app.missingInputs.length > 0 ? 'Incomplete' : app.riskRating ? 'Calculated' : 'Not calculated';
+  return (
+    <SectionCard icon="analytics" title="Application Decision Snapshot" onGoTo={() => onNavigate('risk-score')} goToLabel="View Risk →">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Application rating</span><p className="mt-1 text-xl font-bold" style={{ color: 'var(--cr-on-surface)' }}>{rating}</p></div>
+        <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Application score</span><p className="mt-1 text-xl font-bold" style={{ color: 'var(--cr-on-surface)' }}>{app.totalScore != null ? Number(app.totalScore).toFixed(1) : 'Not calculated'}</p></div>
+        <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Recommendation</span><p className="mt-1 text-sm font-bold" style={{ color: 'var(--cr-on-surface)' }}>{recommendation}</p></div>
+        <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Assessment</span><p className="mt-1 text-sm font-bold" style={{ color: status === 'Incomplete' ? '#b45309' : 'var(--cr-on-surface)' }}>{status}</p></div>
       </div>
+      {app.baseRiskRating && app.baseRiskRating !== app.riskRating ? <p className="mt-3 text-xs" style={{ color: 'var(--cr-on-surface-variant)' }}>Base rating: <strong>{app.baseRiskRating}</strong>; effective application rating: <strong>{app.riskRating ?? 'Not calculated'}</strong>.</p> : null}
     </SectionCard>
   );
 };
@@ -402,8 +429,11 @@ const RiskSnapshotSection: React.FC<{
 
 const FinancialTrendSection: React.FC<{
   app: CreditApplication;
-}> = ({ app }) => {
+  onNavigate: (tab: DetailTab) => void;
+}> = ({ app, onNavigate }) => {
   const [financials, setFinancials] = useState<FinancialStatement[]>([]);
+  const isRetail = ['INDIVIDUAL', 'JOINT', 'SOLE_PROPRIETOR'].includes(app.borrowerProfile?.borrowerType ?? '');
+  const snapshot = (app as any).inputSnapshot;
 
   useEffect(() => {
     if (!app.borrowerProfileId) return;
@@ -460,6 +490,18 @@ const FinancialTrendSection: React.FC<{
 
     return { revenueData, profitData, ebitdaData, cashflowData };
   }, [financials]);
+
+  if (isRetail) {
+    const dsr = app.retailIncome?.netDsrPercent ?? app.retailIncome?.dsrPercent ?? snapshot?.netDsrPercent ?? snapshot?.dsrPercent ?? null;
+    return (
+      <SectionCard icon="payments" title="Income & DSR" onGoTo={() => onNavigate('financials')} goToLabel="Go to Financials →">
+        <div className="grid grid-cols-2 gap-3">
+          <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>DSR</span><p className="mt-1 text-xl font-bold" style={{ color: 'var(--cr-on-surface)' }}>{dsr != null ? `${Number(dsr).toFixed(1)}%` : 'Not available'}</p></div>
+          <div><span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Income status</span><p className="mt-1 text-sm font-bold" style={{ color: 'var(--cr-on-surface)' }}>{dsr != null ? 'Captured' : 'Complete income assessment'}</p></div>
+        </div>
+      </SectionCard>
+    );
+  }
 
   if (!trends || (
     trends.revenueData.length === 0 &&
@@ -943,7 +985,7 @@ const DocumentsSection: React.FC<{
                   style={{ backgroundColor: 'transparent' }}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--cr-surface-container-high)'; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  onClick={() => navTab && onNavigate(navTab)}
+                  onClick={() => navTab && onNavigate(navTab as DetailTab)}
                 >
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px]" style={{ color: style.text }}>
@@ -1081,6 +1123,9 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
   app,
   facilities,
   readiness,
+  readinessLoading = false,
+  readinessError = null,
+  onRetryReadiness,
   slaDaysLeft,
   formatTimeAgo,
   onNavigate,
@@ -1101,78 +1146,73 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
   workflowVelocityPct,
   currentJourneyIndex,
   segment,
+  onNavigateToWorkspace,
+  onSubmit,
 }) => {
+  const readinessViewModel = useMemo(() => buildApplicationReadinessViewModel({
+    applicationState: currentState,
+    readiness,
+    readinessLoading,
+    readinessError,
+  }), [currentState, readiness, readinessError, readinessLoading]);
+
+  const navigateToWorkspace = (area: ApplicationWorkspaceArea, tab: string) => {
+    if (onNavigateToWorkspace) onNavigateToWorkspace(area, tab);
+    else onNavigate(tab as DetailTab);
+  };
+
+  const borrowerName = getBorrowerDisplayName(app.borrowerProfile);
+  const productLabel = PRODUCT_LABELS[app.productType] || app.productType || 'Credit facility';
+  const borrowerTypeLabel = app.borrowerProfile?.borrowerType ? BORROWER_TYPE_LABELS[app.borrowerProfile.borrowerType] : null;
+  const segmentLabel = borrowerTypeLabel || (segment ? SEGMENT_LABELS[segment] : (app.lane || 'Credit'));
+  const assignedRm = app.rm ? `${app.rm.firstName} ${app.rm.lastName}`.trim() : 'Unassigned';
+  const assignedAnalyst = app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}`.trim() : 'Unassigned';
+
   return (
     <div className="p-6 flex flex-col gap-6">
-      {/* ── Section 1: Credit Risk Snapshot ── */}
+      <section aria-labelledby="application-identity-heading" className="rounded-xl p-5" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)' }}>Application</p>
+            <h1 id="application-identity-heading" className="mt-1 text-xl font-bold" style={{ color: 'var(--cr-on-surface)' }}>{app.applicationNo}</h1>
+            <p className="mt-1 text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>{borrowerName}</p>
+            <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--cr-outline)' }}>{segmentLabel} · {productLabel}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-right sm:grid-cols-4 sm:text-left">
+            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Requested Amount</p><p className="mt-1 text-sm font-bold">{formatCurrency(app.requestedAmount, app.currency)}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Tenure</p><p className="mt-1 text-sm font-bold">{app.requestedTenor ? `${app.requestedTenor} months` : '—'}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Risk Rating</p><p className="mt-1 text-sm font-bold">{app.riskRating || 'Not calculated'}</p></div>
+            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Owner</p><p className="mt-1 text-sm font-bold">{assignedRm}</p><p className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>Analyst: {assignedAnalyst}</p></div>
+          </div>
+        </div>
+      </section>
+
+      <ApplicationReadinessPanel
+        viewModel={readinessViewModel}
+        onNavigate={navigateToWorkspace}
+        onRetry={onRetryReadiness}
+        onSubmit={onSubmit}
+      />
+
+      {/* Command-centre summaries. Detailed work remains in the six working areas. */}
       <RiskSnapshotSection app={app} onNavigate={onNavigate} />
 
       {/* ── Section 1b: Credit Decision Summary (Phase 4 explainability) ── */}
-      <CreditDecisionSummaryCard application={app} />
+      <ApplicationDecisionSnapshot app={app} onNavigate={onNavigate} />
 
-      {/* ── Section 2: Financial Trend Analysis ── */}
-      <FinancialTrendSection app={app} />
+      {/* Financial evidence summary; detailed financial work remains in Financials. */}
+      <FinancialTrendSection app={app} onNavigate={onNavigate} />
 
-      {/* ── Section 3: Approval Workflow ── */}
-      <ApprovalWorkflowSection app={app} onNavigate={onNavigate} />
-
-      {/* ── Section 4: Recent Activities ── */}
+      {/* Recent activity remains a concise pointer to Activity & Audit. */}
       <RecentActivitiesSection
         applicationId={app.id}
         formatTimeAgo={formatTimeAgo}
         onNavigate={onNavigate}
       />
 
-      {/* ── Two-column layout for lower sections ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* ── Section 5: Borrower Profile ── */}
-        <BorrowerProfileSection app={app} onNavigate={onNavigate} />
-
-        {/* ── Section 6: Documents ── */}
-        <DocumentsSection readiness={readiness} documentReadinessPct={documentReadinessPct} onNavigate={onNavigate} />
-      </div>
-
-      {/* ── Health Summary Bar ── */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="flex flex-col gap-1 p-3 rounded" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-          <span className="text-[11px] font-bold uppercase" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: 'var(--cr-tracking-label)' }}>
-            Completion
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold" style={{ color: progressPct >= 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626', fontFamily: 'var(--cr-font-display)' }}>
-              {progressPct}%
-            </span>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--cr-surface-container-highest)' }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, backgroundColor: progressPct >= 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626' }} />
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1 p-3 rounded" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-          <span className="text-[11px] font-bold uppercase" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: 'var(--cr-tracking-label)' }}>
-            Doc Readiness
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold" style={{ color: documentReadinessPct >= 80 ? '#16a34a' : documentReadinessPct >= 50 ? '#d97706' : '#dc2626', fontFamily: 'var(--cr-font-display)' }}>
-              {documentReadinessPct}%
-            </span>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--cr-surface-container-highest)' }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${documentReadinessPct}%`, backgroundColor: documentReadinessPct >= 80 ? '#16a34a' : documentReadinessPct >= 50 ? '#d97706' : '#dc2626' }} />
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1 p-3 rounded" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-          <span className="text-[11px] font-bold uppercase" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)', letterSpacing: 'var(--cr-tracking-label)' }}>
-            Velocity
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold" style={{ color: workflowVelocityPct >= 60 ? '#16a34a' : workflowVelocityPct >= 30 ? '#d97706' : '#dc2626', fontFamily: 'var(--cr-font-display)' }}>
-              {workflowVelocityPct}%
-            </span>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--cr-surface-container-highest)' }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${workflowVelocityPct}%`, backgroundColor: workflowVelocityPct >= 60 ? '#16a34a' : workflowVelocityPct >= 30 ? '#d97706' : '#dc2626' }} />
-            </div>
-          </div>
-        </div>
+      <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Overview scope</p>
+        <p className="mt-1" style={{ color: 'var(--cr-on-surface-variant)' }}>Detailed borrower, document, financial, risk, approval, and condition work is available in the corresponding workspace area or utility.</p>
       </div>
     </div>
   );

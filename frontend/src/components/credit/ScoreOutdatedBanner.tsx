@@ -63,10 +63,10 @@ const ScoreOutdatedBanner: React.FC<ScoreOutdatedBannerProps> = ({ applicationId
       <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
       <div className="flex-1">
         <p className="text-sm font-semibold text-amber-800">
-          Credit score may be outdated
+          Risk score needs recalculation
         </p>
         <p className="text-xs text-amber-700">
-          Financials were updated {formatTime(status.lastFinancialsUpdatedAt)}, but the last score run was {formatTime(status.lastScoreRunAt)}.
+          {status.staleInputSource || 'A material scoring input'} was updated {formatTime(status.lastFinancialsUpdatedAt)}, but the last score run was {formatTime(status.lastScoreRunAt)}.
         </p>
       </div>
       <button

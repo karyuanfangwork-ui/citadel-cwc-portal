@@ -197,12 +197,22 @@ export async function deleteComment(commentId: string, userId: string, isAdmin: 
 export async function getScoreStatus(applicationId: string): Promise<{
   lastScoreRunAt: string | null;
   lastFinancialsUpdatedAt: string | null;
+  staleInputSource: string | null;
   isOutdated: boolean;
 }> {
   const app = await prisma.creditApplication.findUnique({
     where: { id: applicationId },
     select: {
-      updatedAt: true,
+      retailIncome: { select: { updatedAt: true } },
+      borrowerProfile: {
+        select: {
+          financialStatements: {
+            orderBy: { updatedAt: 'desc' },
+            take: 1,
+            select: { updatedAt: true },
+          },
+        },
+      },
       scoreRuns: {
         orderBy: { createdAt: 'desc' },
         take: 1,
@@ -214,14 +224,19 @@ export async function getScoreStatus(applicationId: string): Promise<{
   if (!app) throw new Error('Application not found');
 
   const lastScoreRunAt = app.scoreRuns.length > 0 ? app.scoreRuns[0].createdAt.toISOString() : null;
-  const lastFinancialsUpdatedAt = app.updatedAt.toISOString();
+  const materialInputs = [
+    app.retailIncome ? { at: app.retailIncome.updatedAt, source: 'Retail income / DSR' } : null,
+    app.borrowerProfile.financialStatements[0] ? { at: app.borrowerProfile.financialStatements[0].updatedAt, source: 'Financial statements' } : null,
+  ].filter((value): value is { at: Date; source: string } => value !== null);
+  const latestMaterialInput = materialInputs.sort((a, b) => b.at.getTime() - a.at.getTime())[0] ?? null;
+  const lastFinancialsUpdatedAt = latestMaterialInput?.at.toISOString() ?? null;
 
-  // Score is outdated if financials were updated after the last score run
+  // Score is outdated only when a tracked material scoring input changed after the last run.
   const isOutdated = lastScoreRunAt
-    ? new Date(lastFinancialsUpdatedAt) > new Date(lastScoreRunAt)
+    ? latestMaterialInput !== null && latestMaterialInput.at.getTime() > new Date(lastScoreRunAt).getTime()
     : true; // no score run at all = outdated
 
-  return { lastScoreRunAt, lastFinancialsUpdatedAt, isOutdated };
+  return { lastScoreRunAt, lastFinancialsUpdatedAt, staleInputSource: latestMaterialInput?.source ?? null, isOutdated };
 }
 
 export default {

@@ -7,6 +7,7 @@ import { initialFormData } from '../../components/credit/create-borrower/BasicIn
 const mocks = vi.hoisted(() => ({
   getApplicationDraft: vi.fn().mockResolvedValue(null),
   saveApplicationDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
+  searchBorrowers: vi.fn().mockResolvedValue([]),
   checkBorrowerIdentity: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock('../../services/credit.service', () => ({
   default: {
     getApplicationDraft: mocks.getApplicationDraft,
     saveApplicationDraft: mocks.saveApplicationDraft,
+    searchBorrowers: mocks.searchBorrowers,
     checkBorrowerIdentity: mocks.checkBorrowerIdentity,
   },
 }));
@@ -57,6 +59,8 @@ describe('CreateBorrowerPage governed identity gate', () => {
     localStorage.clear();
     mocks.getApplicationDraft.mockResolvedValue(null);
     mocks.checkBorrowerIdentity.mockReset();
+    mocks.searchBorrowers.mockReset();
+    mocks.searchBorrowers.mockResolvedValue([]);
     localStorage.setItem('createBorrowerDraft', JSON.stringify({
       formData: {
         ...validIndividualDraft(),
@@ -102,6 +106,31 @@ describe('CreateBorrowerPage governed identity gate', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Final Review' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /Create Borrower Record/ })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('Governed identity check: Identity check failed. Run it again before creating.');
+  });
+
+  it('runs the governed identity check when the user taps Search Records', async () => {
+    mocks.getApplicationDraft.mockResolvedValue({ id: 'draft-1', payload: { formData: validIndividualDraft() } });
+    mocks.checkBorrowerIdentity.mockResolvedValueOnce(noExactIdentityMatch);
+
+    render(
+      <MemoryRouter initialEntries={['/credit/borrowers/new']}>
+        <CreateBorrowerPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mocks.getApplicationDraft).toHaveBeenCalled());
+    fireEvent.change(screen.getByPlaceholderText('Search NRIC, Passport, CIF, Mobile or Email...'), { target: { value: '900101141234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search Records' }));
+
+    await waitFor(() => expect(mocks.searchBorrowers).toHaveBeenCalledWith('900101141234'));
+    await waitFor(() => expect(mocks.checkBorrowerIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: 'draft-1',
+      segment: 'INDIVIDUAL',
+      identifier: '900101141234',
+      identifierType: 'NRIC',
+    })));
+    expect(await screen.findByText('No exact identity match found. You may continue.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Continue after identity check/ }).some(button => !(button as HTMLButtonElement).disabled)).toBe(true);
   });
 
   it('invalidates a successful governed check when the checked NRIC is edited', async () => {
