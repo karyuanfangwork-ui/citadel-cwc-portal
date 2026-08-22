@@ -14,6 +14,7 @@ import {
 import { seedWorkflows } from './seed-workflows';
 import { seedCreditRuleConfig } from './seeds/creditRuleConfig.seed';
 import { PrismaClient } from '@prisma/client';
+import { CLOSED_STATUSES, RESOLVED_STATUSES } from '../src/constants/requestStatuses';
 
 const prisma = new PrismaClient();
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -21,11 +22,24 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 // Safety flag: Set RETAIN_ADMIN_CONFIG=true to preserve all admin console settings
 // Only re-seeds account management (users, roles, permissions)
 const RETAIN_ADMIN_CONFIG = process.env.RETAIN_ADMIN_CONFIG === 'true';
+const ALLOW_PRODUCTION_CONFIG_OVERWRITE = process.env.ALLOW_PRODUCTION_CONFIG_OVERWRITE === 'true';
+
+function lifecycleTypeForStatus(code: string): 'OPEN' | 'RESOLVED' | 'CLOSED' | 'CANCELLED' {
+    if (code === 'CANCELLED') return 'CANCELLED';
+    if (RESOLVED_STATUSES.includes(code as never)) return 'RESOLVED';
+    if (CLOSED_STATUSES.includes(code as never)) return 'CLOSED';
+    return 'OPEN';
+}
 
 async function main() {
     console.log('🌱 Starting database seed...');
+    if (process.env.NODE_ENV === 'production' && !RETAIN_ADMIN_CONFIG && !ALLOW_PRODUCTION_CONFIG_OVERWRITE) {
+        throw new Error('PRODUCTION_SEED_BLOCKED: RETAIN_ADMIN_CONFIG=true is required; set ALLOW_PRODUCTION_CONFIG_OVERWRITE=true only for an explicitly approved config reset');
+    }
     if (RETAIN_ADMIN_CONFIG) {
         console.log('⚠️  RETAIN_ADMIN_CONFIG enabled - preserving admin console settings');
+    } else if (process.env.NODE_ENV === 'production') {
+        console.warn('🚨 ALLOW_PRODUCTION_CONFIG_OVERWRITE=true - production admin configuration may be changed by this seed');
     }
 
     // Seed default tenant (must run OUTSIDE tenant context since the tenant
@@ -391,11 +405,14 @@ async function main() {
         CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:compliance', 'credit:export', 'credit:str_view', 'credit:str_manage'],
     };
 
-    // Upsert RolePermission records: only add seed-default assignments,
-    // never remove admin-added permissions (RETAIN_ADMIN_CONFIG has no effect here —
-    // we always preserve existing assignments)
-    let totalSeeded = 0;
-    for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {
+    // Role/permission assignments are admin-owned in production. Do not even
+    // add seed defaults when retention is enabled; this preserves intentional
+    // removals as well as custom grants.
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping role-permission seeding (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+      let totalSeeded = 0;
+      for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {
         const roleId = roleMap.get(roleName);
         if (!roleId) {
             console.log(`  ⚠️ Role not found: ${roleName} — skipping`);
@@ -418,9 +435,9 @@ async function main() {
         }
         totalSeeded += roleSeeded;
         console.log(`  ✅ ${roleName}: ${roleSeeded} seed-default permissions ensured`);
+      }
+      console.log(`✅ Role permissions assigned (${totalSeeded} defaults)`);
     }
-
-    console.log('✅ Role permissions assigned');
 
     // ── One-time migration cleanups ────────────────────────────────
     // These delete stale permission assignments, migrate deprecated roles,
@@ -632,6 +649,7 @@ async function main() {
 
     // Helper: assign roles to a user (create-only, never removes existing roles)
     const assignRoles = async (userId: string, roleIds: string[]) => {
+        if (RETAIN_ADMIN_CONFIG) return;
         for (const roleId of roleIds) {
             await prisma.userRole.upsert({
                 where: { userId_roleId: { userId, roleId } },
@@ -648,7 +666,7 @@ async function main() {
     const hashedPassword = await bcrypt.hash('abc@123', 12);  // P0-6: salt rounds 12
     const adminUser = await prisma.user.upsert({
         where: { email: 'admin@test.local' },
-        update: { jobTitle: 'Administrator', department: 'IT' },
+        update: RETAIN_ADMIN_CONFIG ? {} : { jobTitle: 'Administrator', department: 'IT' },
         create: {
             tenantId: defaultTenant.id,
             email: 'admin@test.local',
@@ -887,15 +905,19 @@ async function main() {
         'hr@test.local':     'CG',
     };
 
-    for (const [email, code] of Object.entries(userEntityMap)) {
-        const entityId = entityCodeToId.get(code);
-        if (entityId) {
-            await prisma.user.update({ where: { email }, data: { entityId } });
-        } else {
-            console.log(`⚠️  Could not assign entity ${code} to ${email}: entity not found`);
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping seed user entity assignments (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        for (const [email, code] of Object.entries(userEntityMap)) {
+            const entityId = entityCodeToId.get(code);
+            if (entityId) {
+                await prisma.user.update({ where: { email }, data: { entityId } });
+            } else {
+                console.log(`⚠️  Could not assign entity ${code} to ${email}: entity not found`);
+            }
         }
+        console.log('✅ Seed user entity assignments updated');
     }
-    console.log('✅ Seed user entity assignments updated');
 
     // ── Create production users (@citadelgroup.com.my) ────────────────────────
     // Real staff accounts from SEED_PRODUCTION_USERS. Password default: Welcome@2026.
@@ -915,21 +937,26 @@ async function main() {
             const existingUser = await prisma.user.findUnique({ where: { email: pu.email } });
 
             if (existingUser) {
-                // Update existing user (preserve password, only update metadata)
-                await prisma.user.update({
-                    where: { email: pu.email },
-                    data: {
-                        firstName: pu.firstName,
-                        lastName: pu.lastName,
-                        department: pu.department || null,
-                        jobTitle: pu.jobTitle || null,
-                        executiveRole: (pu.executiveRole as any) || null,
-                        agentTeam: pu.agentTeam || null,
-                        entityId: entity?.id || null,
-                        isActive: pu.isActive,
-                    },
-                });
-                prodUpdated++;
+                if (RETAIN_ADMIN_CONFIG) {
+                    console.log(`  ⏭️  Preserved existing production user ${pu.email}`);
+                } else {
+                    // Update existing user only when explicitly running the
+                    // non-retaining seed mode.
+                    await prisma.user.update({
+                        where: { email: pu.email },
+                        data: {
+                            firstName: pu.firstName,
+                            lastName: pu.lastName,
+                            department: pu.department || null,
+                            jobTitle: pu.jobTitle || null,
+                            executiveRole: (pu.executiveRole as any) || null,
+                            agentTeam: pu.agentTeam || null,
+                            entityId: entity?.id || null,
+                            isActive: pu.isActive,
+                        },
+                    });
+                    prodUpdated++;
+                }
             } else {
                 // Create new user
                 await prisma.user.create({
@@ -952,7 +979,7 @@ async function main() {
             }
 
             // Assign roles
-            if (pu.roles && pu.roles.length > 0) {
+            if (!RETAIN_ADMIN_CONFIG && pu.roles && pu.roles.length > 0) {
                 const user = await prisma.user.findUniqueOrThrow({ where: { email: pu.email } });
                 for (const roleName of pu.roles) {
                     const role = await prisma.role.findUnique({ where: { name: roleName } });
@@ -975,7 +1002,9 @@ async function main() {
     // This overrides the default seed values with admin-configured production values.
     // Only runs when SEED_ENTITY_CONFIG has data (i.e., seed-admin-config.ts is populated).
     // IMPORTANT: This runs AFTER production users so approver user records exist.
-    if (SEED_ENTITY_CONFIG.length > 0) {
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping production entity configuration (RETAIN_ADMIN_CONFIG enabled)');
+    } else if (SEED_ENTITY_CONFIG.length > 0) {
         console.log('🏢 Applying production entity configuration...');
         for (const ec of SEED_ENTITY_CONFIG) {
             const approver = await prisma.user.findUnique({ where: { email: ec.approverEmail } });
@@ -1648,7 +1677,9 @@ async function main() {
         for (const def of SEED_STATUS_DEFINITIONS) {
             await prisma.requestStatusDefinition.upsert({
                 where: { code: def.code },
-                update: {},
+                update: {
+                    lifecycleType: lifecycleTypeForStatus(def.code),
+                },
                 create: {
                     code: def.code,
                     label: def.label,
@@ -1656,6 +1687,7 @@ async function main() {
                     category: def.category,
                     displayOrder: def.displayOrder,
                     isActive: def.isActive ?? true,
+                    lifecycleType: lifecycleTypeForStatus(def.code),
                 },
             });
         }

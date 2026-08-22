@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 import { notify } from '../services/notification.service';
 import { registerUpload } from '../services/attachmentAccess.service';
 import { auditLog } from '../utils/audit';

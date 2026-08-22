@@ -1213,7 +1213,7 @@ model Request {
   summary     String          @db.VarChar(500)
   description String?         @db.Text
   priority    RequestPriority @default(MEDIUM)
-  status      RequestStatus   @default(SUBMITTED)
+  status      String          @default("SUBMITTED") @db.VarChar(100)
 
   // Assignment
   assignedToId    String? @map("assigned_to_id") @db.Uuid
@@ -2258,19 +2258,32 @@ model BannerConfig {
   @@map("banner_configs")
 }
 
+enum RequestStatusLifecycleType {
+  OPEN
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
 model RequestStatusDefinition {
   id           String   @id @default(uuid()) @db.Uuid
+  // Compatibility anchor: keeps the generated legacy RequestStatus export
+  // available to integrations while Request.status is catalog-backed.
+  legacyEnumValue RequestStatus? @ignore
   code         String   @unique @db.VarChar(100)
   label        String   @db.VarChar(200)
   description  String?  @db.Text
   category     String?  @db.VarChar(50)
   displayOrder Int      @default(0) @map("display_order")
   isActive     Boolean  @default(true) @map("is_active")
+  lifecycleType RequestStatusLifecycleType @default(OPEN) @map("lifecycle_type")
+  retiredAt    DateTime? @map("retired_at") @db.Timestamp(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@index([isActive])
+  @@index([isActive, category])
   @@index([category])
+  @@index([retiredAt])
   @@map("request_status_definitions")
 }
 

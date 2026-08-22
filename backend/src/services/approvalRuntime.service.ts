@@ -26,7 +26,8 @@ import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error.middleware';
 import { executeWorkflowCommand } from './workflowCommand.service';
 import { validateCondition, ConditionAST } from './conditionEvaluator.service';
-import { ApprovalDefinitionStatus, ApprovalStepStatus, ApprovalTimeoutAction, RequestStatus } from '@prisma/client';
+import { ApprovalDefinitionStatus, ApprovalStepStatus, ApprovalTimeoutAction } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 
 // The generated Prisma client includes ApprovalInstance, ApprovalInstanceStep, and
 // ApprovalPolicyVersion at runtime, but the TypeScript declaration files may lag

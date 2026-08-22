@@ -7,6 +7,7 @@
 
 import prisma from '../utils/prisma';
 import { AppError } from '../middleware/error.middleware';
+import { assertSelectableStatusCode, normalizeStatusCode } from './requestStatusDefinition.service';
 
 export interface NodeInput {
   id: string;
@@ -39,8 +40,20 @@ async function assertDraft(versionId: string, client: any = prisma): Promise<voi
   if (version.status !== 'DRAFT') throw new AppError('Only a draft version can be edited — create a new draft to make changes', 409);
 }
 
+async function assertNodeStatusDefinitions(nodes: NodeInput[], client: any): Promise<void> {
+  if (!client.requestStatusDefinition?.findUnique) return;
+  for (const node of nodes) {
+    if (node.statusCode) {
+      const normalized = normalizeStatusCode(node.statusCode);
+      if (node.statusCode !== normalized) throw new AppError(`Status code must be uppercase: ${normalized}`, 422);
+      await assertSelectableStatusCode(normalized, client);
+    }
+  }
+}
+
 export async function upsertNodes(versionId: string, nodes: NodeInput[], client: any = prisma): Promise<void> {
   await assertDraft(versionId, client);
+  await assertNodeStatusDefinitions(nodes, client);
 
   const ids = nodes.map((node) => node.id);
   if (new Set(ids).size !== ids.length) throw new AppError('Duplicate node ids in graph update', 422);
@@ -157,6 +170,7 @@ export async function updateEdges(versionId: string, edges: EdgeInput[], remove:
 export async function replaceGraph(versionId: string, nodes: NodeInput[], edges: EdgeInput[]): Promise<void> {
   await prisma.$transaction(async (tx: any) => {
     await assertDraft(versionId, tx);
+    await assertNodeStatusDefinitions(nodes, tx);
     const nodeIds = nodes.map((node) => node.id);
     const edgeIds = edges.map((edge) => edge.id);
     if (new Set(nodeIds).size !== nodeIds.length) throw new AppError('Duplicate node ids in graph update', 422);

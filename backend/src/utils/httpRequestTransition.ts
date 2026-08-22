@@ -1,4 +1,5 @@
-import { Request, RequestStatus } from '@prisma/client';
+import { Request } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 import { Request as ExpressRequest } from 'express';
 import { AppError } from '../middleware/error.middleware';
 import {

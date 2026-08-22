@@ -22,10 +22,11 @@ import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
 import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitions';
 import { executeWorkflowCommand } from './workflowCommand.service';
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 import { registerOutboxHandler } from './outboxDispatcher.service';
 import { AppError } from '../middleware/error.middleware';
 import { canActorTransition, TransitionActor } from './transitionPolicy.service';
+import { getStatusDefinitionForRuntime } from './requestStatusDefinition.service';
 
 // ---------------------------------------------------------------------------
 // Outbox handler: durable notification delivery for status changes
@@ -259,6 +260,11 @@ export async function transitionRequest(
 
   const fromStatus = currentRequest.status;
 
+  const statusCatalogAvailable = Boolean((prisma as any).requestStatusDefinition?.findUnique);
+  const targetDefinition = statusCatalogAvailable
+    ? await getStatusDefinitionForRuntime(toStatus)
+    : null;
+
   // Idempotent: no-op if already in target status
   if (fromStatus === toStatus) {
     return {
@@ -313,9 +319,15 @@ export async function transitionRequest(
   }
 
   // ── 5. Determine terminal timestamps ─────────────────────────────────────
-  const shouldResolve = RESOLVE_STATUSES.has(toStatus);
-  const shouldClose = CLOSE_STATUSES.has(toStatus);
-  const shouldComplete = COMPLETE_STATUSES.has(toStatus);
+  const shouldResolve = targetDefinition
+    ? targetDefinition.lifecycleType === 'RESOLVED'
+    : RESOLVE_STATUSES.has(toStatus);
+  const shouldClose = targetDefinition
+    ? targetDefinition.lifecycleType === 'CLOSED' || targetDefinition.lifecycleType === 'CANCELLED'
+    : CLOSE_STATUSES.has(toStatus);
+  const shouldComplete = targetDefinition
+    ? targetDefinition.code === 'COMPLETED'
+    : COMPLETE_STATUSES.has(toStatus);
 
   const updateData: Record<string, unknown> = {
     ...(requestPatch ?? {}),

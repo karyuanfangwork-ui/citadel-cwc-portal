@@ -8,7 +8,7 @@
  * in frontend/constants.tsx.
  */
 
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from './requestStatusCompat';
 
 /** Statuses that represent a successfully resolved request. */
 export const RESOLVED_STATUSES: RequestStatus[] = [

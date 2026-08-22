@@ -10,6 +10,7 @@ const emptyForm = (): CreateStatusDefinitionInput => ({
   category: 'GENERAL',
   displayOrder: 0,
   isActive: true,
+  lifecycleType: 'OPEN',
 });
 
 export const StatusDefinitionsTab: React.FC = () => {
@@ -45,7 +46,7 @@ export const StatusDefinitionsTab: React.FC = () => {
 
   const openEdit = (def: RequestStatusDefinition) => {
     setEditing(def);
-    setForm({ code: def.code, label: def.label, description: def.description ?? '', category: def.category ?? 'GENERAL', displayOrder: def.displayOrder, isActive: def.isActive });
+    setForm({ code: def.code, label: def.label, description: def.description ?? '', category: def.category ?? 'GENERAL', displayOrder: def.displayOrder, isActive: def.isActive, lifecycleType: def.lifecycleType });
     setError('');
     setShowForm(true);
   };
@@ -71,10 +72,10 @@ export const StatusDefinitionsTab: React.FC = () => {
   };
 
   const handleDelete = async (def: RequestStatusDefinition) => {
-    if (!confirm(`Delete status definition "${def.code}"? This will fail if banner configs reference it.`)) return;
+    if (!confirm(`Retire status definition "${def.code}"? It will remain available for existing requests but cannot be selected for new workflow nodes.`)) return;
     try {
-      await requestStatusService.delete(def.id);
-      setDefinitions(prev => prev.filter(d => d.id !== def.id));
+      const retired = await requestStatusService.retire(def.id);
+      setDefinitions(prev => prev.map(item => item.id === retired.id ? retired : item));
     } catch (e: any) {
       alert(e?.response?.data?.message ?? 'Delete failed');
     }
@@ -85,7 +86,7 @@ export const StatusDefinitionsTab: React.FC = () => {
       <div className="mb-8 p-6 bg-purple-50 rounded-2xl border border-purple-200">
         <h3 className="text-lg font-bold text-gray-900 mb-1">Request Status Definitions</h3>
         <p className="text-sm text-gray-600">
-          Manage human-readable labels and metadata for each request status code. These codes must match the Prisma <code className="bg-white px-1 rounded">RequestStatus</code> enum.
+          Manage governed status identifiers and their lifecycle metadata. Codes are immutable after creation; retired codes remain available for historical requests.
         </p>
       </div>
 
@@ -141,7 +142,7 @@ export const StatusDefinitionsTab: React.FC = () => {
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-end">
                       <button onClick={() => openEdit(def)} className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Edit</button>
-                      <button onClick={() => handleDelete(def)} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Delete</button>
+                      {def.isActive && <button onClick={() => handleDelete(def)} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Retire</button>}
                     </div>
                   </td>
                 </tr>
@@ -182,6 +183,15 @@ export const StatusDefinitionsTab: React.FC = () => {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Category</label>
                   <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Lifecycle</label>
+                  <select value={form.lifecycleType ?? 'OPEN'} onChange={e => setForm(p => ({ ...p, lifecycleType: e.target.value as CreateStatusDefinitionInput['lifecycleType'] }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="OPEN">Open</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="CANCELLED">Cancelled</option>
                   </select>
                 </div>
                 <div>

@@ -8,6 +8,8 @@ export interface RequestStatusDefinition {
   category?: string;
   displayOrder: number;
   isActive: boolean;
+  lifecycleType: 'OPEN' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
+  retiredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +21,8 @@ export interface CreateStatusDefinitionInput {
   category?: string;
   displayOrder?: number;
   isActive?: boolean;
+  lifecycleType?: RequestStatusDefinition['lifecycleType'];
+  retiredAt?: string | null;
 }
 
 export interface UpdateStatusDefinitionInput extends Partial<CreateStatusDefinitionInput> {}
@@ -32,8 +36,8 @@ export const requestStatusService = {
     return res.data.data.definitions;
   },
 
-  getActive: async (category?: string): Promise<RequestStatusDefinition[]> => {
-    const params = category ? { category } : {};
+  getActive: async (category?: string, workflowTypeId?: string): Promise<RequestStatusDefinition[]> => {
+    const params = { ...(category ? { category } : {}), ...(workflowTypeId ? { workflowTypeId } : {}) };
     const res = await apiClient.get(`${BASE}/active`, { params });
     return res.data.data.definitions;
   },
@@ -50,5 +54,15 @@ export const requestStatusService = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`${BASE}/${id}`);
+  },
+
+  retire: async (id: string): Promise<RequestStatusDefinition> => {
+    const res = await apiClient.post(`${BASE}/${id}/retire`);
+    return res.data.data.definition;
+  },
+
+  usage: async (id: string): Promise<Record<string, number>> => {
+    const res = await apiClient.get(`${BASE}/${id}/usage`);
+    return res.data.data.usage;
   },
 };

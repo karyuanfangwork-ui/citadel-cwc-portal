@@ -8,7 +8,7 @@
  * target is a hop the workflow already sanctions rather than a guess.
  */
 
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 import prisma from '../utils/prisma';
 import { executeWorkflowCommandInTransaction } from './workflowCommand.service';
 import { loadGraph } from './workflowCompiler.service';

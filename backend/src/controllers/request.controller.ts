@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus, LEGACY_REQUEST_STATUS_CODES } from '../constants/requestStatusCompat';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
@@ -122,12 +122,13 @@ class RequestController {
             ];
         }
 
-        // Valid RequestStatus enum members for runtime validation
-        const validStatuses = Object.values(RequestStatus) as string[];
+        // Status codes are catalog-backed strings. Keep filters syntactically
+        // bounded here; runtime transition paths perform catalog validation.
+        const validStatusCode = /^[A-Z][A-Z0-9_]{1,99}$/;
 
         if (status) {
             // Support comma-separated status values for multi-status filters
-            const statusValues = (status as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
+            const statusValues = (status as string).split(',').map(v => v.trim().toUpperCase()).filter(v => validStatusCode.test(v));
             where.status = statusValues.length === 1
                 ? statusValues[0]
                 : statusValues.length > 1
@@ -138,7 +139,7 @@ class RequestController {
         if (excludedStatuses) {
             // Support comma-separated excluded status values to filter out specific statuses
             // Filter out any values that aren't valid RequestStatus members (e.g. stale frontend strings like "CLOSED")
-            const excludedValues = (excludedStatuses as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
+            const excludedValues = (excludedStatuses as string).split(',').map(v => v.trim().toUpperCase()).filter(v => validStatusCode.test(v));
             if (excludedValues.length === 0) {
                 // All values were invalid — skip filter entirely
             } else if (where.status) {
@@ -290,7 +291,7 @@ class RequestController {
             HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
         };
 
-        const validStatuses = Object.values(RequestStatus) as string[];
+        const validStatuses: string[] = [...LEGACY_REQUEST_STATUS_CODES];
         const statusFilter: string[] = [];
         for (const [role, statuses] of Object.entries(PENDING_APPROVAL_STATUSES)) {
             if (userRoles.includes(role)) {

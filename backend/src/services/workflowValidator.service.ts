@@ -13,6 +13,35 @@ import { loadOccupancy } from './statusRemap.service';
 import prisma from '../utils/prisma';
 
 const label = (node: GraphNode): string => node.statusCode ?? node.id;
+const TRANSITION_LABELS = new Set(['SUBMIT', 'APPROVE', 'REJECT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE']);
+
+async function validateStatusDefinitions(graph: WorkflowGraph, client: any): Promise<Finding[]> {
+  const statusCodes = [...new Set(graph.nodes.map((node) => node.statusCode).filter((code): code is string => Boolean(code)))];
+  if (statusCodes.length === 0 || !client.requestStatusDefinition?.findMany) return [];
+  const definitions = await client.requestStatusDefinition.findMany({ where: { code: { in: statusCodes } } });
+  const byCode = new Map(definitions.map((definition: { code: string }) => [definition.code, definition]));
+  const findings: Finding[] = [];
+  for (const node of graph.nodes) {
+    if (!node.statusCode) continue;
+    const definition = byCode.get(node.statusCode) as { id: string; code: string; isActive: boolean; retiredAt: Date | null } | undefined;
+    if (!definition) {
+      findings.push({
+        code: 'STATUS_DEFINITION_NOT_FOUND',
+        nodeId: node.id,
+        message: `Status code ${node.statusCode} has no status definition`,
+      });
+      continue;
+    }
+    if (!definition.isActive || definition.retiredAt) {
+      findings.push({
+        code: 'STATUS_DEFINITION_INACTIVE',
+        nodeId: node.id,
+        message: `Status code ${node.statusCode} is inactive or retired and cannot be published as a new workflow status`,
+      });
+    }
+  }
+  return findings;
+}
 
 /** Node IDs reachable from `startIds` following `adjacency`. */
 function reachable(startIds: string[], adjacency: Map<string, string[]>): Set<string> {
@@ -201,6 +230,14 @@ export function validateStructure(graph: WorkflowGraph): ValidationResult {
       });
     }
 
+    if (edge.transitionLabel && !TRANSITION_LABELS.has(edge.transitionLabel)) {
+      warnings.push({
+        code: 'UNKNOWN_TRANSITION_LABEL',
+        edgeId: edge.id,
+        message: `${from} → ${to} uses legacy transition label ${edge.transitionLabel}; select a governed label when editing`,
+      });
+    }
+
     const isRejection = edge.transitionLabel === 'REJECT' || edge.transitionLabel === 'RETURN';
     if (isRejection && !edge.requiresComment) {
       warnings.push({
@@ -325,9 +362,10 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
 /** Structural + live-data validation. The publish gate and the API both use this. */
 export async function validateGraph(input: ValidateGraphInput, client: any = prisma): Promise<ValidationResult> {
   const structural = validateStructure(input.graph);
+  const statusDefinitions = await validateStatusDefinitions(input.graph, client);
   const live = await validateLiveData(input, client);
   return {
-    blocking: [...structural.blocking, ...live],
+    blocking: [...structural.blocking, ...statusDefinitions, ...live],
     warnings: structural.warnings,
   };
 }

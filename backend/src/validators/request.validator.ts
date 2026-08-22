@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { RequestPriority, RequestStatus } from '@prisma/client';
+import { RequestPriority } from '@prisma/client';
+
 
 export const createRequestSchema = z.object({
     body: z.object({
@@ -39,8 +40,6 @@ export const assignRequestSchema = z.object({
 
 export const updateStatusSchema = z.object({
     body: z.object({
-        status: z.nativeEnum(RequestStatus, {
-            errorMap: () => ({ message: 'Invalid status' }),
-        }),
+        status: z.string().trim().regex(/^[A-Z][A-Z0-9_]{1,99}$/, 'Invalid status code'),
     }),
 });

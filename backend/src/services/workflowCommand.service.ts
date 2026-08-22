@@ -7,7 +7,8 @@
  */
 
 import { createHash } from 'crypto';
-import { Prisma, RequestStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 
 import { AppError } from '../middleware/error.middleware';
 import prisma from '../utils/prisma';

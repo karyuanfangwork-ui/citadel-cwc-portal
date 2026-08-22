@@ -4,7 +4,8 @@
 #   --no-pull    Skip git pull (use when repo is already up to date)
 #   --no-build   Skip docker build (use when images are current)
 #   --no-migrate Skip Prisma migrations (use when no schema changes)
-#   --no-seed    Skip database seed (use when no seed changes needed)
+#   --seed      Explicitly run the database seed (disabled by default to preserve production config)
+#   --no-seed   Skip database seed (default)
 #   --no-cache   Force Docker build with --no-cache (avoids stale code)
 #   --verbose    Enable verbose output
 #
@@ -15,7 +16,7 @@
 #   3. Verifies container has the new code (detects Docker cache issues)
 #   4. Runs Prisma migrations (with failed-migration detection)
 #   5. Syncs schema with prisma db push if needed
-#   6. Runs database seed
+#   6. Runs database seed only when explicitly requested with --seed
 #   7. Verifies seed applied critical changes (template fixes, new templates)
 #   8. Restarts containers
 #   9. Verifies health (backend + frontend)
@@ -32,7 +33,7 @@ BRANCH="dev2.0"
 NO_PULL=false
 NO_BUILD=false
 NO_MIGRATE=false
-NO_SEED=false
+NO_SEED=true
 NO_CACHE=false
 VERBOSE=false
 
@@ -41,6 +42,7 @@ for arg in "$@"; do
         --no-pull)    NO_PULL=true ;;
         --no-build)   NO_BUILD=true ;;
         --no-migrate) NO_MIGRATE=true ;;
+        --seed)       NO_SEED=false ;;
         --no-seed)    NO_SEED=true ;;
         --no-cache)   NO_CACHE=true ;;
         --verbose)    VERBOSE=true ;;
@@ -233,6 +235,41 @@ if [ "$NO_MIGRATE" = false ]; then
     fi
 else
     log "⏭️  Skipping migrations (--no-migrate)."
+fi
+
+# ═══════════════════════════════════════════════════════════════
+# Step 3c: Backfill only missing legacy status definitions
+# ═══════════════════════════════════════════════════════════════
+if [ "$NO_MIGRATE" = false ]; then
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "Step 3c: Verifying dynamic status catalog"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    STATUS_BACKFILL_OUTPUT=$(docker_exec "node dist/scripts/backfill-dynamic-status-definitions.js" 2>&1) || {
+        log "❌ Dynamic status catalog backfill failed:"
+        echo "$STATUS_BACKFILL_OUTPUT" | tail -20
+        exit 1
+    }
+    vlog "$STATUS_BACKFILL_OUTPUT"
+    if ! echo "$STATUS_BACKFILL_OUTPUT" | grep -q '"writePerformed": true'; then
+        log "❌ Dynamic status backfill did not report a write-safe result"
+        exit 1
+    fi
+    log "✅ Existing status definitions preserved; only missing legacy definitions may be created"
+
+    STATUS_VERIFY_OUTPUT=$(docker_exec "node dist/scripts/verify-dynamic-status-migration.js" 2>&1) || {
+        log "❌ Dynamic status catalog verification failed:"
+        echo "$STATUS_VERIFY_OUTPUT" | tail -30
+        exit 1
+    }
+    vlog "$STATUS_VERIFY_OUTPUT"
+    for FIELD in unknownRequests unknownSteps unknownTransitionsFrom unknownTransitionsTo unknownNodes duplicateCodes; do
+        if ! echo "$STATUS_VERIFY_OUTPUT" | grep -q "\"$FIELD\": 0"; then
+            log "❌ Dynamic status catalog verification found unresolved $FIELD references"
+            echo "$STATUS_VERIFY_OUTPUT"
+            exit 1
+        fi
+    done
+    log "✅ Dynamic status catalog verification passed"
 fi
 
 # ═══════════════════════════════════════════════════════════════
