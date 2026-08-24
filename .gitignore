@@ -69,6 +69,13 @@ docs
 /docs/*
 !/docs/esm-production-readiness/
 !/docs/esm-production-readiness/**
+# Maintainer handover packs (credit + ESM service-management) tracked in Git.
+!/docs/handover/
+/docs/handover/*
+!/docs/handover/**
+!/docs/handover-esm/
+/docs/handover-esm/*
+!/docs/handover-esm/**
 !/docs/superpowers/
 /docs/superpowers/*
 !/docs/superpowers/specs/

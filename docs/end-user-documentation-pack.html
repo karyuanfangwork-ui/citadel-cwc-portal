@@ -1460,12 +1460,11 @@
 
   <h2 id="track-46">4.6 Purchase Requisition Track</h2>
 
-  <p>Purchase Requisitions have a <strong>two-tier executive approval chain</strong> after CFO approval, determined by the finalised amount:</p>
+  <p>Purchase Requisitions have a <strong>two-tier executive approval chain</strong> after CFO approval. Every purchase requisition requires <strong>both the CFO and the Group Deputy CEO (Group DCEO)</strong> to approve, regardless of the amount:</p>
   <ul>
-    <li><strong>Finalised amount &gt; RM 15,000</strong> (configurable threshold): CFO → <strong>Group DCEO</strong> → Payment Processing</li>
-    <li><strong>Finalised amount ≤ RM 15,000</strong>: CFO → <strong>Group DCEO</strong> → Payment Processing</li>
+    <li>CFO → <strong>Group DCEO</strong> → Payment Processing</li>
   </ul>
-  <p>Both tiers ensure executive oversight before disbursement. All requisitions require Group DCEO sign-off — the threshold determines which tier of Group DCEO approval applies.</p>
+  <p>This two-tier approval ensures executive oversight before disbursement. All requisitions require Group DCEO sign-off after CFO approval.</p>
 
   <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
@@ -1473,8 +1472,7 @@
     <span class="node">Pending Acknowledgement</span><span class="arr">→</span>
     <span class="node">Acknowledged</span><span class="arr">→</span>
     <span class="node gate">CFO Approval</span><span class="arr">→</span>
-    <span class="node gate">Group DCEO Approval<br><small>(if ≤ RM 15K)</small></span><span class="arr">→</span>
-    <span class="node gate">Group DCEO Approval<br><small>(if &gt; RM 15K)</small></span><span class="arr">→</span>
+    <span class="node gate">Group DCEO Approval</span><span class="arr">→</span>
     <span class="node">Payment Processing</span><span class="arr">→</span>
     <span class="node">Awaiting Payment Confirmation</span><span class="arr">→</span>
     <span class="node end">Closed</span>
@@ -1482,7 +1480,7 @@
 
   <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
   <h3>4.6.1 &nbsp; Detailed User Journey — Purchase Requisition</h3>
-  <p>Purchase Requisitions are raised under <strong>Group Finance</strong>. A Finance agent acknowledges the request, sets a finalised amount, and routes it through the CFO approval chain. After CFO approval, the request branches based on the finalised amount: amounts ≤ RM 15,000 go to the <strong>Group DCEO</strong> for approval, while amounts &gt; RM 15,000 also go to the <strong>Group DCEO</strong>. Rejections loop back to Submitted so the requester can correct and resubmit.</p>
+  <p>Purchase Requisitions are raised under <strong>Group Finance</strong>. A Finance agent acknowledges the request, sets a finalised amount, and routes it through the CFO approval chain. After CFO approval, the request is routed to the <strong>Group DCEO</strong> for final executive sign-off, then to Payment Processing. Rejections loop back to Submitted so the requester can correct and resubmit.</p>
 
   <table>
     <thead>
@@ -1524,24 +1522,16 @@
         <td>4</td>
         <td><span class="badge b-blue">CFO Approval</span></td>
         <td>CFO</td>
-        <td>CFO reviews the financial commitment (cost, budget allocation, invoice). Clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment. <em>On approval, the system checks the finalised amount:</em> if &gt; RM 15,000 the request is routed to Group DCEO; if ≤ RM 15,000 it is also routed to the Group DCEO.</td>
+        <td>CFO reviews the financial commitment (cost, budget allocation, invoice). Clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment. <em>On approval, the request is routed to the Group DCEO for final executive sign-off.</em></td>
         <td>Stepper shows <strong>CFO Approval</strong>. SLA is <strong>paused</strong>. Requester sees the request is awaiting financial sign-off.</td>
-        <td>✅ Approve (amount &gt; RM 15K) → <span class="badge b-blue">Group DCEO Approval</span><br>✅ Approve (amount ≤ RM 15K) → <span class="badge b-blue">Group DCEO Approval</span><br>❌ Reject → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
+        <td>✅ Approve → <span class="badge b-blue">Group DCEO Approval</span><br>❌ Reject → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
       </tr>
       <tr>
         <td>5</td>
-        <td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">Only if ≤ RM 15K</span></td>
+        <td><span class="badge b-blue">Group DCEO Approval</span></td>
         <td>Group Deputy CEO (Group DCEO)</td>
-        <td>The Group DCEO reviews and approves or rejects <strong>standard-value</strong> purchase requisitions (finalised amount ≤ RM 15,000). This step ensures executive oversight for everyday purchases.</td>
+        <td>The Group DCEO reviews and approves or rejects the purchase requisition. This step ensures executive oversight for all purchases, regardless of amount.</td>
         <td>Stepper shows <strong>Group DCEO Approval</strong>. SLA paused. Requester sees the request is awaiting Group DCEO sign-off.</td>
-        <td>✅ Approve → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-red">Group DCEO Rejected</span> → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
-      </tr>
-      <tr>
-        <td>5*</td>
-        <td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">Only if &gt; RM 15K</span></td>
-        <td>Group Deputy CEO</td>
-        <td>Group DCEO reviews the high-level strategic and financial merit of <strong>high-value</strong> purchases (finalised amount &gt; RM 15,000). Approves or rejects with comment. <em>This step only applies when the finalised amount exceeds RM 15,000.</em></td>
-        <td>Stepper shows <strong>Group DCEO Approval</strong>. SLA paused. Requester sees the request is at the highest executive level (only shown when amount &gt; RM 15K).</td>
         <td>✅ Approve → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-red">Group DCEO Rejected</span> → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
       </tr>
       <tr>
@@ -1580,14 +1570,13 @@
     </thead>
     <tbody>
       <tr><td><span class="badge b-blue">CFO Approval</span></td><td><span class="badge b-red">CFO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. CFO's rejection comment is visible.</td><td><strong>Yes</strong> — correct the request and resubmit.</td></tr>
-      <tr><td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">≤ RM 15K</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. Group DCEO's rejection comment is visible.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
-      <tr><td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">&gt; RM 15K</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. Group DCEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
+      <tr><td><span class="badge b-blue">Group DCEO Approval</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. Group DCEO's rejection comment is visible.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
     </tbody>
   </table>
 
   <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
   <h3>4.6.3 &nbsp; Visual Flow — Finance Approval &amp; Payment</h3>
-  <p>The diagram below shows the two phases of a purchase requisition. After CFO approval, the request goes to the <strong>Group DCEO</strong> for approval (configurable threshold applies for the &gt; RM 15,000 tier).</p>
+  <p>The diagram below shows the two phases of a purchase requisition. After CFO approval, the request goes to the <strong>Group DCEO</strong> for approval, then to Payment Processing.</p>
 
   <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
     <!-- Phase A -->
@@ -1600,13 +1589,11 @@
         <span class="node gate">CFO<br>Approval</span>
       </div>
       <div style="margin-top:10px;font-size:12px;color:var(--muted)">
-        <strong>CFO approves — amount branches:</strong><br>
-        &nbsp;&nbsp;• <strong>Amount ≤ RM 15,000</strong> → routes to <strong>Group DCEO Approval</strong><br>
-        &nbsp;&nbsp;• <strong>Amount &gt; RM 15,000</strong> → routes to <strong>Group DCEO Approval</strong>
+        <strong>CFO approves — routes to Group DCEO:</strong><br>
+        &nbsp;&nbsp;• <strong>All amounts</strong> → routes to <strong>Group DCEO Approval</strong>
       </div>
       <div style="margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
-        <span class="node gate">Group DCEO Approval<br><small>(≤ RM 15K)</small></span><span class="arr">→</span>
-        <span class="node gate">Group DCEO Approval<br><small>(if &gt; RM 15K)</small></span>
+        <span class="node gate">Group DCEO Approval</span>
       </div>
       <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
         <span style="color:var(--warn);font-weight:600">Rejection loops back:</span>
@@ -1651,11 +1638,11 @@
       <li>Select the correct <strong>entity / business unit</strong> — wrong entity routes to the wrong approvers.</li>
       <li>The SLA timer <strong>pauses</strong> during CFO and Group DCEO approvals.</li>
       <li>Unlike IT approvals, finance rejections <strong>loop back to Submitted</strong> — you can correct and resubmit without creating a new request.</li>
-      <li>All purchase requisitions require <strong>Group DCEO</strong> approval after CFO. The RM 15,000 threshold determines the approval tier.</li>
+      <li>All purchase requisitions require <strong>Group DCEO</strong> approval after CFO, regardless of the amount.</li>
     </ul>
   </div>
   <div class="box example"><span class="lbl">Example Scenario</span>
-    A department lead needs to purchase three ergonomic desks (RM 4,500 total). They open <strong>Group Finance → Purchase Requisition</strong>, select "Office Supplies", enter the business unit, estimated cost RM 4,500, attach the vendor quotation PDF, and write a justification. A Finance agent acknowledges, sets the finalised amount, and routes to the CFO. The CFO approves — since RM 4,500 ≤ RM 15,000, the request goes to the <strong>Group DCEO</strong> for approval. The Group DCEO approves, Finance processes the payment and closes the ticket.
+    A department lead needs to purchase three ergonomic desks (RM 4,500 total). They open <strong>Group Finance → Purchase Requisition</strong>, select "Office Supplies", enter the business unit, estimated cost RM 4,500, attach the vendor quotation PDF, and write a justification. A Finance agent acknowledges, sets the finalised amount, and routes to the CFO. The CFO approves, and the request goes to the <strong>Group DCEO</strong> for approval. The Group DCEO approves, Finance processes the payment and closes the ticket.
   </div>
 
   <h2 id="track-47">4.7 Inter-Company Chargeback Track</h2>
