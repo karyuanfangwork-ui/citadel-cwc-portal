@@ -70,7 +70,17 @@ interface LeadAgingReport {
 interface WinLossReport {
   byReason: Array<{ lostReason: string; count: number; totalValue: number }>;
   totalWon: { count: number; value: number };
+  totalConvertedLeads: number;
+  convertedLeads: Array<{
+    id: string; title: string; companyName: string | null; accountName: string | null;
+    ownerName: string; convertedAt: string;
+  }>;
   totalLost: { count: number; value: number };
+  totalLostLeads: number;
+  lostLeads: Array<{
+    id: string; title: string; companyName: string | null; accountName: string | null;
+    ownerName: string; lostReason: string | null; updatedAt: string;
+  }>;
   winRate: number;
   period: { from: string; to: string };
 }
@@ -101,7 +111,8 @@ function downloadCsv(data: Record<string, unknown>[], filename: string) {
     return s;
   };
   const csv = [headers.join(','), ...data.map(row => headers.map(h => escapeCell(row[h])).join(','))].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  // UTF-8 BOM lets Excel detect Unicode CSV content instead of decoding it as a legacy code page.
+  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -909,6 +920,37 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
     );
   };
 
+  const handleLostLeadsExport = () => {
+    if (!data || data.lostLeads.length === 0) return;
+    downloadCsv(
+      data.lostLeads.map(lead => ({
+        'Lead ID': lead.id,
+        Lead: lead.title,
+        Company: lead.companyName || lead.accountName || 'Not specified',
+        Account: lead.accountName || '',
+        Owner: lead.ownerName || '—',
+        Reason: lead.lostReason || 'Not specified',
+        'Lost Date': new Date(lead.updatedAt).toLocaleDateString('en-MY'),
+      })),
+      'lost-leads-report.csv',
+    );
+  };
+
+  const handleConvertedLeadsExport = () => {
+    if (!data || data.convertedLeads.length === 0) return;
+    downloadCsv(
+      data.convertedLeads.map(lead => ({
+        'Lead ID': lead.id,
+        Lead: lead.title,
+        Company: lead.companyName || lead.accountName || 'Not specified',
+        Account: lead.accountName || '',
+        Owner: lead.ownerName || '—',
+        'Won Date': new Date(lead.convertedAt).toLocaleDateString('en-MY'),
+      })),
+      'won-leads-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
@@ -916,32 +958,142 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
     <div className="space-y-5">
       <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <SummaryCard label="Win Rate" value={`${data.winRate.toFixed(1)}%`} />
-        <SummaryCard label="Won" value={`${data.totalWon.count} (${myr.format(data.totalWon.value)})`} />
-        <SummaryCard label="Lost" value={`${data.totalLost.count} (${myr.format(data.totalLost.value)})`} />
+        <SummaryCard label="Deal Win Rate" value={`${data.winRate.toFixed(1)}%`} />
+        <SummaryCard label="Won Deals" value={`${data.totalWon.count} (${myr.format(data.totalWon.value)})`} />
+        <SummaryCard label="Won Leads" value={data.totalConvertedLeads} />
+        <SummaryCard label="Lost Deals" value={`${data.totalLost.count} (${myr.format(data.totalLost.value)})`} />
+        <SummaryCard label="Lost Leads" value={data.totalLostLeads} />
       </div>
 
-      {/* Won vs Lost PieChart */}
+      {data.convertedLeads.length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-semibold text-text-primary">Won Leads</h3>
+            <CsvBtn onClick={handleConvertedLeadsExport} label="Export Won Leads" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-text-secondary text-xs uppercase">
+                  <th className="text-left pb-2">Lead</th>
+                  <th className="text-left pb-2">Company</th>
+                  <th className="text-left pb-2">Account</th>
+                  <th className="text-left pb-2">Owner</th>
+                  <th className="text-right pb-2">Won Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.convertedLeads.map(lead => (
+                  <tr key={lead.id} className="border-t border-border">
+                    <td className="py-2 pr-3">
+                      <Link to={`/crm/leads/${lead.id}`} className="text-brand-600 hover:underline font-medium">
+                        {lead.title}
+                      </Link>
+                      <div className="text-xs text-text-secondary">{lead.id}</div>
+                    </td>
+                    <td className="py-2 pr-3 text-text-primary">{lead.companyName || lead.accountName || 'Not specified'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{lead.accountName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{lead.ownerName || '—'}</td>
+                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(lead.convertedAt).toLocaleDateString('en-MY')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {data.lostLeads.length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-semibold text-text-primary">Lost Leads</h3>
+            <CsvBtn onClick={handleLostLeadsExport} label="Export Lost Leads" />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-text-secondary text-xs uppercase">
+                  <th className="text-left pb-2">Lead</th>
+                  <th className="text-left pb-2">Company</th>
+                  <th className="text-left pb-2">Account</th>
+                  <th className="text-left pb-2">Owner</th>
+                  <th className="text-left pb-2">Reason</th>
+                  <th className="text-right pb-2">Lost Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.lostLeads.map(lead => (
+                  <tr key={lead.id} className="border-t border-border">
+                    <td className="py-2 pr-3">
+                      <Link to={`/crm/leads/${lead.id}`} className="text-brand-600 hover:underline font-medium">
+                        {lead.title}
+                      </Link>
+                      <div className="text-xs text-text-secondary">{lead.id}</div>
+                    </td>
+                    <td className="py-2 pr-3 text-text-primary">{lead.companyName || lead.accountName || 'Not specified'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{lead.accountName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{lead.ownerName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{lead.lostReason || 'Not specified'}</td>
+                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(lead.updatedAt).toLocaleDateString('en-MY')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lead outcomes chart — uses the same lead records shown above. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Won vs Lost</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={[
-                  { name: 'Won', value: data.totalWon.count },
-                  { name: 'Lost', value: data.totalLost.count },
-                ]}
-                cx="50%" cy="50%" innerRadius={60} outerRadius={90}
-                dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
-                <Cell fill="#10B981" />
-                <Cell fill="#EF4444" />
-              </Pie>
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Lead Outcomes</h3>
+          {data.totalConvertedLeads + data.totalLostLeads > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Won Leads', value: data.totalConvertedLeads },
+                    { name: 'Lost Leads', value: data.totalLostLeads },
+                  ]}
+                  cx="50%" cy="50%" innerRadius={60} outerRadius={90}
+                  dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  <Cell fill="#10B981" />
+                  <Cell fill="#EF4444" />
+                </Pie>
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-text-secondary py-20 text-center">No converted or lost leads in this period.</p>
+          )}
+        </div>
+
+        {/* Deal outcomes — never render an empty chart. */}
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Deal Outcomes</h3>
+          {data.totalWon.count + data.totalLost.count > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Won Deals', value: data.totalWon.count },
+                    { name: 'Lost Deals', value: data.totalLost.count },
+                  ]}
+                  cx="50%" cy="50%" innerRadius={60} outerRadius={90}
+                  dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  <Cell fill="#10B981" />
+                  <Cell fill="#EF4444" />
+                </Pie>
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-text-secondary py-20 text-center">No won or lost deals in this period.</p>
+          )}
         </div>
 
         {/* Lost Reasons BarChart */}

@@ -573,7 +573,28 @@ export interface WinLossReport {
     totalValue: number;
   }>;
   totalWon: { count: number; value: number };
+  /** Converted CRM leads are tracked separately from won opportunities/deals. */
+  totalConvertedLeads: number;
+  convertedLeads: Array<{
+    id: string;
+    title: string;
+    companyName: string | null;
+    accountName: string | null;
+    ownerName: string;
+    convertedAt: Date;
+  }>;
   totalLost: { count: number; value: number };
+  /** Lost CRM leads are tracked separately from lost opportunities/deals. */
+  totalLostLeads: number;
+  lostLeads: Array<{
+    id: string;
+    title: string;
+    companyName: string | null;
+    accountName: string | null;
+    ownerName: string;
+    lostReason: string | null;
+    updatedAt: Date;
+  }>;
   winRate: number;
   period: { from: Date; to: Date };
 }
@@ -606,6 +627,67 @@ export async function getWinLossReport(
     select: { id: true, value: true, lostReason: true },
   });
 
+  // Leads have their own lifecycle and do not create an opportunity when lost.
+  // Use updatedAt as the status-transition timestamp because CrmLead has no
+  // dedicated lostAt column; the lead status update is the authoritative event.
+  const lostLeads = await prisma.crmLead.findMany({
+    where: {
+      ...ownerFilter,
+      status: 'LOST',
+      updatedAt: { gte: from, lte: to },
+      deletedAt: null,
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      companyName: true,
+      lostReason: true,
+      updatedAt: true,
+      account: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  const lostLeadDetails = lostLeads.map((lead) => ({
+    id: lead.id,
+    title: lead.title,
+    companyName: lead.companyName,
+    accountName: lead.account?.name ?? null,
+    ownerName: `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
+    lostReason: lead.lostReason,
+    updatedAt: lead.updatedAt,
+  }));
+
+  const convertedLeads = await prisma.crmLead.findMany({
+    where: {
+      ...ownerFilter,
+      status: 'CONVERTED',
+      convertedAt: { not: null, gte: from, lte: to },
+      deletedAt: null,
+    },
+    orderBy: { convertedAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      companyName: true,
+      convertedAt: true,
+      account: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  const convertedLeadDetails = convertedLeads
+    .filter((lead): lead is typeof lead & { convertedAt: Date } => lead.convertedAt !== null)
+    .map((lead) => ({
+      id: lead.id,
+      title: lead.title,
+      companyName: lead.companyName,
+      accountName: lead.account?.name ?? null,
+      ownerName: `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
+      convertedAt: lead.convertedAt,
+    }));
+
   // Aggregate by loss reason
   const reasonMap = new Map<string, { count: number; totalValue: number }>();
   for (const deal of lostDeals) {
@@ -629,7 +711,11 @@ export async function getWinLossReport(
   return {
     byReason,
     totalWon: { count: wonDeals.length, value: totalWonValue },
+    totalConvertedLeads: convertedLeadDetails.length,
+    convertedLeads: convertedLeadDetails,
     totalLost: { count: lostDeals.length, value: totalLostValue },
+    totalLostLeads: lostLeadDetails.length,
+    lostLeads: lostLeadDetails,
     winRate,
     period: { from, to },
   };
