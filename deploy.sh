@@ -28,6 +28,7 @@ PROD_HOST="root@152.42.246.217"
 PROD_DIR="/var/www/citadel-cwc-portal"
 COMPOSE_FILE="docker-compose.prod.yml"
 BRANCH="dev2.0"
+REPO_URL="https://github.com/cgt-tech-admin/citadel-cwc-portal-new.git"
 
 # ── Parse Args ──────────────────────────────────────────────
 NO_PULL=false
@@ -119,7 +120,7 @@ if [ "$NO_PULL" = false ]; then
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log "Step 1: Pulling latest code from $BRANCH..."
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    PULL_OUTPUT=$(ssh_exec "git fetch origin && git checkout $BRANCH && git pull origin $BRANCH")
+    PULL_OUTPUT=$(ssh_exec "git remote set-url origin $REPO_URL && test \"\$(git config --get remote.origin.url)\" = \"$REPO_URL\" && git fetch origin && git checkout $BRANCH && git pull origin $BRANCH")
     vlog "$PULL_OUTPUT"
     log "✅ Code updated."
 
