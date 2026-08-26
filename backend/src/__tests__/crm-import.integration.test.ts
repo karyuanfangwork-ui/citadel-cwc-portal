@@ -610,6 +610,32 @@ describe('Import pipeline - full happy path', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(executeRes.body.data).toMatchObject({ importedRows: 1, activitiesCreated: 1, updatedRows: 1, failedRows: 0 });
 
+    const retryRes = await request(app)
+      .post(`/api/v1/crm/import/${jobId}/execute`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(retryRes.status).toBe(200);
+    expect(retryRes.body.data).toMatchObject({ executionStatus: 'COMPLETED', importedRows: 1, activitiesCreated: 1, updatedRows: 1, failedRows: 0 });
+
+    const duplicateUploadRes = await request(app)
+      .post('/api/v1/crm/import/upload?entity=LEAD&mode=activity-update')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', csvBuffer, { filename: `lead-activity-update-duplicate-${suffix}.csv`, contentType: 'text/csv' });
+    expect(duplicateUploadRes.status).toBe(200);
+    const duplicateJobId = duplicateUploadRes.body.data.jobId;
+    await request(app)
+      .post(`/api/v1/crm/import/${duplicateJobId}/mapping`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ columnMapping: { 'Lead ID': 'leadId', 'Activity Type': 'activityType', 'Activity Subject': 'activitySubject' } })
+      .expect(200);
+    const duplicateExecuteRes = await request(app)
+      .post(`/api/v1/crm/import/${duplicateJobId}/execute`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(duplicateExecuteRes.status).toBe(200);
+    expect(duplicateExecuteRes.body.data).toMatchObject({ importedRows: 0, activitiesCreated: 0, updatedRows: 0, skippedRows: 1, duplicateRows: 1, failedRows: 0 });
+    expect(duplicateExecuteRes.body.data.duplicateDetails).toEqual([
+      expect.objectContaining({ row: 2, matchedBy: 'Lead ID + Activity Type + Activity Subject', matchSource: 'existing activity' }),
+    ]);
+
     const unchangedLead = await prisma.crmLead.findUnique({ where: { id: lead.id } });
     expect(unchangedLead).toMatchObject({ title: `Activity Update Target ${suffix}`, status: 'NEW', ownerId: adminId, emailDeliveryDate: new Date('2026-08-19T00:00:00.000Z') });
     await expect(prisma.crmActivity.findMany({ where: { leadId: lead.id } })).resolves.toEqual([

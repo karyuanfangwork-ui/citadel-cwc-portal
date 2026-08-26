@@ -953,8 +953,10 @@ const crmService = {
     return res.data.data as { valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] };
   },
   async executeImport(jobId: string) {
-    const res = await api.post(`/crm/import/${jobId}/execute`);
+    const res = await api.post(`/crm/import/${jobId}/execute`, undefined, { timeout: 120000 });
     return res.data.data as {
+      executionStatus?: 'COMPLETED' | 'FAILED' | 'IMPORTING';
+      jobId?: string;
       importedRows: number;
       activitiesCreated?: number;
       updatedRows?: number;
@@ -964,7 +966,7 @@ const crmService = {
         row: number;
         matchedBy: string;
         matchedRow?: number;
-        matchSource: 'existing lead' | 'earlier spreadsheet row';
+        matchSource: 'existing lead' | 'existing activity' | 'earlier spreadsheet row';
       }>;
       failedRows: number;
       errors: Array<{ row: number; error: string }>;

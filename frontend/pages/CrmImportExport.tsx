@@ -35,7 +35,18 @@ interface DuplicateDetail {
   row: number;
   matchedBy: string;
   matchedRow?: number;
-  matchSource: 'existing lead' | 'earlier spreadsheet row';
+  matchSource: 'existing lead' | 'existing activity' | 'earlier spreadsheet row';
+}
+
+interface ImportResult {
+  importedRows: number;
+  activitiesCreated?: number;
+  updatedRows?: number;
+  skippedRows?: number;
+  duplicateRows: number;
+  duplicateDetails: DuplicateDetail[];
+  failedRows: number;
+  errors: Array<{ row: number; error: string }>;
 }
 
 const STEP_LABELS: Record<ImportStep, string> = {
@@ -94,7 +105,7 @@ const CrmImportExport = () => {
   const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ importedRows: number; activitiesCreated?: number; updatedRows?: number; skippedRows?: number; duplicateRows: number; duplicateDetails: DuplicateDetail[]; failedRows: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedImportId, setExpandedImportId] = useState<string | null>(null);
@@ -177,25 +188,72 @@ const CrmImportExport = () => {
     }
   }, [jobId, columnMapping]);
 
+  const waitForImportCompletion = useCallback(async (id: string): Promise<ImportResult> => {
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      const status = await crmService.getImportStatus(id) as Record<string, any>;
+      if (status.status === 'COMPLETED' || status.status === 'FAILED') {
+        const duplicateDetails = Array.isArray(status.duplicateReport) ? status.duplicateReport : [];
+        const errors = Array.isArray(status.errorReport) ? status.errorReport : [];
+        const activityUpdate = status.entity === 'LEAD_ACTIVITY_UPDATE';
+        return {
+          importedRows: Number(status.importedRows || 0),
+          ...(activityUpdate ? { activitiesCreated: Number(status.importedRows || 0), updatedRows: Number(status.importedRows || 0) } : {}),
+          ...(activityUpdate ? { skippedRows: duplicateDetails.length } : {}),
+          duplicateRows: duplicateDetails.length,
+          duplicateDetails,
+          failedRows: Number(status.failedRows || 0),
+          errors: errors.slice(0, 50),
+        };
+      }
+      if (status.status !== 'IMPORTING' && status.status !== 'PENDING' && status.status !== 'PREVIEW') {
+        throw new Error(`Import ended in unexpected status: ${status.status}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+    throw new Error('Import is taking longer than expected. Check Import History for the final result.');
+  }, []);
+
   // ── Execute import ──
   const handleExecuteImport = useCallback(async () => {
     setImporting(true);
     setError(null);
     setImportStep('importing');
     try {
-      const result = await crmService.executeImport(jobId);
+      const initialResult = await crmService.executeImport(jobId);
+      const result = initialResult.executionStatus === 'IMPORTING'
+        ? await waitForImportCompletion(jobId)
+        : initialResult;
       setImportResult(result);
       setImportStep('complete');
       // Refresh history
       const hist = await crmService.getImportHistory();
       setImportHistory(hist.jobs);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Import failed');
+      const message = err?.response?.data?.message || err?.message || 'Import failed';
+      const isRecoverable = err?.code === 'ECONNABORTED'
+        || err?.code === 'ERR_NETWORK'
+        || String(err?.message || '').toLowerCase().includes('timeout')
+        || (err?.response?.status === 500 && message === 'Import job has already been processed');
+      if (isRecoverable) {
+        try {
+          const result = await waitForImportCompletion(jobId);
+          setImportResult(result);
+          setImportStep('complete');
+          const hist = await crmService.getImportHistory();
+          setImportHistory(hist.jobs);
+          return;
+        } catch (recoveryError: any) {
+          setError(recoveryError?.message || message);
+        }
+      } else {
+        setError(message);
+      }
       setImportStep('validating');
     } finally {
       setImporting(false);
     }
-  }, [jobId]);
+  }, [jobId, waitForImportCompletion]);
 
   // ── Reset import ──
   const handleResetImport = useCallback(() => {
@@ -358,7 +416,7 @@ const CrmImportExport = () => {
                       <option value="email-delivery-update">Update Email Delivery Date</option>
                     </select>
                     {importMode === 'activity-update' && (
-                      <p className="text-xs text-brand-700 mt-1.5">Only activity logs will be added. Match rows using Lead ID.</p>
+                      <p className="text-xs text-brand-700 mt-1.5">Only activity logs will be added. Match rows using Lead ID; duplicate activities are rejected using Lead ID, Activity Type, and Activity Subject.</p>
                     )}
                     {importMode === 'email-delivery-update' && (
                       <p className="text-xs text-brand-700 mt-1.5">Only Email Delivery Date will be updated. Match rows using Lead ID.</p>
@@ -619,12 +677,12 @@ const CrmImportExport = () => {
                   <div className="rounded-cwc-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-4">
                     <p className="text-sm font-semibold text-amber-900">Duplicate rows were skipped</p>
                     <p className="text-sm text-amber-800 mt-1">
-                      These spreadsheet rows were not imported because they matched an earlier row in this file or an existing Lead. Review the matching field and source below.
+                      These spreadsheet rows were not imported because they matched an earlier row in this file or an existing activity. Review the matching key and source below.
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {importResult.duplicateDetails.map((duplicate) => (
                         <span key={duplicate.row} className="inline-flex items-center rounded-full bg-white border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900">
-                          Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : 'matches an existing Lead'}
+                          Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : duplicate.matchSource === 'existing activity' ? 'matches an existing activity' : 'matches an existing Lead'}
                         </span>
                       ))}
                     </div>
@@ -689,7 +747,7 @@ const CrmImportExport = () => {
                               <div className="flex flex-wrap gap-2 mt-2">
                                 {(job.duplicateReport as DuplicateDetail[]).map((duplicate) => (
                                   <span key={`${job.id}-${duplicate.row}`} className="inline-flex items-center rounded-full bg-white border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-900">
-                                    Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : 'matches an existing Lead'}
+                                    Row {duplicate.row} · {duplicate.matchedBy} · {duplicate.matchSource === 'earlier spreadsheet row' ? `matches row ${duplicate.matchedRow}` : duplicate.matchSource === 'existing activity' ? 'matches an existing activity' : 'matches an existing Lead'}
                                   </span>
                                 ))}
                               </div>

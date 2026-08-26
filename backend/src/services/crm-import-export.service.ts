@@ -175,6 +175,10 @@ function leadDuplicateKey(data: Record<string, unknown>): string | null {
   return null;
 }
 
+function activityDuplicateKey(leadId: string, activityType: string, subject: string): string {
+  return `${leadId}:${activityType}:${normalizeIdentityValue(subject)}`;
+}
+
 // ============================================================================
 // IMPORT SERVICE
 // ============================================================================
@@ -387,25 +391,61 @@ export async function validateImportMapping(
   return { valid: errors.length === 0, errors: errors.slice(0, 50), warnings };
 }
 
-export async function executeImport(jobId: string, userId: string, visibleOwnerIds?: string[] | null): Promise<{
+type ImportExecutionResult = {
+  executionStatus?: 'COMPLETED' | 'FAILED' | 'IMPORTING';
+  jobId?: string;
   importedRows: number;
+  activitiesCreated?: number;
+  updatedRows?: number;
+  skippedRows?: number;
   duplicateRows: number;
   duplicateDetails: {
     row: number;
     matchedBy: string;
     matchedRow?: number;
-    matchSource: 'existing lead' | 'earlier spreadsheet row';
+    matchSource: 'existing lead' | 'existing activity' | 'earlier spreadsheet row';
   }[];
   failedRows: number;
   errors: { row: number; error: string }[];
-}> {
+};
+
+function resultFromImportJob(job: any): ImportExecutionResult {
+  const errors = Array.isArray(job.errorReport) ? job.errorReport : [];
+  const duplicateDetails = Array.isArray(job.duplicateReport) ? job.duplicateReport : [];
+  const isActivityUpdate = job.entity === LEAD_ACTIVITY_UPDATE_ENTITY;
+
+  return {
+    executionStatus: job.status as ImportExecutionResult['executionStatus'],
+    jobId: job.id,
+    importedRows: job.importedRows ?? 0,
+    ...(isActivityUpdate ? { activitiesCreated: job.importedRows ?? 0, updatedRows: job.importedRows ?? 0 } : {}),
+    ...(isActivityUpdate ? { skippedRows: duplicateDetails.length } : {}),
+    duplicateRows: duplicateDetails.length,
+    duplicateDetails,
+    failedRows: job.failedRows ?? 0,
+    errors: errors.slice(0, 50),
+  };
+}
+
+export async function executeImport(jobId: string, userId: string, visibleOwnerIds?: string[] | null): Promise<ImportExecutionResult> {
   const job = await prisma.crmImportJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error('Import job not found');
   if (job.createdBy !== userId) throw new Error('Not authorized');
-  if (job.status === 'IMPORTING') throw new Error('Import is already in progress');
-  if (job.status === 'COMPLETED' || job.status === 'FAILED') throw new Error('Import job has already been processed');
 
-  await prisma.crmImportJob.update({ where: { id: jobId }, data: { status: 'IMPORTING' } });
+  // Claim atomically so a client retry or concurrent click cannot execute the
+  // same job twice. The original read-then-update sequence had a race window.
+  const claim = await prisma.crmImportJob.updateMany({
+    where: { id: jobId, createdBy: userId, status: { in: ['PENDING', 'PREVIEW'] } },
+    data: { status: 'IMPORTING' },
+  });
+  if (claim.count === 0) {
+    const currentJob = await prisma.crmImportJob.findUnique({ where: { id: jobId } });
+    if (!currentJob) throw new Error('Import job not found');
+    if (currentJob.status === 'IMPORTING' || currentJob.status === 'COMPLETED' || currentJob.status === 'FAILED') {
+      return resultFromImportJob(currentJob);
+    }
+    throw new Error(`Import job cannot be executed from status ${currentJob.status}`);
+  }
 
   if (job.entity === LEAD_ACTIVITY_UPDATE_ENTITY) {
     return executeLeadActivityUpdate(job, userId, visibleOwnerIds);
@@ -423,12 +463,12 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
     row: number;
     matchedBy: string;
     matchedRow?: number;
-    matchSource: 'existing lead' | 'earlier spreadsheet row';
+    matchSource: 'existing lead' | 'existing activity' | 'earlier spreadsheet row';
   }[] = [];
   let failedRows = 0;
   const allErrors: { row: number; error: string }[] = [];
 
-  const existingLeadKeys = new Map<string, { source: 'existing lead' | 'earlier spreadsheet row'; row?: number }>();
+  const existingLeadKeys = new Map<string, { source: 'existing lead' | 'existing activity' | 'earlier spreadsheet row'; row?: number }>();
   if (job.entity === 'LEAD') {
     const existingLeads = await prisma.crmLead.findMany({
       where: { ownerId: userId, deletedAt: null },
@@ -502,7 +542,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
               row: number;
               matchedBy: string;
               matchedRow?: number;
-              matchSource: 'existing lead' | 'earlier spreadsheet row';
+              matchSource: 'existing lead' | 'existing activity' | 'earlier spreadsheet row';
             } = {
               // rawData starts after the spreadsheet header row.
               row: i + 2,
@@ -667,13 +707,37 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
   return { importedRows, duplicateRows, duplicateDetails, failedRows, errors: allErrors.slice(0, 50) };
 }
 
-async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null) {
+async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null): Promise<ImportExecutionResult> {
   const rawData = (job.rawData as Record<string, unknown>[]) || [];
   const columnMapping = (job.columnMapping as Record<string, string>) || {};
   const importingUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
   let activitiesCreated = 0;
+  let duplicateRows = 0;
+  const duplicateDetails: {
+    row: number;
+    matchedBy: string;
+    matchedRow?: number;
+    matchSource: 'existing activity' | 'earlier spreadsheet row';
+  }[] = [];
   let failedRows = 0;
   const errors: { row: number; error: string }[] = [];
+
+  const leadIdHeader = Object.entries(columnMapping).find(([, fieldKey]) => fieldKey === 'leadId')?.[0];
+  const leadIds = Array.from(new Set(rawData
+    .map(row => String(leadIdHeader ? row[leadIdHeader] ?? '' : '').trim())
+    .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))));
+  const existingActivities = leadIds.length > 0
+    ? await prisma.crmActivity.findMany({
+      where: { leadId: { in: leadIds } },
+      select: { leadId: true, activityType: true, subject: true },
+    })
+    : [];
+  const existingActivityKeys = new Set(
+    existingActivities
+      .filter(activity => activity.leadId)
+      .map(activity => activityDuplicateKey(activity.leadId!, activity.activityType, activity.subject))
+  );
+  const importedActivityRows = new Map<string, number>();
 
   for (let i = 0; i < rawData.length; i++) {
     const row = rawData[i];
@@ -700,7 +764,31 @@ async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerI
       });
       if (!lead) throw new Error('Lead was not found or is not visible to you');
 
+      const duplicateKey = activityDuplicateKey(lead.id, activityType, subject);
+      if (existingActivityKeys.has(duplicateKey)) {
+        duplicateRows++;
+        const matchedEarlierRow = importedActivityRows.get(duplicateKey);
+        duplicateDetails.push({
+          row: i + 2,
+          matchedBy: 'Lead ID + Activity Type + Activity Subject',
+          ...(matchedEarlierRow ? { matchedRow: matchedEarlierRow } : {}),
+          matchSource: matchedEarlierRow ? 'earlier spreadsheet row' : 'existing activity',
+        });
+        continue;
+      }
+
+      let duplicateDetectedInTransaction = false;
       const activity = await prisma.$transaction(async (tx) => {
+        // Serialize identical activity fingerprints across concurrent import jobs.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${duplicateKey}))`;
+        const matchingActivities = await tx.crmActivity.findMany({
+          where: { leadId: lead.id, activityType: activityType as CrmActivityType },
+          select: { subject: true },
+        });
+        if (matchingActivities.some(existing => normalizeIdentityValue(existing.subject) === normalizeIdentityValue(subject))) {
+          duplicateDetectedInTransaction = true;
+          return null;
+        }
         const created = await tx.crmActivity.create({
           data: {
             activityType: activityType as CrmActivityType,
@@ -722,7 +810,23 @@ async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerI
         return created;
       });
 
+      if (!activity && duplicateDetectedInTransaction) {
+        duplicateRows++;
+        const matchedEarlierRow = importedActivityRows.get(duplicateKey);
+        duplicateDetails.push({
+          row: i + 2,
+          matchedBy: 'Lead ID + Activity Type + Activity Subject',
+          ...(matchedEarlierRow ? { matchedRow: matchedEarlierRow } : {}),
+          matchSource: matchedEarlierRow ? 'earlier spreadsheet row' : 'existing activity',
+        });
+        existingActivityKeys.add(duplicateKey);
+        continue;
+      }
+      if (!activity) throw new Error('Activity could not be created');
+
       activitiesCreated++;
+      existingActivityKeys.add(duplicateKey);
+      importedActivityRows.set(duplicateKey, i + 2);
       broadcast('crm_update', { type: 'activity.created', entityType: 'activity', id: activity.id, changedBy: userId });
     } catch (err) {
       failedRows++;
@@ -730,30 +834,34 @@ async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerI
     }
   }
 
+  const executionStatus = rawData.length > 0 && failedRows < rawData.length ? 'COMPLETED' : 'FAILED';
   await prisma.crmImportJob.update({
     where: { id: job.id },
     data: {
-      status: rawData.length > 0 && failedRows < rawData.length ? 'COMPLETED' : 'FAILED',
+      status: executionStatus,
       importedRows: activitiesCreated,
       failedRows,
       errorReport: errors.length > 0 ? (errors as any) : undefined,
+      duplicateReport: duplicateDetails as any,
       completedAt: new Date(),
     },
   });
 
   return {
+    executionStatus,
+    jobId: job.id,
     importedRows: activitiesCreated,
     activitiesCreated,
     updatedRows: activitiesCreated,
-    skippedRows: 0,
-    duplicateRows: 0,
-    duplicateDetails: [],
+    skippedRows: duplicateRows,
+    duplicateRows,
+    duplicateDetails,
     failedRows,
     errors: errors.slice(0, 50),
   };
 }
 
-async function executeLeadEmailDeliveryUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null) {
+async function executeLeadEmailDeliveryUpdate(job: any, userId: string, visibleOwnerIds?: string[] | null): Promise<ImportExecutionResult> {
   const rawData = (job.rawData as Record<string, unknown>[]) || [];
   const columnMapping = (job.columnMapping as Record<string, string>) || {};
   const importingUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
