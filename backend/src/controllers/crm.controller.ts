@@ -1537,8 +1537,8 @@ class CrmController {
     respondOrCsv(res, report,
       companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv',
       companyCsv
-        ? ['companyName', 'accountId', 'activityCount', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'merchantsSignedUp', 'merchantsDeclined']
-        : ['date', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'merchantsSignedUp', 'merchantsDeclined'],
+        ? ['companyName', 'accountId', 'activityCount', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetings', 'meetingsArranged', 'meetingsPresented', 'merchantsSignedUp', 'merchantsDeclined']
+        : ['date', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetings', 'meetingsArranged', 'meetingsPresented', 'merchantsSignedUp', 'merchantsDeclined'],
       d => companyCsv ? d.byCompany : d.daily,
       companyCsv ? 'csv' : req.query.format as string);
   });

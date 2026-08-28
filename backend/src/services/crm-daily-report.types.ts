@@ -25,7 +25,9 @@ export interface DailyOperationalRow {
   notInterested: number;
   wrongNumber: number;
   notReachable: number;
+  meetings: number;
   meetingsArranged: number;
+  meetingsPresented: number;
   merchantsSignedUp: number;
   merchantsDeclined: number;
 }

@@ -34,7 +34,9 @@ function emptyRow(date: string): DailyOperationalRow {
     notInterested: 0,
     wrongNumber: 0,
     notReachable: 0,
+    meetings: 0,
     meetingsArranged: 0,
+    meetingsPresented: 0,
     merchantsSignedUp: 0,
     merchantsDeclined: 0,
   };
@@ -137,8 +139,10 @@ function addActivity(row: Omit<DailyOperationalRow, 'date'>, activity: {
     if (activity.callOutcome === 'NOT_REACHABLE') row.notReachable++;
   }
 
-  if (activity.activityType === 'MEETING' && activity.meetingOutcome === 'ARRANGED') {
-    row.meetingsArranged++;
+  if (activity.activityType === 'MEETING') {
+    row.meetings++;
+    if (activity.meetingOutcome === 'ARRANGED') row.meetingsArranged++;
+    if (activity.meetingOutcome === 'COMPLETED') row.meetingsPresented++;
   }
 }
 

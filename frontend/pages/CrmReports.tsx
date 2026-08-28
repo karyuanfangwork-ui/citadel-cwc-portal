@@ -44,7 +44,7 @@ interface DailyOperationalRow {
   date: string;
   emailsSent: number; emailBounces: number; newCalls: number; followUpCalls: number;
   callEngagement: number; interested: number; noAnswer: number; notInterested: number;
-  wrongNumber: number; notReachable: number; meetingsArranged: number;
+  wrongNumber: number; notReachable: number; meetings: number; meetingsArranged: number; meetingsPresented: number;
   merchantsSignedUp: number; merchantsDeclined: number;
 }
 
@@ -603,6 +603,10 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
     );
   };
 
+  const handleDetailExport = () => {
+    crmService.downloadDailyOperationalActivityDetail({ from, to });
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
@@ -611,7 +615,10 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
+      <div className="flex justify-end gap-2 flex-wrap">
+        <CsvBtn onClick={handleExport} label="Export Summary CSV" />
+        <CsvBtn onClick={handleDetailExport} label="Export Activity Detail CSV" />
+      </div>
       <SummaryCard label="Total Activities" value={data.totalActivities} />
 
       <div className="bg-bg-surface border border-border rounded-xl p-5">
@@ -694,7 +701,9 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
       'Not Interested': row.notInterested,
       'Wrong Number': row.wrongNumber,
       'Not Reachable': row.notReachable,
+      Meetings: row.meetings,
       'Meetings Arranged': row.meetingsArranged,
+      'Meetings Presented': row.meetingsPresented,
       'Merchants Signed Up': row.merchantsSignedUp,
       'Merchants Declined': row.merchantsDeclined,
     })), 'crm-daily-operational.csv');
@@ -716,7 +725,9 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
  'Not Interested': row.notInterested,
  'Wrong Number': row.wrongNumber,
  'Not Reachable': row.notReachable,
+ Meetings: row.meetings,
  'Meetings Arranged': row.meetingsArranged,
+ 'Meetings Presented': row.meetingsPresented,
  'Merchants Signed Up': row.merchantsSignedUp,
  'Merchants Declined': row.merchantsDeclined,
  })), 'crm-daily-operational-by-company.csv');
@@ -733,7 +744,8 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
     ['Email Sent', 'emailsSent'], ['Bounce', 'emailBounces'], ['New Calls', 'newCalls'],
     ['Follow-up', 'followUpCalls'], ['Engagement', 'callEngagement'], ['Interested', 'interested'],
     ['No Answer', 'noAnswer'], ['Not Interested', 'notInterested'], ['Wrong Number', 'wrongNumber'],
-    ['Not Reachable', 'notReachable'], ['Meetings', 'meetingsArranged'], ['Signed Up', 'merchantsSignedUp'],
+    ['Not Reachable', 'notReachable'], ['Meetings', 'meetings'], ['Meetings Arranged', 'meetingsArranged'],
+    ['Meetings Presented', 'meetingsPresented'], ['Signed Up', 'merchantsSignedUp'],
     ['Declined', 'merchantsDeclined'],
   ];
 

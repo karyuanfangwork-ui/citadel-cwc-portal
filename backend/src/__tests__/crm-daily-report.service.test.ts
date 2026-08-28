@@ -31,6 +31,16 @@ describe('CRM daily operational report', () => {
         emailOutcome: null, meetingOutcome: 'ARRANGED', engagementOutcome: null,
         createdAt: new Date('2026-08-17T04:00:00.000Z'),
       },
+      {
+        activityType: 'MEETING', callCategory: null, callOutcome: null,
+        emailOutcome: null, meetingOutcome: 'COMPLETED', engagementOutcome: null,
+        createdAt: new Date('2026-08-17T04:30:00.000Z'),
+      },
+      {
+        activityType: 'MEETING', callCategory: null, callOutcome: null,
+        emailOutcome: null, meetingOutcome: null, engagementOutcome: null,
+        createdAt: new Date('2026-08-17T05:00:00.000Z'),
+      },
     ]);
     mockPrisma.crmLead.findMany.mockResolvedValue([
       { status: 'CONVERTED', convertedAt: new Date('2026-08-17T05:00:00.000Z'), updatedAt: new Date('2026-08-17T05:00:00.000Z') },
@@ -71,7 +81,9 @@ describe('CRM daily operational report', () => {
       callEngagement: 1,
       interested: 1,
       noAnswer: 1,
+      meetings: 3,
       meetingsArranged: 1,
+      meetingsPresented: 1,
       merchantsSignedUp: 1,
       merchantsDeclined: 1,
     });
@@ -84,10 +96,12 @@ describe('CRM daily operational report', () => {
       callEngagement: result.daily[0].callEngagement,
       interested: result.daily[0].interested,
       noAnswer: result.daily[0].noAnswer,
+      meetings: result.daily[0].meetings,
       meetingsArranged: result.daily[0].meetingsArranged,
+      meetingsPresented: result.daily[0].meetingsPresented,
       merchantsSignedUp: result.daily[0].merchantsSignedUp,
       merchantsDeclined: result.daily[0].merchantsDeclined,
     });
-    expect(result.byCompany.reduce((sum, company) => sum + company.activityCount, 0)).toBe(4);
+    expect(result.byCompany.reduce((sum, company) => sum + company.activityCount, 0)).toBe(6);
   });
 });
