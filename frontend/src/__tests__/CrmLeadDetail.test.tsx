@@ -5,6 +5,7 @@ import CrmLeadDetail from '../../pages/CrmLeadDetail';
 
 const mockGetLead = vi.fn();
 const mockListCrmUsers = vi.fn();
+const mockUpdateActivity = vi.fn();
 const mockUseNextBestAction = vi.fn();
 
 vi.mock('../services/crm.service', () => ({
@@ -19,7 +20,7 @@ vi.mock('../services/crm.service', () => ({
     sendActivityReminder: vi.fn(),
     listPipelines: vi.fn(),
     convertLead: vi.fn(),
-    updateActivity: vi.fn(),
+    updateActivity: (...args: unknown[]) => mockUpdateActivity(...args),
     deleteActivity: vi.fn(),
   },
 }));
@@ -35,7 +36,7 @@ vi.mock('../context/AuthContext', () => ({
 }));
 
 vi.mock('../hooks/useCrmAi', () => ({
-  useAnalyzeNote: () => ({ analyze: vi.fn(), loading: false, error: null, analysis: null }),
+  useAnalyzeNote: () => ({ analyze: vi.fn(), loading: false, loadingId: null, error: null, analysis: null, results: {} }),
   useDraftMessage: () => ({ draftForLead: vi.fn(), loading: false, error: null, content: null }),
   useLeadSummary: () => ({ fetch: vi.fn(), loading: false, error: null, summary: null }),
   useLeadScore: () => ({ fetch: vi.fn(), loading: false, error: null, scoreData: null }),
@@ -194,6 +195,23 @@ describe('CrmLeadDetail header redesign', () => {
     expect(ownerName.className).not.toContain('truncate');
     expect(ownerEmail.className).not.toContain('truncate');
     expect(ownerEmail).toHaveAttribute('title', 'amirul.hafiz.bin.abdullah@capitalcore.example.my');
+  });
+
+  it('shows the activity edit action to users with CRM write permission', async () => {
+    await renderPage({
+      ...lead,
+      activities: [{
+        id: 'activity-1', activityType: 'CALL', subject: 'Initial call', description: 'Discussed requirements',
+        userId: 'user-1', accountId: null, contactId: null, leadId: 'lead-1', opportunityId: null,
+        scheduledAt: null, completedAt: null, durationMinutes: null, callCategory: 'NEW_CALL',
+        callOutcome: null, emailOutcome: null, meetingOutcome: null, engagementOutcome: null,
+        reminderSent: false, createdAt: '2026-06-10T00:00:00.000Z', updatedAt: '2026-06-10T00:00:00.000Z',
+      }],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activities' }));
+
+    expect(await screen.findByRole('button', { name: 'Edit activity' })).toBeInTheDocument();
   });
 
   it('renders overview with lead information and related opportunities', async () => {

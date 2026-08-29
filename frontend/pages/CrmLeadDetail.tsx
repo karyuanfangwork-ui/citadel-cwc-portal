@@ -1085,9 +1085,10 @@ const CrmLeadDetail = () => {
                 )}
               </div>
               <div className="flex flex-col items-center gap-1 shrink-0 ml-auto">
-                {hasPermission(user, 'crm:edit') && (
+                {hasPermission(user, 'crm:write') && (
                   <button
                     onClick={() => openEditActivity(a)}
+                    aria-label="Edit activity"
                     className="text-[#45464d] opacity-60 hover:text-[#006a61] transition-colors"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
                     title="Edit activity"
@@ -1098,6 +1099,7 @@ const CrmLeadDetail = () => {
                 {hasPermission(user, 'crm:delete') && (
                   <button
                     onClick={() => setDeletingActivityId(a.id)}
+                    aria-label="Delete activity"
                     className="text-[#45464d] opacity-60 hover:text-[#ba1a1a] transition-colors"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
                     title="Delete activity"

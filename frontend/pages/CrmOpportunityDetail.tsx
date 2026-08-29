@@ -888,7 +888,7 @@ const CrmOpportunityDetail = () => {
                       <div className="flex flex-col items-end gap-2 ml-2 shrink-0">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full font-bold" style={{ fontSize: 10, background: '#e0f2f1', color: TEAL, border: `1px solid ${TEAL}30` }}>{a.activityType}</span>
                         <div className="flex items-center gap-1">
-                          {hasPermission(user, 'crm:edit') && (
+                          {hasPermission(user, 'crm:write') && (
                             <button onClick={() => openEditActivity(a)} title="Edit activity"
                               className="p-1 rounded hover:opacity-70 transition-colors"
                               style={{ fontSize: 12, color: TEXT_SEC, background: 'none', border: 'none', cursor: 'pointer' }}>

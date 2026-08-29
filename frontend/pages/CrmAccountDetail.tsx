@@ -709,7 +709,7 @@ const CrmAccountDetail = () => {
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {hasPermission(user, 'crm:edit') && (
+                        {hasPermission(user, 'crm:write') && (
                           <button onClick={() => openEditActivity(a)} title="Edit activity"
                             className="p-1 rounded hover:bg-[#f1f5f9] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                             <span className="material-symbols-outlined text-[16px]" style={{ color: T.textMuted }}>edit</span>

@@ -960,7 +960,7 @@ const CrmContactDetail = () => {
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-1 shrink-0 ml-auto">
-                      {hasPermission(user, 'crm:edit') && (
+                      {hasPermission(user, 'crm:write') && (
                         <button onClick={() => openEditActivity(a)} className="text-text-tertiary hover:text-brand-700 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }} title="Edit activity">
                           <span className="material-symbols-outlined text-base">edit</span>
                         </button>
