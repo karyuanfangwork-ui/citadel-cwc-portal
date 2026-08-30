@@ -206,6 +206,7 @@ model User {
   matrixVersionApprovals               CreditApprovalMatrixVersion[] @relation("MatrixVersionApprovedBy")
   financialEnteredBy                   FinancialStatement[]          @relation("FinancialEnteredBy")
   financialReviewedBy                  FinancialStatement[]          @relation("FinancialReviewedBy")
+  scorecardVersionCreatedBy            CreditScorecardVersion[]      @relation("ScorecardVersionCreatedBy")
   scorecardVersionApprovedBy           CreditScorecardVersion[]      @relation("ScorecardVersionApprovedBy")
   scoreRunOverrideApprovedBy           CreditScoreRun[]              @relation("ScoreRunOverrideApprovedBy")
   scoreRunsCalculated                  CreditScoreRun[]              @relation("CreditScoreRunCalculatedBy")
@@ -5917,19 +5918,21 @@ model CreditScorecardVersion {
   id                  String    @id @default(uuid()) @db.Uuid
   scorecardId         String    @map("scorecard_id") @db.Uuid
   version             Int
+  createdById         String?   @map("created_by_id") @db.Uuid
+  approvedById        String?   @map("approved_by_id") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamp(6)
   factorWeights       Json
   retailFactorWeights Json?     @map("retail_factor_weights")
   isActive            Boolean   @default(false) @map("is_active")
   effectiveFrom       DateTime  @map("effective_from") @db.Timestamp(6)
-  approvedById        String?   @map("approved_by_id") @db.Uuid
-  approvedAt          DateTime? @map("approved_at") @db.Timestamp(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  scorecard  CreditScorecard  @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
-  approvedBy User?            @relation("ScorecardVersionApprovedBy", fields: [approvedById], references: [id])
+  scorecard  CreditScorecard @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+  createdBy  User?           @relation("ScorecardVersionCreatedBy", fields: [createdById], references: [id])
+  approvedBy User?           @relation("ScorecardVersionApprovedBy", fields: [approvedById], references: [id])
   scoreRuns  CreditScoreRun[]
 
   @@unique([scorecardId, version])

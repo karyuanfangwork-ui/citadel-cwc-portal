@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
+import { PlatformAuditChainService } from '../../services/platformAuditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,7 +67,12 @@ export interface UpdateScorecardData {
 export interface CreateVersionData {
   factorWeights: FactorWeights;
   retailFactorWeights?: FactorWeights;
-  approvedById?: string;
+}
+
+export interface AuditContext {
+  tenantId: string;
+  actorId?: string | null;
+  actorEmail?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +152,7 @@ class ScorecardService {
           orderBy: { version: 'desc' },
           take: 5,
           include: {
+            createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
             approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
@@ -210,7 +217,7 @@ class ScorecardService {
    * Create a new version of a scorecard.
    * Factor weights must sum to 100.
    */
-  async createVersion(scorecardId: string, data: CreateVersionData) {
+  async createVersion(scorecardId: string, data: CreateVersionData, createdById?: string) {
     const scorecard = await prisma.creditScorecard.findUnique({ where: { id: scorecardId } });
     if (!scorecard) {
       throw new Error('Scorecard not found');
@@ -237,11 +244,62 @@ class ScorecardService {
         factorWeights: data.factorWeights as any,
         retailFactorWeights: data.retailFactorWeights ? data.retailFactorWeights as any : undefined,
         effectiveFrom: new Date(),
-        ...(data.approvedById ? { approvedById: data.approvedById, approvedAt: new Date() } : {}),
+        createdById: createdById ?? null,
       },
       include: {
         approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
+    });
+  }
+
+  /**
+   * Approve a draft scorecard version as the first governance check.
+   * Activation remains a separate action requiring a different checker.
+   */
+  async approveVersion(versionId: string, approverId: string, auditContext?: AuditContext) {
+    const version = await prisma.creditScorecardVersion.findUnique({
+      where: { id: versionId },
+    });
+
+    if (!version) {
+      throw new AppError('Scorecard version not found', 404);
+    }
+    if (version.isActive) {
+      throw new AppError('Active scorecard versions cannot be approved again.', 409);
+    }
+    if (version.approvedById) {
+      throw new AppError('Scorecard version is already approved.', 409);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const approved = await tx.creditScorecardVersion.update({
+        where: { id: versionId },
+        data: {
+          approvedById: approverId,
+          approvedAt: new Date(),
+        },
+        include: {
+          createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      });
+
+      if (auditContext) {
+        await PlatformAuditChainService.appendEvent({
+          tenantId: auditContext.tenantId,
+          actorId: approverId,
+          actorEmail: auditContext.actorEmail,
+          action: 'SCORECARD_VERSION_APPROVED',
+          resourceType: 'CreditScorecardVersion',
+          resourceId: versionId,
+          oldValues: { approvedById: version.approvedById, isActive: version.isActive },
+          newValues: { approvedById: approverId, isActive: approved.isActive },
+          metadata: { scorecardId: version.scorecardId, version: version.version },
+        }, tx);
+      }
+
+      return approved;
     });
   }
 
@@ -251,7 +309,7 @@ class ScorecardService {
    * Phase 5 maker/checker: activation requires a distinct second approver
    * (checker) who is different from the version's approvedById (maker).
    */
-  async activateVersion(versionId: string, secondApproverId: string) {
+  async activateVersion(versionId: string, secondApproverId: string, auditContext?: AuditContext) {
     const version = await prisma.creditScorecardVersion.findUnique({
       where: { id: versionId },
     });
@@ -260,24 +318,27 @@ class ScorecardService {
       throw new AppError('Scorecard version not found', 404);
     }
 
-    // Maker/checker — the second approver (checker) must differ from the maker
-    if (!version.approvedById) {
+    // Maker/checker — the second approver must differ from the first approver.
+    if (!version.approvedById || !version.approvedAt) {
       throw new AppError(
-        'Scorecard version must have an approvedById (maker) before it can be activated.',
+        'Scorecard version must be approved before it can be activated.',
         409,
       );
     }
     if (secondApproverId === version.approvedById) {
       throw new AppError(
-        'Scorecard activation requires a second approver (checker) who is different from the version maker.',
+        'Scorecard activation requires a second approver (checker) who is different from the version approver.',
+        409,
+      );
+    }
+    if (version.createdById && secondApproverId === version.createdById) {
+      throw new AppError(
+        'Scorecard activation cannot be performed by the version creator.',
         409,
       );
     }
 
     // Ambiguity guard: only one scorecard may have an active version at a time.
-    // Deactivating other versions of the *same* scorecard (below) remains
-    // allowed, but activating a version of a different scorecard while another
-    // is already active would make scorecard selection non-deterministic.
     const conflicting = await prisma.creditScorecardVersion.findFirst({
       where: { isActive: true, scorecardId: { not: version.scorecardId } },
     });
@@ -288,27 +349,47 @@ class ScorecardService {
       );
     }
 
-    // Deactivate all other versions of the same scorecard in a transaction
     return prisma.$transaction(async (tx) => {
       await tx.creditScorecardVersion.updateMany({
         where: { scorecardId: version.scorecardId, isActive: true },
         data: { isActive: false },
       });
 
-      return tx.creditScorecardVersion.update({
+      const activeVersion = await tx.creditScorecardVersion.update({
         where: { id: versionId },
         data: { isActive: true },
         include: {
+          createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
           approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       });
+      const scorecard = await tx.creditScorecard.update({
+        where: { id: version.scorecardId },
+        data: { isActive: true },
+      });
+
+      if (auditContext) {
+        await PlatformAuditChainService.appendEvent({
+          tenantId: auditContext.tenantId,
+          actorId: secondApproverId,
+          actorEmail: auditContext.actorEmail,
+          action: 'SCORECARD_VERSION_ACTIVATED',
+          resourceType: 'CreditScorecardVersion',
+          resourceId: versionId,
+          oldValues: { isActive: version.isActive },
+          newValues: { isActive: activeVersion.isActive, scorecardActive: scorecard.isActive },
+          metadata: { scorecardId: version.scorecardId, version: version.version },
+        }, tx);
+      }
+
+      return { ...activeVersion, scorecard };
     });
   }
 
   /**
    * Deactivate a specific version.
    */
-  async deactivateVersion(versionId: string) {
+  async deactivateVersion(versionId: string, auditContext?: AuditContext) {
     const version = await prisma.creditScorecardVersion.findUnique({
       where: { id: versionId },
     });
@@ -317,12 +398,37 @@ class ScorecardService {
       throw new Error('Scorecard version not found');
     }
 
-    return prisma.creditScorecardVersion.update({
-      where: { id: versionId },
-      data: { isActive: false },
-      include: {
-        approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-      },
+    return prisma.$transaction(async (tx) => {
+      const deactivated = await tx.creditScorecardVersion.update({
+        where: { id: versionId },
+        data: { isActive: false },
+        include: {
+          createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      });
+      const remainingActive = await tx.creditScorecardVersion.count({
+        where: { scorecardId: version.scorecardId, isActive: true },
+      });
+      const scorecard = remainingActive === 0
+        ? await tx.creditScorecard.update({ where: { id: version.scorecardId }, data: { isActive: false } })
+        : await tx.creditScorecard.findUnique({ where: { id: version.scorecardId } });
+
+      if (auditContext) {
+        await PlatformAuditChainService.appendEvent({
+          tenantId: auditContext.tenantId,
+          actorId: auditContext.actorId,
+          actorEmail: auditContext.actorEmail,
+          action: 'SCORECARD_VERSION_DEACTIVATED',
+          resourceType: 'CreditScorecardVersion',
+          resourceId: versionId,
+          oldValues: { isActive: version.isActive },
+          newValues: { isActive: deactivated.isActive, scorecardActive: scorecard?.isActive ?? false },
+          metadata: { scorecardId: version.scorecardId, version: version.version },
+        }, tx);
+      }
+
+      return { ...deactivated, scorecard };
     });
   }
 
@@ -334,6 +440,7 @@ class ScorecardService {
       where: { scorecardId },
       orderBy: { version: 'desc' },
       include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         approvedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });

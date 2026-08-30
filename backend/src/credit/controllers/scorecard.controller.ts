@@ -1,8 +1,16 @@
 import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
-import { scorecardService } from '../services/scorecard.service';
+import { scorecardService, AuditContext } from '../services/scorecard.service';
 import { scoringService } from '../services/scoring.service';
+
+function auditContext(req: AuthRequest): AuditContext {
+  const actor = req.user;
+  if (!actor?.tenantId) {
+    throw new AppError('Tenant context required for scorecard governance', 500);
+  }
+  return { tenantId: actor.tenantId, actorId: actor.id, actorEmail: actor.email };
+}
 
 class ScorecardController {
   // ===========================================================================
@@ -96,9 +104,13 @@ class ScorecardController {
    */
   createVersion = asyncHandler(async (req: AuthRequest, res: Response) => {
     const scorecardId = String(req.params.id);
+    const actor = req.user;
+    if (!actor?.id) {
+      throw new AppError('Authentication required to create a scorecard version', 401);
+    }
 
     try {
-      const version = await scorecardService.createVersion(scorecardId, req.body);
+      const version = await scorecardService.createVersion(scorecardId, req.body, actor.id);
       res.status(201).json({ status: 'success', data: { version } });
     } catch (err: any) {
       if (err.message.includes('Factor weights must sum to 100') ||
@@ -114,6 +126,21 @@ class ScorecardController {
   });
 
   /**
+   * POST /scorecard-versions/:id/approve
+   * Record the first governance approval for a version.
+   */
+  approveVersion = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const versionId = String(req.params.id);
+    const actor = req.user;
+    if (!actor?.id) {
+      throw new AppError('Authentication required to approve a scorecard version', 401);
+    }
+
+    const version = await scorecardService.approveVersion(versionId, actor.id, auditContext(req));
+    res.json({ status: 'success', data: { version } });
+  });
+
+  /**
    * POST /scorecard-versions/:id/activate
    * Activate a specific version
    */
@@ -125,7 +152,7 @@ class ScorecardController {
     }
 
     try {
-      const version = await scorecardService.activateVersion(versionId, secondApproverId);
+      const version = await scorecardService.activateVersion(versionId, secondApproverId, auditContext(req));
       res.json({ status: 'success', data: { version } });
     } catch (err: any) {
       if (err.message === 'Scorecard version not found') {

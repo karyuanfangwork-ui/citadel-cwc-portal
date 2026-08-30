@@ -277,13 +277,15 @@ describe('P1.1 — RBAC Permission Boundaries', () => {
         'PATCH /rating-bands/:id',
         'POST /rating-bands/seed',
         'POST /rating-bands/risk-factors',
+        'POST /scorecard-versions/:id/approve',
+        'POST /scorecard-versions/:id/activate',
       ];
       const readOnlyRoutes = [
         'GET /rating-bands',
         'GET /rating-bands/active',
         'GET /rating-bands/risk-factors',
       ];
-      expect(adminOnlyRoutes).toHaveLength(4);
+      expect(adminOnlyRoutes).toHaveLength(6);
       expect(readOnlyRoutes).toHaveLength(3);
       // credit:admin must not be held by non-admin credit roles
       expect(ROLE_PERMISSIONS.CREDIT_RM).not.toContain('credit:admin');

@@ -49,6 +49,7 @@ const ScorecardManagement: React.FC = () => {
   const [versions, setVersions] = useState<CreditScorecardVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
 
   // Create scorecard dialog
@@ -120,6 +121,23 @@ const ScorecardManagement: React.FC = () => {
     finally { setCreatingVersion(false); }
   };
 
+  const handleApproveVersion = async (versionId: string) => {
+    if (!confirm('Approve this scorecard version for checker activation?')) return;
+    try {
+      setActivationError(null);
+      setApproving(versionId);
+      await scorecardApi.approveVersion(versionId);
+      if (expandedId) fetchVersions(expandedId);
+      fetchScorecards();
+      toast.success('Scorecard version approved; a different checker can activate it');
+    } catch (e) {
+      console.error(e);
+      const message = friendlyMessage(e, 'Failed to approve scorecard version');
+      setActivationError(message);
+      toast.error(message);
+    } finally { setApproving(null); }
+  };
+
   const handleActivateVersion = async (versionId: string) => {
     if (!confirm('Activate this version? It will replace the current active version.')) return;
     try {
@@ -171,7 +189,7 @@ const ScorecardManagement: React.FC = () => {
 
         {activationError && (
           <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            <strong>Activation failed:</strong> {activationError}
+            <strong>Governance action failed:</strong> {activationError}
           </div>
         )}
 
@@ -250,9 +268,13 @@ const ScorecardManagement: React.FC = () => {
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)' }}>
                                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                    v.isActive ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-500 border border-gray-200'
+                                    v.lifecycleStatus === 'ACTIVE'
+                                      ? 'bg-green-50 text-green-700 border border-green-200'
+                                      : v.lifecycleStatus === 'APPROVED'
+                                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                        : 'bg-gray-50 text-gray-500 border border-gray-200'
                                   }`}>
-                                    {v.isActive ? 'Active' : 'Inactive'}
+                                    {v.lifecycleStatus}
                                   </span>
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)' }}>
@@ -268,13 +290,26 @@ const ScorecardManagement: React.FC = () => {
                                   </div>
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                                  {v.approvedBy ? `${v.approvedBy.firstName} ${v.approvedBy.lastName}` : '—'}
+                                  <div>{v.createdBy ? `${v.createdBy.firstName} ${v.createdBy.lastName}` : 'System / legacy'}</div>
+                                  {v.approvedBy && v.approvedAt && (
+                                    <div className="text-[11px] text-blue-700 mt-0.5">
+                                      Approved by {v.approvedBy.firstName} {v.approvedBy.lastName} on {new Date(v.approvedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </div>
+                                  )}
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
                                   {new Date(v.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)' }}>
-                                  {!v.isActive && canAdmin && v.approvedById && (
+                                  {v.lifecycleStatus === 'DRAFT' && canAdmin && (
+                                    <button onClick={() => handleApproveVersion(v.id)} disabled={approving === v.id}
+                                      className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                                      style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                                      <span className="material-symbols-outlined text-sm">fact_check</span>
+                                      {approving === v.id ? 'Approving...' : 'Approve'}
+                                    </button>
+                                  )}
+                                  {v.lifecycleStatus === 'APPROVED' && canAdmin && user?.id !== v.approvedById && (
                                     <button onClick={() => handleActivateVersion(v.id)} disabled={activating === v.id}
                                       className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
                                       style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
@@ -282,9 +317,9 @@ const ScorecardManagement: React.FC = () => {
                                       {activating === v.id ? 'Activating...' : 'Activate'}
                                     </button>
                                   )}
-                                  {!v.isActive && canAdmin && !v.approvedById && (
-                                    <span className="text-xs font-semibold text-amber-700" title="A maker must approve this version before a different checker can activate it">
-                                      Approval required
+                                  {v.lifecycleStatus === 'APPROVED' && canAdmin && user?.id === v.approvedById && (
+                                    <span className="text-xs font-semibold text-amber-700" title="A different credit administrator must activate this approved version">
+                                      Awaiting second checker
                                     </span>
                                   )}
                                 </td>

@@ -1,7 +1,8 @@
 jest.mock('../../../utils/prisma', () => ({
   __esModule: true,
   default: {
-    creditScorecardVersion: { findUnique: jest.fn(), findFirst: jest.fn() },
+    creditScorecardVersion: { findUnique: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+    creditScorecard: { update: jest.fn() },
     $transaction: jest.fn(),
   },
 }));
@@ -10,11 +11,17 @@ import { scorecardService } from '../scorecard.service';
 import prisma from '../../../utils/prisma';
 
 describe('activateVersion ambiguity guard', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.$transaction as jest.Mock).mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
+    (prisma.creditScorecardVersion.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue({ id: 'v2', isActive: true });
+    (prisma.creditScorecard.update as jest.Mock).mockResolvedValue({ id: 'sc-A', isActive: true });
+  });
 
   it('rejects activation when a different scorecard is already active', async () => {
     (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-B', approvedById: 'u-maker',
+      id: 'v2', scorecardId: 'sc-B', approvedById: 'u-maker', approvedAt: new Date(),
     });
     (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue({
       id: 'v1', scorecardId: 'sc-A',
@@ -29,25 +36,25 @@ describe('activateVersion ambiguity guard', () => {
     // The guard query is `scorecardId: { not: version.scorecardId }`, so an
     // active version of the SAME scorecard does not appear in findFirst.
     (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker',
+      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
     });
     (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue(null);
     const txResult = { id: 'v2', isActive: true };
-    (prisma.$transaction as jest.Mock).mockResolvedValue(txResult);
+    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue(txResult);
 
-    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toBe(txResult);
+    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toMatchObject(txResult);
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('allows activation when no other active version exists', async () => {
     (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker',
+      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
     });
     (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue(null);
     const txResult = { id: 'v2', isActive: true };
-    (prisma.$transaction as jest.Mock).mockResolvedValue(txResult);
+    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue(txResult);
 
-    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toBe(txResult);
+    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toMatchObject(txResult);
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 
@@ -63,16 +70,16 @@ describe('activateVersion ambiguity guard', () => {
       id: 'v3', scorecardId: 'sc-A', approvedById: null,
     });
     await expect(scorecardService.activateVersion('v3', 'u-checker')).rejects.toThrow(
-      /approvedById/i,
+      /approved before it can be activated/i,
     );
   });
 
   it('rejects activation when the second approver is the same as the maker', async () => {
     (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v4', scorecardId: 'sc-A', approvedById: 'u-maker',
+      id: 'v4', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
     });
     await expect(scorecardService.activateVersion('v4', 'u-maker')).rejects.toThrow(
-      /different.*maker/i,
+      /different.*approver/i,
     );
   });
 });
