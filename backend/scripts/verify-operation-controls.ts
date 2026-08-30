@@ -117,6 +117,7 @@ const CREDIT_SUB_MOUNTS: Record<string, string> = {
   'bureauChecklist.routes': '/applications',
   'industryAssessment.routes': '/applications',
   'riskAssessment.routes': '/applications',
+  'assessmentResult.routes': '/applications',
   'ratingBandConfig.routes': '/rating-bands',
   'rmdIssue.routes': '/applications',
   'esg.routes': '/applications',

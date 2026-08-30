@@ -1,4 +1,5 @@
 import prisma from '../../utils/prisma';
+import { logger } from '../../utils/logger';
 
 export interface PolicyScope {
   productType?: string | null;
@@ -89,10 +90,16 @@ export async function getPolicyParameter<T>(
   try {
     const rows = await fetchPolicyRows(key);
     const row = selectBestRow(rows as PolicyRow[], scope);
-    if (!row) return defaultValue;
+    if (!row) {
+      logger.error({ code: 'POLICY_PARAMETER_FALLBACK', reason: 'NO_ROWS_CONFIGURED', key, scope, message: 'No active policy parameter configured; code default used.' });
+      return defaultValue;
+    }
     return row.value as T;
   } catch (error) {
-    if (shouldFallback(error)) return defaultValue;
+    if (shouldFallback(error)) {
+      logger.error({ code: 'POLICY_PARAMETER_FALLBACK', reason: 'TABLE_UNAVAILABLE', key, scope, message: 'Policy parameter table unavailable; code default used.' });
+      return defaultValue;
+    }
     throw error;
   }
 }

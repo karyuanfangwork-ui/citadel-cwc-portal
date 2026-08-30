@@ -28,6 +28,8 @@ export async function freezeAssessmentResult(
       inputSnapshot: true,
       ratingBandVersion: true,
       calculationSource: true,
+      scorecardVersionId: true,
+      policyVersion: true,
     },
   });
 
@@ -90,9 +92,12 @@ export async function freezeAssessmentResult(
         reasonCodes: recommendation.reasonCodes.length > 0
           ? (recommendation.reasonCodes as any)
           : Prisma.JsonNull,
+        ruleTrace: recommendation.ruleTrace.length > 0
+          ? (recommendation.ruleTrace as any)
+          : Prisma.JsonNull,
         missingInputs: latestRun.missingInputs ?? Prisma.JsonNull,
-        modelVersion: latestRun.calculationSource ?? 'MANUAL',
-        policyVersion: null,
+        modelVersion: latestRun.scorecardVersionId,
+        policyVersion: latestRun.policyVersion,
         ratingBandVersion: latestRun.ratingBandVersion,
         totalScore: latestRun.totalScore,
         status: 'FROZEN',

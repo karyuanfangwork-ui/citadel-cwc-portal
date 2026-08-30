@@ -6,6 +6,7 @@ import { getTemplateForType } from '../constants/financialStatementTemplates';
 import { recalcScore } from './recalc.service';
 import { AppError } from '../../middleware/error.middleware';
 import { assertVersionMatch } from '../utils/optimisticConcurrency';
+import { PlatformAuditChainService } from '../../services/platformAuditChain.service';
 
 // ---------------------------------------------------------------------------
 // LOS-006 — Statement immutability guard
@@ -33,6 +34,13 @@ export function assertStatementMutable(status: string, action: string): void {
 // Types
 // ---------------------------------------------------------------------------
 
+export interface AuditContext {
+  tenantId: string;
+  actorId: string;
+  actorEmail?: string | null;
+  departmentId?: string | null;
+}
+
 export interface CreateStatementData {
   borrowerProfileId: string;
   period: string;
@@ -40,6 +48,7 @@ export interface CreateStatementData {
   statementType: string;
   currency: string;
   enteredById: string;
+  auditContext?: AuditContext;
 }
 
 export interface UpdateStatementData {
@@ -346,6 +355,35 @@ class FinancialService {
     });
   }
 
+  private async auditStatementMutation(
+    statement: { id: string; borrowerProfileId: string; period: string; fiscalYearEnd: Date; statementType: string; status: string },
+    action: string,
+    context?: AuditContext,
+    oldValues?: Record<string, unknown>,
+    newValues?: Record<string, unknown>,
+    tx?: any,
+  ): Promise<void> {
+    if (!context) return;
+    await PlatformAuditChainService.appendEvent({
+      tenantId: context.tenantId,
+      departmentId: context.departmentId,
+      actorId: context.actorId,
+      actorEmail: context.actorEmail,
+      action,
+      resourceType: 'FinancialStatement',
+      resourceId: statement.id,
+      oldValues,
+      newValues,
+      metadata: {
+        borrowerProfileId: statement.borrowerProfileId,
+        period: statement.period,
+        fiscalYearEnd: statement.fiscalYearEnd,
+        statementType: statement.statementType,
+        status: statement.status,
+      },
+    }, tx);
+  }
+
   /**
    * Create a new financial statement.
    */
@@ -386,7 +424,7 @@ class FinancialService {
       };
     }
 
-    return prisma.financialStatement.create({
+    const create = (client: any) => client.financialStatement.create({
       data: createData,
       include: {
         enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -395,12 +433,18 @@ class FinancialService {
           : false,
       },
     });
+    if (!data.auditContext) return create(prisma);
+    return prisma.$transaction(async (tx) => {
+      const statement = await create(tx);
+      await this.auditStatementMutation(statement, 'FINANCIAL_STATEMENT_CREATED', data.auditContext, undefined, { fieldNames: ['period', 'fiscalYearEnd', 'statementType', 'currency', 'status'] }, tx);
+      return statement;
+    });
   }
 
   /**
    * Update an existing financial statement.
    */
-  async updateStatement(id: string, data: UpdateStatementData) {
+  async updateStatement(id: string, data: UpdateStatementData, auditContext?: AuditContext) {
     const existing = await prisma.financialStatement.findFirst({
       where: { id, deletedAt: null },
     });
@@ -429,7 +473,7 @@ class FinancialService {
     if (data.commentaryCashflow !== undefined) updateData.commentaryCashflow = data.commentaryCashflow;
     if (data.commentaryConclusion !== undefined) updateData.commentaryConclusion = data.commentaryConclusion;
 
-    return prisma.financialStatement.update({
+    const updated = await prisma.financialStatement.update({
       where: { id },
       data: updateData,
       include: {
@@ -437,12 +481,14 @@ class FinancialService {
         reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+    await this.auditStatementMutation(updated, 'FINANCIAL_STATEMENT_UPDATED', auditContext, undefined, { fieldNames: Object.keys(updateData) });
+    return updated;
   }
 
   /**
    * Soft-delete a financial statement (only DRAFT status).
    */
-  async deleteStatement(id: string) {
+  async deleteStatement(id: string, auditContext?: AuditContext) {
     const existing = await prisma.financialStatement.findFirst({
       where: { id, deletedAt: null },
     });
@@ -455,10 +501,12 @@ class FinancialService {
       throw new Error('Only DRAFT financial statements can be deleted');
     }
 
-    return prisma.financialStatement.update({
+    const deleted = await prisma.financialStatement.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditStatementMutation(existing, 'FINANCIAL_STATEMENT_DELETED', auditContext, { status: existing.status }, { status: 'DELETED' });
+    return deleted;
   }
 
   // ==========================================================================
@@ -480,7 +528,7 @@ class FinancialService {
    * Items are matched by statementId + lineKey; new items are created,
    * existing items are updated.
    */
-  async upsertLineItems(statementId: string, items: LineItemInput[]) {
+  async upsertLineItems(statementId: string, items: LineItemInput[], auditContext?: AuditContext) {
     // LOS-006 — block line-item mutations on reviewed/approved statements
     const stmt = await prisma.financialStatement.findFirst({ where: { id: statementId, deletedAt: null } });
     if (stmt) assertStatementMutable(stmt.status, 'edit line items');
@@ -511,6 +559,7 @@ class FinancialService {
     );
 
     const result = await prisma.$transaction(operations);
+    if (stmt) await this.auditStatementMutation(stmt, 'FINANCIAL_STATEMENT_LINE_ITEMS_REPLACED', auditContext, undefined, { fieldNames: items.map((item) => item.lineKey) });
 
     // §1.4 — Auto-compute ratios after every line-item save
     await this.computeRatios(statementId);
@@ -521,24 +570,26 @@ class FinancialService {
   /**
    * Delete specific line items by key.
    */
-  async deleteLineItems(statementId: string, lineKeys: string[]) {
+  async deleteLineItems(statementId: string, lineKeys: string[], auditContext?: AuditContext) {
     // LOS-006 — block line-item mutations on reviewed/approved statements
     const stmt = await prisma.financialStatement.findFirst({ where: { id: statementId, deletedAt: null } });
     if (stmt) assertStatementMutable(stmt.status, 'delete line items');
 
-    return prisma.financialLineItem.deleteMany({
+    const result = await prisma.financialLineItem.deleteMany({
       where: {
         statementId,
         lineKey: { in: lineKeys },
       },
     });
+    if (stmt) await this.auditStatementMutation(stmt, 'FINANCIAL_STATEMENT_LINE_ITEMS_REPLACED', auditContext, undefined, { fieldNames: lineKeys });
+    return result;
   }
 
   /**
    * Add a single line item to an existing financial statement.
    * F4 — convenience method for the "Add Row" UI control.
    */
-  async addLine(statementId: string, lineKey: string, lineLabel: string, parentLineKey?: string | null) {
+  async addLine(statementId: string, lineKey: string, lineLabel: string, parentLineKey?: string | null, auditContext?: AuditContext) {
     const stmt = await prisma.financialStatement.findFirst({
       where: { id: statementId, deletedAt: null },
     });
@@ -554,7 +605,7 @@ class FinancialService {
     });
     const nextOrder = (maxOrder._max.displayOrder ?? -1) + 1;
 
-    return prisma.financialLineItem.create({
+    const lineItem = await prisma.financialLineItem.create({
       data: {
         statementId,
         lineKey,
@@ -564,6 +615,8 @@ class FinancialService {
         displayOrder: nextOrder,
       },
     });
+    await this.auditStatementMutation(stmt, 'FINANCIAL_STATEMENT_LINE_ITEMS_REPLACED', auditContext, undefined, { fieldNames: [lineKey] });
+    return lineItem;
   }
 
   // ==========================================================================
@@ -608,7 +661,7 @@ class FinancialService {
    * Submit a DRAFT statement for review → REVIEWED.
    * Requires enteredById !== actorId OR admin bypass.
    */
-  async submitForReview(statementId: string, actorId: string, isAdmin: boolean = false) {
+  async submitForReview(statementId: string, actorId: string, isAdmin: boolean = false, auditContext?: AuditContext) {
     const statement = await prisma.financialStatement.findFirst({
       where: { id: statementId, deletedAt: null },
     });
@@ -626,20 +679,22 @@ class FinancialService {
       throw new Error('The person who entered the statement cannot submit it for review without admin bypass');
     }
 
-    return prisma.financialStatement.update({
+    const updated = await prisma.financialStatement.update({
       where: { id: statementId },
       data: { status: 'REVIEWED' },
       include: {
         enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+    await this.auditStatementMutation(updated, 'FINANCIAL_STATEMENT_STATUS_CHANGED', auditContext, { status: 'DRAFT' }, { status: 'REVIEWED' });
+    return updated;
   }
 
   /**
    * Review a REVIEWED statement → APPROVED (with auto-compute of ratios).
    * The reviewer must be different from the person who entered the data.
    */
-  async reviewStatement(statementId: string, reviewedById: string, action: 'APPROVE' | 'REJECT', isAdmin: boolean = false) {
+  async reviewStatement(statementId: string, reviewedById: string, action: 'APPROVE' | 'REJECT', isAdmin: boolean = false, auditContext?: AuditContext) {
     const statement = await prisma.financialStatement.findFirst({
       where: { id: statementId, deletedAt: null },
     });
@@ -673,6 +728,7 @@ class FinancialService {
 
         // Auto-compute ratios atomically within the same transaction
         await this.computeRatiosInTx(tx, statementId);
+        await this.auditStatementMutation(stmt, 'FINANCIAL_STATEMENT_STATUS_CHANGED', auditContext, { status: 'REVIEWED' }, { status: 'APPROVED' }, tx);
 
         return stmt;
       });
@@ -694,7 +750,7 @@ class FinancialService {
       return updated;
     } else {
       // Reject → back to DRAFT
-      return prisma.financialStatement.update({
+      const rejected = await prisma.financialStatement.update({
         where: { id: statementId },
         data: {
           status: 'DRAFT',
@@ -703,6 +759,8 @@ class FinancialService {
           enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       });
+      await this.auditStatementMutation(rejected, 'FINANCIAL_STATEMENT_STATUS_CHANGED', auditContext, { status: 'REVIEWED' }, { status: 'DRAFT' });
+      return rejected;
     }
   }
 

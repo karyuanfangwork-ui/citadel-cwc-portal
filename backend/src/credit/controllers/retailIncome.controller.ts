@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { upsertRetailIncome, getRetailIncome, verifyFinancials, getDsrStatus } from '../services/retailIncome.service';
+import { upsertRetailIncome, getRetailIncome, verifyFinancials, getDsrStatus, computeNetDsr } from '../services/retailIncome.service';
+import { resolveRetailDsr } from '../services/scoring.service';
 
 export async function get(req: Request, res: Response, next: NextFunction) {
   try {
@@ -32,6 +33,27 @@ export async function verify(req: Request, res: Response, next: NextFunction) {
     }
     const income = await verifyFinancials(String(req.params.appId), verified);
     res.json({ data: income });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function previewDsr(req: Request, res: Response, next: NextFunction) {
+  try {
+    const computed = computeNetDsr(req.body);
+    const dsrPercent = resolveRetailDsr({
+      dsrPercent: computed.grossDsrPercent,
+      netDsrPercent: computed.netDsrPercent,
+      dsrBasis: computed.dsrBasis,
+    });
+    res.json({
+      data: {
+        dsrPercent,
+        netDsrPercent: computed.netDsrPercent,
+        grossDsrPercent: computed.grossDsrPercent,
+        dsrBasis: computed.dsrBasis,
+      },
+    });
   } catch (err) {
     next(err);
   }

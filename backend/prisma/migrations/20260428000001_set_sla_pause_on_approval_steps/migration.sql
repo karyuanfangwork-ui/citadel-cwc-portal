@@ -1,6 +1,6 @@
--- Set slaPause = true on all approval-related workflow steps
+-- Set sla_pause = true on all approval-related workflow steps
 -- These statuses represent "waiting for human approval" — SLA should pause
-UPDATE "WorkflowStep" SET "slaPause" = true
+UPDATE "workflow_steps" SET "sla_pause" = true
 WHERE status IN (
   'PENDING_MANAGER_APPROVAL_IT',
   'PENDING_VP_APPROVAL_IT',

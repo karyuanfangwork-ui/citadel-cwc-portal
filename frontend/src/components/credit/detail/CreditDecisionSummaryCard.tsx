@@ -13,8 +13,9 @@
  * explainability fields from getApplication).
  */
 import React, { useEffect, useState } from 'react';
-import { CreditApplication, CreditScoreRun } from '../../../services/credit.service';
+import { CreditApplication, CreditScoreRun, ApplicationAssessmentResult } from '../../../services/credit.service';
 import creditService from '../../../services/credit.service';
+import RuleTracePanel from './RuleTracePanel';
 
 interface CreditDecisionSummaryCardProps {
   application: CreditApplication;
@@ -67,11 +68,15 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
 
   // P3-8 — fetch score run history for the trend sparkline
   const [scoreHistory, setScoreHistory] = useState<CreditScoreRun[]>([]);
+  const [assessmentResult, setAssessmentResult] = useState<ApplicationAssessmentResult | null>(null);
   useEffect(() => {
     if (!application.id) return;
     let mounted = true;
     creditService.listScoreRuns(application.id)
       .then((runs) => { if (mounted) setScoreHistory(runs); })
+      .catch(() => {});
+    creditService.getAssessmentResult(application.id)
+      .then((result) => { if (mounted) setAssessmentResult(result); })
       .catch(() => {});
     return () => { mounted = false; };
   }, [application.id]);
@@ -87,10 +92,11 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
   let riskCategory: string | null = null;
   let reasonCodes: string[] = [];
 
-  if (frozenAssessment) {
-    recommendation = frozenAssessment.decisionRecommendation ?? 'CONDITIONAL';
-    riskCategory = frozenAssessment.riskCategory ?? null;
-    reasonCodes = (frozenAssessment.reasonCodes as string[]) ?? [];
+  const frozen = assessmentResult ?? frozenAssessment;
+  if (frozen) {
+    recommendation = frozen.decisionRecommendation ?? 'CONDITIONAL';
+    riskCategory = frozen.riskCategory ?? null;
+    reasonCodes = (frozen.reasonCodes as string[]) ?? [];
   } else {
     if (!riskRating || riskRating === 'NR') {
       recommendation = 'CONDITIONAL';
@@ -220,6 +226,15 @@ const CreditDecisionSummaryCard: React.FC<CreditDecisionSummaryCardProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {frozen && (
+        <details className="text-xs">
+          <summary className="cursor-pointer font-medium text-gray-600">Why this recommendation?</summary>
+          <div className="mt-2">
+            <RuleTracePanel trace={frozen.ruleTrace} finalRecommendation={recommendation} />
+          </div>
+        </details>
       )}
 
       {/* Bureau caps + freshness */}

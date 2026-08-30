@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FormData } from './BasicInfoStep';
+import creditService from '../../../services/credit.service';
 
 export interface EmploymentFinancialsStepProps {
   formData: FormData;
@@ -120,24 +121,46 @@ const EmploymentFinancialsStep: React.FC<EmploymentFinancialsStepProps> = ({
   formData,
   onFormDataChange,
 }) => {
-  // ── DSR calculation (client-side preview) ──
-  const totalIncome =
-    (Number(formData.monthlyGrossIncome) || 0) +
-    (Number(formData.fixedAllowances) || 0);
-  const totalCommitments =
-    (Number(formData.existingCommitments) || 0) +
-    (Number(formData.requestedInstallment) || 0);
-  const dsrPercent = totalIncome > 0 ? (totalCommitments / totalIncome) * 100 : 0;
+  // ── DSR preview (shared backend calculation) ──
+  const [dsrPreview, setDsrPreview] = useState<{ dsrPercent: number; netDsrPercent: number; grossDsrPercent: number; dsrBasis: 'NET' | 'GROSS' } | null>(null);
+  const [dsrPreviewLoading, setDsrPreviewLoading] = useState(false);
+  const totalIncome = (Number(formData.monthlyGrossIncome) || 0) + (Number(formData.fixedAllowances) || 0);
+  const totalCommitments = (Number(formData.existingCommitments) || 0) + (Number(formData.requestedInstallment) || 0);
 
-  // DSR color thresholds
-  let dsrColor = 'var(--cr-primary, #16a34a)'; // GREEN default < 50%
-  if (dsrPercent > 60) {
-    dsrColor = 'var(--cr-error, #ba1a1a)'; // RED
-  } else if (dsrPercent >= 50) {
-    dsrColor = '#d97706'; // AMBER
-  }
+  useEffect(() => {
+    if (totalIncome <= 0) {
+      setDsrPreview(null);
+      return;
+    }
+    let active = true;
+    setDsrPreviewLoading(true);
+    const timer = window.setTimeout(() => {
+      creditService.previewDsr({
+        monthlyGrossIncome: totalIncome,
+        hirePurchaseCommitment: 0,
+        creditCardCommitment: 0,
+        existingLoanCommitment: Number(formData.existingCommitments) || 0,
+        otherCommitments: 0,
+        proposedInstalment: Number(formData.requestedInstallment) || 0,
+        epfMonthlyAmount: 0,
+        monthlyTaxDeduction: 0,
+        monthlySocsoDeduction: 0,
+      }).then((result) => {
+        if (active) setDsrPreview(result);
+      }).catch(() => {
+        // Keep the last good value; the UI marks it stale below.
+      }).finally(() => {
+        if (active) setDsrPreviewLoading(false);
+      });
+    }, 300);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [totalIncome, totalCommitments, formData.existingCommitments, formData.requestedInstallment]);
 
-  const dsrLabel = totalIncome > 0 ? `${dsrPercent.toFixed(1)}%` : '—';
+  const dsrPercent = dsrPreview?.dsrPercent ?? null;
+  let dsrColor = 'var(--cr-primary, #16a34a)';
+  if (dsrPercent != null && dsrPercent > 60) dsrColor = 'var(--cr-error, #ba1a1a)';
+  else if (dsrPercent != null && dsrPercent >= 50) dsrColor = '#d97706';
+  const dsrLabel = dsrPercent != null ? `${dsrPercent.toFixed(1)}%` : 'Pending';
 
   const renderInlineNumberRow = (
     labelText: string,

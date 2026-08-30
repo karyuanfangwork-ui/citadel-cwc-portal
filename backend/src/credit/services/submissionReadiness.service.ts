@@ -16,26 +16,6 @@ import { smeFinancialService } from './smeFinancial.service';
 import { getNumberPolicy } from './policyParameter.service';
 import { resolveRequiredDocuments, RuleScope } from './creditRuleEngine.service';
 
-/**
- * @deprecated Use resolveRequiredDocuments() from creditRuleEngine.service instead.
- * This function is kept only as a synchronous fallback for contexts where
- * the async rule engine cannot be called (e.g., test mocks).
- * P1.3: This hardcoded function will be removed once all callers are migrated.
- */
-export function getRequiredDocumentsFallback(borrowerType: string): string[] {
-  switch (borrowerType) {
-    case 'INDIVIDUAL':
-      return ['NRIC_PASSPORT', 'PAYSLIP', 'BANK_STATEMENT'];
-    case 'SOLE_PROPRIETOR':
-      return ['NRIC_PASSPORT', 'SSM_CERT', 'BANK_STATEMENT'];
-    case 'JOINT':
-      return ['JV_AGREEMENT', 'AUDITED_FINANCIALS'];
-    case 'CORPORATE':
-    default:
-      return ['SSM_CERT', 'AUDITED_FINANCIALS', 'MOA_AOA'];
-  }
-}
-
 export interface ReadinessIssue {
   field: string;
   message: string;

@@ -5993,6 +5993,9 @@ model ApplicationAssessmentResult {
   riskCategory           String?  @map("risk_category") @db.VarChar(50) // LOW | MODERATE | HIGH | PROHIBITED
   decisionRecommendation String?  @map("decision_recommendation") @db.VarChar(20) // APPROVE | CONDITIONAL | REJECT
   reasonCodes            Json?    @map("reason_codes")
+  /// GAP-P1-05 — Ordered decision-rule evaluation trace from recommendDecision().
+  /// Null means the result was frozen before rule traces were captured.
+  ruleTrace              Json?    @map("rule_trace")
   missingInputs          Json?    @map("missing_inputs")
   modelVersion           String?  @map("model_version") @db.VarChar(50)
   policyVersion          String?  @map("policy_version") @db.VarChar(50)

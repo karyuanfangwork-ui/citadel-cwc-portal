@@ -1,10 +1,16 @@
 import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
-import { financialService } from '../services/financial.service';
+import { financialService, AuditContext } from '../services/financial.service';
 import { requireUser } from '../utils/requireUser';
 import prisma from '../../utils/prisma';
 import { getBorrowerExposurePresentation } from '../services/borrowerExposurePresentation.service';
+
+function auditContext(req: AuthRequest): AuditContext {
+  const user = requireUser(req);
+  if (!user.tenantId) throw new AppError('Tenant context required for audit', 500);
+  return { tenantId: user.tenantId, actorId: user.id, actorEmail: user.email, departmentId: user.departmentIds?.[0] ?? null };
+}
 
 class FinancialController {
   // ===========================================================================
@@ -78,6 +84,7 @@ class FinancialController {
       ...req.body,
       borrowerProfileId,
       enteredById: requireUser(req).id,
+      auditContext: auditContext(req),
     };
     const statement = await financialService.createStatement(data);
     res.status(201).json({ status: 'success', data: { statement } });
@@ -89,7 +96,7 @@ class FinancialController {
    */
   updateStatement = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const statement = await financialService.updateStatement(id, req.body);
+    const statement = await financialService.updateStatement(id, req.body, auditContext(req));
 
     if (!statement) {
       throw new AppError('Financial statement not found', 404);
@@ -106,7 +113,7 @@ class FinancialController {
     const id = String(req.params.id);
 
     try {
-      const statement = await financialService.deleteStatement(id);
+      const statement = await financialService.deleteStatement(id, auditContext(req));
 
       if (!statement) {
         throw new AppError('Financial statement not found', 404);
@@ -143,7 +150,7 @@ class FinancialController {
   upsertLineItems = asyncHandler(async (req: AuthRequest, res: Response) => {
     const statementId = String(req.params.id);
     const { items } = req.body;
-    const lineItems = await financialService.upsertLineItems(statementId, items);
+    const lineItems = await financialService.upsertLineItems(statementId, items, auditContext(req));
 
     res.json({ status: 'success', data: { lineItems } });
   });
@@ -160,7 +167,7 @@ class FinancialController {
       return res.status(400).json({ status: 'error', message: 'lineKey and lineLabel are required' });
     }
 
-    const lineItem = await financialService.addLine(statementId, lineKey, lineLabel, parentLineKey ?? null);
+    const lineItem = await financialService.addLine(statementId, lineKey, lineLabel, parentLineKey ?? null, auditContext(req));
 
     if (!lineItem) {
       return res.status(404).json({ status: 'error', message: 'Financial statement not found' });
@@ -199,7 +206,7 @@ class FinancialController {
     const isAdmin = actor.permissions.includes('credit:admin');
 
     try {
-      const statement = await financialService.submitForReview(statementId, actorId, isAdmin);
+      const statement = await financialService.submitForReview(statementId, actorId, isAdmin, auditContext(req));
 
       res.json({ status: 'success', data: { statement } });
     } catch (err: any) {
@@ -226,7 +233,7 @@ class FinancialController {
     }
 
     try {
-      const statement = await financialService.reviewStatement(statementId, reviewedById, decision, isAdmin);
+      const statement = await financialService.reviewStatement(statementId, reviewedById, decision, isAdmin, auditContext(req));
 
       res.json({ status: 'success', data: { statement } });
     } catch (err: any) {

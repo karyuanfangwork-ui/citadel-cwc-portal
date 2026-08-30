@@ -9,6 +9,7 @@ import { startAttachmentScanWorker, stopAttachmentScanWorker } from './workers/a
 import { startNotificationWorker } from './workers/notification.worker';
 import { attachmentScanQueue } from './queues/attachmentScan.queue';
 import { startAttachmentLifecycleReconciler } from './services/attachmentLifecycleReconciler.service';
+import { checkCreditConfigurationHealth } from './credit/services/configHealth.service';
 import app from './app';
 
 // Load environment variables
@@ -27,6 +28,7 @@ const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
     logger.info(`📡 API available at http://localhost:${PORT}${config.apiPrefix}`);
     logger.info(`🏥 Health check at http://localhost:${PORT}/health`);
+    void checkCreditConfigurationHealth();
     initScheduler();
 
     // Initialize Redis pub/sub for SSE fan-out (multi-instance support)

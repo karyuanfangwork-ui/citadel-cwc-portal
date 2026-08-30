@@ -10779,5 +10779,17 @@ export const operationControls: OperationControl[] = [
   {
     method: 'GET', path: '/credit/borrowers/operational', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:borrower:operationalList', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.borrower.operationalList', auditFindingIds: [],
   },
+  {
+    method: 'GET', path: '/admin/status-definitions/:id/usage', owner: 'Requests', authentication: 'user', coarsePermission: 'admin:settings', resourcePolicy: 'requestStatus:usage', validation: 'uuidParams', responseSchema: 'StatusDefinitionDto', rateTier: 'read', auditEvent: 'requestStatus.usage', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/admin/status-definitions/:id/retire', owner: 'Requests', authentication: 'user', coarsePermission: 'admin:settings', resourcePolicy: 'requestStatus:retire', validation: 'uuidParams', responseSchema: 'StatusDefinitionDto', rateTier: 'write', auditEvent: 'requestStatus.retire', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/credit/applications/:applicationId/assessment-result', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:assessmentResult:read', validation: 'uuidParams', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.assessmentResult.read', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/credit/applications/retail-income/dsr-preview', owner: 'Credit', authentication: 'user', coarsePermission: 'credit:read', resourcePolicy: 'credit:retailIncome:dsrPreview', validation: 'validateSchema', responseSchema: 'CreditDto', rateTier: 'read', auditEvent: 'credit.retailIncome.dsrPreview', auditFindingIds: [],
+  },
   ...remainingOperationControls,
 ];

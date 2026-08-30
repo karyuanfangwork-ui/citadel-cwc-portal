@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { DEFAULT_DOCUMENT_RULES, DEFAULT_FIELD_RULES } from './creditRuleDefaults';
 import { DocumentClass } from '@prisma/client';
+import { logger } from '../../utils/logger';
 
 const db = prisma as any;
 
@@ -60,7 +61,15 @@ async function fetchRows(kind: 'REQUIRED_DOCUMENT' | 'REQUIRED_FIELD'): Promise<
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     })) as RuleConfigRow[];
   } catch (error) {
-    if (shouldFallback(error)) return [];
+    if (shouldFallback(error)) {
+      logger.error({
+        code: 'RULE_CONFIG_FALLBACK',
+        reason: 'TABLE_UNAVAILABLE',
+        kind,
+        message: 'Credit rule configuration table unavailable; code defaults may be used.',
+      });
+      return [];
+    }
     throw error;
   }
 }
@@ -69,6 +78,13 @@ export async function resolveRequiredDocuments(scope: RuleScope): Promise<Resolv
   const rows = await fetchRows('REQUIRED_DOCUMENT');
 
   if (rows.length === 0) {
+    logger.error({
+      code: 'RULE_CONFIG_FALLBACK',
+      reason: 'NO_ROWS_CONFIGURED',
+      kind: 'REQUIRED_DOCUMENT',
+      scope,
+      message: 'No active required-document rules configured; code defaults used.',
+    });
     const defaults = DEFAULT_DOCUMENT_RULES[scope.borrowerType] ?? DEFAULT_DOCUMENT_RULES.INDIVIDUAL;
     return defaults.map((rule, index) => ({
       documentClass: rule.documentClass,

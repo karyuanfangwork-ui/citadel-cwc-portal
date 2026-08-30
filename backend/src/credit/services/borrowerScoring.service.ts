@@ -3,7 +3,6 @@ import { Prisma, RiskRating } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import {
-  mapTotalScoreToRiskRating,
   computeFinancialPerformanceScore,
   computeLeverageScore,
   computeLiquidityScore,
@@ -11,7 +10,7 @@ import {
   computeDsrCashflowScore,
 } from './scoring.service';
 import { applyBureauCaps, BureauCapInput } from './bureauCheck.service';
-import { mapScoreToRatingFromBands } from './ratingBand.service';
+import { resolveRatingOrFail } from './ratingResolution.service';
 import { logBorrowerActivity } from './borrowerActivity.service';
 
 const NEUTRAL_SCORE = 50;
@@ -220,9 +219,8 @@ export async function executeBorrowerScore(
     isRetail && retailWeights ? retailWeights : (scorecardVersion.factorWeights as any);
 
   const { totalScore, factorScores } = computeBorrowerTotalScore(inputs, weights);
-  // Phase 5 — prefer configurable RatingBandConfig; fall back to hardcoded
-  const bandRating = await mapScoreToRatingFromBands(totalScore);
-  const baseRiskRating = bandRating ?? mapTotalScoreToRiskRating(totalScore);
+  const resolution = await resolveRatingOrFail(totalScore, { scope: 'BORROWER', subjectId: borrowerId });
+  const baseRiskRating = resolution.rating;
   const caps = deriveBorrowerBureauCaps(creditScore, facilityConductStatuses);
   const { effectiveRating, capsApplied } = applyBureauCaps(baseRiskRating, caps);
   const reasonCodes = deriveReasonCodes(inputs, baseRiskRating, capsApplied);

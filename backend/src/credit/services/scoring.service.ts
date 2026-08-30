@@ -9,7 +9,8 @@ import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
-import { mapScoreToRatingFromBands, ratingBandService } from './ratingBand.service';
+import { ratingBandService } from './ratingBand.service';
+import { resolveRatingOrFail } from './ratingResolution.service';
 import { persistApplicationRiskRating } from './applicationRating.service';
 import { getNumberPolicy } from './policyParameter.service';
 import { scoreFactorDefinitionService, type GovernanceWarning } from './scoreFactorDefinition.service';
@@ -611,26 +612,16 @@ class ScoringService {
     // If no active bands exist (unseeded DB), fall back to hardcoded thresholds
     // and emit a governance warning. This fallback will be removed once all
     // environments have a seeded active band set.
-    const bandRating = await mapScoreToRatingFromBands(totalScore);
+    const resolution = await resolveRatingOrFail(totalScore, { scope: 'APPLICATION', subjectId: applicationId });
     let baseRiskRating: RiskRating;
 
     // LOS-014 — Capture the rating band version for provenance.
-    // The version is set when a band set is activated and stays stable across
-    // the set, so we read it once here. Null means unseeded (fallback bands).
     const ratingBandVersion = await ratingBandService.getActiveBandSetVersion();
 
-    if (bandRating) {
-      baseRiskRating = bandRating;
-    } else {
-      // P2.4 governance warning: no active DB band set found.
-      // This should never happen in production — run seedCanonicalBands().
-      governanceWarnings.push({
-        field: 'ratingBand',
-        message: 'No active rating band configuration found in DB. Using hardcoded fallback. Seed canonical bands for production scoring.',
-        severity: 'warning',
-      });
-      baseRiskRating = mapTotalScoreToRiskRating(totalScore);
+    if (resolution.warning) {
+      governanceWarnings.push(resolution.warning);
     }
+    baseRiskRating = resolution.rating;
 
     // Step 8b: Apply bureau rating caps
     const bureauCaps = await getBureauCapsForApplication(applicationId);

@@ -563,6 +563,29 @@ function normalizeApplication(raw: any): CreditApplication {
   return app as CreditApplication;
 }
 
+export interface RuleTraceEntry {
+  rule: string;
+  recommendation: 'APPROVE' | 'CONDITIONAL' | 'REJECT';
+  detail: string;
+}
+
+export interface ApplicationAssessmentResult {
+  id: string;
+  ruleTrace: RuleTraceEntry[] | null;
+  modelVersion: string | null;
+  policyVersion: string | null;
+  ratingBandVersion: number | null;
+  reasonCodes: string[] | null;
+  decisionRecommendation: 'APPROVE' | 'CONDITIONAL' | 'REJECT' | null;
+  finalRiskRating: string | null;
+  totalScore: number | null;
+  version: number;
+  createdAt: string;
+  scoreRun?: unknown;
+  createdBy?: CreditUserRef | null;
+  reviewedBy?: CreditUserRef | null;
+}
+
 export interface CreditApplication {
   id: string;
   applicationNo: string;
@@ -1491,6 +1514,27 @@ const creditService = {
   async getApplication(id: string) {
     const res = await apiClient.get(`/credit/applications/${id}`);
     return normalizeApplication(res.data.data.application);
+  },
+
+  /** Ordered rule trace for the latest frozen assessment. */
+  async getAssessmentResult(applicationId: string): Promise<ApplicationAssessmentResult> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/assessment-result`);
+    return res.data.data as ApplicationAssessmentResult;
+  },
+
+  async previewDsr(payload: {
+    monthlyGrossIncome: number;
+    hirePurchaseCommitment?: number;
+    creditCardCommitment?: number;
+    existingLoanCommitment?: number;
+    otherCommitments?: number;
+    proposedInstalment?: number;
+    epfMonthlyAmount?: number;
+    monthlyTaxDeduction?: number;
+    monthlySocsoDeduction?: number;
+  }) {
+    const res = await apiClient.post('/credit/retail-income/dsr-preview', payload);
+    return res.data.data as { dsrPercent: number; netDsrPercent: number; grossDsrPercent: number; dsrBasis: 'NET' | 'GROSS' };
   },
 
   async createApplication(data: Partial<CreditApplication>) {
