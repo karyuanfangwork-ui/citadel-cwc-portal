@@ -6,6 +6,8 @@ import {
 } from '../src/services/credit.service';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import { friendlyMessage } from '../src/utils/errorMessages';
+import toast from 'react-hot-toast';
 
 const DEFAULT_FACTORS: ScorecardFactor[] = [
   { key: 'financial_performance', label: 'Financial Performance', weight: 15 },
@@ -47,6 +49,7 @@ const ScorecardManagement: React.FC = () => {
   const [versions, setVersions] = useState<CreditScorecardVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
+  const [activationError, setActivationError] = useState<string | null>(null);
 
   // Create scorecard dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -120,12 +123,18 @@ const ScorecardManagement: React.FC = () => {
   const handleActivateVersion = async (versionId: string) => {
     if (!confirm('Activate this version? It will replace the current active version.')) return;
     try {
+      setActivationError(null);
       setActivating(versionId);
       await scorecardApi.activateVersion(versionId);
       if (expandedId) fetchVersions(expandedId);
       fetchScorecards();
-    } catch (e) { console.error(e); }
-    finally { setActivating(null); }
+      toast.success('Scorecard version activated');
+    } catch (e) {
+      console.error(e);
+      const message = friendlyMessage(e, 'Failed to activate scorecard version');
+      setActivationError(message);
+      toast.error(message);
+    } finally { setActivating(null); }
   };
 
   const handleWeightChange = (idx: number, weight: number) => {
@@ -159,6 +168,12 @@ const ScorecardManagement: React.FC = () => {
             </button>
           )}
         </div>
+
+        {activationError && (
+          <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <strong>Activation failed:</strong> {activationError}
+          </div>
+        )}
 
         {loading ? (
           <div className="space-y-3">
@@ -259,13 +274,18 @@ const ScorecardManagement: React.FC = () => {
                                   {new Date(v.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)' }}>
-                                  {!v.isActive && canAdmin && (
+                                  {!v.isActive && canAdmin && v.approvedById && (
                                     <button onClick={() => handleActivateVersion(v.id)} disabled={activating === v.id}
                                       className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
                                       style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                                       <span className="material-symbols-outlined text-sm">play_arrow</span>
                                       {activating === v.id ? 'Activating...' : 'Activate'}
                                     </button>
+                                  )}
+                                  {!v.isActive && canAdmin && !v.approvedById && (
+                                    <span className="text-xs font-semibold text-amber-700" title="A maker must approve this version before a different checker can activate it">
+                                      Approval required
+                                    </span>
                                   )}
                                 </td>
                               </tr>
