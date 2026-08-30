@@ -4,9 +4,28 @@ const prisma = new PrismaClient();
 const LEGACY_MODEL_VERSIONS = ['AUTO', 'MANUAL', 'RESCORE', 'OVERRIDE'];
 const BATCH_SIZE = 500;
 
-async function main(): Promise<void> {
+export type BackfillMode = 'dry-run' | 'apply';
+
+/**
+ * Backfill is fail-closed: no flag means dry-run. Data writes require the
+ * explicit --apply flag, and --dry-run/--apply cannot be combined.
+ */
+export function parseBackfillMode(argv: string[]): BackfillMode {
+  const args = new Set(argv);
+  const dryRun = args.has('--dry-run');
+  const apply = args.has('--apply');
+
+  if (dryRun && apply) {
+    throw new Error('Use either --dry-run or --apply, not both');
+  }
+
+  return apply ? 'apply' : 'dry-run';
+}
+
+export async function backfillAssessmentProvenance(mode: BackfillMode): Promise<void> {
   let cursor: string | undefined;
   let examined = 0;
+  let eligible = 0;
   let updated = 0;
   let unbackfillable = 0;
 
@@ -44,6 +63,9 @@ async function main(): Promise<void> {
         continue;
       }
 
+      eligible += 1;
+      if (mode === 'dry-run') continue;
+
       await prisma.applicationAssessmentResult.update({
         where: { id: row.id },
         data: { modelVersion: run.scorecardVersionId, policyVersion: run.policyVersion },
@@ -52,12 +74,15 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`Assessment provenance backfill: examined=${examined} updated=${updated} unbackfillable=${unbackfillable}`);
+  console.log(`Assessment provenance backfill: mode=${mode} examined=${examined} eligible=${eligible} updated=${updated} unbackfillable=${unbackfillable}`);
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => prisma.$disconnect());
+if (require.main === module) {
+  const mode = parseBackfillMode(process.argv.slice(2));
+  backfillAssessmentProvenance(mode)
+    .catch((error: unknown) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(async () => prisma.$disconnect());
+}
