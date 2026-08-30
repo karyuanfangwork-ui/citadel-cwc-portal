@@ -4,10 +4,23 @@
  * CRUD for webhook subscriptions + delivery log viewing.
  */
 import { Router } from 'express';
+import { z } from 'zod';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { validate } from '../../middleware/validate.middleware';
 import { webhookService } from '../services/webhook.service';
 
 const router = Router();
+
+export const createWebhookSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(100),
+    url: z.string().url().max(2048),
+    secret: z.string().min(16).max(512).optional().nullable(),
+    events: z.array(z.string().min(1).max(100)).min(1),
+    maxRetries: z.number().int().min(0).max(10).optional(),
+    retryDelaySec: z.number().int().positive().max(86400).optional(),
+  }),
+});
 
 router.use(authenticate);
 
@@ -20,7 +33,7 @@ router.get('/', requirePermission('credit:admin'), async (_req, res, next) => {
 });
 
 // Create subscription
-router.post('/', requirePermission('credit:admin'), async (req, res, next) => {
+router.post('/', requirePermission('credit:admin'), validate(createWebhookSchema), async (req, res, next) => {
   try {
     const { name, url, secret, events, maxRetries, retryDelaySec } = req.body;
     if (!name || !url || !Array.isArray(events)) {

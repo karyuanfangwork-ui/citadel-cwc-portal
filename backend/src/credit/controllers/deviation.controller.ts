@@ -121,10 +121,8 @@ function getApproverAuthorityLevel(req: AuthRequest): string {
     return roleAuthority;
   }
 
-  if (permissions.includes('credit:admin') || permissions.includes('admin:full')) {
-    return 'BOARD';
-  }
-
+  // GAP-P1-11 — permissions are not credit authority levels. Authority must
+  // come from an explicit credit role (or the committee permission below).
   if (permissions.includes('credit:committee')) {
     return 'COMMITTEE';
   }

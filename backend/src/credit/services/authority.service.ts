@@ -3,6 +3,9 @@
 // ---------------------------------------------------------------------------
 
 // Higher number = higher authority.
+//
+// GAP-P1-11 — platform-wide ADMIN is deliberately absent. Credit authority
+// comes only from an explicit credit role; CREDIT_ADMIN remains credit-specific.
 export const AUTHORITY_HIERARCHY: Record<string, number> = {
   RM: 1,
   MANAGER: 2,
@@ -16,16 +19,18 @@ export const AUTHORITY_HIERARCHY: Record<string, number> = {
   SENIOR_CREDIT_OFFICER: 3,
   CREDIT_COMMITTEE: 4,
   CREDIT_ADMIN: 5,
-  ADMIN: 5,
   BOARD_RISK_COMMITTEE: 5,
 };
+
+/** Sentinel for users with no role carrying credit authority. */
+export const NO_CREDIT_AUTHORITY = 'NONE';
 
 const ROLE_NAMES_BY_AUTHORITY_LEVEL: Record<number, string[]> = {
   1: ['CREDIT_RM', 'RM'],
   2: ['CREDIT_MANAGER', 'MANAGER'],
   3: ['SENIOR_CREDIT_OFFICER', 'SENIOR_MANAGER'],
   4: ['CREDIT_COMMITTEE', 'COMMITTEE'],
-  5: ['CREDIT_ADMIN', 'ADMIN', 'BOARD_RISK_COMMITTEE', 'BOARD'],
+  5: ['CREDIT_ADMIN', 'BOARD_RISK_COMMITTEE', 'BOARD'],
 };
 
 export function hasSufficientAuthority(userAuthority: string, requiredAuthority: string): boolean {
@@ -46,7 +51,8 @@ export function getRoleNamesForAuthorityLevel(level: number): string[] {
  * Given a set of user role names, return the highest authority level key.
  */
 export function getHighestAuthorityLevelName(userRoles: string[]): string {
-  let highestName = 'RM';
+  // GAP-P1-11 — no credit role must not fall back to a real authority level.
+  let highestName = NO_CREDIT_AUTHORITY;
   let highestRank = 0;
 
   for (const role of userRoles) {

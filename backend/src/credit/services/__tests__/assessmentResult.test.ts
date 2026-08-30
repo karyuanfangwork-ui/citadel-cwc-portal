@@ -1,9 +1,8 @@
 const createMock = jest.fn();
 const updateManyMock = jest.fn();
 
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../../../utils/prisma', () => {
+  const mockPrisma: any = {
     creditScoreRun: {
       findFirst: jest.fn(),
     },
@@ -16,8 +15,10 @@ jest.mock('../../../utils/prisma', () => ({
       updateMany: updateManyMock,
       findFirst: jest.fn(),
     },
-  },
-}));
+  };
+  mockPrisma.$transaction = jest.fn(async (fn: any) => fn(mockPrisma));
+  return { __esModule: true, default: mockPrisma };
+});
 
 jest.mock('../decisionEngine.service', () => ({
   recommendDecision: jest.fn().mockReturnValue({
@@ -113,6 +114,33 @@ describe('freezeAssessmentResult', () => {
 
     const createCall = (prisma.applicationAssessmentResult.create as jest.Mock).mock.calls[0][0];
     expect(createCall.data.riskCategory).toBe('PROHIBITED');
+  });
+});
+
+describe('freezeAssessmentResult — atomicity (GAP-P1-06)', () => {
+  beforeEach(() => {
+    (prisma.creditScoreRun.findFirst as jest.Mock).mockResolvedValue({
+      id: 'run-atomic', riskRating: 'BBB', totalScore: 62, missingInputs: null,
+      bureauCapsApplied: null, inputSnapshot: {}, ratingBandVersion: 3, calculationSource: 'AUTO',
+    });
+    (prisma.applicationAssessmentResult.findMany as jest.Mock).mockResolvedValue([{ id: 'prior-1', version: 1 }]);
+    (prisma.applicationAssessmentResult.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.applicationAssessmentResult.create as jest.Mock).mockReset();
+    (prisma as any).$transaction.mockClear();
+  });
+
+  it('performs supersede and create inside one transaction', async () => {
+    (prisma.applicationAssessmentResult.create as jest.Mock).mockResolvedValue({ id: 'new-1', status: 'FROZEN', version: 2 });
+    await freezeAssessmentResult('app-atomic', 'actor-1');
+    expect((prisma as any).$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.applicationAssessmentResult.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.applicationAssessmentResult.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates create failure within the transaction boundary', async () => {
+    (prisma.applicationAssessmentResult.create as jest.Mock).mockRejectedValue(new Error('unique constraint violation'));
+    await expect(freezeAssessmentResult('app-atomic', 'actor-1')).rejects.toThrow('unique constraint violation');
+    expect((prisma as any).$transaction).toHaveBeenCalledTimes(1);
   });
 });
 

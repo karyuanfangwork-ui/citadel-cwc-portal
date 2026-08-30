@@ -325,6 +325,53 @@ describe('enforceCreditSOD', () => {
   });
 });
 
+// GAP-P1-03 — maker-checker must order by sequence, never createdAt.
+describe('enforceCreditSOD — Rule 2 ordering (GAP-P1-03)', () => {
+  beforeEach(resetMocks);
+
+  it('queries the audit chain ordered by sequence', async () => {
+    const req = makeReq({ id: 'approver-user', roles: ['CREDIT_MANAGER'] });
+    mockedPrisma.creditApplication.findUnique.mockResolvedValue({ assignedRmId: 'rm-user', assignedAnalystId: null });
+    mockedPrisma.creditAuditEvent.findFirst.mockResolvedValue(null);
+
+    await enforceCreditSOD()(req, makeRes(), jest.fn());
+
+    expect(mockedPrisma.creditAuditEvent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { sequence: 'desc' } }),
+    );
+    expect(mockedPrisma.creditAuditEvent.findFirst.mock.calls[0][0].orderBy).not.toHaveProperty('createdAt');
+  });
+
+  it('blocks the maker identified by the highest sequence when timestamps tie', async () => {
+    const sameInstant = new Date('2026-08-29T10:00:00.000Z');
+    const chain = [
+      { sequence: 5, createdAt: sameInstant, actorId: 'other-user', oldState: 'UNDERWRITING', newState: 'CREDIT_ASSESSMENT' },
+      { sequence: 6, createdAt: sameInstant, actorId: 'maker-user', oldState: 'CREDIT_ASSESSMENT', newState: 'COMMITTEE_REVIEW' },
+    ];
+    mockedPrisma.creditApplication.findUnique.mockResolvedValue({ assignedRmId: 'rm-user', assignedAnalystId: null });
+    mockedPrisma.creditAuditEvent.findFirst.mockImplementation(async (args: any) =>
+      args?.orderBy?.sequence === 'desc' ? chain[1] : chain[0]);
+
+    const next = jest.fn();
+    await enforceCreditSOD()(makeReq({ id: 'maker-user', roles: ['CREDIT_MANAGER'] }), makeRes(), next);
+
+    expect(next.mock.calls[0][0]).toBeInstanceOf(AppError);
+    expect(next.mock.calls[0][0].statusCode).toBe(403);
+  });
+
+  it('allows a non-maker to approve when sequences tie on time', async () => {
+    mockedPrisma.creditApplication.findUnique.mockResolvedValue({ assignedRmId: 'rm-user', assignedAnalystId: null });
+    mockedPrisma.creditAuditEvent.findFirst.mockResolvedValue({
+      sequence: 6, createdAt: new Date('2026-08-29T10:00:00.000Z'), actorId: 'maker-user',
+      oldState: 'CREDIT_ASSESSMENT', newState: 'COMMITTEE_REVIEW',
+    });
+
+    const next = jest.fn();
+    await enforceCreditSOD()(makeReq({ id: 'different-approver', roles: ['CREDIT_MANAGER'] }), makeRes(), next);
+    expect(next).toHaveBeenCalledWith();
+  });
+});
+
 // ── enforceCommitteeSOD tests ─────────────────────────────────────────────────
 
 describe('enforceCommitteeSOD', () => {

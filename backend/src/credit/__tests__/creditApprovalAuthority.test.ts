@@ -60,7 +60,7 @@ describe('AUTHORITY_HIERARCHY constants', () => {
     expect(AUTHORITY_HIERARCHY['SENIOR_CREDIT_OFFICER']).toBe(LEVEL_SENIOR_MANAGER);
     expect(AUTHORITY_HIERARCHY['CREDIT_COMMITTEE']).toBe(LEVEL_COMMITTEE);
     expect(AUTHORITY_HIERARCHY['CREDIT_ADMIN']).toBe(LEVEL_BOARD);
-    expect(AUTHORITY_HIERARCHY['ADMIN']).toBe(LEVEL_BOARD);
+    expect(AUTHORITY_HIERARCHY['ADMIN']).toBeUndefined();
     expect(AUTHORITY_HIERARCHY['BOARD_RISK_COMMITTEE']).toBe(LEVEL_BOARD);
   });
 });
@@ -358,7 +358,7 @@ describe('Authority level hierarchy — lower level cannot override higher', () 
     expect(getRoleNamesForAuthorityLevel(2)).toEqual(expect.arrayContaining(['CREDIT_MANAGER', 'MANAGER']));
     expect(getRoleNamesForAuthorityLevel(3)).toEqual(expect.arrayContaining(['SENIOR_CREDIT_OFFICER', 'SENIOR_MANAGER']));
     expect(getRoleNamesForAuthorityLevel(4)).toEqual(expect.arrayContaining(['CREDIT_COMMITTEE', 'COMMITTEE']));
-    expect(getRoleNamesForAuthorityLevel(5)).toEqual(expect.arrayContaining(['CREDIT_ADMIN', 'ADMIN', 'BOARD_RISK_COMMITTEE', 'BOARD']));
+    expect(getRoleNamesForAuthorityLevel(5)).toEqual(expect.arrayContaining(['CREDIT_ADMIN', 'BOARD_RISK_COMMITTEE', 'BOARD']));
   });
 });
 

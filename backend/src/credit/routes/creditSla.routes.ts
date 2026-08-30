@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { validate } from '../../middleware/validate.middleware';
 import { creditSlaController } from '../controllers/creditSla.controller';
+import { createSlaPolicySchema, updateSlaPolicySchema } from '../validators/creditSla.validator';
 
 // ---------------------------------------------------------------------------
 // §2.2 — Credit SLA Policy & Breach Routes
@@ -23,6 +25,7 @@ router.use(authenticate);
 router.post(
   '/policies',
   requirePermission('credit:admin'),
+  validate(createSlaPolicySchema),
   creditSlaController.createPolicy,
 );
 
@@ -56,6 +59,7 @@ router.get(
 router.patch(
   '/policies/:id',
   requirePermission('credit:admin'),
+  validate(updateSlaPolicySchema),
   creditSlaController.updatePolicy,
 );
 

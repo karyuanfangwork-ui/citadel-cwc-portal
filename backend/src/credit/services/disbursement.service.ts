@@ -324,6 +324,20 @@ export async function disburseOrder(
     );
   }
 
+  // GAP-P1-12 — disbursement-order path must enforce the transition path's
+  // stale tangible-collateral valuation gate before releasing funds.
+  const { hasStaleCollateralValuations } = await import('../jobs/collateralInsuranceMonitor.job');
+  const freshness = await hasStaleCollateralValuations(order.applicationId);
+  if (freshness.blocked) {
+    const details = freshness.staleCollaterals
+      .map((c: { type: string; ageMonths: number | null }) => `${c.type}: valuation ${c.ageMonths ?? 'N/A'} months old`)
+      .join('; ');
+    throw new AppError(
+      `Cannot disburse — stale collateral valuation(s): ${details}. Update the valuations before disbursement.`,
+      400,
+    );
+  }
+
   // Use transaction: update order + transition application state + audit event
   const updated = await prisma.$transaction(async (tx) => {
     const disbursement = await tx.disbursementOrder.update({

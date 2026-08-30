@@ -63,43 +63,43 @@ export async function freezeAssessmentResult(
   const rating = (latestRun.riskRating as string) ?? 'NR';
   const riskCategory = deriveRiskCategory(rating);
 
-  // Supersede any prior FROZEN results for this application
-  const priorResults = await prisma.applicationAssessmentResult.findMany({
-    where: { applicationId, status: 'FROZEN' },
-    select: { id: true, version: true },
-  });
-  const nextVersion = priorResults.length > 0
-    ? Math.max(...priorResults.map((r) => r.version)) + 1
-    : 1;
-
-  // Mark prior results as SUPERSEDED
-  if (priorResults.length > 0) {
-    await prisma.applicationAssessmentResult.updateMany({
-      where: { id: { in: priorResults.map((r) => r.id) } },
-      data: { status: 'SUPERSEDED' },
+  // LOS-009 / GAP-P1-06 — supersede and create must commit or roll back together.
+  const result = await prisma.$transaction(async (tx) => {
+    const priorResults = await tx.applicationAssessmentResult.findMany({
+      where: { applicationId, status: 'FROZEN' },
+      select: { id: true, version: true },
     });
-  }
+    const nextVersion = priorResults.length > 0
+      ? Math.max(...priorResults.map((r) => r.version)) + 1
+      : 1;
 
-  // Create the frozen record
-  const result = await prisma.applicationAssessmentResult.create({
-    data: {
-      applicationId,
-      scoreRunId: latestRun.id,
-      finalRiskRating: latestRun.riskRating as string,
-      riskCategory,
-      decisionRecommendation: recommendation.recommendation,
-      reasonCodes: recommendation.reasonCodes.length > 0
-        ? (recommendation.reasonCodes as any)
-        : Prisma.JsonNull,
-      missingInputs: latestRun.missingInputs ?? Prisma.JsonNull,
-      modelVersion: latestRun.calculationSource ?? 'MANUAL',
-      policyVersion: null,
-      ratingBandVersion: latestRun.ratingBandVersion,
-      totalScore: latestRun.totalScore,
-      status: 'FROZEN',
-      version: nextVersion,
-      createdById: actorId,
-    },
+    if (priorResults.length > 0) {
+      await tx.applicationAssessmentResult.updateMany({
+        where: { id: { in: priorResults.map((r) => r.id) } },
+        data: { status: 'SUPERSEDED' },
+      });
+    }
+
+    return tx.applicationAssessmentResult.create({
+      data: {
+        applicationId,
+        scoreRunId: latestRun.id,
+        finalRiskRating: latestRun.riskRating as string,
+        riskCategory,
+        decisionRecommendation: recommendation.recommendation,
+        reasonCodes: recommendation.reasonCodes.length > 0
+          ? (recommendation.reasonCodes as any)
+          : Prisma.JsonNull,
+        missingInputs: latestRun.missingInputs ?? Prisma.JsonNull,
+        modelVersion: latestRun.calculationSource ?? 'MANUAL',
+        policyVersion: null,
+        ratingBandVersion: latestRun.ratingBandVersion,
+        totalScore: latestRun.totalScore,
+        status: 'FROZEN',
+        version: nextVersion,
+        createdById: actorId,
+      },
+    });
   });
 
   return { id: result.id, status: result.status, version: result.version };

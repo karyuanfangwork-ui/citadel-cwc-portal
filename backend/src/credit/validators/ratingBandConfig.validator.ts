@@ -127,3 +127,42 @@ export type CreateRatingBandSetInput = z.infer<typeof createRatingBandSetSchema>
 export const activateRatingBandSetSchema = z.object({
   effectiveFrom: z.date().optional().default(() => new Date()),
 });
+
+/** Route-level schemas for legacy/admin mutation endpoints. */
+export const createRatingBandSchema = z.object({
+  body: z.object({
+    scoreMin: z.number().int().min(0).max(100),
+    scoreMax: z.number().int().min(0).max(100),
+    rating: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']),
+    riskCategory: z.enum(['LOW', 'MODERATE', 'HIGH', 'PROHIBITED']),
+    effectiveFrom: z.coerce.date().optional(),
+  }).refine((data) => data.scoreMin <= data.scoreMax, {
+    message: 'scoreMin must be <= scoreMax', path: ['scoreMin'],
+  }),
+});
+
+export const updateRatingBandSchema = z.object({
+  body: z.object({
+    scoreMin: z.number().int().min(0).max(100).optional(),
+    scoreMax: z.number().int().min(0).max(100).optional(),
+    rating: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).optional(),
+    riskCategory: z.enum(['LOW', 'MODERATE', 'HIGH', 'PROHIBITED']).optional(),
+    effectiveTo: z.coerce.date().optional().nullable(),
+  }).superRefine((data, ctx) => {
+    if (data.scoreMin !== undefined && data.scoreMax !== undefined && data.scoreMin > data.scoreMax) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'scoreMin must be <= scoreMax', path: ['scoreMin'] });
+    }
+  }),
+});
+
+export const upsertRiskFactorMatrixSchema = z.object({
+  body: z.object({
+    factor: z.enum(['APPLICANT', 'INDUSTRY', 'PRODUCT', 'DOCUMENTATION', 'BEHAVIOUR', 'FRAUD']),
+    weight: z.number().min(0).max(100),
+    threshold: z.number().optional().nullable(),
+    reasonCodes: z.array(z.string().min(1).max(100)).optional().nullable(),
+  }),
+});
+
+export const createDraftBandSetRouteSchema = z.object({ body: createRatingBandSetSchema });
+export const bandIdsSchema = z.object({ body: z.object({ bandIds: z.array(z.string().uuid()).min(1) }) });

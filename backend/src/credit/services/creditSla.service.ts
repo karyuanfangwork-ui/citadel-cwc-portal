@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { ApplicationState } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { logger } from '../../utils/logger';
+import { isSafeEscalationState, SAFE_ESCALATION_STATES } from '../validators/creditSla.validator';
 
 // ---------------------------------------------------------------------------
 // §2.2 — Credit SLA Policy Service
@@ -270,6 +271,21 @@ class CreditSlaService {
 
       const escalateToState = breach.policy.escalateToState;
       if (!escalateToState) continue;
+
+      // GAP-P0-01 — defence in depth for policies written before validation.
+      if (!isSafeEscalationState(escalateToState)) {
+        logger.error(
+          `[GAP-P0-01] SLA policy has an unsafe escalateToState — escalation refused. ` +
+            `Allowed: ${SAFE_ESCALATION_STATES.join(', ')}.`,
+          {
+            policyId: breach.policyId,
+            policyName: breach.policy.name,
+            applicationId: breach.applicationId,
+            escalateToState,
+          },
+        );
+        continue;
+      }
 
       // Advance the application state, mark breach, and audit atomically
       await prisma.$transaction(async (tx) => {

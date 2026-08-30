@@ -108,8 +108,9 @@ export function enforceCreditSOD() {
             oldState: { not: null },
             newState: { not: null },
           },
-          orderBy: { createdAt: 'desc' },
-          select: { actorId: true, oldState: true, newState: true },
+          // LOS-013 / GAP-P1-03 — sequence is authoritative; createdAt can tie.
+          orderBy: { sequence: 'desc' },
+          select: { actorId: true, oldState: true, newState: true, sequence: true },
         });
 
         if (lastTransition && lastTransition.actorId === userId && lastTransition.oldState !== lastTransition.newState) {
@@ -239,8 +240,9 @@ export function enforceCommitteeSOD() {
             oldState: { not: null },
             newState: { not: null },
           },
-          orderBy: { createdAt: 'desc' },
-          select: { actorId: true, oldState: true, newState: true },
+          // LOS-013 / GAP-P1-03 — sequence is authoritative; createdAt can tie.
+          orderBy: { sequence: 'desc' },
+          select: { actorId: true, oldState: true, newState: true, sequence: true },
         });
 
         if (lastTransition && lastTransition.actorId === userId && lastTransition.oldState !== lastTransition.newState) {
