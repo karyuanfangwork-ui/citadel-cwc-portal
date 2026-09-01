@@ -1,6 +1,7 @@
 import React from 'react';
 import ApplicationComments from '../../../src/components/credit/ApplicationComments';
 import SnapshotHistoryPanel from '../../../src/components/credit/SnapshotHistoryPanel';
+import PolicyResultsPanel from '../../../src/components/credit/PolicyResultsPanel';
 import AuditTab from './sections/AuditTab';
 
 interface TimelineAuditTabProps {
@@ -48,6 +49,16 @@ const TimelineAuditTab: React.FC<TimelineAuditTabProps> = ({ applicationId }) =>
           Context Snapshots
         </h3>
         <SnapshotHistoryPanel applicationId={applicationId} />
+      </section>
+
+      <section>
+        <h3 style={sectionHeaderStyle}>
+          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+            rule
+          </span>
+          Policy Results
+        </h3>
+        <PolicyResultsPanel applicationId={applicationId} />
       </section>
     </div>
   );
