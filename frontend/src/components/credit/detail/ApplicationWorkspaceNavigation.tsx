@@ -14,6 +14,8 @@ interface ApplicationWorkspaceNavigationProps {
   borrowerType?: string | null;
   lane?: string | null;
   featureFlags?: Record<string, boolean | undefined>;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 const navButtonStyle: React.CSSProperties = {
@@ -40,6 +42,8 @@ const ApplicationWorkspaceNavigation: React.FC<ApplicationWorkspaceNavigationPro
   borrowerType,
   lane,
   featureFlags,
+  mobileOpen = false,
+  onMobileClose,
 }) => {
   const primaryAreas = APPLICATION_WORKSPACE_AREAS.filter(area => area.type === 'primary');
   const utilityAreas = APPLICATION_WORKSPACE_AREAS.filter(area => area.type === 'utility');
@@ -48,13 +52,19 @@ const ApplicationWorkspaceNavigation: React.FC<ApplicationWorkspaceNavigationPro
   return (
     <nav
       aria-label="Application workspace"
-      className="flex flex-col shrink-0 w-full lg:w-[248px]"
+      className={`${mobileOpen ? 'flex fixed inset-x-0 top-14 bottom-0 z-50 w-full' : 'hidden'} lg:flex lg:static lg:w-[248px] flex-col shrink-0`}
       style={{
         borderRight: '1px solid var(--cr-outline-variant, #e2e8f0)',
         backgroundColor: 'var(--cr-surface-container-lowest, #f8fafc)',
         overflowY: 'auto',
       }}
     >
+      <div className="flex items-center justify-between border-b px-4 py-3 lg:hidden" style={{ borderColor: 'var(--cr-outline-variant, #e2e8f0)' }}>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline, #64748b)' }}>Workspace</span>
+        <button type="button" aria-label="Close workspace menu" onClick={onMobileClose} className="rounded p-1 text-slate-600 hover:bg-slate-100">
+          <span className="material-symbols-outlined text-lg" aria-hidden="true">close</span>
+        </button>
+      </div>
       <div
         style={{
           padding: '16px 16px 8px',

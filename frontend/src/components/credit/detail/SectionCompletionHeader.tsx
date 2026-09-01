@@ -21,6 +21,7 @@ interface SectionCompletionHeaderProps {
   items?: CompletionItem[];
   blockers?: string[];
   hint?: string;
+  compact?: boolean;
 }
 
 const STATUS_CONFIG: Record<CompletionStatus, { bg: string; text: string; icon: string; label: string }> = {
@@ -50,6 +51,7 @@ const SectionCompletionHeader: React.FC<SectionCompletionHeaderProps> = ({
   items = [],
   blockers = [],
   hint,
+  compact = false,
 }) => {
   const cfg = STATUS_CONFIG[status];
 
@@ -59,12 +61,12 @@ const SectionCompletionHeader: React.FC<SectionCompletionHeaderProps> = ({
         borderRadius: 8,
         border: `1px solid ${cfg.text}30`,
         background: cfg.bg,
-        padding: '12px 16px',
-        marginBottom: 16,
+        padding: compact ? '8px 12px' : '12px 16px',
+        marginBottom: compact ? 12 : 16,
       }}
     >
       {/* Status line */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: items.length > 0 ? 8 : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: compact ? 0 : items.length > 0 ? 8 : 0 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 20, color: cfg.text }}>
           {cfg.icon}
         </span>
@@ -77,7 +79,7 @@ const SectionCompletionHeader: React.FC<SectionCompletionHeaderProps> = ({
       </div>
 
       {/* Blockers */}
-      {blockers.length > 0 && (
+      {!compact && blockers.length > 0 && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {blockers.map((b, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#dc2626' }}>
@@ -89,7 +91,7 @@ const SectionCompletionHeader: React.FC<SectionCompletionHeaderProps> = ({
       )}
 
       {/* Item checklist */}
-      {items.length > 0 && (
+      {!compact && items.length > 0 && (
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
           {items.map((item, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCurrency } from '../../../pages/credit/creditUtils';
+import { formatCurrency, formatRequiredCreditAmount, isValidRequiredCreditAmount } from '../../../pages/credit/creditUtils';
 
 describe('credit formatting', () => {
   it('formats valid amounts', () => {
@@ -10,7 +10,17 @@ describe('credit formatting', () => {
     expect(formatCurrency('not-a-number', 'MYR')).toBe('Data quality error');
   });
 
-  it('keeps a missing amount distinguishable from invalid data', () => {
-    expect(formatCurrency(null, 'MYR')).toBe('—');
+  it('uses one unavailable rule for missing, invalid, negative, and zero required amounts', () => {
+    for (const value of [null, undefined, '', 'not-a-number', -1, 0]) {
+      expect(isValidRequiredCreditAmount(value)).toBe(false);
+      expect(formatRequiredCreditAmount(value, 'MYR')).toBe('Amount unavailable · Review details');
+    }
+  });
+
+  it('formats positive required amounts and allows zero only explicitly', () => {
+    expect(isValidRequiredCreditAmount(125000)).toBe(true);
+    expect(formatRequiredCreditAmount(125000, 'MYR')).toContain('125,000');
+    expect(isValidRequiredCreditAmount(0, true)).toBe(true);
+    expect(formatRequiredCreditAmount(0, 'MYR', true)).toContain('0');
   });
 });

@@ -15,7 +15,6 @@ import ReadinessChecklistModal from '../src/components/credit/ReadinessChecklist
 
 // ── Application 360 Workspace Components ──
 import ApplicationWorkspaceHeader from '../src/components/credit/detail/ApplicationWorkspaceHeader';
-import ApplicationJourneyStepper from '../src/components/credit/detail/ApplicationJourneyStepper';
 import ApplicationWorkspaceNavigation from '../src/components/credit/detail/ApplicationWorkspaceNavigation';
 import ApplicationPartiesWorkspace from '../src/components/credit/detail/ApplicationPartiesWorkspace';
 import FinancialsWorkspace from '../src/components/credit/detail/FinancialsWorkspace';
@@ -72,7 +71,6 @@ import {
   FATCA_CRS_FLAG,
   ProcessingLane as ProcessingLaneType,
   getBorrowerSegment,
-  getJourneyStage,
   getApplicationLifecycleState,
   // ── Application 360 Tab System ──
   DetailTab360,
@@ -204,6 +202,16 @@ const CreditApplicationDetail: React.FC = () => {
   );
 
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [showContextRail, setShowContextRail] = useState(false);
+
+  useEffect(() => {
+    if (!showContextRail) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowContextRail(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [showContextRail]);
 
   const canWrite = hasPermission(user, 'credit:write');
   const canApprove = hasPermission(user, 'credit:approve');
@@ -544,7 +552,6 @@ const CreditApplicationDetail: React.FC = () => {
 
   // ── Application 360 derived data ──
   const segment = getBorrowerSegment(app.borrowerProfile?.borrowerType);
-  const journeyStageIndex = getJourneyStage(currentState);
   const lifecycleState = getApplicationLifecycleState(currentState);
   const readinessViewModel = buildApplicationReadinessViewModel({
     applicationState: currentState,
@@ -629,6 +636,7 @@ const CreditApplicationDetail: React.FC = () => {
         <SectionCompletionHeader
           title={title}
           status={phaseStatus}
+          compact
           blockers={phaseStatus === 'blocked' || phaseStatus === 'incomplete' ? blockers.slice(0, 3) : []}
           items={items}
         />
@@ -711,6 +719,7 @@ const CreditApplicationDetail: React.FC = () => {
           onNavigate={(tab) => { const t360 = (TAB_TO_TAB360[tab as DetailTab] ?? tab) as DetailTab360; handleTabChange(t360); }}
           transitions={transitions}
           currentState={currentState}
+          lifecycleState={lifecycleState}
           phaseCompletion={phaseCompletion}
           commentPreviews={commentPreviews}
           onAddNote={() => handleTabChange('timeline-audit')}
@@ -774,6 +783,16 @@ const CreditApplicationDetail: React.FC = () => {
       {/* ── Application 360 Workspace — 3-column layout ── */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden credit-module">
 
+        {lane !== 'PERSONAL_FAST' && (
+          <div className="lg:hidden flex items-center justify-between border-b px-4 py-2" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', borderColor: 'var(--cr-outline-variant)' }}>
+            <button type="button" aria-label="Open workspace menu" onClick={() => setShowMobileNav(true)} className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <span className="material-symbols-outlined text-lg" aria-hidden="true">menu</span>
+              <span>Workspace: {APPLICATION_WORKSPACE_AREAS.find(area => area.id === activeArea)?.label ?? 'Overview'}</span>
+            </button>
+            <span className="text-xs text-slate-500">{app.applicationNo}</span>
+          </div>
+        )}
+
         {/* ── Primary Application Workspace Navigation — hidden for Personal Fast lane ── */}
         {lane !== 'PERSONAL_FAST' && (
           <ApplicationWorkspaceNavigation
@@ -784,6 +803,8 @@ const CreditApplicationDetail: React.FC = () => {
             borrowerType={app.borrowerProfile?.borrowerType}
             lane={lane}
             featureFlags={featureFlags}
+            mobileOpen={showMobileNav}
+            onMobileClose={() => setShowMobileNav(false)}
           />
         )}
 
@@ -812,6 +833,9 @@ const CreditApplicationDetail: React.FC = () => {
             }}
             onExportCaMemo={handleDownloadCaMemo}
             onExportSummaryPdf={handleDownloadSummaryPdf}
+            isOverview={activeArea === 'overview'}
+            contextOpen={showContextRail}
+            onToggleContext={() => setShowContextRail(value => !value)}
           />
 
           {snapshotView.mode !== 'live' && (
@@ -828,7 +852,9 @@ const CreditApplicationDetail: React.FC = () => {
           )}
 
           {/* P2-4: Score outdated banner */}
-          <ScoreOutdatedBanner applicationId={app.id} />
+          {(activeArea === 'overview' || activeArea === 'financials' || activeArea === 'risk-compliance') && (
+            <ScoreOutdatedBanner applicationId={app.id} />
+          )}
 
           {/* §2.7 — Rejection Banner */}
           <RejectionBanner
@@ -839,13 +865,7 @@ const CreditApplicationDetail: React.FC = () => {
             applicationNo={app.applicationNo ?? undefined}
           />
 
-          {/* ── Journey Stepper (11 stages) ── */}
-          <div style={{ padding: '12px 24px 0' }}>
-            <ApplicationJourneyStepper
-              currentStageIndex={journeyStageIndex}
-              lifecycleState={lifecycleState}
-            />
-          </div>
+          {/* Overview owns the single compact journey summary; detail pages omit journey chrome. */}
 
           {/* The legacy grouped horizontal tabs remain available as a compatibility component,
               but are no longer rendered as a competing global navigation layer. */}
@@ -968,33 +988,47 @@ const CreditApplicationDetail: React.FC = () => {
         </main>
 
         {/* ── Right Sidebar: 6 Application 360 Widgets ── */}
+        {showContextRail && <button type="button" aria-label="Close application context" onClick={() => setShowContextRail(false)} className="fixed inset-0 z-30 hidden bg-slate-900/10 xl:block" />}
         <aside
-          className="hidden xl:flex flex-col w-80 shrink-0 overflow-y-auto cr-scroll"
+          aria-label="Application context"
+          className={`hidden xl:flex flex-col shrink-0 overflow-y-auto cr-scroll ${showContextRail ? 'fixed right-0 top-14 bottom-0 z-40 w-80 shadow-xl' : 'w-12'}`}
           style={{
             backgroundColor: 'var(--cr-surface-container-lowest)',
             borderLeft: '1px solid var(--cr-outline-variant)',
           }}
+          onKeyDown={event => { if (event.key === 'Escape') setShowContextRail(false); }}
         >
-          <ApplicationStatusWidget
-            currentState={currentState}
-            nextRequiredAction={null}
-          />
-
-          <ApplicationSlaWidget
-            slaDaysLeft={slaDaysLeft}
-            createdAt={app.createdAt ?? null}
-            slaTargetHours={app.slaTargetHours ?? null}
-          />
-
-          <ApplicationTeamWidget
-            app={app}
-            onAssign={(field: string) => {
-              // Navigate to borrower-profile tab for assignment changes
-              handleTabChange('customer-profile');
-            }}
-          />
+          <button
+            type="button"
+            aria-expanded={showContextRail}
+            aria-controls="application-context-panel"
+            onClick={() => setShowContextRail(value => !value)}
+            className={`${showContextRail ? 'mx-3 mt-3 self-end px-2' : 'mx-auto mt-3 px-1'} flex items-center gap-1 rounded border py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50`}
+            style={{ borderColor: 'var(--cr-outline-variant)' }}
+            title={showContextRail ? 'Hide application context' : 'Show application context'}
+          >
+            <span className="material-symbols-outlined text-base" aria-hidden="true">{showContextRail ? 'chevron_right' : 'chevron_left'}</span>
+            {showContextRail && <span>Hide context</span>}
+            {!showContextRail && <span className="sr-only">Show context</span>}
+          </button>
+          {showContextRail && <div id="application-context-panel">
+            <ApplicationStatusWidget currentState={currentState} nextRequiredAction={null} />
+            <ApplicationSlaWidget slaDaysLeft={slaDaysLeft} createdAt={app.createdAt ?? null} slaTargetHours={app.slaTargetHours ?? null} />
+            <ApplicationTeamWidget app={app} onAssign={() => handleTabChange('customer-profile')} />
+          </div>}
 
         </aside>
+
+        {showContextRail && <div className="fixed inset-0 z-40 hidden bg-slate-900/10 md:block xl:hidden" aria-hidden="true" onClick={() => setShowContextRail(false)} />}
+        {showContextRail && <aside id="application-context-panel-responsive" aria-label="Application context" className="fixed right-0 top-14 bottom-0 z-50 hidden w-80 max-w-[calc(100vw-1rem)] overflow-y-auto bg-white shadow-xl md:block xl:hidden" style={{ borderLeft: '1px solid var(--cr-outline-variant)' }}>
+          <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--cr-outline-variant)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Application context</span>
+            <button type="button" aria-label="Close application context" onClick={() => setShowContextRail(false)} className="rounded p-1 text-slate-600 hover:bg-slate-100"><span className="material-symbols-outlined text-lg" aria-hidden="true">close</span></button>
+          </div>
+          <ApplicationStatusWidget currentState={currentState} nextRequiredAction={null} />
+          <ApplicationSlaWidget slaDaysLeft={slaDaysLeft} createdAt={app.createdAt ?? null} slaTargetHours={app.slaTargetHours ?? null} />
+          <ApplicationTeamWidget app={app} onAssign={() => { setShowContextRail(false); handleTabChange('customer-profile'); }} />
+        </aside>}
       </div>
 
       {/* ── Mobile bottom panels (shown below content on small screens) ── */}

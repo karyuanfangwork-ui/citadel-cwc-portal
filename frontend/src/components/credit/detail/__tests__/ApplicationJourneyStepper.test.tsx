@@ -29,4 +29,24 @@ describe('ApplicationJourneyStepper', () => {
     expect(screen.getByRole('listitem', { name: /Credit Assessment.*returned for rework/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('status')).toHaveTextContent(/Returned for rework/i);
   });
+
+  it('renders the compact current-stage summary and reveals the full journey on demand', () => {
+    render(
+      <ApplicationJourneyStepper
+        compact
+        blockerCount={4}
+        lifecycleState={getApplicationLifecycleState('CREDIT_ASSESSMENT')}
+      />,
+    );
+
+    expect(screen.getByText('Credit Assessment')).toBeInTheDocument();
+    expect(screen.getByText('4 blockers')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Lifecycle stages' })).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', { name: 'View application journey' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('list', { name: 'Lifecycle stages' })).toBeInTheDocument();
+  });
 });

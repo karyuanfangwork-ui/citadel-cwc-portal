@@ -33,6 +33,8 @@ type CaMemoSectionProps = {
   children: React.ReactNode;
   /** Optional extra actions rendered in the header right area */
   actions?: React.ReactNode;
+  hideHeader?: boolean;
+  bare?: boolean;
   /** Optional className for the outer wrapper */
   className?: string;
 };
@@ -46,6 +48,8 @@ const CaMemoSection: React.FC<CaMemoSectionProps> = ({
   phase,
   children,
   actions,
+  hideHeader = false,
+  bare = false,
   className = '',
 }) => {
   // §3.5 — Flash animation: "✓ Saved just now" → fades to "↳ Saved X ago"
@@ -82,8 +86,8 @@ const CaMemoSection: React.FC<CaMemoSectionProps> = ({
   };
 
   return (
-    <section className={`bg-white border border-gray-200 rounded ${className}`}>
-      <header className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
+    <section className={`${bare ? '' : 'bg-white border border-gray-200 rounded'} ${className}`}>
+      {!hideHeader && <header className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {phase && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
@@ -125,8 +129,8 @@ const CaMemoSection: React.FC<CaMemoSectionProps> = ({
           )}
           {actions}
         </div>
-      </header>
-      <div className="p-4">
+      </header>}
+      <div className={bare ? '' : 'p-4'}>
         {children}
       </div>
     </section>

@@ -19,7 +19,7 @@ interface ApplicationTeamWidgetProps {
 const DISABLED_STATES: string[] = ['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'];
 
 const ApplicationTeamWidget: React.FC<ApplicationTeamWidgetProps> = ({ app, onAssign }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const isDisabled = DISABLED_STATES.includes(app.state ?? app.status ?? '');
 

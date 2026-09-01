@@ -7,6 +7,24 @@ export const formatCurrency = (val: number | string | null, currency = 'MYR') =>
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(amount);
 };
 
+/** Required credit amount: zero is invalid for application/facility requests. */
+export const isValidRequiredCreditAmount = (
+  val: number | string | null | undefined,
+  allowZero = false,
+): boolean => {
+  if (val == null || (typeof val === 'string' && val.trim() === '')) return false;
+  const amount = Number(val);
+  return Number.isFinite(amount) && (allowZero ? amount >= 0 : amount > 0);
+};
+
+export const formatRequiredCreditAmount = (
+  val: number | string | null | undefined,
+  currency = 'MYR',
+  allowZero = false,
+): string => isValidRequiredCreditAmount(val, allowZero)
+  ? formatCurrency(Number(val), currency)
+  : 'Amount unavailable · Review details';
+
 export const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 

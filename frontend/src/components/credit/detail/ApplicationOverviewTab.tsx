@@ -31,6 +31,7 @@ import creditService, {
 import {
   DetailTab,
   formatCurrency,
+  formatRequiredCreditAmount,
   PRODUCT_LABELS,
   STEPPER_STAGES,
   TAB_GROUPS,
@@ -39,6 +40,7 @@ import {
 } from '../../../../pages/credit/creditUtils';
 import { getBorrowerDisplayName } from '../BorrowerSummaryCard';
 import ApplicationReadinessPanel from './ApplicationReadinessPanel';
+import ApplicationJourneyStepper from './ApplicationJourneyStepper';
 import { ApplicationWorkspaceArea } from './applicationWorkspaceAreas';
 import { buildApplicationReadinessViewModel } from './applicationReadinessViewModel';
 
@@ -170,6 +172,7 @@ interface ApplicationOverviewTabProps {
   onNavigate: (tab: DetailTab) => void;
   transitions: ApplicationTransition[];
   currentState: ApplicationState;
+  lifecycleState?: import('../../../../pages/credit/creditUtils').ApplicationLifecycleState;
   phaseCompletion: Record<string, string>;
   commentPreviews: CommentPreview[];
   onAddNote: (text: string) => void;
@@ -1131,6 +1134,7 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
   onNavigate,
   transitions,
   currentState,
+  lifecycleState,
   phaseCompletion,
   commentPreviews,
   onAddNote,
@@ -1161,31 +1165,45 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
     else onNavigate(tab as DetailTab);
   };
 
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const borrowerName = getBorrowerDisplayName(app.borrowerProfile);
   const productLabel = PRODUCT_LABELS[app.productType] || app.productType || 'Credit facility';
   const borrowerTypeLabel = app.borrowerProfile?.borrowerType ? BORROWER_TYPE_LABELS[app.borrowerProfile.borrowerType] : null;
   const segmentLabel = borrowerTypeLabel || (segment ? SEGMENT_LABELS[segment] : (app.lane || 'Credit'));
   const assignedRm = app.rm ? `${app.rm.firstName} ${app.rm.lastName}`.trim() : 'Unassigned';
   const assignedAnalyst = app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}`.trim() : 'Unassigned';
+  const amountLabel = formatRequiredCreditAmount(app.requestedAmount, app.currency);
+  const renderSafeValue = (value: React.ReactNode, fallback = 'Unavailable') => {
+    if (value === 'Data quality error' || value === 'Amount unavailable · Review details') {
+      return <button type="button" className="font-semibold text-blue-700 underline" onClick={() => onNavigate('loan-request')}>Amount unavailable · Review details</button>;
+    }
+    return value || fallback;
+  };
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <section aria-labelledby="application-identity-heading" className="rounded-xl p-5" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)' }}>Application</p>
+    <div data-testid="application-overview" className="p-3 sm:p-6 flex flex-col gap-3 sm:gap-6">
+      <section aria-labelledby="application-identity-heading" className="rounded-xl p-4" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)' }}>Application</p>
             <h1 id="application-identity-heading" className="mt-1 text-xl font-bold" style={{ color: 'var(--cr-on-surface)' }}>{app.applicationNo}</h1>
             <p className="mt-1 text-sm" style={{ color: 'var(--cr-on-surface-variant)' }}>{borrowerName}</p>
-            <p className="mt-2 text-xs font-semibold" style={{ color: 'var(--cr-outline)' }}>{segmentLabel} · {productLabel}</p>
+            <p className="mt-1 text-xs font-semibold" style={{ color: 'var(--cr-outline)' }}>{segmentLabel} · {productLabel}</p>
           </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-right sm:grid-cols-4 sm:text-left">
-            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Requested Amount</p><p className="mt-1 text-sm font-bold">{formatCurrency(app.requestedAmount, app.currency)}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Tenure</p><p className="mt-1 text-sm font-bold">{app.requestedTenor ? `${app.requestedTenor} months` : '—'}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Risk Rating</p><p className="mt-1 text-sm font-bold">{app.riskRating || 'Not calculated'}</p></div>
-            <div><p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Owner</p><p className="mt-1 text-sm font-bold">{assignedRm}</p><p className="text-[11px]" style={{ color: 'var(--cr-outline)' }}>Analyst: {assignedAnalyst}</p></div>
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-x-5 gap-y-2 text-right sm:text-left">
+            <span className="text-xs"><span className="block text-[10px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Amount</span><strong>{renderSafeValue(amountLabel)}</strong></span>
+            <span className="text-xs"><span className="block text-[10px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Tenure</span><strong>{renderSafeValue(app.requestedTenor ? `${app.requestedTenor} months` : null)}</strong></span>
+            <span className="text-xs"><span className="block text-[10px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Risk</span><strong>{renderSafeValue(app.riskRating, 'Not calculated')}</strong></span>
+            <span className="text-xs"><span className="block text-[10px] uppercase tracking-wide" style={{ color: 'var(--cr-outline)' }}>Owner</span><strong>{assignedRm}</strong><span className="block text-[10px]" style={{ color: 'var(--cr-outline)' }}>Analyst: {assignedAnalyst}</span></span>
           </div>
         </div>
       </section>
+
+      <ApplicationJourneyStepper
+        compact
+        lifecycleState={lifecycleState}
+        currentStageIndex={currentJourneyIndex}
+      />
 
       <ApplicationReadinessPanel
         viewModel={readinessViewModel}
@@ -1194,26 +1212,35 @@ const ApplicationOverviewTab: React.FC<ApplicationOverviewTabProps> = ({
         onSubmit={onSubmit}
       />
 
-      {/* Command-centre summaries. Detailed work remains in the six working areas. */}
-      <RiskSnapshotSection app={app} onNavigate={onNavigate} />
-
-      {/* ── Section 1b: Credit Decision Summary (Phase 4 explainability) ── */}
-      <ApplicationDecisionSnapshot app={app} onNavigate={onNavigate} />
-
-      {/* Financial evidence summary; detailed financial work remains in Financials. */}
-      <FinancialTrendSection app={app} onNavigate={onNavigate} />
-
-      {/* Recent activity remains a concise pointer to Activity & Audit. */}
-      <RecentActivitiesSection
-        applicationId={app.id}
-        formatTimeAgo={formatTimeAgo}
-        onNavigate={onNavigate}
-      />
-
-      <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Overview scope</p>
-        <p className="mt-1" style={{ color: 'var(--cr-on-surface-variant)' }}>Detailed borrower, document, financial, risk, approval, and condition work is available in the corresponding workspace area or utility.</p>
-      </div>
+      <section aria-labelledby="overview-details-toggle-heading" className="rounded-xl border" style={{ borderColor: 'var(--cr-outline-variant)', backgroundColor: 'var(--cr-surface-container-lowest)' }}>
+        <button
+          type="button"
+          aria-expanded={showMoreDetails}
+          aria-controls="application-overview-secondary-details"
+          onClick={() => setShowMoreDetails(value => !value)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold"
+          style={{ color: 'var(--cr-on-surface)' }}
+        >
+          <span id="overview-details-toggle-heading">More application details</span>
+          <span className="material-symbols-outlined text-base" aria-hidden="true">{showMoreDetails ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        {showMoreDetails && (
+          <div id="application-overview-secondary-details" className="flex flex-col gap-6 border-t p-4" style={{ borderColor: 'var(--cr-outline-variant)' }}>
+            <RiskSnapshotSection app={app} onNavigate={onNavigate} />
+            <ApplicationDecisionSnapshot app={app} onNavigate={onNavigate} />
+            <FinancialTrendSection app={app} onNavigate={onNavigate} />
+            <RecentActivitiesSection
+              applicationId={app.id}
+              formatTimeAgo={formatTimeAgo}
+              onNavigate={onNavigate}
+            />
+            <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Overview scope</p>
+              <p className="mt-1" style={{ color: 'var(--cr-on-surface-variant)' }}>Detailed borrower, document, financial, risk, approval, and condition work is available in the corresponding workspace area or utility.</p>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 };

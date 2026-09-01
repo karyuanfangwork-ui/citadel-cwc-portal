@@ -5,6 +5,7 @@ import creditService, {
   FacilityType,
 } from '../../../../src/services/credit.service';
 import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { formatRequiredCreditAmount } from '../../creditUtils';
 
 // ── Retail-only facility types (no LC, BG, Trust Receipt, Islamic variants) ──
 const RETAIL_FACILITY_TYPES: { value: FacilityType; label: string }[] = [
@@ -20,12 +21,6 @@ const PRODUCT_TO_FACILITY: Record<string, FacilityType> = {
   OVERDRAFT: 'OVERDRAFT',
   REVOLVING: 'REVOLVING_CREDIT',
 };
-
-// ── Helpers ─────────────────────────────────────────────────────
-const fmtRM = (v: number | string | null | undefined) =>
-  v != null && v !== ''
-    ? Number(v).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '—';
 
 // ── Props ───────────────────────────────────────────────────────
 
@@ -346,7 +341,7 @@ const RetailFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) =>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
                           {typeLabel}
                         </span>
-                        <span className="text-sm font-bold text-gray-900">RM {fmtRM(fac.newLimit ?? fac.amount)}</span>
+                        <span className="text-sm font-bold text-gray-900">{formatRequiredCreditAmount(fac.newLimit ?? fac.amount, application.currency)}</span>
                         {fac.tenorMonths != null && (
                           <span className="text-sm text-gray-600">{fac.tenorMonths} mo</span>
                         )}

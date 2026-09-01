@@ -59,17 +59,23 @@ const ScoreOutdatedBanner: React.FC<ScoreOutdatedBannerProps> = ({ applicationId
   };
 
   return (
-    <div className={`bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center gap-3 ${className}`}>
-      <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
-      <div className="flex-1">
+    <div role="alert" className={`bg-amber-50 border border-amber-300 rounded-lg p-2.5 flex flex-wrap items-center gap-3 ${className}`}>
+      <span className="material-symbols-outlined text-amber-600 text-xl" aria-hidden="true">warning</span>
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-amber-800">
-          Risk score needs recalculation
+          Risk score is out of date
         </p>
         <p className="text-xs text-amber-700">
-          {status.staleInputSource || 'A material scoring input'} was updated {formatTime(status.lastFinancialsUpdatedAt)}, but the last score run was {formatTime(status.lastScoreRunAt)}.
+          Updated borrower information is not included in the latest score.
         </p>
+        <details className="mt-1 text-[11px] text-amber-700">
+          <summary className="cursor-pointer font-semibold">View score timing</summary>
+          <p className="mt-1">{status.staleInputSource || 'A material scoring input'} was updated {formatTime(status.lastFinancialsUpdatedAt)}; the last score run was {formatTime(status.lastScoreRunAt)}.</p>
+        </details>
       </div>
       <button
+        type="button"
+        aria-label="Rescore risk score"
         onClick={handleRescore}
         disabled={rescoring}
         className="px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"

@@ -236,7 +236,7 @@ const ApplicationDetailsTab: React.FC<ApplicationDetailsTabProps> = ({
     <div className="space-y-6">
       {/* ── Section 1: Core Request ─────────────────────────────────────── */}
       <CaMemoSection title="Core Request" phase="S1">
-        <LoanRequestTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} />
+        <LoanRequestTab application={application} onUpdated={onUpdated} onDirtyChange={onDirtyChange} embedded />
       </CaMemoSection>
 
       {/* ── Section 2: Facilities ───────────────────────────────────────── */}

@@ -4,7 +4,8 @@ import creditService, {
   FacilityType,
 } from '../../../src/services/credit.service';
 import {
-  formatCurrency,
+  formatRequiredCreditAmount,
+  isValidRequiredCreditAmount,
   getFacilityTypes,
   CURRENCIES,
   PRODUCT_LABELS,
@@ -21,9 +22,10 @@ type Props = {
   application: CreditApplication;
   onUpdated: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  embedded?: boolean;
 };
 
-const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
+const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange, embedded = false }) => {
   const LOCKED_STATES = new Set(['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED', 'CONDITION_FULFILMENT', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN']);
   const readOnly = LOCKED_STATES.has(application.state ?? '');
 
@@ -60,7 +62,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
   return (
     <div className="space-y-6">
       {/* ── Loan Request ──────────────────────────── */}
-      <CaMemoSection title="Loan Request" phase="S1">
+      <CaMemoSection title="Loan Request" phase="S1" hideHeader={embedded} bare={embedded}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Product Type */}
           <div>
@@ -100,7 +102,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{form.currency || 'MYR'}</span>
               <input
                 type="number"
-                value={form.requestedAmount ?? ''}
+                value={isValidRequiredCreditAmount(form.requestedAmount) ? form.requestedAmount : ''}
                 onChange={e => update('requestedAmount', Number(e.target.value) || null as any)}
                 disabled={readOnly}
                 className="w-full border border-gray-300 rounded-lg pl-14 pr-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
@@ -138,7 +140,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
       </CaMemoSection>
 
       {/* ── Quick Summary ─────────────────────────── */}
-      <CaMemoSection title="Request Summary" phase="S1">
+      {!embedded && <CaMemoSection title="Request Summary" phase="S1">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-xs font-semibold text-gray-500 mb-1">Product</div>
@@ -146,7 +148,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-xs font-semibold text-gray-500 mb-1">Amount</div>
-            <div className="text-sm font-bold text-gray-900">{formatCurrency(form.requestedAmount, form.currency ?? 'MYR')}</div>
+            <div className="text-sm font-bold text-gray-900">{formatRequiredCreditAmount(form.requestedAmount, form.currency ?? 'MYR')}</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-xs font-semibold text-gray-500 mb-1">Tenor</div>
@@ -157,7 +159,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
             <div className="text-sm font-bold text-gray-900">{form.currency || 'MYR'}</div>
           </div>
         </div>
-      </CaMemoSection>
+      </CaMemoSection>}
     </div>
   );
 };

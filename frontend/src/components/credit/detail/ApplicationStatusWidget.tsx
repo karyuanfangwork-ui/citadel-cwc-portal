@@ -30,14 +30,22 @@ const ApplicationStatusWidget: React.FC<ApplicationStatusWidgetProps> = ({
       }}
     >
       {/* ── Header ── */}
-      <div
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        aria-controls="application-status-widget-body"
         onClick={() => setCollapsed(prev => !prev)}
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          width: '100%',
           cursor: 'pointer',
           userSelect: 'none',
+          background: 'none',
+          border: 0,
+          padding: 0,
+          textAlign: 'left',
         }}
       >
         <span
@@ -54,6 +62,7 @@ const ApplicationStatusWidget: React.FC<ApplicationStatusWidgetProps> = ({
         </span>
         <span
           className="material-symbols-outlined"
+          aria-hidden="true"
           style={{
             fontSize: 16,
             color: 'var(--cr-outline)',
@@ -63,11 +72,11 @@ const ApplicationStatusWidget: React.FC<ApplicationStatusWidgetProps> = ({
         >
           expand_more
         </span>
-      </div>
+      </button>
 
       {/* ── Body ── */}
       {!collapsed && (
-        <div style={{ marginTop: 12 }}>
+        <div id="application-status-widget-body" style={{ marginTop: 12 }}>
           <StateBadge state={currentState} size="sm" />
 
           <p
@@ -79,7 +88,7 @@ const ApplicationStatusWidget: React.FC<ApplicationStatusWidgetProps> = ({
               marginBottom: 0,
             }}
           >
-            {nextRequiredAction ?? 'No pending actions'}
+            {nextRequiredAction ?? 'No action assigned to you'}
           </p>
         </div>
       )}

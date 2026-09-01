@@ -33,17 +33,18 @@ describe('ApplicationReadinessPanel', () => {
     const onNavigate = vi.fn();
     render(<ApplicationReadinessPanel viewModel={baseViewModel()} onNavigate={onNavigate} />);
 
-    expect(screen.getByRole('heading', { name: '1 issue blocking progress' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Go to Financials' }));
+    expect(screen.getByRole('heading', { name: '1 item is preventing submission' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open next item' }));
     expect(onNavigate).toHaveBeenCalledWith('financials', 'financial-profile');
   });
 
-  it('owns the single Next Action presentation alongside server readiness', () => {
+  it('does not duplicate the next blocker as a second full action card', () => {
     const onNavigate = vi.fn();
     render(<ApplicationReadinessPanel viewModel={baseViewModel()} onNavigate={onNavigate} />);
 
-    expect(screen.getByRole('heading', { name: 'Next Action' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open next action' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open next item' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Next Action' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Complete Retail Income / DSR')).toHaveLength(1);
   });
 
   it('does not present a false-ready state when readiness is unavailable', () => {
@@ -54,7 +55,27 @@ describe('ApplicationReadinessPanel', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
-  it('distinguishes warning-only readiness from blockers', () => {
+  it('shows exactly one submission CTA when ready', () => {
+    const onSubmit = vi.fn();
+    render(<ApplicationReadinessPanel viewModel={baseViewModel({
+      status: 'ready',
+      blockers: [],
+      warnings: [],
+      nextAction: undefined,
+      satisfied: [{ id: 'complete-1', severity: 'complete', title: 'Borrower profile complete' }],
+      completedCount: 1,
+      totalCount: 1,
+    })} onNavigate={vi.fn()} onSubmit={onSubmit} />);
+
+    expect(screen.getAllByRole('button', { name: 'Submit Application' })).toHaveLength(1);
+    expect(screen.queryByText('Borrower profile complete')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+    expect(onSubmit).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Show completed checks (1)' }));
+    expect(screen.getByText('Borrower profile complete')).toBeInTheDocument();
+  });
+
+  it('keeps warnings visible without presenting a blocker heading', () => {
     render(<ApplicationReadinessPanel viewModel={baseViewModel({
       status: 'warning',
       blockers: [],

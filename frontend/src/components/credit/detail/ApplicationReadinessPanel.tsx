@@ -103,32 +103,57 @@ const ApplicationReadinessPanel: React.FC<ApplicationReadinessPanelProps> = ({
   }
 
   const isReady = viewModel.status === 'ready' || viewModel.status === 'warning';
+  const hasPrimaryNextAction = Boolean(viewModel.nextAction?.targetArea && viewModel.nextAction.targetTab);
+  const secondaryBlockers = hasPrimaryNextAction ? viewModel.blockers.slice(1) : viewModel.blockers;
   return (
     <section aria-labelledby="application-readiness-heading" className="rounded-xl p-4" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)', fontFamily: 'var(--cr-font-display)' }}>Application Readiness</p>
+          {viewModel.status === 'blocked' && <p className="mt-1 text-sm font-semibold text-slate-700">What needs your attention</p>}
           <h2 id="application-readiness-heading" className="mt-1 text-lg font-bold" style={{ color: 'var(--cr-on-surface)' }}>
             {viewModel.status === 'blocked'
               ? viewModel.blockers.length > 0
-                ? `${viewModel.blockers.length} issue${viewModel.blockers.length === 1 ? '' : 's'} blocking progress`
+                ? `${viewModel.blockers.length} item${viewModel.blockers.length === 1 ? ' is' : 's are'} preventing submission`
                 : 'Readiness checks are incomplete'
               : viewModel.status === 'warning' ? 'Ready with warnings' : 'Ready for submission'}
           </h2>
         </div>
-        {viewModel.totalCount > 0 && (
+        {viewModel.totalCount > 0 && viewModel.status !== 'blocked' && (
           <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold" style={{ color: isReady ? '#166534' : '#991b1b', backgroundColor: isReady ? '#dcfce7' : '#fee2e2' }}>
             {viewModel.completedCount} of {viewModel.totalCount} checks complete
           </span>
         )}
       </div>
 
+      {viewModel.nextAction?.targetArea && viewModel.nextAction.targetTab && (
+        <section aria-label="Next application item" className="mt-2 sm:mt-4 rounded-lg bg-blue-50 px-3 py-3">
+          <div className="mt-0 sm:mt-2 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-blue-950">{viewModel.nextAction.title}</p>
+              {viewModel.nextAction.description && <p className="mt-1 text-xs text-blue-800">{viewModel.nextAction.description}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate(viewModel.nextAction!.targetArea!, viewModel.nextAction!.targetTab!)}
+              className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800"
+            >
+              Open next item
+            </button>
+          </div>
+        </section>
+      )}
+
       {viewModel.blockers.length > 0 && (
         <div className="mt-4">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-red-700">Blockers <span className="sr-only">requiring action</span></h3>
-          <ul className="space-y-2">
-            {viewModel.blockers.map(item => <ReadinessItemRow key={item.id} item={item} onNavigate={onNavigate} />)}
-          </ul>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-red-700">{hasPrimaryNextAction ? 'Other blockers' : 'Blockers'} <span className="sr-only">requiring action</span></h3>
+          {secondaryBlockers.length > 0 ? (
+            <ul className="space-y-2">
+              {secondaryBlockers.map(item => <ReadinessItemRow key={item.id} item={item} onNavigate={onNavigate} />)}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-600">The next item above is the only blocker.</p>
+          )}
         </div>
       )}
 
@@ -139,25 +164,6 @@ const ApplicationReadinessPanel: React.FC<ApplicationReadinessPanelProps> = ({
             {viewModel.warnings.map(item => <ReadinessItemRow key={item.id} item={item} onNavigate={onNavigate} />)}
           </ul>
         </div>
-      )}
-
-      {viewModel.nextAction?.targetArea && viewModel.nextAction.targetTab && (
-        <section aria-labelledby="readiness-next-action-heading" className="mt-4 rounded-lg bg-blue-50 px-3 py-3">
-          <h3 id="readiness-next-action-heading" className="text-xs font-bold uppercase tracking-wider text-blue-700">Next Action</h3>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-blue-950">{viewModel.nextAction.title}</p>
-              {viewModel.nextAction.description && <p className="mt-1 text-xs text-blue-800">{viewModel.nextAction.description}</p>}
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate(viewModel.nextAction!.targetArea!, viewModel.nextAction!.targetTab!)}
-              className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800"
-            >
-              Open next action
-            </button>
-          </div>
-        </section>
       )}
 
       {viewModel.satisfied.length > 0 && (
