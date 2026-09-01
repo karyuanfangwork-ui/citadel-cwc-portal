@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmAccountDetail from '../../pages/CrmAccountDetail';
@@ -7,6 +7,8 @@ const mockGetAccount = vi.fn();
 const mockListCrmUsers = vi.fn();
 const mockListAccounts = vi.fn();
 const mockListNotes = vi.fn();
+const mockCreateActivity = vi.fn();
+const mockUpdateActivity = vi.fn();
 const mockUseNextBestAction = vi.fn();
 const mockListBorrowerProfiles = vi.fn();
 
@@ -16,6 +18,8 @@ vi.mock('../services/crm.service', () => ({
     listCrmUsers: (...args: unknown[]) => mockListCrmUsers(...args),
     listAccounts: (...args: unknown[]) => mockListAccounts(...args),
     listNotes: (...args: unknown[]) => mockListNotes(...args),
+    createActivity: (...args: unknown[]) => mockCreateActivity(...args),
+    updateActivity: (...args: unknown[]) => mockUpdateActivity(...args),
   },
 }));
 
@@ -77,5 +81,16 @@ describe('CrmAccountDetail', () => {
 
     // The account name appears in both the sidebar and header
     expect(screen.getAllByText('ACME Berhad').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows call category and outcome when logging a call activity', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Activities' }));
+    fireEvent.click(screen.getByRole('button', { name: /log call/i }));
+
+    expect(screen.getByText('Call category')).toBeInTheDocument();
+    expect(screen.getByText('Call outcome')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'New call' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Select outcome' })).toBeInTheDocument();
   });
 });

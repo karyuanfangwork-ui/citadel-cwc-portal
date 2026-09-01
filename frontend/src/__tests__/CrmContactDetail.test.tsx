@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmContactDetail from '../../pages/CrmContactDetail';
@@ -8,6 +8,8 @@ const mockUseNextBestAction = vi.fn();
 const mockUseDraftMessage = vi.fn();
 const mockUseKycGaps = vi.fn();
 const mockUseRiskProfile = vi.fn();
+const mockCreateActivity = vi.fn();
+const mockUpdateActivity = vi.fn();
 
 vi.mock('../services/crm.service', () => ({
   default: {
@@ -15,6 +17,8 @@ vi.mock('../services/crm.service', () => ({
     getContactAccountRoles: vi.fn().mockResolvedValue([]),
     listNotes: vi.fn().mockResolvedValue({ notes: [] }),
     listActivities: vi.fn().mockResolvedValue({ activities: [] }),
+    createActivity: (...args: unknown[]) => mockCreateActivity(...args),
+    updateActivity: (...args: unknown[]) => mockUpdateActivity(...args),
   },
 }));
 
@@ -69,5 +73,13 @@ describe('CrmContactDetail', () => {
 
     // Contact Information section exists in the overview tab
     expect(screen.getByText('Contact Information')).toBeInTheDocument();
+  });
+
+  it('shows call category and outcome when logging a call activity', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /log call/i }));
+
+    expect(screen.getByText('Call category')).toBeInTheDocument();
+    expect(screen.getByText('Call outcome')).toBeInTheDocument();
   });
 });

@@ -6,7 +6,14 @@ import CrmLeadDetail from '../../pages/CrmLeadDetail';
 const mockGetLead = vi.fn();
 const mockListCrmUsers = vi.fn();
 const mockUpdateActivity = vi.fn();
+const mockUpdateNote = vi.fn();
+const mockDeleteNote = vi.fn();
 const mockUseNextBestAction = vi.fn();
+const mockUser = vi.hoisted(() => ({
+  id: 'user-1',
+  email: 'admin@test.local',
+  permissions: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
+}));
 
 vi.mock('../services/crm.service', () => ({
   default: {
@@ -15,6 +22,8 @@ vi.mock('../services/crm.service', () => ({
     updateLead: vi.fn(),
     deleteLead: vi.fn(),
     createNote: vi.fn(),
+    updateNote: (...args: unknown[]) => mockUpdateNote(...args),
+    deleteNote: (...args: unknown[]) => mockDeleteNote(...args),
     createActivity: vi.fn(),
     listActivities: vi.fn(),
     sendActivityReminder: vi.fn(),
@@ -27,11 +36,7 @@ vi.mock('../services/crm.service', () => ({
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({
-    user: {
-      id: 'user-1',
-      email: 'admin@test.local',
-      permissions: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
-    },
+    user: mockUser,
   }),
 }));
 
@@ -77,7 +82,19 @@ const lead = {
     },
   ],
   activities: [],
-  notes: [],
+  notes: [{
+    id: 'note-1',
+    content: 'Original lead note',
+    authorId: 'user-1',
+    leadId: 'lead-1',
+    accountId: null,
+    contactId: null,
+    opportunityId: null,
+    isPinned: false,
+    createdAt: '2026-06-10T00:00:00.000Z',
+    updatedAt: '2026-06-10T00:00:00.000Z',
+    author: { id: 'user-1', firstName: 'Test', lastName: 'Author' },
+  }],
 } as any;
 
 const renderPage = async (leadOverride = lead) => {
@@ -102,8 +119,13 @@ const expectInDocumentOrder = (elements: HTMLElement[]) => {
 
 describe('CrmLeadDetail header redesign', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser.id = 'user-1';
+    mockUser.permissions = ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'];
     mockGetLead.mockResolvedValue(lead);
     mockListCrmUsers.mockResolvedValue([]);
+    mockUpdateNote.mockResolvedValue(lead.notes[0]);
+    mockDeleteNote.mockResolvedValue(undefined);
     mockUseNextBestAction.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
   });
 
@@ -212,6 +234,86 @@ describe('CrmLeadDetail header redesign', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Activities' }));
 
     expect(await screen.findByRole('button', { name: 'Edit activity' })).toBeInTheDocument();
+  });
+
+  it('shows the note edit and delete actions for the note author', async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+
+    expect(await screen.findByRole('button', { name: 'Edit note' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete note' })).toBeInTheDocument();
+  });
+
+  it('edits an authored lead note and reloads the lead', async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit note' }));
+
+    const editDialog = screen.getByRole('heading', { name: 'Edit Note' }).closest('div.relative') as HTMLElement;
+    const textarea = within(editDialog).getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: 'Updated lead note' } });
+    fireEvent.click(within(editDialog).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateNote).toHaveBeenCalledWith('note-1', { content: 'Updated lead note' });
+    });
+    expect(mockGetLead).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes an authored lead note after confirmation and reloads the lead', async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete note' }));
+    expect(screen.getByRole('heading', { name: 'Delete Note' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(mockDeleteNote).toHaveBeenCalledWith('note-1');
+    });
+    expect(mockGetLead).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not expose note mutation actions for a different note author', async () => {
+    await renderPage({ ...lead, notes: [{ ...lead.notes[0], authorId: 'other-user' }] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+
+    await waitFor(() => expect(screen.getByText('Original lead note')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Edit note' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete note' })).not.toBeInTheDocument();
+  });
+
+  it('does not expose Add Note to users without CRM write permission', async () => {
+    mockUser.permissions = ['crm:read'];
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+    expect(screen.queryByRole('button', { name: 'Add Note' })).not.toBeInTheDocument();
+  });
+
+  it('does not mutate a note when delete confirmation is cancelled', async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete note' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(mockDeleteNote).not.toHaveBeenCalled();
+  });
+
+  it('does not mutate a note when edit is cancelled', async () => {
+    await renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes & Documents' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit note' }));
+    const editDialog = screen.getByRole('heading', { name: 'Edit Note' }).closest('div.relative') as HTMLElement;
+    fireEvent.click(within(editDialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(mockUpdateNote).not.toHaveBeenCalled();
   });
 
   it('renders overview with lead information and related opportunities', async () => {

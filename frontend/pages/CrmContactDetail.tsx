@@ -51,6 +51,11 @@ const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   WHATSAPP: 'chat', SITE_VISIT: 'location_on',
 };
 
+const CALL_OUTCOMES = [
+  ['ANSWERED', 'Answered'], ['NO_ANSWER', 'No answer'], ['NOT_INTERESTED', 'Not interested'],
+  ['WRONG_NUMBER', 'Wrong number'], ['NOT_REACHABLE', 'Not reachable'], ['INTERESTED', 'Interested'],
+] as const;
+
 // ── Tab types ─────────────────────────────────────────────────────
 type Tab = 'overview' | 'activities' | 'kyc' | 'deals' | 'notes' | 'beneficiaries' | 'audit';
 
@@ -489,7 +494,7 @@ const CrmContactDetail = () => {
 
   // ── Activity state ─────────────────────────────────────────────────
   const [showAddActivity, setShowAddActivity] = useState(false);
-  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
+  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
   const [editingActivity, setEditingActivity] = useState<CrmActivity | null>(null);
   const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
@@ -595,9 +600,12 @@ const CrmContactDetail = () => {
     if (!id) return;
     try {
       setSavingActivity(true);
-      await crmService.createActivity({ ...activityForm, contactId: id });
+      const payload = ['CALL', 'FOLLOW_UP'].includes(activityForm.activityType ?? '')
+        ? activityForm
+        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(activityForm);
+      await crmService.createActivity({ ...payload, contactId: id });
       setShowAddActivity(false);
-      setActivityForm({ activityType: 'CALL' });
+      setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' });
       reload();
     } catch (e) { console.error(e); }
     finally { setSavingActivity(false); }
@@ -612,13 +620,22 @@ const CrmContactDetail = () => {
 
   const openEditActivity = (a: CrmActivity) => {
     setEditingActivity(a);
-    setEditActivityForm({ activityType: a.activityType, subject: a.subject, description: a.description ?? '', scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : '' });
+    setEditActivityForm({
+      activityType: a.activityType,
+      callCategory: a.callCategory ?? (a.activityType === 'CALL' ? 'NEW_CALL' : a.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined),
+      callOutcome: a.callOutcome ?? undefined,
+      subject: a.subject, description: a.description ?? '', scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : '' });
   };
 
   const handleEditActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingActivity) return;
-    try { setSavingActivity(true); await crmService.updateActivity(editingActivity.id, editActivityForm); setEditingActivity(null); reload(); }
+    try {
+      setSavingActivity(true);
+      const payload = ['CALL', 'FOLLOW_UP'].includes(editActivityForm.activityType ?? '')
+        ? editActivityForm
+        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(editActivityForm);
+      await crmService.updateActivity(editingActivity.id, payload); setEditingActivity(null); reload(); }
     catch (e) { console.error(e); } finally { setSavingActivity(false); }
   };
 
@@ -758,7 +775,7 @@ const CrmContactDetail = () => {
 
             {/* Action toolbar */}
             <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <ToolbarBtn icon="call" label="Log Call" onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'CALL' }); }} />
+              <ToolbarBtn icon="call" label="Log Call" onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); }} />
               <ToolbarBtn icon="chat" label="WhatsApp" onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'WHATSAPP' }); }} />
               <ToolbarBtn icon="mail" label="Email" onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'EMAIL' }); }} />
               <ToolbarBtn icon="auto_awesome" label="Draft Msg" onClick={() => setDraftModal(true)} accent />
@@ -1176,16 +1193,22 @@ const CrmContactDetail = () => {
 
       {/* Add Activity modal */}
       {showAddActivity && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
-              <div><label className="block text-xs font-semibold text-text-secondary mb-1">Type</label><select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>{(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></div>
+              <div><label className="block text-xs font-semibold text-text-secondary mb-1">Type</label><select value={activityForm.activityType} onChange={e => { const activityType = e.target.value as CrmActivityType; setActivityForm(f => ({ ...f, activityType, callCategory: activityType === 'CALL' ? 'NEW_CALL' : activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined, callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined })); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>{(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></div>
+              {['CALL', 'FOLLOW_UP'].includes(activityForm.activityType ?? '') && (
+                <>
+                  <div><label className="block text-xs font-semibold text-text-secondary mb-1">Call category</label><select value={activityForm.callCategory ?? (activityForm.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : 'NEW_CALL')} onChange={e => setActivityForm(f => ({ ...f, callCategory: e.target.value as CrmActivity['callCategory'] }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}><option value="NEW_CALL">New call</option><option value="FOLLOW_UP_CALL">Follow-up call</option></select></div>
+                  <div><label className="block text-xs font-semibold text-text-secondary mb-1">Call outcome</label><select value={activityForm.callOutcome ?? ''} onChange={e => setActivityForm(f => ({ ...f, callOutcome: (e.target.value || undefined) as CrmActivity['callOutcome'] }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}><option value="">Select outcome</option>{CALL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                </>
+              )}
               <div><label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label><input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} /></div>
               <div><label className="block text-xs font-semibold text-text-secondary mb-1">Description</label><textarea rows={5} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} /></div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); }} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={savingActivity} className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>{savingActivity ? 'Saving…' : 'Log Activity'}</button>
               </div>
             </form>
@@ -1200,7 +1223,13 @@ const CrmContactDetail = () => {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Edit Activity</h2>
             <form onSubmit={handleEditActivity} className="space-y-4">
-              <div><label className="block text-xs font-semibold text-text-secondary mb-1">Type</label><select value={editActivityForm.activityType} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>{(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></div>
+              <div><label className="block text-xs font-semibold text-text-secondary mb-1">Type</label><select value={editActivityForm.activityType} onChange={e => { const activityType = e.target.value as CrmActivityType; setEditActivityForm(f => ({ ...f, activityType, callCategory: activityType === 'CALL' ? (f.callCategory ?? 'NEW_CALL') : activityType === 'FOLLOW_UP' ? (f.callCategory ?? 'FOLLOW_UP_CALL') : undefined, callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined })); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>{(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></div>
+              {['CALL', 'FOLLOW_UP'].includes(editActivityForm.activityType ?? '') && (
+                <>
+                  <div><label className="block text-xs font-semibold text-text-secondary mb-1">Call category</label><select value={editActivityForm.callCategory ?? (editActivityForm.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : 'NEW_CALL')} onChange={e => setEditActivityForm(f => ({ ...f, callCategory: e.target.value as CrmActivity['callCategory'] }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}><option value="NEW_CALL">New call</option><option value="FOLLOW_UP_CALL">Follow-up call</option></select></div>
+                  <div><label className="block text-xs font-semibold text-text-secondary mb-1">Call outcome</label><select value={editActivityForm.callOutcome ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, callOutcome: (e.target.value || undefined) as CrmActivity['callOutcome'] }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}><option value="">Select outcome</option>{CALL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                </>
+              )}
               <div><label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label><input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} /></div>
               <div><label className="block text-xs font-semibold text-text-secondary mb-1">Description</label><textarea rows={5} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-vertical" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} /></div>
               <div><label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label><input type="datetime-local" value={editActivityForm.scheduledAt ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} /></div>

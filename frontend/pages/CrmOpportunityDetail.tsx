@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount, CrmUser } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmNote, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount, CrmUser } from '../src/services/crm.service';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
@@ -26,6 +26,14 @@ const SURFACE_MAX = '#d3e4fe';
 const BORDER = '#e2e8f0';
 const ERROR = '#ba1a1a';
 const WHITE = '#ffffff';
+const CALL_OUTCOMES = [
+  ['ANSWERED', 'Answered'],
+  ['NO_ANSWER', 'No answer'],
+  ['NOT_INTERESTED', 'Not interested'],
+  ['WRONG_NUMBER', 'Wrong number'],
+  ['NOT_REACHABLE', 'Not reachable'],
+  ['INTERESTED', 'Interested'],
+] as const;
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -107,7 +115,7 @@ const CrmOpportunityDetail = () => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState('');
   const [lostReason, setLostReason] = useState('');
-  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
+  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
   const [showEditActivity, setShowEditActivity] = useState(false);
   const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
   const [savingActivityEdit, setSavingActivityEdit] = useState(false);
@@ -118,6 +126,10 @@ const CrmOpportunityDetail = () => {
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
   const [noteContent, setNoteContent] = useState('');
+  const [editingNote, setEditingNote] = useState<CrmNote | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState('');
+  const [deletingNote, setDeletingNote] = useState<CrmNote | null>(null);
+  const [showDeleteNote, setShowDeleteNote] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // ── Edit modal state ─────────────────────────────────────────────────
@@ -271,10 +283,13 @@ const CrmOpportunityDetail = () => {
     if (!id) return;
     try {
       setSaving(true);
-      await crmService.createActivity({ ...activityForm, opportunityId: id });
+      const payload = ['CALL', 'FOLLOW_UP'].includes(activityForm.activityType ?? '')
+        ? activityForm
+        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(activityForm);
+      await crmService.createActivity({ ...payload, opportunityId: id });
       reload();
       setShowAddActivity(false);
-      setActivityForm({ activityType: 'CALL' });
+      setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' });
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
@@ -292,10 +307,37 @@ const CrmOpportunityDetail = () => {
     finally { setSaving(false); }
   };
 
+  const handleEditNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNote || !editNoteContent.trim()) return;
+    try {
+      setSaving(true);
+      await crmService.updateNote(editingNote.id, { content: editNoteContent });
+      setEditingNote(null);
+      setEditNoteContent('');
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteNote = async () => {
+    if (!deletingNote) return;
+    try {
+      setSaving(true);
+      await crmService.deleteNote(deletingNote.id);
+      setShowDeleteNote(false);
+      setDeletingNote(null);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
   const openEditActivity = (a: CrmActivity) => {
     setEditActivityForm({
       id: a.id,
       activityType: a.activityType,
+      callCategory: a.callCategory ?? (a.activityType === 'CALL' ? 'NEW_CALL' : a.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined),
+      callOutcome: a.callOutcome ?? undefined,
       subject: a.subject ?? '',
       description: a.description ?? '',
       scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : '',
@@ -308,7 +350,10 @@ const CrmOpportunityDetail = () => {
     if (!editActivityForm.id) return;
     setSavingActivityEdit(true);
     try {
-      const { id: _aid, ...payload } = editActivityForm;
+      const { id: _aid, ...activityPayload } = editActivityForm;
+      const payload = ['CALL', 'FOLLOW_UP'].includes(activityPayload.activityType ?? '')
+        ? activityPayload
+        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(activityPayload);
       await crmService.updateActivity(editActivityForm.id!, payload);
       reload();
       setShowEditActivity(false);
@@ -944,18 +989,36 @@ const CrmOpportunityDetail = () => {
               {activeTab === 'notes' && (
                 <div className="space-y-3">
                   <div className="flex justify-end mb-2">
-                    <button onClick={() => setShowAddNote(true)}
+                    {hasPermission(user, 'crm:write') && (
+                      <button onClick={() => setShowAddNote(true)}
                       className="flex items-center gap-1 font-semibold hover:underline"
                       style={{ fontSize: 14, background: 'none', border: 'none', color: TEAL, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Add Note
                     </button>
+                    )}
                   </div>
                   {(opp.notes ?? []).length === 0 && <p style={{ color: TEXT_SEC, fontSize: 14 }}>No notes yet.</p>}
                   {(opp.notes ?? []).map(n => (
                     <div key={n.id} className={`border rounded-xl p-4 ${n.isPinned ? 'border-amber-400' : ''}`} style={{ background: WHITE, borderColor: n.isPinned ? '#fbbf24' : BORDER }}>
-                      {n.isPinned && <span className="flex items-center gap-1 mb-2" style={{ fontSize: 12, color: '#d97706' }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>push_pin</span>Pinned</span>}
-                      <p className="leading-relaxed whitespace-pre-wrap" style={{ fontSize: 14, color: DARK }}>{n.content}</p>
-                      <p className="mt-2" style={{ fontSize: 12, color: TEXT_MUTED }}>{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {n.isPinned && <span className="flex items-center gap-1 mb-2" style={{ fontSize: 12, color: '#d97706' }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>push_pin</span>Pinned</span>}
+                          <p className="leading-relaxed whitespace-pre-wrap" style={{ fontSize: 14, color: DARK }}>{n.content}</p>
+                          <p className="mt-2" style={{ fontSize: 12, color: TEXT_MUTED }}>{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+                        </div>
+                        {hasPermission(user, 'crm:write') && n.authorId === user?.id && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => { setEditingNote(n); setEditNoteContent(n.content); }} aria-label="Edit note" title="Edit note"
+                              className="p-1 rounded hover:opacity-70 transition-colors" style={{ color: TEXT_SEC, background: 'none', border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                            </button>
+                            <button onClick={() => { setDeletingNote(n); setShowDeleteNote(true); }} aria-label="Delete note" title="Delete note"
+                              className="p-1 rounded hover:opacity-70 transition-colors" style={{ color: ERROR, background: 'none', border: 'none', cursor: 'pointer' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1048,18 +1111,47 @@ const CrmOpportunityDetail = () => {
 
       {/* ── Add Activity Modal ────────────────────────────────────────── */}
       {showAddActivity && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); }}>
           <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(33,49,69,0.4)' }} />
           <div className="relative rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" style={{ background: WHITE, border: `1px solid ${BORDER}30` }} onClick={e => e.stopPropagation()}>
             <h2 className="font-semibold mb-4" style={{ fontSize: 24, letterSpacing: '-0.01em', color: DARK }}>Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Type</label>
-                <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
+                <select value={activityForm.activityType} onChange={e => {
+                  const activityType = e.target.value as CrmActivityType;
+                  setActivityForm(f => ({
+                    ...f,
+                    activityType,
+                    callCategory: activityType === 'CALL' ? 'NEW_CALL' : activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined,
+                    callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined,
+                  }));
+                }}
                   className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              {['CALL', 'FOLLOW_UP'].includes(activityForm.activityType ?? '') && (
+                <>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Call category</label>
+                    <select value={activityForm.callCategory ?? (activityForm.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : 'NEW_CALL')}
+                      onChange={e => setActivityForm(f => ({ ...f, callCategory: e.target.value as CrmActivity['callCategory'] }))}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                      <option value="NEW_CALL">New call</option>
+                      <option value="FOLLOW_UP_CALL">Follow-up call</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Call outcome</label>
+                    <select value={activityForm.callOutcome ?? ''} onChange={e => setActivityForm(f => ({ ...f, callOutcome: (e.target.value || undefined) as CrmActivity['callOutcome'] }))}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                      <option value="">Select outcome</option>
+                      {CALL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
@@ -1071,7 +1163,7 @@ const CrmOpportunityDetail = () => {
                   className="w-full rounded-lg p-2.5 outline-none transition-all resize-vertical" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
+                <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); }}
                   className="px-4 py-2 rounded-lg font-semibold hover:bg-[#dce9ff] transition-colors"
                   style={{ fontSize: 14, border: `1px solid ${BORDER}`, color: TEXT_SEC, background: WHITE, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                 <button type="submit" disabled={saving}
@@ -1084,6 +1176,39 @@ const CrmOpportunityDetail = () => {
           </div>
         </div>
       )}
+
+      {/* ── Edit Note Modal ────────────────────────────────────────────── */}
+      {editingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}>
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(33,49,69,0.4)' }} />
+          <div className="relative rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" style={{ background: WHITE, border: `1px solid ${BORDER}30` }} onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold mb-4" style={{ fontSize: 24, letterSpacing: '-0.01em', color: DARK }}>Edit Note</h2>
+            <form onSubmit={handleEditNote} className="space-y-4">
+              <textarea required rows={5} value={editNoteContent} onChange={e => setEditNoteContent(e.target.value)}
+                className="w-full rounded-lg p-2.5 outline-none transition-all resize-none" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}
+                  className="px-4 py-2 rounded-lg font-semibold hover:bg-[#dce9ff] transition-colors"
+                  style={{ fontSize: 14, border: `1px solid ${BORDER}`, color: TEXT_SEC, background: WHITE, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 rounded-lg font-semibold text-white hover:opacity-90 shadow-sm transition-all disabled:opacity-50"
+                  style={{ fontSize: 14, background: TEAL, border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>{saving ? 'Saving…' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showDeleteNote}
+        title="Delete Note"
+        message="Are you sure you want to delete this note? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDeleteNote}
+        onCancel={() => { setShowDeleteNote(false); setDeletingNote(null); }}
+      />
 
       {/* ── Add Note Modal ────────────────────────────────────────────── */}
       {showAddNote && (
@@ -1275,11 +1400,40 @@ const CrmOpportunityDetail = () => {
             <form onSubmit={handleEditActivitySave} className="space-y-4">
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Type</label>
-                <select value={editActivityForm.activityType ?? 'CALL'} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
+                <select value={editActivityForm.activityType ?? 'CALL'} onChange={e => {
+                  const activityType = e.target.value as CrmActivityType;
+                  setEditActivityForm(f => ({
+                    ...f,
+                    activityType,
+                    callCategory: activityType === 'CALL' ? (f.callCategory ?? 'NEW_CALL') : activityType === 'FOLLOW_UP' ? (f.callCategory ?? 'FOLLOW_UP_CALL') : undefined,
+                    callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined,
+                  }));
+                }}
                   className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
-                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
+                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              {['CALL', 'FOLLOW_UP'].includes(editActivityForm.activityType ?? '') && (
+                <>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Call category</label>
+                    <select value={editActivityForm.callCategory ?? (editActivityForm.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : 'NEW_CALL')}
+                      onChange={e => setEditActivityForm(f => ({ ...f, callCategory: e.target.value as CrmActivity['callCategory'] }))}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                      <option value="NEW_CALL">New call</option>
+                      <option value="FOLLOW_UP_CALL">Follow-up call</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Call outcome</label>
+                    <select value={editActivityForm.callOutcome ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, callOutcome: (e.target.value || undefined) as CrmActivity['callOutcome'] }))}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                      <option value="">Select outcome</option>
+                      {CALL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Subject *</label>
                 <input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))}

@@ -40,6 +40,10 @@ const CrmLeadDetail = () => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
   const [noteContent, setNoteContent] = useState('');
+  const [editingNote, setEditingNote] = useState<CrmNote | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState('');
+  const [deletingNote, setDeletingNote] = useState<CrmNote | null>(null);
+  const [showDeleteNote, setShowDeleteNote] = useState(false);
   const [editingActivity, setEditingActivity] = useState<CrmActivity | null>(null);
   const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
   const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
@@ -241,6 +245,31 @@ const CrmLeadDetail = () => {
       await crmService.createNote({ content: noteContent, leadId: id });
       setShowAddNote(false);
       setNoteContent('');
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleEditNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNote || !editNoteContent.trim()) return;
+    try {
+      setSaving(true);
+      await crmService.updateNote(editingNote.id, { content: editNoteContent });
+      setEditingNote(null);
+      setEditNoteContent('');
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteNote = async () => {
+    if (!deletingNote) return;
+    try {
+      setSaving(true);
+      await crmService.deleteNote(deletingNote.id);
+      setShowDeleteNote(false);
+      setDeletingNote(null);
       reload();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
@@ -671,13 +700,15 @@ const CrmLeadDetail = () => {
               >
                 <span className="material-symbols-outlined text-[16px]">add_task</span> Log Activity
               </button>
-              <button
-                onClick={() => setShowAddNote(true)}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
-                style={{ cursor: 'pointer' }}
-              >
-                <span className="material-symbols-outlined text-[16px]">sticky_note_2</span> Add Note
-              </button>
+              {hasPermission(user, 'crm:write') && (
+                <button
+                  onClick={() => setShowAddNote(true)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">sticky_note_2</span> Add Note
+                </button>
+              )}
               {!isConverted && !isLost ? (
                 <button
                   onClick={() => setDraftModal(true)}
@@ -1143,9 +1174,35 @@ const CrmLeadDetail = () => {
           {notes.length === 0 && <p className="text-[#45464d] text-sm">No notes yet. Click "Add Note" to add one.</p>}
           {notes.map((n: CrmNote) => (
             <div key={n.id} className={`bg-white border rounded-xl p-4 ${n.isPinned ? 'border-amber-300' : 'border-[#e2e8f0]'}`}>
-              {n.isPinned && <span className="flex items-center gap-1 text-xs text-warning mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
-              <p className="text-sm text-[#0b1c30] leading-relaxed whitespace-pre-wrap">{n.content}</p>
-              <p className="text-xs text-[#45464d] mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  {n.isPinned && <span className="flex items-center gap-1 text-xs text-warning mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
+                  <p className="text-sm text-[#0b1c30] leading-relaxed whitespace-pre-wrap">{n.content}</p>
+                  <p className="text-xs text-[#45464d] mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+                </div>
+                {hasPermission(user, 'crm:write') && n.authorId === user?.id && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => { setEditingNote(n); setEditNoteContent(n.content); }}
+                      aria-label="Edit note"
+                      title="Edit note"
+                      className="p-1 rounded hover:bg-[#f1f5f9] transition-colors"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      <span className="material-symbols-outlined text-base text-[#45464d]">edit</span>
+                    </button>
+                    <button
+                      onClick={() => { setDeletingNote(n); setShowDeleteNote(true); }}
+                      aria-label="Delete note"
+                      title="Delete note"
+                      className="p-1 rounded hover:bg-red-50 transition-colors"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      <span className="material-symbols-outlined text-base text-[#ba1a1a]">delete</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -1380,6 +1437,44 @@ const CrmLeadDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Note modal */}
+      {editingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-[#0b1c30] mb-4">Edit Note</h2>
+            <form onSubmit={handleEditNote} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Note *</label>
+                <textarea required rows={5} value={editNoteContent} onChange={e => setEditNoteContent(e.target.value)}
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}
+                  className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                  style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                  style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Note confirmation */}
+      <ConfirmDialog
+        open={showDeleteNote}
+        title="Delete Note"
+        message="Are you sure you want to delete this note? This action cannot be undone."
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDeleteNote}
+        onCancel={() => { setShowDeleteNote(false); setDeletingNote(null); }}
+      />
 
       {/* Add Note modal */}
       {showAddNote && (

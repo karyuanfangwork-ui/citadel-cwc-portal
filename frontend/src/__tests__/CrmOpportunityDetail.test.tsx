@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmOpportunityDetail from '../../pages/CrmOpportunityDetail';
@@ -6,6 +6,11 @@ import CrmOpportunityDetail from '../../pages/CrmOpportunityDetail';
 const mockGetOpportunity = vi.fn();
 const mockListActivities = vi.fn();
 const mockListCrmUsers = vi.fn();
+const mockCreateActivity = vi.fn();
+const mockUpdateActivity = vi.fn();
+const mockCreateNote = vi.fn();
+const mockUpdateNote = vi.fn();
+const mockDeleteNote = vi.fn();
 const mockUseNextBestAction = vi.fn();
 const mockUseWinProbability = vi.fn();
 const mockUseAnalyzeNote = vi.fn();
@@ -16,6 +21,11 @@ vi.mock('../services/crm.service', () => ({
     getOpportunity: (...args: unknown[]) => mockGetOpportunity(...args),
     listActivities: (...args: unknown[]) => mockListActivities(...args),
     listCrmUsers: (...args: unknown[]) => mockListCrmUsers(...args),
+    createActivity: (...args: unknown[]) => mockCreateActivity(...args),
+    updateActivity: (...args: unknown[]) => mockUpdateActivity(...args),
+    createNote: (...args: unknown[]) => mockCreateNote(...args),
+    updateNote: (...args: unknown[]) => mockUpdateNote(...args),
+    deleteNote: (...args: unknown[]) => mockDeleteNote(...args),
   },
 }));
 
@@ -47,6 +57,16 @@ const renderPage = async () => {
 describe('CrmOpportunityDetail', () => {
   beforeEach(() => {
     mockListActivities.mockReset();
+    mockCreateActivity.mockReset();
+    mockUpdateActivity.mockReset();
+    mockCreateNote.mockReset();
+    mockUpdateNote.mockReset();
+    mockDeleteNote.mockReset();
+    mockCreateActivity.mockResolvedValue({});
+    mockUpdateActivity.mockResolvedValue({});
+    mockCreateNote.mockResolvedValue({});
+    mockUpdateNote.mockResolvedValue({});
+    mockDeleteNote.mockResolvedValue(undefined);
     mockListCrmUsers.mockResolvedValue([]);
     mockUseNextBestAction.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
     mockUseWinProbability.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
@@ -61,6 +81,11 @@ describe('CrmOpportunityDetail', () => {
       account: { id: 'account-1', name: 'ACME Berhad' },
       contact: { id: 'contact-1', firstName: 'Aisha', lastName: 'Rahman' },
       activities: [],
+      notes: [{
+        id: 'note-1', content: 'Original opportunity note', authorId: 'user-1', isPinned: false,
+        createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
+        author: { id: 'user-1', firstName: 'Test', lastName: 'Author' },
+      }],
       stageHistory: [],
       pipeline: { id: 'pipeline-1', name: 'Sales' },
       stage: { id: 'stage-1', name: 'Prospecting', displayOrder: 1, probability: 20 },
@@ -145,5 +170,40 @@ describe('CrmOpportunityDetail', () => {
     expect(screen.getByText('DEAL ATTRIBUTES')).toBeInTheDocument();
     expect(screen.getByText('DEAL HEALTH')).toBeInTheDocument();
     expect(screen.getByText('DEAL VALUE')).toBeInTheDocument();
+  });
+
+  it('captures call category and outcome when logging an opportunity call', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Activities' }));
+    fireEvent.click(screen.getByRole('button', { name: /log activity/i }));
+
+    expect(screen.getByText('Call category')).toBeInTheDocument();
+    expect(screen.getByText('Call outcome')).toBeInTheDocument();
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[1], { target: { value: 'FOLLOW_UP_CALL' } });
+    fireEvent.change(selects[2], { target: { value: 'ANSWERED' } });
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Discussed proposal' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
+
+    await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
+      activityType: 'CALL', callCategory: 'FOLLOW_UP_CALL', callOutcome: 'ANSWERED',
+      subject: 'Discussed proposal', opportunityId: 'opp-1',
+    }));
+  });
+
+  it('supports editing and deleting an authored opportunity note', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note' }));
+    const editDialog = screen.getByRole('heading', { name: 'Edit Note' }).closest('div.relative') as HTMLElement;
+    fireEvent.change(within(editDialog).getByRole('textbox'), { target: { value: 'Updated opportunity note' } });
+    fireEvent.click(within(editDialog).getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(mockUpdateNote).toHaveBeenCalledWith('note-1', { content: 'Updated opportunity note' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete note' }));
+    expect(screen.getByRole('heading', { name: 'Delete Note' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mockDeleteNote).toHaveBeenCalledWith('note-1'));
   });
 });
