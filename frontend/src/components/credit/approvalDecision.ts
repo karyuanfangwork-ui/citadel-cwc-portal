@@ -11,8 +11,10 @@ import type { ApprovalDecision } from '@/src/services/credit.service';
  */
 
 export const COMMENT_MIN_LENGTH = 10;
+export const OVERRIDE_REASON_MIN_LENGTH = 10;
 
 export const REASON_REQUIRED_DECISIONS: ApprovalDecision[] = ['REJECT', 'CONDITIONAL', 'RETURN'];
+const TERMINAL_DECISIONS: ApprovalDecision[] = ['APPROVE', 'REJECT', 'CONDITIONAL'];
 
 export interface ApprovalCondition {
   title: string;
@@ -27,8 +29,19 @@ export interface ApprovalDecisionInput {
   comment: string;
   rejectionReasonCode?: string;
   conditions?: ApprovalCondition[];
+  systemRecommendation?: string | null;
+  overrideReason?: string;
   /** Some approval tiers require a comment even on a plain APPROVE. */
   requireCommentForTier?: boolean;
+}
+
+/** Mirrors backend deriveOverride; backend remains authoritative. */
+export function isOverrideOf(systemRecommendation: string | null | undefined, decision: ApprovalDecision): boolean {
+  if (!systemRecommendation) return false;
+  const recommendation = systemRecommendation.trim().toUpperCase();
+  return TERMINAL_DECISIONS.includes(recommendation as ApprovalDecision)
+    && TERMINAL_DECISIONS.includes(decision)
+    && decision !== recommendation;
 }
 
 /** Returns null when the input is valid, otherwise a user-facing message. */
@@ -51,6 +64,13 @@ export function validateApprovalDecision(input: ApprovalDecisionInput): string |
     return 'At least one condition is required for a conditional approval';
   }
 
+  if (isOverrideOf(input.systemRecommendation, input.decision)) {
+    const reason = input.overrideReason?.trim() ?? '';
+    if (reason.length < OVERRIDE_REASON_MIN_LENGTH) {
+      return `This decision overrides the system recommendation (${input.systemRecommendation}). Give an override reason of at least ${OVERRIDE_REASON_MIN_LENGTH} characters.`;
+    }
+  }
+
   return null;
 }
 
@@ -62,5 +82,8 @@ export function buildApprovalPayload(input: ApprovalDecisionInput) {
     comment: comment || undefined,
     rejectionReasonCode: input.decision === 'REJECT' ? input.rejectionReasonCode : undefined,
     conditions: input.decision === 'CONDITIONAL' ? input.conditions : undefined,
+    ...(isOverrideOf(input.systemRecommendation, input.decision) && input.overrideReason?.trim()
+      ? { overrideReason: input.overrideReason.trim() }
+      : {}),
   };
 }

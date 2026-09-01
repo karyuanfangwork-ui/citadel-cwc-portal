@@ -185,7 +185,7 @@ class ApprovalController {
     const actor = requireUser(req);
     const actorId = actor.id;
     const actorRoles = actor.roles ?? [];
-    const { decision, comment, isCommitteeVote, rejectionReasonCode, conditions } = req.body;
+    const { decision, comment, isCommitteeVote, rejectionReasonCode, conditions, overrideReason, approvedAmount, approvedTenor } = req.body;
 
     if ((decision === 'REJECT' || decision === 'CONDITIONAL') && (!comment || comment.trim().length < 10)) {
       throw new AppError('A comment of at least 10 characters is required for rejection or conditional approval decisions.', 400);
@@ -199,6 +199,9 @@ class ApprovalController {
         isCommitteeVote,
         rejectionReasonCode,
         conditions,
+        overrideReason,
+        approvedAmount,
+        approvedTenor,
         actorId,
         actorRoles,
       });

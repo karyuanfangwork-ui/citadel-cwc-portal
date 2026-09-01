@@ -1790,7 +1790,7 @@ const creditService = {
     return (res.data.data.decisions || res.data.data.approvals || []) as CreditApproval[];
   },
 
-  async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean; rejectionReasonCode?: string; conditions?: { title: string; description?: string; category?: string; conditionType?: string; dueDate?: string | null }[] }) {
+  async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean; rejectionReasonCode?: string; conditions?: { title: string; description?: string; category?: string; conditionType?: string; dueDate?: string | null }[]; overrideReason?: string; approvedAmount?: number; approvedTenor?: number }) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/approvals`, data);
     return res.data.data.approval as CreditApproval;
   },
@@ -2851,6 +2851,21 @@ export const reportsApi = {
     const qs = q.toString();
     const isBlob = params?.format === 'csv' || params?.format === 'xlsx';
     return apiClient.get(`/credit/reports/approval-turnaround${qs ? '?' + qs : ''}`, isBlob ? { responseType: 'blob' } : undefined);
+  },
+  getOverrideRate: (params?: {
+    dateFrom?: string; dateTo?: string; approverId?: string; authorityLevel?: string;
+    groupBy?: 'approver' | 'authority' | 'month'; format?: 'json' | 'csv' | 'xlsx';
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) q.set('dateTo', params.dateTo);
+    if (params?.approverId) q.set('approverId', params.approverId);
+    if (params?.authorityLevel) q.set('authorityLevel', params.authorityLevel);
+    if (params?.groupBy) q.set('groupBy', params.groupBy);
+    if (params?.format && params.format !== 'json') q.set('format', params.format);
+    const qs = q.toString();
+    const isBlob = params?.format === 'csv' || params?.format === 'xlsx';
+    return apiClient.get(`/credit/reports/override-rate${qs ? '?' + qs : ''}`, isBlob ? { responseType: 'blob' } : undefined);
   },
 };
 

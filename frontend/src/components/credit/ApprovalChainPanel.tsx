@@ -10,7 +10,7 @@ import { hasPermission } from '../../utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../utils/errorMessages';
 import { formatDateTime } from '../../../pages/credit/creditUtils';
-import { validateApprovalDecision, buildApprovalPayload } from './approvalDecision';
+import { validateApprovalDecision, buildApprovalPayload, isOverrideOf } from './approvalDecision';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -70,11 +70,19 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
   const [rejectionReasonCodes, setRejectionReasonCodes] = useState<{value: string; label: string}[]>([]);
   // §2.5 — Inline conditions for CONDITIONAL approval
   const [conditions, setConditions] = useState<{title: string; description: string; category: string; conditionType: string; dueDate: string}[]>([]);
+  const [systemRecommendation, setSystemRecommendation] = useState<string | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
 
   // Fetch rejection reason codes on mount
   useEffect(() => {
     creditService.listRejectionReasonCodes?.().then(setRejectionReasonCodes).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    creditService.getAssessmentResult(application.id)
+      .then(result => setSystemRecommendation(result?.decisionRecommendation ?? null))
+      .catch(() => setSystemRecommendation(null));
+  }, [application.id]);
 
   useEffect(() => {
     const exposure = Number(application.requestedAmount || 0);
@@ -115,6 +123,8 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
       comment,
       rejectionReasonCode,
       conditions,
+      systemRecommendation,
+      overrideReason,
       requireCommentForTier: commentRequired,
     };
     const validationError = validateApprovalDecision(input);
@@ -129,6 +139,7 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
       setSelectedDecision('');
       setComment('');
       setRejectionReasonCode('');
+      setOverrideReason('');
       setConditions([]);
       onActionComplete();
     } catch (e) {
@@ -293,6 +304,12 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
             )}
           </h4>
 
+          {systemRecommendation && (
+            <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              System recommendation: <span className="font-semibold">{systemRecommendation}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Approval decision">
             {DECISION_BUTTONS.map(({ decision, label, classes }) => (
               <button
@@ -309,6 +326,21 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
               </button>
             ))}
           </div>
+
+          {selectedDecision && isOverrideOf(systemRecommendation, selectedDecision) && (
+            <div className="rounded border border-amber-300 bg-amber-50 p-3">
+              <label htmlFor="override-reason" className="block text-sm font-semibold text-amber-900">Override reason (required)</label>
+              <p className="mt-1 text-xs text-amber-800">This decision departs from the system recommendation ({systemRecommendation}).</p>
+              <textarea
+                id="override-reason"
+                value={overrideReason}
+                onChange={e => setOverrideReason(e.target.value)}
+                rows={3}
+                className="mt-2 w-full rounded border border-amber-300 px-2 py-1 text-sm"
+                placeholder="Why is this decision justified against the system recommendation?"
+              />
+            </div>
+          )}
 
           {/* §2.7 — Rejection reason code dropdown */}
           {selectedDecision === 'REJECT' && (

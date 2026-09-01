@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { creditExportLimiter } from '../../middleware/rateLimit.middleware';
 import { dashboardService } from '../services/dashboard.service';
+import { overrideReportService } from '../services/overrideReport.service';
 import { generateCsv, sendCsvResponse } from '../utils/csvExport';
 import { generateXlsx, sendXlsxResponse } from '../utils/xlsxExport';
 import { logCreditExport } from '../services/exportAudit.service';
@@ -172,6 +173,24 @@ router.get('/approval-turnaround', creditExportLimiter, requirePermission('credi
     return handleExport(res, format as 'csv' | 'xlsx', headers, rows, 'approval-turnaround-report', getUserId(req), 'approval-turnaround', filterParams as Record<string, unknown>);
   }
 
+  res.json({ status: 'success', data });
+});
+
+router.get('/override-rate', creditExportLimiter, requirePermission('credit:read'), async (req: AuthedRequest, res) => {
+  const parsed = z.object({
+    dateFrom: z.coerce.date().optional(), dateTo: z.coerce.date().optional(),
+    approverId: z.string().uuid().optional(), authorityLevel: z.string().max(50).optional(),
+    groupBy: z.enum(['approver', 'authority', 'month']).default('approver'),
+    format: z.enum(['json', 'csv', 'xlsx']).default('json'),
+  }).safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid filter parameters', details: parsed.error.flatten() });
+  const { format, ...filterParams } = parsed.data;
+  const data = await overrideReportService.getOverrideRate(filterParams);
+  if (format !== 'json') {
+    const headers = ['Application No', 'Decision Date', 'Approver', 'Authority', 'System Recommendation', 'Decision', 'Override', 'Override Reason', 'Approved Amount'];
+    const rows = data.decisions.map(d => [d.applicationNo, d.decisionAt.slice(0, 10), d.approverName, d.authorityLevel, d.systemRecommendation, d.decisionType, d.isOverride ? 'YES' : 'NO', d.overrideReason, d.approvedAmount] as (string | number | null)[]);
+    return handleExport(res, format as 'csv' | 'xlsx', headers, rows, 'override-rate-report', getUserId(req), 'override-rate', filterParams as Record<string, unknown>);
+  }
   res.json({ status: 'success', data });
 });
 

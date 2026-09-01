@@ -35,6 +35,11 @@ jest.mock('../services/approvalMatrix.service', () => ({
   }),
 }));
 
+jest.mock('../services/assessmentResult.service', () => ({
+  __esModule: true,
+  getLatestAssessmentResult: jest.fn().mockResolvedValue(null),
+}));
+
 jest.mock('../services/applicationRating.service', () => ({
   __esModule: true,
   getApplicationEffectiveRating: jest.fn().mockResolvedValue('BBB'),

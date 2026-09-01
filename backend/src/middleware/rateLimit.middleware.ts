@@ -231,7 +231,10 @@ export const creditScoreOverrideLimiter = rateLimit({
  */
 export const crmAiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: process.env.NODE_ENV === 'development' ? 100 : 10,
+    // CRM AI calls are expensive model-backed operations; keep the production
+    // protection active in development so the configured contract is testable
+    // and local traffic cannot accidentally hide abuse.
+    max: 10,
     store: crmAiStore, // P1-06: Redis-backed when RATE_LIMIT_REDIS_ENABLED=true
     message: {
         status: 'error',

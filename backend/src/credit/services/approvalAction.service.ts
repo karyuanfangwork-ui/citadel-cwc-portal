@@ -11,6 +11,8 @@ import { logger } from '../../utils/logger';
 import { computeBorrowerExposure } from './exposureCompute.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getApplicationEffectiveRating } from './applicationRating.service';
+import { getLatestAssessmentResult } from './assessmentResult.service';
+import { deriveOverride, type OverrideDecisionType } from './decisionOverride';
 export {
   AUTHORITY_HIERARCHY,
   hasSufficientAuthority,
@@ -43,6 +45,7 @@ import {
  * therefore also treated as board band — unrated exposure fails safe.
  */
 export const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000;
+export const OVERRIDE_REASON_MIN_LENGTH = 10;
 
 export function requiresBoardBandAuthority(
   totalExposure: number,
@@ -82,6 +85,9 @@ export interface SubmitApprovalActionData {
   isCommitteeVote?: boolean;
   rejectionReasonCode?: string;
   conditions?: { title: string; description?: string; category?: string; conditionType?: string; dueDate?: string | null }[];
+  overrideReason?: string;
+  approvedAmount?: number;
+  approvedTenor?: number;
   actorId: string;
   actorRoles: string[];
 }
@@ -101,6 +107,12 @@ interface CreditDecisionRow {
   decisionById: string;
   authorityLevel: string | null;
   comments: string | null;
+  assessmentResultId: string | null;
+  systemRecommendation: string | null;
+  isOverride: boolean;
+  overrideReason: string | null;
+  approvedAmount: unknown;
+  approvedTenor: number | null;
   createdAt: Date;
 }
 
@@ -120,7 +132,7 @@ class ApprovalActionService {
    * 5. On final approval, advance state; on reject, set rejected state; on return, go back to ANALYSING
    */
   async submitApprovalAction(data: SubmitApprovalActionData): Promise<ApprovalActionResult> {
-    const { applicationId, decision, comment, isCommitteeVote, rejectionReasonCode, actorId, actorRoles } = data;
+    const { applicationId, decision, comment, isCommitteeVote, rejectionReasonCode, overrideReason, approvedAmount, approvedTenor, actorId, actorRoles } = data;
 
     // 1. Fetch the application with borrower profile
     const application = await prisma.creditApplication.findUnique({
@@ -229,6 +241,19 @@ class ApprovalActionService {
       );
     }
 
+    // 4.5. Capture the frozen assessment before opening the write transaction.
+    const assessmentResult = await getLatestAssessmentResult(applicationId);
+    const systemRecommendation = assessmentResult?.decisionRecommendation ?? null;
+    const { isOverride, reasonRequired } = deriveOverride(systemRecommendation, decision as OverrideDecisionType);
+    const trimmedOverrideReason = overrideReason?.trim() ?? '';
+    if (reasonRequired && trimmedOverrideReason.length < OVERRIDE_REASON_MIN_LENGTH) {
+      throw new AppError(
+        `This decision departs from the system recommendation (${systemRecommendation}). An override reason of at least ${OVERRIDE_REASON_MIN_LENGTH} characters is required.`,
+        400,
+        { code: 'OVERRIDE_REASON_REQUIRED' },
+      );
+    }
+
     // 5–8. Atomic block: check duplicate, record decision, recount, advance state
     let creditDecision!: Awaited<ReturnType<typeof prisma.creditDecision.create>>;
     let newState = application.state;
@@ -261,6 +286,12 @@ class ApprovalActionService {
           decisionById: actorId,
           authorityLevel,
           comments: comment ?? null,
+          assessmentResultId: assessmentResult?.id ?? null,
+          systemRecommendation,
+          isOverride,
+          overrideReason: isOverride ? trimmedOverrideReason : null,
+          approvedAmount: approvedAmount ?? application.requestedAmount,
+          approvedTenor: approvedTenor ?? application.requestedTenor ?? null,
         },
       });
 
@@ -358,6 +389,9 @@ class ApprovalActionService {
           comment,
           isCommitteeVote: isCommitteeVote ?? false,
           rejectionReasonCode,
+          assessmentResultId: assessmentResult?.id ?? null,
+          systemRecommendation,
+          isOverride,
         },
         tx as any,
       );
@@ -394,6 +428,12 @@ class ApprovalActionService {
         decisionById: creditDecision.decisionById,
         authorityLevel: creditDecision.authorityLevel,
         comments: creditDecision.comments,
+        assessmentResultId: creditDecision.assessmentResultId,
+        systemRecommendation: creditDecision.systemRecommendation,
+        isOverride: creditDecision.isOverride,
+        overrideReason: creditDecision.overrideReason,
+        approvedAmount: creditDecision.approvedAmount,
+        approvedTenor: creditDecision.approvedTenor,
         createdAt: creditDecision.createdAt,
       },
       applicationState: newState,

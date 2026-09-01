@@ -66,6 +66,9 @@ export const submitApprovalActionSchema = z.object({
       conditionType: z.enum(['PRE_DISBURSEMENT', 'POST_DISBURSEMENT']).default('PRE_DISBURSEMENT'),
       dueDate: z.string().optional().nullable(),
     })).optional(),
+    overrideReason: z.string().min(10).max(5000).optional(),
+    approvedAmount: z.number().nonnegative().optional(),
+    approvedTenor: z.number().int().positive().optional(),
   }).superRefine((data, ctx) => {
     // LOS-019 — RETURN (refer back) must carry a reason so the analyst knows
     // what to remediate and the audit trail records why the case was returned.
