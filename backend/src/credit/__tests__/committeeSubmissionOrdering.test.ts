@@ -36,8 +36,9 @@ jest.mock('../services/creditMemoVersion.service', () => ({
 
 jest.mock('../services/applicationRating.service', () => ({
   getApplicationEffectiveRating: jest.fn().mockResolvedValue('BBB'),
-  getLatestScoreRunAt: jest.fn().mockResolvedValue(new Date('2026-08-01')),
-  getLatestMaterialUpdate: jest.fn().mockResolvedValue(new Date('2026-07-15')),
+  // This suite isolates committee-gate ordering; freshness is covered separately.
+  getLatestScoreRunAt: jest.fn().mockResolvedValue(null),
+  getLatestMaterialUpdate: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('../services/exposureCompute.service', () => ({

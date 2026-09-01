@@ -797,6 +797,75 @@ export async function moveOpportunityStage(
   return result.updated;
 }
 
+export const opportunityTimelineActivityInclude = {
+  user: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true } },
+  account: { select: { id: true, name: true } },
+  contact: { select: { id: true, firstName: true, lastName: true } },
+  opportunity: { select: { id: true, name: true } },
+} as const;
+
+type OpportunityTimelineActivity = Prisma.CrmActivityGetPayload<{
+  include: typeof opportunityTimelineActivityInclude;
+}> & {
+  sourceEntity: 'LEAD' | 'OPPORTUNITY';
+};
+
+export interface OpportunityTimelineResult {
+  activities: OpportunityTimelineActivity[];
+  total: number;
+}
+
+/**
+ * Returns the chronological activity timeline for an Opportunity, including
+ * activities retained on the Lead that was converted into it.
+ */
+export async function getOpportunityActivityTimeline(
+  opportunityId: string,
+  visibleOwnerIds: string[] | null,
+  options: {
+    where?: Prisma.CrmActivityWhereInput;
+    skip?: number;
+    take?: number;
+  } = {},
+): Promise<OpportunityTimelineResult> {
+  const originatingLead = await prisma.crmLead.findFirst({
+    where: {
+      convertedToOppId: opportunityId,
+      deletedAt: null,
+      ...(visibleOwnerIds === null ? {} : { ownerId: { in: visibleOwnerIds } }),
+    },
+    select: { id: true },
+  });
+  const activityOriginWhere: Prisma.CrmActivityWhereInput = {
+    OR: [
+      { opportunityId },
+      ...(originatingLead ? [{ leadId: originatingLead.id }] : []),
+    ],
+  };
+  const where: Prisma.CrmActivityWhereInput = options.where
+    ? { AND: [options.where, activityOriginWhere] }
+    : activityOriginWhere;
+
+  const [rows, total] = await Promise.all([
+    prisma.crmActivity.findMany({
+      where,
+      skip: options.skip,
+      take: options.take,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: opportunityTimelineActivityInclude,
+    }),
+    prisma.crmActivity.count({ where }),
+  ]);
+
+  return {
+    activities: rows.map((activity) => ({
+      ...activity,
+      sourceEntity: activity.leadId ? 'LEAD' : 'OPPORTUNITY',
+    })),
+    total,
+  };
+}
+
 // ============================================================================
 // PIPELINE STATS
 // ============================================================================

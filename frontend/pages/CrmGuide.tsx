@@ -438,7 +438,7 @@ const CrmGuide = () => {
           Click <strong className="text-text-primary">Convert</strong>. The lead status becomes <StatusBadge label="CONVERTED" bg="var(--color-hr-50)" text="var(--color-success)" /> and is locked. A new <strong className="text-text-primary">Opportunity</strong> (Deal) is created and linked from the Lead Detail page. The lead's contact and account are automatically linked to the new opportunity.
         </p>
         <InfoBox icon="swap_horiz" color="var(--color-hr-50)">
-          After conversion, manage the deal in <Link to="/crm/pipeline" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Pipeline</Link> or <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>. The original lead is kept for reference.
+          After conversion, manage the deal in <Link to="/crm/pipeline" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Pipeline</Link> or <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>. The original lead is kept for reference, and its activities are retained and shown in the related Opportunity timeline as historical context.
         </InfoBox>
       </Section>
 

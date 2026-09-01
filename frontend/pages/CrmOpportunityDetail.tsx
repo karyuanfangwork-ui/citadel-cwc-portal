@@ -232,7 +232,13 @@ const CrmOpportunityDetail = () => {
   const reload = () => {
     if (!id) return;
     setLoading(true);
-    crmService.getOpportunity(id).then(setOpp).catch(() => navigate('/crm/opportunities')).finally(() => setLoading(false));
+    crmService.getOpportunity(id).then((data) => {
+      setOpp(data);
+      setActivityPage(data.activityPagination?.page ?? 1);
+      setHasMoreActivities(data.activityPagination
+        ? data.activityPagination.page < data.activityPagination.totalPages
+        : (data.activities?.length ?? 0) >= 15);
+    }).catch(() => navigate('/crm/opportunities')).finally(() => setLoading(false));
   };
 
   useEffect(() => { reload(); }, [id]);
@@ -328,10 +334,20 @@ const CrmOpportunityDetail = () => {
     setLoadingMoreActivities(true);
     try {
       const nextPage = activityPage + 1;
-      const res = await crmService.listActivities({ opportunityId: opp.id, page: nextPage, limit: 10 });
-      setOpp(prev => prev ? { ...prev, activities: [...(prev.activities ?? []), ...res.activities] } : prev);
-      setActivityPage(nextPage);
-      if (res.activities.length < 10) setHasMoreActivities(false);
+      const limit = opp.activityPagination?.limit ?? 15;
+      const res = await crmService.listActivities({ opportunityId: opp.id, page: nextPage, limit });
+      setOpp(prev => {
+        if (!prev) return prev;
+        const existingIds = new Set((prev.activities ?? []).map(activity => activity.id));
+        const newActivities = res.activities.filter(activity => !existingIds.has(activity.id));
+        return {
+          ...prev,
+          activities: [...(prev.activities ?? []), ...newActivities],
+          activityPagination: res.pagination,
+        };
+      });
+      setActivityPage(res.pagination.page);
+      setHasMoreActivities(res.pagination.page < res.pagination.totalPages);
     } catch (e) {
       console.error(e);
     } finally {
@@ -686,6 +702,7 @@ const CrmOpportunityDetail = () => {
                             <div className={`absolute left-1.5 top-1.5 w-3 h-3 rounded-full border-2`} style={{ background: i === 0 ? TEAL : SURFACE_MAX, borderColor: WHITE }} />
                             <div className="flex justify-between mb-1">
                               <p className="font-bold" style={{ fontSize: 13, color: DARK }}>{a.subject}</p>
+                              {a.sourceEntity === 'LEAD' && <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 10, color: TEAL, background: '#e0f2f1' }}>From converted lead</span>}
                               <span className="font-mono" style={{ fontSize: 10, color: TEXT_MUTED }}>{relativeTime(a.createdAt)}</span>
                             </div>
                             <p className="leading-relaxed" style={{ fontSize: 13, color: TEXT_SEC }}>
@@ -824,6 +841,7 @@ const CrmOpportunityDetail = () => {
                       <span className="material-symbols-outlined mt-0.5" style={{ color: TEAL }}>{ACTIVITY_ICONS[a.activityType]}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold" style={{ fontSize: 14, color: DARK }}>{a.subject}</p>
+                        {a.sourceEntity === 'LEAD' && <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 10, color: TEAL, background: '#e0f2f1' }}>From converted lead</span>}
                         {a.description && <p className="mt-0.5 whitespace-pre-wrap" style={{ fontSize: 13, color: TEXT_SEC }}>{a.description}</p>}
                         <p className="mt-1" style={{ fontSize: 12, color: TEXT_MUTED }}>
                           {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
@@ -906,7 +924,7 @@ const CrmOpportunityDetail = () => {
                       </div>
                     </div>
                   ))}
-                  {hasMoreActivities && (opp.activities ?? []).length >= 10 && (
+                  {hasMoreActivities && (
                     <div className="flex justify-center pt-2">
                       <button onClick={handleLoadMoreActivities} disabled={loadingMoreActivities}
                         className="flex items-center gap-2 px-4 py-2 font-semibold rounded-lg transition-colors disabled:opacity-50"

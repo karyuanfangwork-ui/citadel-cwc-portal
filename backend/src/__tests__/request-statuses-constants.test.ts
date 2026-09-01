@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '../constants/requestStatusCompat';
 import { CLOSED_STATUSES, RESOLVED_STATUSES } from '../constants/requestStatuses';
 
 describe('CANCELLED status classification', () => {

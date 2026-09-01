@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
-import crmService from '../services/crm.service';
+import crmService, { getOpportunityActivityTimeline } from '../services/crm.service';
 import { respondOrCsv } from '../utils/csv-response';
 import { parsePagination } from '../utils/pagination';
 import { resolveVisibleOwnerIds, applyOwnerScope, applyUserScope } from '../services/crm-scope.service';
@@ -795,7 +795,6 @@ class CrmController {
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         stage: true, pipeline: { include: { stages: { orderBy: { displayOrder: 'asc' } } } },
         owner: { select: userSelect },
-        activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 15 },
         notes: { include: { author: { select: userSelect } }, orderBy: { isPinned: 'desc' }, take: 20 },
         stageHistory: {
           orderBy: { movedAt: 'asc' },
@@ -810,7 +809,15 @@ class CrmController {
       },
     });
     if (!opportunity) throw new AppError('Opportunity not found', 404);
-    res.json({ status: 'success', data: { opportunity } });
+    const timeline = await getOpportunityActivityTimeline(req.params.id as string, visibleOwnerIds, {
+      where: scopedActivityWhere({}, visibleOwnerIds),
+      take: 15,
+    });
+    res.json({ status: 'success', data: { opportunity: {
+      ...opportunity,
+      activities: timeline.activities,
+      activityPagination: { page: 1, limit: 15, total: timeline.total, totalPages: Math.ceil(timeline.total / 15) },
+    } } });
   });
 
   createOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -963,11 +970,18 @@ class CrmController {
     if (accountId) where.accountId = accountId;
     if (contactId) where.contactId = contactId;
     if (leadId) where.leadId = leadId;
-    if (opportunityId) where.opportunityId = opportunityId;
+    if (opportunityId) {
+      const timeline = await getOpportunityActivityTimeline(opportunityId, visibleOwnerIds, {
+        where: scopedActivityWhere(where, visibleOwnerIds),
+        skip,
+        take: limit,
+      });
+      return res.json({ status: 'success', data: { activities: timeline.activities, pagination: { page, limit, total: timeline.total, totalPages: Math.ceil(timeline.total / limit) } } });
+    }
     const [activities, total] = await Promise.all([
       prisma.crmActivity.findMany({
         where: scopedActivityWhere(where, visibleOwnerIds), skip, take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           user: { select: userSelect },
           account: { select: { id: true, name: true } },
