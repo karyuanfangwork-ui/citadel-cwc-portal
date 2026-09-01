@@ -1180,6 +1180,23 @@ function normalizeScoreRun(run: CreditScoreRun): CreditScoreRun {
 
 // ── Credit API Service ─────────────────────────────────────────
 
+// ── Application snapshots ──────────────────────────────────────
+export type SnapshotType = 'COMMITTEE_SUBMISSION' | 'FINAL_DECISION';
+
+export interface ApplicationSnapshotSummary {
+  id: string;
+  snapshotType: SnapshotType;
+  takenAt: string;
+  triggerAction: string;
+  hash: string;
+  takenBy: { id: string; firstName: string; lastName: string } | null;
+}
+
+export interface ApplicationSnapshotDetail extends ApplicationSnapshotSummary {
+  applicationId: string;
+  payload: Record<string, unknown>;
+}
+
 const creditService = {
   // Borrower Profiles
   async listBorrowerProfiles(params: Record<string, any> = {}) {
@@ -1523,6 +1540,18 @@ const creditService = {
   async getAssessmentResult(applicationId: string): Promise<ApplicationAssessmentResult> {
     const res = await apiClient.get(`/credit/applications/${applicationId}/assessment-result`);
     return res.data.data as ApplicationAssessmentResult;
+  },
+
+  /** Snapshot history for an application, newest first. */
+  async getApplicationSnapshots(applicationId: string): Promise<ApplicationSnapshotSummary[]> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/snapshots`);
+    return res.data.data as ApplicationSnapshotSummary[];
+  },
+
+  /** One snapshot, including the frozen borrower and financial context. */
+  async getApplicationSnapshot(applicationId: string, snapshotId: string): Promise<ApplicationSnapshotDetail> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/snapshots/${snapshotId}`);
+    return res.data.data as ApplicationSnapshotDetail;
   },
 
   async previewDsr(payload: {
