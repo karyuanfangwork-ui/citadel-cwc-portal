@@ -34,6 +34,18 @@ const CALL_OUTCOMES = [
   ['NOT_REACHABLE', 'Not reachable'],
   ['INTERESTED', 'Interested'],
 ] as const;
+const EMAIL_OUTCOMES = [
+  ['SENT', 'Sent'],
+  ['BOUNCED', 'Bounced'],
+  ['REPLIED', 'Replied'],
+  ['RESEND_REQUIRED', 'Resend required'],
+] as const;
+const MEETING_OUTCOMES = [
+  ['ARRANGED', 'Arranged'],
+  ['COMPLETED', 'Completed'],
+  ['CANCELLED', 'Cancelled'],
+  ['NO_SHOW', 'No show'],
+] as const;
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -283,9 +295,13 @@ const CrmOpportunityDetail = () => {
     if (!id) return;
     try {
       setSaving(true);
-      const payload = ['CALL', 'FOLLOW_UP'].includes(activityForm.activityType ?? '')
-        ? activityForm
-        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(activityForm);
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, ...activityBase } = activityForm;
+      const payload = {
+        ...activityBase,
+        ...(activityForm.activityType === 'CALL' || activityForm.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
+        ...(activityForm.activityType === 'EMAIL' ? { emailOutcome } : {}),
+        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome } : {}),
+      };
       await crmService.createActivity({ ...payload, opportunityId: id });
       reload();
       setShowAddActivity(false);
@@ -338,6 +354,8 @@ const CrmOpportunityDetail = () => {
       activityType: a.activityType,
       callCategory: a.callCategory ?? (a.activityType === 'CALL' ? 'NEW_CALL' : a.activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined),
       callOutcome: a.callOutcome ?? undefined,
+      emailOutcome: a.emailOutcome ?? (a.activityType === 'EMAIL' ? 'SENT' : undefined),
+      meetingOutcome: a.meetingOutcome ?? (a.activityType === 'MEETING' ? 'ARRANGED' : undefined),
       subject: a.subject ?? '',
       description: a.description ?? '',
       scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : '',
@@ -351,9 +369,13 @@ const CrmOpportunityDetail = () => {
     setSavingActivityEdit(true);
     try {
       const { id: _aid, ...activityPayload } = editActivityForm;
-      const payload = ['CALL', 'FOLLOW_UP'].includes(activityPayload.activityType ?? '')
-        ? activityPayload
-        : (({ callCategory: _callCategory, callOutcome: _callOutcome, ...rest }) => rest)(activityPayload);
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, ...activityBase } = activityPayload;
+      const payload = {
+        ...activityBase,
+        ...(activityPayload.activityType === 'CALL' || activityPayload.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
+        ...(activityPayload.activityType === 'EMAIL' ? { emailOutcome } : {}),
+        ...(activityPayload.activityType === 'MEETING' ? { meetingOutcome } : {}),
+      };
       await crmService.updateActivity(editActivityForm.id!, payload);
       reload();
       setShowEditActivity(false);
@@ -888,6 +910,12 @@ const CrmOpportunityDetail = () => {
                         <p className="font-semibold" style={{ fontSize: 14, color: DARK }}>{a.subject}</p>
                         {a.sourceEntity === 'LEAD' && <span className="inline-flex mt-1 px-1.5 py-0.5 rounded-full font-semibold" style={{ fontSize: 10, color: TEAL, background: '#e0f2f1' }}>From converted lead</span>}
                         {a.description && <p className="mt-0.5 whitespace-pre-wrap" style={{ fontSize: 13, color: TEXT_SEC }}>{a.description}</p>}
+                        {(a.emailOutcome || a.meetingOutcome) && (
+                          <div className="flex flex-wrap gap-2 mt-2" style={{ fontSize: 11 }}>
+                            {a.emailOutcome && <span className="px-2 py-0.5 rounded-full" style={{ color: TEAL, background: '#e0f2f1' }}>Email: {EMAIL_OUTCOMES.find(([value]) => value === a.emailOutcome)?.[1] ?? a.emailOutcome}</span>}
+                            {a.meetingOutcome && <span className="px-2 py-0.5 rounded-full" style={{ color: TEAL, background: '#e0f2f1' }}>Meeting: {MEETING_OUTCOMES.find(([value]) => value === a.meetingOutcome)?.[1] ?? a.meetingOutcome}</span>}
+                          </div>
+                        )}
                         <p className="mt-1" style={{ fontSize: 12, color: TEXT_MUTED }}>
                           {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                           {a.scheduledAt && <span className="ml-2" style={{ color: TEAL }}>Scheduled: {formatDate(a.scheduledAt)}</span>}
@@ -1125,6 +1153,8 @@ const CrmOpportunityDetail = () => {
                     activityType,
                     callCategory: activityType === 'CALL' ? 'NEW_CALL' : activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined,
                     callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined,
+                    emailOutcome: activityType === 'EMAIL' ? (f.emailOutcome ?? 'SENT') : undefined,
+                    meetingOutcome: activityType === 'MEETING' ? (f.meetingOutcome ?? 'ARRANGED') : undefined,
                   }));
                 }}
                   className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
@@ -1151,6 +1181,24 @@ const CrmOpportunityDetail = () => {
                     </select>
                   </div>
                 </>
+              )}
+              {activityForm.activityType === 'EMAIL' && (
+                <div>
+                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Email outcome</label>
+                  <select value={activityForm.emailOutcome ?? 'SENT'} onChange={e => setActivityForm(f => ({ ...f, emailOutcome: e.target.value as CrmActivity['emailOutcome'] }))}
+                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                    {EMAIL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+              )}
+              {activityForm.activityType === 'MEETING' && (
+                <div>
+                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Meeting outcome</label>
+                  <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
+                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                    {MEETING_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
               )}
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Subject *</label>
@@ -1407,6 +1455,8 @@ const CrmOpportunityDetail = () => {
                     activityType,
                     callCategory: activityType === 'CALL' ? (f.callCategory ?? 'NEW_CALL') : activityType === 'FOLLOW_UP' ? (f.callCategory ?? 'FOLLOW_UP_CALL') : undefined,
                     callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined,
+                    emailOutcome: activityType === 'EMAIL' ? (f.emailOutcome ?? 'SENT') : undefined,
+                    meetingOutcome: activityType === 'MEETING' ? (f.meetingOutcome ?? 'ARRANGED') : undefined,
                   }));
                 }}
                   className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
@@ -1433,6 +1483,24 @@ const CrmOpportunityDetail = () => {
                     </select>
                   </div>
                 </>
+              )}
+              {editActivityForm.activityType === 'EMAIL' && (
+                <div>
+                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Email outcome</label>
+                  <select value={editActivityForm.emailOutcome ?? 'SENT'} onChange={e => setEditActivityForm(f => ({ ...f, emailOutcome: e.target.value as CrmActivity['emailOutcome'] }))}
+                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                    {EMAIL_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+              )}
+              {editActivityForm.activityType === 'MEETING' && (
+                <div>
+                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Meeting outcome</label>
+                  <select value={editActivityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setEditActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
+                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                    {MEETING_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
               )}
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Subject *</label>

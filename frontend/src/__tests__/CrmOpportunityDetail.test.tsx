@@ -191,6 +191,38 @@ describe('CrmOpportunityDetail', () => {
     }));
   });
 
+  it('captures email outcome when logging an opportunity email', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Activities' }));
+    fireEvent.click(screen.getByRole('button', { name: /log activity/i }));
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'EMAIL' } });
+
+    expect(screen.getByText('Email outcome')).toBeInTheDocument();
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'REPLIED' } });
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Email follow-up' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
+
+    await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
+      activityType: 'EMAIL', emailOutcome: 'REPLIED', subject: 'Email follow-up', opportunityId: 'opp-1',
+    }));
+  });
+
+  it('captures meeting outcome when logging an opportunity meeting', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Activities' }));
+    fireEvent.click(screen.getByRole('button', { name: /log activity/i }));
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'MEETING' } });
+
+    expect(screen.getByText('Meeting outcome')).toBeInTheDocument();
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'COMPLETED' } });
+    fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Completed review meeting' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
+
+    await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
+      activityType: 'MEETING', meetingOutcome: 'COMPLETED', subject: 'Completed review meeting', opportunityId: 'opp-1',
+    }));
+  });
+
   it('supports editing and deleting an authored opportunity note', async () => {
     await renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Notes' }));
