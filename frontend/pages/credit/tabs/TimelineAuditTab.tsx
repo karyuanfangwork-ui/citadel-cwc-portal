@@ -1,5 +1,6 @@
 import React from 'react';
 import ApplicationComments from '../../../src/components/credit/ApplicationComments';
+import SnapshotHistoryPanel from '../../../src/components/credit/SnapshotHistoryPanel';
 import AuditTab from './sections/AuditTab';
 
 interface TimelineAuditTabProps {
@@ -37,6 +38,16 @@ const TimelineAuditTab: React.FC<TimelineAuditTabProps> = ({ applicationId }) =>
           Audit Trail
         </h3>
         <AuditTab />
+      </section>
+
+      <section>
+        <h3 style={sectionHeaderStyle}>
+          <span className="material-symbols-outlined" style={{ verticalAlign: 'middle', marginRight: 8 }}>
+            photo_camera
+          </span>
+          Context Snapshots
+        </h3>
+        <SnapshotHistoryPanel applicationId={applicationId} />
       </section>
     </div>
   );

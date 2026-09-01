@@ -53,6 +53,9 @@ import CreditBureauComplianceTab from './credit/tabs/CreditBureauComplianceTab';
 import RiskAssessmentTab from './credit/tabs/RiskAssessmentTab';
 import CaMemoPreviewTab from './credit/tabs/CaMemoPreviewTab';
 
+import SnapshotBanner from '../src/components/credit/SnapshotBanner';
+import { useApplicationSnapshot } from '../src/hooks/useApplicationSnapshot';
+
 import ScoreOutdatedBanner from '../src/components/credit/ScoreOutdatedBanner';
 import BorrowerSummaryCard, { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 import {
@@ -192,6 +195,13 @@ const CreditApplicationDetail: React.FC = () => {
   const readinessRequestRef = useRef(0);
   const transitionDialogCancelRef = useRef<HTMLButtonElement>(null);
   const transitionTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // CA-P1-004 — keep the snapshot decision at the single application-object swap point.
+  const snapshotView = useApplicationSnapshot(
+    app?.id ?? '',
+    (app?.state ?? (app as any)?.status ?? null) as string | null,
+    app as CreditApplication,
+  );
 
   const [showMobileNav, setShowMobileNav] = useState(false);
 
@@ -739,9 +749,9 @@ const CreditApplicationDetail: React.FC = () => {
           })()}
         />
       );
-      case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} lane={lane} />);
+      case 'customer-profile': return renderTabWithHeader('customer-profile', 's2', 'Customer Profile', <CustomerProfileTab application={snapshotView.resolvedApplication ?? app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} lane={lane} />);
       case 'application-details': return renderTabWithHeader('application-details', 's1', 'Application Details', <ApplicationDetailsTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} advancedMemo={advancedMemo} />);
-      case 'financial-profile': return renderTabWithHeader('financial-profile', 's3', 'Financial Profile', <FinancialProfileTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
+      case 'financial-profile': return renderTabWithHeader('financial-profile', 's3', 'Financial Profile', <FinancialProfileTab application={snapshotView.resolvedApplication ?? app!} onUpdated={setApp} onDirtyChange={setDirty} />);
       case 'credit-bureau': return renderTabWithHeader('credit-bureau', 's5', 'Credit Bureau & Compliance', <CreditBureauComplianceTab application={app!} onUpdated={setApp} integrations={integrations} />);
       case 'risk-assessment': return renderTabWithHeader('risk-assessment', 's4', 'Risk Assessment', <RiskAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} onRefresh={fetchApp} isFeatureEnabled={isFeatureEnabled} />);
       case 'collateral-guarantees': return renderTabWithHeader('collateral-guarantees', 's6', 'Collateral & Guarantees', <CollateralGuaranteesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />);
@@ -803,6 +813,19 @@ const CreditApplicationDetail: React.FC = () => {
             onExportCaMemo={handleDownloadCaMemo}
             onExportSummaryPdf={handleDownloadSummaryPdf}
           />
+
+          {snapshotView.mode !== 'live' && (
+            <div className="px-4 pt-3">
+              <SnapshotBanner
+                mode={snapshotView.mode}
+                effectiveMode={snapshotView.effectiveMode}
+                snapshot={snapshotView.snapshot}
+                error={snapshotView.error}
+                viewingLive={snapshotView.viewingLive}
+                onToggleLive={snapshotView.setViewingLive}
+              />
+            </div>
+          )}
 
           {/* P2-4: Score outdated banner */}
           <ScoreOutdatedBanner applicationId={app.id} />

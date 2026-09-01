@@ -541,7 +541,7 @@ export interface EvidenceMappingSnapshot {
  * but the frontend interface uses rm / analyst / rmId / analystId.
  */
 
-function normalizeApplication(raw: any): CreditApplication {
+export function normalizeApplication(raw: any): CreditApplication {
   if (!raw) return raw;
   const app = { ...raw };
   if ('assignedRm' in app) {
