@@ -14,6 +14,11 @@ import { recalcScore } from './recalc.service';
 import { enforceCommitteeEntryGate, isCommitteeEntryAction } from './committeeEntryGate';
 import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
+import { runTransitionHooks } from './transitionHooks';
+import { registerSnapshotHook } from './applicationSnapshot.service';
+
+// Shared post-commit extension point for credit lifecycle write points.
+registerSnapshotHook();
 
 
 // ---------------------------------------------------------------------------
@@ -1601,6 +1606,14 @@ class CreditApplicationService {
         console.error(`[CreditApplication] Failed to refresh exposure for ${application.borrowerProfileId}: ${err.message}`);
       }
     }
+
+    await runTransitionHooks({
+      applicationId: id,
+      action,
+      fromState: existing.state as string,
+      toState: transition.to as string,
+      actorId: actorId ?? null,
+    });
 
     return application;
   }
