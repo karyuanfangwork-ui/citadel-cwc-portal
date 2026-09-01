@@ -450,6 +450,7 @@ model ServiceDesk {
   @@index([tenantId])
   @@index([departmentId])
   @@map("service_desks")
+  @@index([autoAssignUserId])
 }
 
 model ServiceCategory {
@@ -919,7 +920,7 @@ enum WorkflowNodeType {
 // version compiles it into WorkflowTransition + WorkflowStep rows, which is
 // what the runtime actually enforces.
 model WorkflowVersion {
-  id             String                @id @default(uuid()) @db.Uuid
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workflowTypeId String                @map("workflow_type_id") @db.Uuid
   version        Int
   status         WorkflowVersionStatus @default(DRAFT)
@@ -940,7 +941,7 @@ model WorkflowVersion {
 }
 
 model WorkflowNode {
-  id                String           @id @default(uuid()) @db.Uuid
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workflowVersionId String           @map("workflow_version_id") @db.Uuid
   type              WorkflowNodeType @default(STATUS)
   // → RequestStatusDefinition.code. Required when type = STATUS.
@@ -971,7 +972,7 @@ model WorkflowNode {
 }
 
 model WorkflowEdge {
-  id                    String   @id @default(uuid()) @db.Uuid
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workflowVersionId     String   @map("workflow_version_id") @db.Uuid
   fromNodeId            String   @map("from_node_id") @db.Uuid
   toNodeId              String   @map("to_node_id") @db.Uuid
@@ -2270,7 +2271,6 @@ model RequestStatusDefinition {
   id           String   @id @default(uuid()) @db.Uuid
   // Compatibility anchor: keeps the generated legacy RequestStatus export
   // available to integrations while Request.status is catalog-backed.
-  legacyEnumValue RequestStatus? @ignore
   code         String   @unique @db.VarChar(100)
   label        String   @db.VarChar(200)
   description  String?  @db.Text
@@ -2286,6 +2286,7 @@ model RequestStatusDefinition {
   @@index([category])
   @@index([retiredAt])
   @@map("request_status_definitions")
+  @@index([isActive])
 }
 
 // Workflow transition rules — source of truth for valid status changes.
@@ -2706,7 +2707,7 @@ model CrmLead {
 
 // CRM Lead Documents — PDF supporting documents attached to a lead
 model CrmLeadDocument {
-  id              String    @id @default(uuid()) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId        String?   @map("tenant_id") @db.Uuid
   leadId          String    @map("lead_id") @db.Uuid
   uploadedById    String    @map("uploaded_by_id") @db.Uuid
@@ -3400,7 +3401,7 @@ model RequestParticipant {
 
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   user    User    @relation("RequestParticipants", fields: [userId], references: [id])
-  addedBy User?   @relation("ParticipantAddedBy", fields: [addedById], references: [id])
+  addedBy User?   @relation("ParticipantAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
 
   @@unique([requestId, userId, participantRole])
   @@index([requestId, userId])
@@ -4058,9 +4059,9 @@ model BorrowerProfile {
   borrowerType BorrowerType @default(CORPORATE) @map("borrower_type")
 
   // Operational identity — populated by the expand/backfill migration.
-  borrowerNumber      String?                  @unique @map("borrower_number") @db.VarChar(20)
-  segment             BorrowerSegment?
-  lifecycleStatus     BorrowerLifecycleStatus? @default(ACTIVE) @map("lifecycle_status")
+  borrowerNumber      String                   @unique @map("borrower_number") @db.VarChar(20)
+  segment             BorrowerSegment
+  lifecycleStatus     BorrowerLifecycleStatus  @default(ACTIVE) @map("lifecycle_status")
   relationshipOwnerId String?                  @map("relationship_owner_id") @db.Uuid
 
   // Authoritative display name — required at creation for all borrower types
@@ -5511,13 +5512,28 @@ model CreditDecision {
   conditions     String? @db.Text
   comments       String? @db.Text
 
+  /// GAP-P1-02 — The FROZEN assessment this decision was taken against.
+  assessmentResultId   String?  @map("assessment_result_id") @db.Uuid
+  /// The system recommendation at decision time, copied from the frozen result.
+  systemRecommendation String?  @map("system_recommendation") @db.VarChar(20)
+  /// Derived at write by deriveOverride(); never accepted from the client.
+  isOverride           Boolean  @default(false) @map("is_override")
+  /// Required when isOverride is true.
+  overrideReason       String?  @map("override_reason") @db.Text
+  /// The amount/tenor actually sanctioned, which may be less than requested.
+  approvedAmount       Decimal? @map("approved_amount") @db.Decimal(15, 2)
+  approvedTenor        Int?     @map("approved_tenor")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  application      CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  decidedBy        User              @relation("CreditDecisionBy", fields: [decisionById], references: [id])
-  conditionRecords Condition[]       @relation("CreditDecisionConditions")
+  application      CreditApplication          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  decidedBy        User                       @relation("CreditDecisionBy", fields: [decisionById], references: [id])
+  conditionRecords Condition[]                @relation("CreditDecisionConditions")
+  assessmentResult ApplicationAssessmentResult? @relation("CreditDecisionAssessment", fields: [assessmentResultId], references: [id], onDelete: SetNull)
 
   @@index([applicationId])
+  @@index([isOverride])
+  @@index([assessmentResultId])
   @@map("credit_decisions")
 }
 
@@ -5938,6 +5954,7 @@ model CreditScorecardVersion {
   @@unique([scorecardId, version])
   @@index([scorecardId])
   @@map("credit_scorecard_versions")
+  @@index([createdById])
 }
 
 // ============================================================================
@@ -6017,6 +6034,7 @@ model ApplicationAssessmentResult {
   scoreRun    CreditScoreRun?   @relation("AssessmentResultScoreRun", fields: [scoreRunId], references: [id])
   createdBy   User?             @relation("AssessmentResultCreatedBy", fields: [createdById], references: [id])
   reviewedBy  User?             @relation("AssessmentResultReviewedBy", fields: [reviewedById], references: [id])
+  decisions   CreditDecision[]  @relation("CreditDecisionAssessment")
 
   @@index([applicationId])
   @@map("application_assessment_results")
