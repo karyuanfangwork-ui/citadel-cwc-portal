@@ -1213,6 +1213,7 @@ export interface PolicyEvaluationSummary {
   evaluationId: string;
   evaluatedAt: string;
   triggerAction: string;
+  policySetVersion?: string | null;
   summary: { total: number; passed: number; warned: number; failed: number; overall: PolicyVerdict };
 }
 

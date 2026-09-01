@@ -1,6 +1,5 @@
 import prisma from '../../utils/prisma';
 import { Prisma, RiskRating } from '@prisma/client';
-import crypto from 'crypto';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
@@ -13,6 +12,7 @@ import { ratingBandService } from './ratingBand.service';
 import { resolveRatingOrFail } from './ratingResolution.service';
 import { persistApplicationRiskRating } from './applicationRating.service';
 import { getNumberPolicy } from './policyParameter.service';
+import { getPolicySetVersion } from './policySet.service';
 import { scoreFactorDefinitionService, type GovernanceWarning } from './scoreFactorDefinition.service';
 
 // ---------------------------------------------------------------------------
@@ -633,20 +633,9 @@ class ScoringService {
     const { fresh: bureauFresh, staleProviders: staleBureauProviders } = await isBureauCheckFresh(applicationId);
 
     // Step 9: Create CreditScoreRun record (with provenance + input snapshot)
-    // LOS-014 — Provenance: derive a stable policy version identifier from the
-    // resolved missing-data policies. This changes when the policy configuration
-    // changes and stays identical when it does not, so an old rating can be
-    // reproduced by re-applying the same policy version. Format: "md5:<8-char-hash>"
-    // (VarChar(50) column).
-    const policyVersion = 'md5:' + crypto
-      .createHash('md5')
-      .update(JSON.stringify(
-        Object.entries(missingDataPolicies)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([f, c]) => `${f}:${c.policy}:${c.penaltyScore}`),
-      ))
-      .digest('hex')
-      .slice(0, 8);
+    // CA-P6-003 — the policy set in force, as one reproducible identifier.
+    // Existing md5: values are never rewritten — see policySetVersion.ts.
+    const policyVersion = await getPolicySetVersion();
 
     const inputSnapshot = {
       factorScores,

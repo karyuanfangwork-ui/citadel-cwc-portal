@@ -55,6 +55,10 @@ jest.mock('../missingDataPolicy.service', () => ({
   getMissingDataPolicies: jest.fn().mockResolvedValue({}),
 }));
 
+jest.mock('../policySet.service', () => ({
+  getPolicySetVersion: jest.fn().mockResolvedValue('sha256:abcdef123456'),
+}));
+
 jest.mock('../scoreFactorDefinition.service', () => ({
   scoreFactorDefinitionService: {
     getActiveDefinitions: jest.fn().mockResolvedValue([

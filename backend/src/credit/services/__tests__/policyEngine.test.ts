@@ -5,6 +5,7 @@ const evaluatePolicyMock = jest.fn();
 const readinessMock = jest.fn();
 const deviationsMock = jest.fn();
 const bureauMock = jest.fn();
+const getPolicySetVersionMock = jest.fn();
 
 jest.mock('../../../utils/prisma', () => ({
   __esModule: true,
@@ -17,6 +18,7 @@ jest.mock('../policyLimit.service', () => ({ policyLimitService: { evaluatePolic
 jest.mock('../submissionReadiness.service', () => ({ validateSubmissionReadiness: readinessMock }));
 jest.mock('../deviation.service', () => ({ deviationService: { checkApplicationDeviations: deviationsMock } }));
 jest.mock('../bureauCheck.service', () => ({ isBureauCheckFresh: bureauMock }));
+jest.mock('../policySet.service', () => ({ getPolicySetVersion: getPolicySetVersionMock }));
 
 import {
   evaluatePolicy,
@@ -37,6 +39,7 @@ beforeEach(() => {
   readinessMock.mockResolvedValue({ ready: true, errors: [], warnings: [], satisfied: [{ field: 'signoff', message: 'ok', severity: 'info' }] });
   deviationsMock.mockResolvedValue({ canProceed: true, pendingCount: 0, approvedCount: 0, rejectedCount: 0, total: 0 });
   bureauMock.mockResolvedValue({ fresh: true, staleProviders: [] });
+  getPolicySetVersionMock.mockResolvedValue('sha256:abcdef123456');
   scoreRunFindFirstMock.mockResolvedValue({ missingInputs: [] });
   policyResultCreateManyMock.mockResolvedValue({ count: 3 });
 });
@@ -80,6 +83,20 @@ describe('persistPolicyEvaluation', () => {
     expect(data.length).toBeGreaterThan(0);
     expect(new Set(data.map((row: { evaluationId: string }) => row.evaluationId)).size).toBe(1);
     expect(data[0]).toMatchObject({ applicationId: 'app-1', triggerAction: 'approve', evaluatedById: 'user-1' });
+  });
+
+  it('stamps every row with the policy set version', async () => {
+    await persistPolicyEvaluation(ctx());
+    const { data } = policyResultCreateManyMock.mock.calls[0][0];
+    expect(data.every((row: { policySetVersion: string }) => row.policySetVersion === 'sha256:abcdef123456')).toBe(true);
+  });
+
+  it('still records the evaluation when the version cannot be resolved', async () => {
+    getPolicySetVersionMock.mockRejectedValue(new Error('config table down'));
+    await persistPolicyEvaluation(ctx());
+    const { data } = policyResultCreateManyMock.mock.calls[0][0];
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0].policySetVersion).toBeNull();
   });
 
   it('is a no-op for non-lifecycle actions', async () => {

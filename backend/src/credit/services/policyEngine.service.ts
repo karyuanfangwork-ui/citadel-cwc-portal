@@ -5,6 +5,7 @@ import { policyLimitService } from './policyLimit.service';
 import { validateSubmissionReadiness } from './submissionReadiness.service';
 import { deviationService } from './deviation.service';
 import { isBureauCheckFresh } from './bureauCheck.service';
+import { getPolicySetVersion } from './policySet.service';
 import { registerTransitionHook, type TransitionHookContext } from './transitionHooks';
 import {
   normalisePolicyLimits,
@@ -83,6 +84,12 @@ export async function persistPolicyEvaluation(ctx: TransitionHookContext): Promi
   if (entries.length === 0) return { skipped: true, evaluationId: null, written: 0, summary };
 
   const evaluationId = crypto.randomUUID();
+  let policySetVersion: string | null = null;
+  try {
+    policySetVersion = await getPolicySetVersion();
+  } catch {
+    policySetVersion = null;
+  }
   const evaluatedAt = new Date();
   const { count } = await prisma.policyResult.createMany({
     data: entries.map((entry) => ({
@@ -97,6 +104,7 @@ export async function persistPolicyEvaluation(ctx: TransitionHookContext): Promi
       triggerAction: ctx.action,
       evaluatedAt,
       evaluatedById: ctx.actorId,
+      policySetVersion,
     })),
   });
   return { skipped: false, evaluationId, written: count, summary };
@@ -127,6 +135,7 @@ export async function getPolicyEvaluation(applicationId: string, evaluationId: s
     evaluationId,
     evaluatedAt: rows[0].evaluatedAt,
     triggerAction: rows[0].triggerAction,
+    policySetVersion: rows[0].policySetVersion,
     summary: summarisePolicyResults(rows as unknown as PolicyResultEntry[]),
     results: rows,
   };

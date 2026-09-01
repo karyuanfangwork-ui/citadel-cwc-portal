@@ -122,6 +122,14 @@ const PolicyResultsPanel: React.FC<{ applicationId: string }> = ({ applicationId
                 {detailLoading && !detail && <p className="text-sm text-slate-500">Loading rules…</p>}
                 {detailError && <p className="text-sm text-red-700">{detailError}</p>}
 
+                {detail && (
+                  <p className="mb-2 text-xs text-slate-500">
+                    Policy set:{' '}
+                    {detail.policySetVersion
+                      ? <code className="text-slate-700">{detail.policySetVersion}</code>
+                      : <span>not recorded</span>}
+                  </p>
+                )}
                 {detail && groupBySource(detail.results).map((group) => (
                   <div key={group.source} className="mb-3 last:mb-0">
                     <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">

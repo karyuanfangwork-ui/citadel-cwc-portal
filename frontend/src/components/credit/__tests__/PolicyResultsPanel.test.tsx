@@ -30,6 +30,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
 
 const detail = {
   ...summary(),
+  policySetVersion: 'sha256:abcdef123456',
   results: [
     { id: 'r1', ruleCode: 'LIMIT.SECTOR.abc', verdict: 'FAIL' as const, source: 'POLICY_LIMIT', actual: '6000000', threshold: '5000000', message: 'Exceeds sector cap.' },
     { id: 'r2', ruleCode: 'BUREAU.FRESHNESS', verdict: 'WARN' as const, source: 'BUREAU', actual: 'CTOS', threshold: null, message: 'Stale bureau reports: CTOS.' },
@@ -75,6 +76,23 @@ describe('PolicyResultsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /approved/i }));
     await waitFor(() => expect(screen.getByText(/6000000/)).toBeInTheDocument());
     expect(screen.getByText(/5000000/)).toBeInTheDocument();
+  });
+
+  it('shows the policy set version only inside the expanded evaluation', async () => {
+    render(<PolicyResultsPanel applicationId="app-1" />);
+    await waitFor(() => expect(screen.getByText('Approved')).toBeInTheDocument());
+    expect(screen.queryByText(/sha256:abcdef123456/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /approved/i }));
+    await waitFor(() => expect(screen.getByText(/sha256:abcdef123456/)).toBeInTheDocument());
+  });
+
+  it('says plainly when no policy version was recorded', async () => {
+    getPolicyEvaluationMock.mockResolvedValue({ ...detail, policySetVersion: null });
+    render(<PolicyResultsPanel applicationId="app-1" />);
+    await waitFor(() => expect(screen.getByText('Approved')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /approved/i }));
+    await waitFor(() => expect(screen.getByText(/not recorded/i)).toBeInTheDocument());
   });
 
   it('caches the detail — re-expanding does not refetch', async () => {

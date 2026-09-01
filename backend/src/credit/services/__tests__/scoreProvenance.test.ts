@@ -5,7 +5,6 @@
  * policyVersion, so an old rating can be reproduced from the stored
  * provenance fields rather than guesswork.
  */
-import crypto from 'crypto';
 
 jest.mock('../../../utils/prisma', () => {
   const mockFindFirst = jest.fn();
@@ -74,6 +73,10 @@ jest.mock('../missingDataPolicy.service', () => {
 jest.mock('../policyParameter.service', () => ({
   getNumberPolicy: jest.fn().mockResolvedValue(50),
   getStringPolicy: jest.fn().mockResolvedValue('NEUTRAL'),
+}));
+
+jest.mock('../policySet.service', () => ({
+  getPolicySetVersion: jest.fn().mockResolvedValue('sha256:abcdef123456'),
 }));
 
 jest.mock('../scorecard.service', () => ({
@@ -145,13 +148,12 @@ describe('score run provenance (LOS-014)', () => {
     expect(createData.ratingBandVersion).toBe(3);
   });
 
-  it('persists a policy version identifying the missing-data policy applied', async () => {
+  it('persists a policy version identifying the policy set in force', async () => {
     await scoringService.executeScore('app-1', 'scv-1', { actorId: 'user-1', source: 'MANUAL' });
 
     const createData = mockedPrisma.creditScoreRun.create.mock.calls[0][0].data;
     expect(createData.policyVersion).toBeTruthy();
-    // Policy version must be a short hash string like "md5:abc12345"
-    expect(createData.policyVersion).toMatch(/^md5:[0-9a-f]{8}$/);
+    expect(createData.policyVersion).toMatch(/^sha256:[0-9a-f]{12}$/);
   });
 
   it('sets ratingBandVersion to null when no active band set exists', async () => {
@@ -161,31 +163,5 @@ describe('score run provenance (LOS-014)', () => {
 
     const createData = mockedPrisma.creditScoreRun.create.mock.calls[0][0].data;
     expect(createData.ratingBandVersion).toBeNull();
-  });
-
-  it('computes a deterministic policy version that changes when policy changes', () => {
-    const policiesV1 = {
-      cashflow: { factor: 'cashflow', policy: 'BLOCK', penaltyScore: 25, neutralScore: 50 },
-      leverage: { factor: 'leverage', policy: 'PENALTY', penaltyScore: 25, neutralScore: 50 },
-    };
-    const policiesV2 = {
-      cashflow: { factor: 'cashflow', policy: 'PENALTY', penaltyScore: 25, neutralScore: 50 },
-      leverage: { factor: 'leverage', policy: 'PENALTY', penaltyScore: 25, neutralScore: 50 },
-    };
-
-    const hash = (p: Record<string, any>) => 'md5:' + crypto
-      .createHash('md5')
-      .update(JSON.stringify(
-        Object.entries(p)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([f, c]: [string, any]) => `${f}:${c.policy}:${c.penaltyScore}`),
-      ))
-      .digest('hex')
-      .slice(0, 8);
-
-    // Same policy → same hash
-    expect(hash(policiesV1)).toBe(hash(policiesV1));
-    // Different policy → different hash
-    expect(hash(policiesV1)).not.toBe(hash(policiesV2));
   });
 });
