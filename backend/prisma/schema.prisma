@@ -213,6 +213,7 @@ model User {
   ratingBandConfigsApproved            RatingBandConfig[]            @relation("RatingBandConfigApprovedBy")
   assessmentResultsCreated             ApplicationAssessmentResult[] @relation("AssessmentResultCreatedBy")
   assessmentResultsReviewed            ApplicationAssessmentResult[] @relation("AssessmentResultReviewedBy")
+  applicationSnapshotsTaken             ApplicationSnapshot[]        @relation("ApplicationSnapshotTakenBy")
   // Committee Relations
   committeeMemberUser                  CommitteeMember[]             @relation("CommitteeMemberUser")
   committeePresentedBy                 CommitteeAgendaItem[]         @relation("AgendaItemPresentedBy")
@@ -4648,6 +4649,8 @@ model CreditApplication {
   deviations                  DeviationApproval[]
   suspiciousTransactions      SuspiciousTransaction[] // P1-7
   comments                    ApplicationComment[] // P2-4
+  snapshots                   ApplicationSnapshot[]
+  linkedStatements            FinancialStatement[]          @relation("ApplicationFinancialStatements")
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -5498,6 +5501,34 @@ model AccountUtilisationSnapshot {
 }
 
 // ============================================================================
+// Application snapshot — immutable decision-context capture
+// ============================================================================
+enum SnapshotType {
+  COMMITTEE_SUBMISSION
+  FINAL_DECISION
+}
+
+model ApplicationSnapshot {
+  id            String       @id @default(uuid()) @db.Uuid
+  applicationId String       @map("application_id") @db.Uuid
+  snapshotType  SnapshotType @map("snapshot_type")
+  takenAt       DateTime     @default(now()) @map("taken_at") @db.Timestamp(6)
+  takenById     String?      @map("taken_by_id") @db.Uuid
+  payload       Json         @db.JsonB
+  hash          String       @db.VarChar(64)
+  triggerAction String       @map("trigger_action") @db.VarChar(50)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  takenBy     User?             @relation("ApplicationSnapshotTakenBy", fields: [takenById], references: [id])
+
+  @@index([applicationId, snapshotType])
+  @@index([takenAt])
+  @@index([hash])
+  @@map("application_snapshots")
+}
+
+// ============================================================================
 // Credit Decision — approval/rejection record
 // ============================================================================
 model CreditDecision {
@@ -5723,6 +5754,9 @@ model CreditApprovalMatrixVersion {
 model FinancialStatement {
   id                String                 @id @default(uuid()) @db.Uuid
   borrowerProfileId String                 @map("borrower_profile_id") @db.Uuid
+  /// CA-P1-001 / GAP-P1-01(a) — which application this statement was used for.
+  /// Nullable and un-backfilled: statements predating the link keep NULL.
+  applicationId     String?                @map("application_id") @db.Uuid
   period            FinancialPeriod
   fiscalYearEnd     DateTime               @map("fiscal_year_end") @db.Date
   statementType     FinancialStatementType @map("statement_type")
@@ -5748,12 +5782,14 @@ model FinancialStatement {
 
   // Relations
   borrowerProfile BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  application     CreditApplication?  @relation("ApplicationFinancialStatements", fields: [applicationId], references: [id], onDelete: SetNull)
   enteredBy       User                @relation("FinancialEnteredBy", fields: [enteredById], references: [id])
   reviewedBy      User?               @relation("FinancialReviewedBy", fields: [reviewedById], references: [id])
   lineItems       FinancialLineItem[]
   ratios          FinancialRatio[]
 
   @@index([borrowerProfileId])
+  @@index([applicationId])
   @@index([statementType])
   @@index([status])
   @@map("financial_statements")
