@@ -1,39 +1,34 @@
 import {
   RISK_FACTOR_KEYS,
+  isRiskFactorKey,
+  RISK_FACTOR_LABELS,
   LEGACY_RISK_CATEGORIES,
   LEGACY_CATEGORY_LABELS,
-  LEGACY_CATEGORY_TO_FACTOR,
-  mapLegacyCategory,
-  RISK_FACTOR_LABELS,
 } from '../riskTaxonomy';
 
 describe('frontend risk taxonomy mirrors the backend', () => {
-  it('declares the same six canonical factors in the same order', () => {
+  it('declares the nine canonical factor groups in scorecard order', () => {
     expect([...RISK_FACTOR_KEYS]).toEqual([
-      'APPLICANT', 'INDUSTRY', 'PRODUCT', 'DOCUMENTATION', 'BEHAVIOUR', 'FRAUD',
+      'financial_performance', 'leverage', 'liquidity', 'cashflow',
+      'management', 'industry', 'collateral', 'relationship', 'market_conditions',
     ]);
   });
 
-  it('declares the same five narrative categories with the form labels', () => {
+  it('guards membership and labels every group', () => {
+    expect(isRiskFactorKey('leverage')).toBe(true);
+    expect(isRiskFactorKey('APPLICANT')).toBe(false);
+    for (const key of RISK_FACTOR_KEYS) expect(RISK_FACTOR_LABELS[key]).toBeTruthy();
+  });
+
+  it('keeps the narrative categories and their form labels unchanged', () => {
     expect([...LEGACY_RISK_CATEGORIES]).toEqual(['PROJECT', 'PERFORMANCE', 'PACKAGING', 'PAYMENT', 'OTHER']);
     expect(LEGACY_CATEGORY_LABELS.PROJECT).toBe('Project Risk');
     expect(LEGACY_CATEGORY_LABELS.OTHER).toBe('Other Risk');
   });
 
-  it('carries the same mapping, catch-all included', () => {
-    expect(LEGACY_CATEGORY_TO_FACTOR).toEqual({
-      PROJECT: 'PRODUCT',
-      PERFORMANCE: 'APPLICANT',
-      PACKAGING: 'DOCUMENTATION',
-      PAYMENT: 'BEHAVIOUR',
-      OTHER: null,
-    });
-    expect(mapLegacyCategory('PROJECT')).toBe('PRODUCT');
-    expect(mapLegacyCategory('OTHER')).toBeNull();
-    expect(mapLegacyCategory('JUNK')).toBeNull();
-  });
-
-  it('labels every canonical factor', () => {
-    for (const key of RISK_FACTOR_KEYS) expect(RISK_FACTOR_LABELS[key]).toBeTruthy();
+  it('exports no 4P-to-factor mapping', async () => {
+    const mod: Record<string, unknown> = await import('../riskTaxonomy');
+    expect(mod).not.toHaveProperty('LEGACY_CATEGORY_TO_FACTOR');
+    expect(mod).not.toHaveProperty('mapLegacyCategory');
   });
 });

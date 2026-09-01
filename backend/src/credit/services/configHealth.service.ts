@@ -1,6 +1,6 @@
 import { logger } from '../../utils/logger';
 import prisma from '../../utils/prisma';
-import { RISK_FACTOR_KEYS } from './riskTaxonomy';
+import { LEGACY_ENGINE_FACTORS } from './riskTaxonomy';
 
 export interface ConfigHealthCheck {
   name: string;
@@ -32,9 +32,9 @@ export async function checkCreditConfigurationHealth(): Promise<ConfigHealthChec
   await run(
     'risk-factor-taxonomy',
     async () => (await db.riskFactorMatrix.count({
-      where: { isActive: true, factor: { in: [...RISK_FACTOR_KEYS] } },
+      where: { isActive: true, factor: { in: [...LEGACY_ENGINE_FACTORS] } },
     })) as number,
-    'No active risk factor weights match the canonical taxonomy — the engine is running on hardcoded DEFAULT_WEIGHTS',
+    'No active legacy risk factor weights — the unwired engine is running on hardcoded DEFAULT_WEIGHTS',
   );
   await run('published-scorecard-version', () => db.creditScorecardVersion.count({ where: { isActive: true, scorecard: { isActive: true } } }), 'No active scorecard version');
   return checks;

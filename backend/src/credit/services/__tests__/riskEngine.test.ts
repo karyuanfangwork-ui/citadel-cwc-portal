@@ -96,10 +96,10 @@ describe('getActiveFactorWeights', () => {
 });
 
 describe('CA-P3-004 — canonical factor enforcement', () => {
-  it('re-exports the canonical RiskFactorKey rather than redeclaring it', async () => {
+  it('re-exports the legacy RiskFactorKey vocabulary', async () => {
     const engine = await import('../riskEngine.service');
     const taxonomy = await import('../riskTaxonomy');
-    expect(engine.RISK_FACTOR_KEYS).toBe(taxonomy.RISK_FACTOR_KEYS);
+    expect(engine.LEGACY_ENGINE_FACTORS).toBe(taxonomy.LEGACY_ENGINE_FACTORS);
   });
 
   it('ignores a non-canonical factor row instead of weighting it', async () => {

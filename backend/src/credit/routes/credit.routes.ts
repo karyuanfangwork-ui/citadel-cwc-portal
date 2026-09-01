@@ -134,6 +134,7 @@ import strRoutes from './str.routes';
 import mfaRoutes from './mfa.routes';
 import assessmentResultRoutes from './assessmentResult.routes';
 import applicationSnapshotRoutes from './applicationSnapshot.routes';
+import policyResultRoutes from './policyResult.routes';
 
 // AI & Automation (A4/A5/A6/A13/A15)
 import creditAiRoutes from './creditAi.routes';
@@ -322,6 +323,7 @@ router.use('/applications', industryAssessmentRoutes);
 router.use('/applications', riskAssessmentRoutes);
 router.use('/applications', assessmentResultRoutes);
 router.use('/applications', applicationSnapshotRoutes);
+router.use('/applications', policyResultRoutes);
 // Phase 5 — admin config for rating bands + risk factor matrices
 router.use('/rating-bands', ratingBandConfigRoutes);
 router.use('/applications', rmdIssueRoutes);

@@ -1,11 +1,16 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger';
-import { RISK_FACTOR_KEYS, isRiskFactorKey, type RiskFactorKey } from './riskTaxonomy';
+import {
+  LEGACY_ENGINE_FACTORS,
+  isLegacyEngineFactor,
+  type LegacyEngineFactor,
+} from './riskTaxonomy';
 
-// CA-P3-004 — the taxonomy is declared once, in riskTaxonomy.ts.
-export { RISK_FACTOR_KEYS, isRiskFactorKey };
-export type { RiskFactorKey };
+// CA-P3-004a — this module retains the legacy six-key vocabulary. The nine
+// FACTOR_GROUPS are canonical for the live borrower scoring path.
+export type RiskFactorKey = LegacyEngineFactor;
+export { LEGACY_ENGINE_FACTORS, isLegacyEngineFactor };
 export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'PROHIBITED';
 
 export interface RiskFactorInput {
@@ -67,7 +72,7 @@ export async function getActiveFactorWeights(): Promise<Record<string, number>> 
   const weights: Record<string, number> = {};
   const rejected: string[] = [];
   for (const m of matrices) {
-    if (!isRiskFactorKey(m.factor)) {
+    if (!isLegacyEngineFactor(m.factor)) {
       rejected.push(m.factor);
       continue;
     }

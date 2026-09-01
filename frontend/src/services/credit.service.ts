@@ -1197,6 +1197,29 @@ export interface ApplicationSnapshotDetail extends ApplicationSnapshotSummary {
   payload: Record<string, unknown>;
 }
 
+export type PolicyVerdict = 'PASS' | 'WARN' | 'FAIL';
+
+export interface PolicyResultRow {
+  id: string;
+  ruleCode: string;
+  verdict: PolicyVerdict;
+  source: string;
+  actual: string | null;
+  threshold: string | null;
+  message: string;
+}
+
+export interface PolicyEvaluationSummary {
+  evaluationId: string;
+  evaluatedAt: string;
+  triggerAction: string;
+  summary: { total: number; passed: number; warned: number; failed: number; overall: PolicyVerdict };
+}
+
+export interface PolicyEvaluationDetail extends PolicyEvaluationSummary {
+  results: PolicyResultRow[];
+}
+
 const creditService = {
   // Borrower Profiles
   async listBorrowerProfiles(params: Record<string, any> = {}) {
@@ -1552,6 +1575,18 @@ const creditService = {
   async getApplicationSnapshot(applicationId: string, snapshotId: string): Promise<ApplicationSnapshotDetail> {
     const res = await apiClient.get(`/credit/applications/${applicationId}/snapshots/${snapshotId}`);
     return res.data.data as ApplicationSnapshotDetail;
+  },
+
+  /** CA-P3-008 — policy evaluation history for an application, newest first. */
+  async getPolicyEvaluations(applicationId: string): Promise<PolicyEvaluationSummary[]> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/policy-results`);
+    return res.data.data as PolicyEvaluationSummary[];
+  },
+
+  /** Every rule result of one evaluation. */
+  async getPolicyEvaluation(applicationId: string, evaluationId: string): Promise<PolicyEvaluationDetail> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/policy-results/${evaluationId}`);
+    return res.data.data as PolicyEvaluationDetail;
   },
 
   async previewDsr(payload: {

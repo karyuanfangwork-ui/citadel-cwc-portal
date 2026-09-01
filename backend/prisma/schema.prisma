@@ -214,6 +214,7 @@ model User {
   assessmentResultsCreated             ApplicationAssessmentResult[] @relation("AssessmentResultCreatedBy")
   assessmentResultsReviewed            ApplicationAssessmentResult[] @relation("AssessmentResultReviewedBy")
   applicationSnapshotsTaken             ApplicationSnapshot[]        @relation("ApplicationSnapshotTakenBy")
+  policyResultsEvaluated                PolicyResult[]                @relation("PolicyResultEvaluatedBy")
   // Committee Relations
   committeeMemberUser                  CommitteeMember[]             @relation("CommitteeMemberUser")
   committeePresentedBy                 CommitteeAgendaItem[]         @relation("AgendaItemPresentedBy")
@@ -4650,7 +4651,8 @@ model CreditApplication {
   suspiciousTransactions      SuspiciousTransaction[] // P1-7
   comments                    ApplicationComment[] // P2-4
   snapshots                   ApplicationSnapshot[]
-  linkedStatements            FinancialStatement[]          @relation("ApplicationFinancialStatements")
+  linkedStatements             FinancialStatement[]          @relation("ApplicationFinancialStatements")
+  policyResults                PolicyResult[]
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -5531,6 +5533,38 @@ model ApplicationSnapshot {
 // ============================================================================
 // Credit Decision — approval/rejection record
 // ============================================================================
+/// CA-P3-008 — the normalised outcome of one policy rule.
+enum PolicyVerdict {
+  PASS
+  WARN
+  FAIL
+}
+
+/// One rule's outcome within one policy evaluation. Append-only.
+model PolicyResult {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @map("application_id") @db.Uuid
+  evaluationId String @map("evaluation_id") @db.Uuid
+  ruleCode String @map("rule_code") @db.VarChar(200)
+  verdict PolicyVerdict
+  source String @db.VarChar(30)
+  actual String? @db.VarChar(500)
+  threshold String? @db.VarChar(500)
+  message String @db.Text
+  triggerAction String @map("trigger_action") @db.VarChar(50)
+  evaluatedAt DateTime @default(now()) @map("evaluated_at") @db.Timestamp(6)
+  evaluatedById String? @map("evaluated_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  evaluatedBy User? @relation("PolicyResultEvaluatedBy", fields: [evaluatedById], references: [id])
+
+  @@index([applicationId, evaluatedAt])
+  @@index([evaluationId])
+  @@index([ruleCode, verdict])
+  @@map("policy_results")
+}
+
 model CreditDecision {
   id            String @id @default(uuid()) @db.Uuid
   applicationId String @map("application_id") @db.Uuid

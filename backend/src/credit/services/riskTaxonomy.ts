@@ -1,15 +1,37 @@
+import { FACTOR_GROUPS, type FactorGroup } from './scorecard.service';
+
 /**
- * CA-P3-004 / GAP-P1-08 — the single definition of the scored-risk vocabulary.
+ * CA-P3-004a / GAP-P1-08 — the single definition of the scored-risk vocabulary.
  *
- * RISK_FACTOR_KEYS is the canonical scored taxonomy. LEGACY_RISK_CATEGORIES is
- * the narrative taxonomy used by the existing 4P risk form. The mapping joins
- * the two without changing the stored narrative category.
- *
- * This module intentionally has no Prisma or I/O dependency so validators,
- * services, and configuration checks can share the same vocabulary.
+ * The live borrower scorer writes the nine FACTOR_GROUPS to BorrowerRiskRun.
+ * The six-key vocabulary below is retained separately for the unwired legacy
+ * risk engine and its risk_factor_matrices table. The 4P risk categories remain
+ * narrative headings and are deliberately not mapped to scoring factors.
  */
 
-export const RISK_FACTOR_KEYS = [
+/** Re-exported by reference so this cannot drift from scorecard.service.ts. */
+export const RISK_FACTOR_KEYS = FACTOR_GROUPS;
+
+export type RiskFactorKey = FactorGroup;
+
+export const RISK_FACTOR_LABELS: Record<RiskFactorKey, string> = {
+  financial_performance: 'Financial Performance',
+  leverage: 'Leverage',
+  liquidity: 'Liquidity',
+  cashflow: 'Cashflow',
+  management: 'Management',
+  industry: 'Industry',
+  collateral: 'Collateral',
+  relationship: 'Relationship',
+  market_conditions: 'Market Conditions',
+};
+
+export function isRiskFactorKey(value: unknown): value is RiskFactorKey {
+  return typeof value === 'string' && (RISK_FACTOR_KEYS as readonly string[]).includes(value);
+}
+
+/** The private six-key vocabulary retained by riskEngine.service.ts. */
+export const LEGACY_ENGINE_FACTORS = [
   'APPLICANT',
   'INDUSTRY',
   'PRODUCT',
@@ -18,19 +40,10 @@ export const RISK_FACTOR_KEYS = [
   'FRAUD',
 ] as const;
 
-export type RiskFactorKey = (typeof RISK_FACTOR_KEYS)[number];
+export type LegacyEngineFactor = (typeof LEGACY_ENGINE_FACTORS)[number];
 
-export const RISK_FACTOR_LABELS: Record<RiskFactorKey, string> = {
-  APPLICANT: 'Applicant',
-  INDUSTRY: 'Industry',
-  PRODUCT: 'Product',
-  DOCUMENTATION: 'Documentation',
-  BEHAVIOUR: 'Behaviour',
-  FRAUD: 'Fraud',
-};
-
-export function isRiskFactorKey(value: unknown): value is RiskFactorKey {
-  return typeof value === 'string' && (RISK_FACTOR_KEYS as readonly string[]).includes(value);
+export function isLegacyEngineFactor(value: unknown): value is LegacyEngineFactor {
+  return typeof value === 'string' && (LEGACY_ENGINE_FACTORS as readonly string[]).includes(value);
 }
 
 export const LEGACY_RISK_CATEGORIES = [
@@ -50,32 +63,3 @@ export const LEGACY_CATEGORY_LABELS: Record<LegacyRiskCategory, string> = {
   PAYMENT: 'Payment Risk',
   OTHER: 'Other Risk',
 };
-
-/**
- * Ratified 2026-09-01. This is the canonical join between the narrative
- * categories an RM writes prose under and the scored factors the engine
- * weights.
- *
- * OTHER maps to null on purpose: a catch-all is not a factor, and forcing it
- * onto one would poison every join that uses this table. INDUSTRY and FRAUD
- * have no legacy counterpart — they are engine-only factors with no narrative
- * section, which is expected and not a gap.
- *
- * CA-P3-005 persists application_risk_run rows keyed by these values, and that
- * table is append-only. Changing a pair after it ships means either rewriting
- * immutable audit rows or carrying a permanent "rows before date X used the old
- * mapping" caveat. Treat an edit here as a data-governance change, not a
- * refactor.
- */
-export const LEGACY_CATEGORY_TO_FACTOR: Record<LegacyRiskCategory, RiskFactorKey | null> = {
-  PROJECT: 'PRODUCT',
-  PERFORMANCE: 'APPLICANT',
-  PACKAGING: 'DOCUMENTATION',
-  PAYMENT: 'BEHAVIOUR',
-  OTHER: null,
-};
-
-export function mapLegacyCategory(category: string | null | undefined): RiskFactorKey | null {
-  if (!category || !(LEGACY_RISK_CATEGORIES as readonly string[]).includes(category)) return null;
-  return LEGACY_CATEGORY_TO_FACTOR[category as LegacyRiskCategory];
-}

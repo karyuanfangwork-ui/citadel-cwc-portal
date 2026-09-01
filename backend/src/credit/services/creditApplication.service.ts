@@ -16,9 +16,11 @@ import { config } from '../../config';
 import { EvidenceMappingInput } from '../validators/creditApplication.validator';
 import { runTransitionHooks } from './transitionHooks';
 import { registerSnapshotHook } from './applicationSnapshot.service';
+import { registerPolicyEngineHook } from './policyEngine.service';
 
 // Shared post-commit extension point for credit lifecycle write points.
 registerSnapshotHook();
+registerPolicyEngineHook();
 
 
 // ---------------------------------------------------------------------------

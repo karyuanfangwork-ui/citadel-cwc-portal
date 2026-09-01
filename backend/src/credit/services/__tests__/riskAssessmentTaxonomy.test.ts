@@ -18,29 +18,19 @@ const row = (riskCategory: string) => ({
 beforeEach(() => jest.clearAllMocks());
 
 describe('listByApplication', () => {
-  it('attaches the canonical factor to every narrative row', async () => {
+  it('returns narrative rows in sort order, unchanged', async () => {
     findManyMock.mockResolvedValue([row('PROJECT'), row('PAYMENT')]);
     const result = await listByApplication('app-1');
-    expect(result.map((r) => [r.riskCategory, r.riskFactorKey])).toEqual([
-      ['PROJECT', 'PRODUCT'],
-      ['PAYMENT', 'BEHAVIOUR'],
-    ]);
+    expect(findManyMock).toHaveBeenCalledWith({
+      where: { applicationId: 'app-1' },
+      orderBy: { sortOrder: 'asc' },
+    });
+    expect(result.map((r) => r.riskCategory)).toEqual(['PROJECT', 'PAYMENT']);
   });
 
-  it('leaves the catch-all unmapped rather than inventing a factor', async () => {
-    findManyMock.mockResolvedValue([row('OTHER')]);
+  it('does not decorate rows with a scoring factor', async () => {
+    findManyMock.mockResolvedValue([row('PROJECT')]);
     const [result] = await listByApplication('app-1');
-    expect(result.riskFactorKey).toBeNull();
-  });
-
-  it('never mutates the stored category', async () => {
-    findManyMock.mockResolvedValue([row('PACKAGING')]);
-    const [result] = await listByApplication('app-1');
-    expect(result.riskCategory).toBe('PACKAGING');
-  });
-
-  it('returns an empty list without changing it', async () => {
-    findManyMock.mockResolvedValue([]);
-    expect(await listByApplication('app-1')).toEqual([]);
+    expect(result).not.toHaveProperty('riskFactorKey');
   });
 });

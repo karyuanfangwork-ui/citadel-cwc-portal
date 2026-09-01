@@ -135,6 +135,8 @@ const CREDIT_SUB_MOUNTS: Record<string, string> = {
   'pricing.routes': '/applications',
   'loo.routes': '/applications',
   'rejection.routes': '/applications',
+  'applicationSnapshot.routes': '/applications',
+  'policyResult.routes': '/applications',
   'amlRescreen.routes': '',            // router.use('/', amlRescreenRoutes)
   'policyLimit.routes': '/policy-limits',
   'creditRuleConfig.routes': '',       // router.use('/', creditRuleConfigRoutes)

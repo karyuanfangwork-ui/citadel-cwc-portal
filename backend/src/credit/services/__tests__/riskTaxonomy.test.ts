@@ -1,92 +1,65 @@
 import {
   RISK_FACTOR_KEYS,
   isRiskFactorKey,
-  LEGACY_RISK_CATEGORIES,
-  LEGACY_CATEGORY_TO_FACTOR,
-  mapLegacyCategory,
   RISK_FACTOR_LABELS,
+  LEGACY_ENGINE_FACTORS,
+  isLegacyEngineFactor,
+  LEGACY_RISK_CATEGORIES,
   LEGACY_CATEGORY_LABELS,
 } from '../riskTaxonomy';
+import { FACTOR_GROUPS } from '../scorecard.service';
 
-describe('RISK_FACTOR_KEYS', () => {
-  it('is exactly the engine taxonomy, in weight-declaration order', () => {
+describe('RISK_FACTOR_KEYS — canonical scored taxonomy', () => {
+  it('is the nine governed factor groups in scorecard order', () => {
     expect([...RISK_FACTOR_KEYS]).toEqual([
-      'APPLICANT', 'INDUSTRY', 'PRODUCT', 'DOCUMENTATION', 'BEHAVIOUR', 'FRAUD',
+      'financial_performance', 'leverage', 'liquidity', 'cashflow',
+      'management', 'industry', 'collateral', 'relationship', 'market_conditions',
     ]);
   });
 
-  it('labels every key', () => {
-    for (const key of RISK_FACTOR_KEYS) {
-      expect(RISK_FACTOR_LABELS[key]).toEqual(expect.any(String));
-      expect(RISK_FACTOR_LABELS[key].length).toBeGreaterThan(0);
-    }
+  it('is the FACTOR_GROUPS declaration by identity', () => {
+    expect(RISK_FACTOR_KEYS).toBe(FACTOR_GROUPS);
   });
-});
 
-describe('isRiskFactorKey', () => {
-  it('accepts every canonical key', () => {
+  it('accepts canonical keys and rejects near-misses', () => {
     for (const key of RISK_FACTOR_KEYS) expect(isRiskFactorKey(key)).toBe(true);
-  });
-
-  it('rejects near-misses, legacy categories, and junk', () => {
-    for (const bad of ['applicant', 'APPLICANTS', 'APPLICNT', 'PROJECT', 'PAYMENT', '', ' APPLICANT']) {
+    for (const bad of ['FINANCIAL_PERFORMANCE', 'financialperformance', 'APPLICANT', 'cash_flow', '', ' leverage']) {
       expect(isRiskFactorKey(bad)).toBe(false);
     }
     expect(isRiskFactorKey(null)).toBe(false);
     expect(isRiskFactorKey(undefined)).toBe(false);
   });
+
+  it('labels every canonical group', () => {
+    for (const key of RISK_FACTOR_KEYS) expect(RISK_FACTOR_LABELS[key]).toBeTruthy();
+  });
 });
 
-describe('LEGACY_RISK_CATEGORIES', () => {
-  it('matches the Prisma RiskCategory enum exactly', () => {
+describe('LEGACY_ENGINE_FACTORS', () => {
+  it('retains the six-key vocabulary of the unwired engine', () => {
+    expect([...LEGACY_ENGINE_FACTORS]).toEqual(['APPLICANT', 'INDUSTRY', 'PRODUCT', 'DOCUMENTATION', 'BEHAVIOUR', 'FRAUD']);
+  });
+
+  it('is disjoint from the canonical taxonomy and guards membership', () => {
+    for (const legacy of LEGACY_ENGINE_FACTORS) expect(isRiskFactorKey(legacy)).toBe(false);
+    expect(isLegacyEngineFactor('APPLICANT')).toBe(true);
+    expect(isLegacyEngineFactor('APPLICNT')).toBe(false);
+    expect(isLegacyEngineFactor('leverage')).toBe(false);
+  });
+});
+
+describe('LEGACY_RISK_CATEGORIES — narrative, unchanged', () => {
+  it('retains its five form categories and labels', () => {
     expect([...LEGACY_RISK_CATEGORIES]).toEqual(['PROJECT', 'PERFORMANCE', 'PACKAGING', 'PAYMENT', 'OTHER']);
-  });
-
-  it('labels every category the way the narrative form does', () => {
-    expect(LEGACY_CATEGORY_LABELS).toEqual({
-      PROJECT: 'Project Risk',
-      PERFORMANCE: 'Performance Risk',
-      PACKAGING: 'Packaging Risk',
-      PAYMENT: 'Payment Risk',
-      OTHER: 'Other Risk',
-    });
+    expect(LEGACY_CATEGORY_LABELS.PROJECT).toBe('Project Risk');
+    expect(LEGACY_CATEGORY_LABELS.OTHER).toBe('Other Risk');
   });
 });
 
-describe('LEGACY_CATEGORY_TO_FACTOR', () => {
-  it('maps every legacy category, mapping the catch-all to null', () => {
-    expect(LEGACY_CATEGORY_TO_FACTOR).toEqual({
-      PROJECT: 'PRODUCT',
-      PERFORMANCE: 'APPLICANT',
-      PACKAGING: 'DOCUMENTATION',
-      PAYMENT: 'BEHAVIOUR',
-      OTHER: null,
-    });
-  });
-
-  it('only ever targets canonical keys', () => {
-    for (const target of Object.values(LEGACY_CATEGORY_TO_FACTOR)) {
-      if (target !== null) expect(isRiskFactorKey(target)).toBe(true);
-    }
-  });
-
-  it('has an entry for every legacy category — no silent gaps', () => {
-    for (const category of LEGACY_RISK_CATEGORIES) {
-      expect(LEGACY_CATEGORY_TO_FACTOR).toHaveProperty(category);
-    }
-  });
-});
-
-describe('mapLegacyCategory', () => {
-  it('maps known categories', () => {
-    expect(mapLegacyCategory('PROJECT')).toBe('PRODUCT');
-    expect(mapLegacyCategory('PAYMENT')).toBe('BEHAVIOUR');
-  });
-
-  it('returns null for the catch-all and for anything unrecognised', () => {
-    expect(mapLegacyCategory('OTHER')).toBeNull();
-    expect(mapLegacyCategory('NOT_A_CATEGORY')).toBeNull();
-    expect(mapLegacyCategory(null)).toBeNull();
-    expect(mapLegacyCategory(undefined)).toBeNull();
+describe('4P mapping removal', () => {
+  it('exports no legacy category-to-factor mapping', async () => {
+    const mod: Record<string, unknown> = await import('../riskTaxonomy');
+    expect(mod).not.toHaveProperty('LEGACY_CATEGORY_TO_FACTOR');
+    expect(mod).not.toHaveProperty('mapLegacyCategory');
   });
 });
