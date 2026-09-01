@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { RISK_FACTOR_KEYS } from '../services/riskTaxonomy';
 
 // ---------------------------------------------------------------------------
 // Rating band range schema
@@ -157,7 +158,7 @@ export const updateRatingBandSchema = z.object({
 
 export const upsertRiskFactorMatrixSchema = z.object({
   body: z.object({
-    factor: z.enum(['APPLICANT', 'INDUSTRY', 'PRODUCT', 'DOCUMENTATION', 'BEHAVIOUR', 'FRAUD']),
+    factor: z.enum(RISK_FACTOR_KEYS),
     weight: z.number().min(0).max(100),
     threshold: z.number().optional().nullable(),
     reasonCodes: z.array(z.string().min(1).max(100)).optional().nullable(),

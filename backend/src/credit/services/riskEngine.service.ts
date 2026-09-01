@@ -1,7 +1,11 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { logger } from '../../utils/logger';
+import { RISK_FACTOR_KEYS, isRiskFactorKey, type RiskFactorKey } from './riskTaxonomy';
 
-export type RiskFactorKey = 'APPLICANT' | 'INDUSTRY' | 'PRODUCT' | 'DOCUMENTATION' | 'BEHAVIOUR' | 'FRAUD';
+// CA-P3-004 — the taxonomy is declared once, in riskTaxonomy.ts.
+export { RISK_FACTOR_KEYS, isRiskFactorKey };
+export type { RiskFactorKey };
 export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'PROHIBITED';
 
 export interface RiskFactorInput {
@@ -61,9 +65,28 @@ export async function getActiveFactorWeights(): Promise<Record<string, number>> 
   }
 
   const weights: Record<string, number> = {};
+  const rejected: string[] = [];
   for (const m of matrices) {
+    if (!isRiskFactorKey(m.factor)) {
+      rejected.push(m.factor);
+      continue;
+    }
     weights[m.factor] = Number(m.weight);
   }
+
+  if (rejected.length > 0) {
+    logger.error({
+      code: 'RISK_FACTOR_TAXONOMY_VIOLATION',
+      detail: `Ignoring non-canonical risk factor weights: ${rejected.join(', ')}`,
+    });
+  }
+
+  // Treat an entirely invalid matrix as no configuration rather than scoring
+  // against an empty/partial map.
+  if (Object.keys(weights).length === 0) {
+    return { ...DEFAULT_WEIGHTS };
+  }
+
   return weights;
 }
 

@@ -1,13 +1,8 @@
 import { z } from 'zod';
+import { LEGACY_RISK_CATEGORIES } from '../services/riskTaxonomy';
 
-// RiskCategory enum values sourced from @prisma/client / Prisma schema
-const riskCategoryEnum = z.enum([
-  'PROJECT',
-  'PERFORMANCE',
-  'PACKAGING',
-  'PAYMENT',
-  'OTHER',
-]);
+// CA-P3-004 — one declaration for the narrative category vocabulary.
+const riskCategoryEnum = z.enum(LEGACY_RISK_CATEGORIES);
 
 const likelihoodEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
 const impactEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);

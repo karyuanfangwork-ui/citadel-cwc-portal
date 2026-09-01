@@ -95,6 +95,32 @@ describe('getActiveFactorWeights', () => {
   });
 });
 
+describe('CA-P3-004 — canonical factor enforcement', () => {
+  it('re-exports the canonical RiskFactorKey rather than redeclaring it', async () => {
+    const engine = await import('../riskEngine.service');
+    const taxonomy = await import('../riskTaxonomy');
+    expect(engine.RISK_FACTOR_KEYS).toBe(taxonomy.RISK_FACTOR_KEYS);
+  });
+
+  it('ignores a non-canonical factor row instead of weighting it', async () => {
+    (prisma.riskFactorMatrix.findMany as jest.Mock).mockResolvedValue([
+      { factor: 'APPLICANT', weight: 40 },
+      { factor: 'APPLICNT', weight: 60 },
+    ]);
+    const weights = await getActiveFactorWeights();
+    expect(weights).toEqual({ APPLICANT: 40 });
+    expect(weights).not.toHaveProperty('APPLICNT');
+  });
+
+  it('still falls back to defaults when no canonical row survives', async () => {
+    (prisma.riskFactorMatrix.findMany as jest.Mock).mockResolvedValue([{ factor: 'NONSENSE', weight: 99 }]);
+    const weights = await getActiveFactorWeights();
+    expect(Object.keys(weights).sort()).toEqual(
+      ['APPLICANT', 'BEHAVIOUR', 'DOCUMENTATION', 'FRAUD', 'INDUSTRY', 'PRODUCT'],
+    );
+  });
+});
+
 describe('saveRiskAssessment', () => {
   it('upserts the risk assessment with factor scores and weighted score', async () => {
     // Use a score high enough to get MODERATE (weightedScore >= 30)

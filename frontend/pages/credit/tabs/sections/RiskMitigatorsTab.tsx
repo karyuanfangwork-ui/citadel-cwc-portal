@@ -8,6 +8,7 @@ import {
   rmdIssueApi,
 } from '../../../../src/services/credit.service';
 import CaMemoSection from '../../../../src/components/credit/CaMemoSection';
+import { LEGACY_RISK_CATEGORIES, LEGACY_CATEGORY_LABELS } from '../../../../src/components/credit/riskTaxonomy';
 import useAutosave from '../../../../src/hooks/useAutosave';
 
 type Props = {
@@ -17,11 +18,7 @@ type Props = {
 };
 
 const RISK_CATEGORIES: { key: RiskCategory; label: string }[] = [
-  { key: 'PROJECT',     label: 'Project Risk' },
-  { key: 'PERFORMANCE', label: 'Performance Risk' },
-  { key: 'PACKAGING',   label: 'Packaging Risk' },
-  { key: 'PAYMENT',     label: 'Payment Risk' },
-  { key: 'OTHER',       label: 'Other Risk' },
+  ...LEGACY_RISK_CATEGORIES.map((key) => ({ key, label: LEGACY_CATEGORY_LABELS[key] })),
 ];
 
 type RiskMap = Record<RiskCategory, Partial<RiskAssessment>>;

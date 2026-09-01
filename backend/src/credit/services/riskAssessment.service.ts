@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { RiskCategory } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { assertVersionMatch } from '../utils/optimisticConcurrency';
+import { mapLegacyCategory, type RiskFactorKey } from './riskTaxonomy';
 
 export interface RiskAssessmentInput {
   riskCategory: RiskCategory;
@@ -13,10 +14,17 @@ export interface RiskAssessmentInput {
 }
 
 export async function listByApplication(applicationId: string) {
-  return prisma.riskAssessment.findMany({
+  const rows = await prisma.riskAssessment.findMany({
     where: { applicationId },
     orderBy: { sortOrder: 'asc' },
   });
+
+  // CA-P3-004 — derive the join key at read time; keep the stored narrative
+  // category unchanged: the mapping is code, so it stays correctable.
+  return rows.map((row) => ({
+    ...row,
+    riskFactorKey: mapLegacyCategory(row.riskCategory) as RiskFactorKey | null,
+  }));
 }
 
 export async function bulkUpsert(applicationId: string, items: RiskAssessmentInput[], actorId?: string) {
