@@ -334,19 +334,23 @@ const CrmLeadDetail = () => {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    const errors = validateLead(editForm);
+    const normalizedForm = {
+      ...editForm,
+      contactEmail: typeof editForm.contactEmail === 'string' ? editForm.contactEmail.trim() : editForm.contactEmail,
+    };
+    const errors = validateLead(normalizedForm);
     if (errors.length > 0) { setFormErrors(errors); return; }
     try {
       setSaving(true);
       const payload: Record<string, any> = {};
-      for (const [k, v] of Object.entries(editForm)) {
+      for (const [k, v] of Object.entries(normalizedForm)) {
         if (v === '' || v === undefined || v === null) continue;
         if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
         else payload[k] = v;
       }
       // Clear fields intentionally set to empty
       for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'industry', 'address', 'remark', 'description', 'followUpNote']) {
-        if (editForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
+        if (normalizedForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
       }
       if (editForm.emailDeliveryDate === '' && lead!.emailDeliveryDate) payload.emailDeliveryDate = null;
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
@@ -1629,7 +1633,7 @@ const CrmLeadDetail = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Email</label>
-                  <input type="email" value={editForm.contactEmail ?? ''} onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
+                  <input type="email" value={editForm.contactEmail ?? ''} onChange={e => { setEditForm(f => ({ ...f, contactEmail: e.target.value })); setFormErrors(errors => errors.filter(error => error.field !== 'contactEmail')); }}
                     className={`w-full px-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? '!border-red-500 focus:ring-red-200' : 'border-[#e2e8f0] focus:ring-[#006a61]/20'}`} />
                   {formErrors.some(e => e.field === 'contactEmail') && (
                     <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'contactEmail')?.message}</p>

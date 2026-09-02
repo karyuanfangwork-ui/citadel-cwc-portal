@@ -10,7 +10,8 @@ const URL_RE = /^https?:\/\/.+/;
 export function validateLead(form: Record<string, any>): ValidationError[] {
   const errors: ValidationError[] = [];
   if (!form.title?.trim()) errors.push({ field: 'title', message: 'Title is required' });
-  if (form.contactEmail && !EMAIL_RE.test(form.contactEmail))
+  const contactEmail = typeof form.contactEmail === 'string' ? form.contactEmail.trim() : '';
+  if (contactEmail && !EMAIL_RE.test(contactEmail))
     errors.push({ field: 'contactEmail', message: 'Invalid email format' });
   if (form.estimatedValue !== undefined && form.estimatedValue !== '' && Number(form.estimatedValue) < 0)
     errors.push({ field: 'estimatedValue', message: 'Value cannot be negative' });

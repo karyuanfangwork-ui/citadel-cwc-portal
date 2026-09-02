@@ -26,4 +26,27 @@ describe('CRM lead validation', () => {
       expect(result.data.body.emailDeliveryDate).toBe('2026-08-19');
     }
   });
+
+  it('trims surrounding whitespace from a lead contact email', () => {
+    const result = updateLeadSchema.safeParse({
+      body: {
+        contactEmail: ' personazulhijjah@gmail.com ',
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.body.contactEmail).toBe('personazulhijjah@gmail.com');
+    }
+  });
+
+  it('rejects an invalid lead contact email', () => {
+    const result = updateLeadSchema.safeParse({
+      body: {
+        contactEmail: 'not-an-email',
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

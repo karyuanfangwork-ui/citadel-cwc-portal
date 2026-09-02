@@ -337,9 +337,13 @@ const CrmLeads = () => {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
-    const errors = validateLead(form);
+    const normalizedForm = {
+      ...form,
+      contactEmail: typeof form.contactEmail === 'string' ? form.contactEmail.trim() : form.contactEmail,
+    };
+    const errors = validateLead(normalizedForm);
     if (errors.length > 0) { setFormErrors(errors); return; }
-    const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.lead);
+    const payload = cleanFormPayload(normalizedForm as Record<string, any>, NUMERIC_KEYS.lead);
     delete payload.status;
     // Send null when follow-up date was cleared but previously had a value
     if (form.followUpDate === '' && editingItem.followUpDate) payload.followUpDate = null;
@@ -957,7 +961,7 @@ const CrmLeads = () => {
                           type="email"
                           placeholder="john.doe@company.com"
                           value={form.contactEmail || ''}
-                          onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                          onChange={e => { setForm(prev => ({ ...prev, contactEmail: e.target.value })); setFormErrors(errors => errors.filter(error => error.field !== 'contactEmail')); }}
                           onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
                           className={`pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] ${formErrors.some(e => e.field === 'contactEmail') ? 'border-[#ba1a1a] focus:ring-[#ba1a1a]/20' : ''}`}
                           style={{ fontFamily: 'Inter, sans-serif' }}

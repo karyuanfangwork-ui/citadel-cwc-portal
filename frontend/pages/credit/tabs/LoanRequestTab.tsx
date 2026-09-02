@@ -106,7 +106,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
                 onChange={e => update('requestedAmount', Number(e.target.value) || null as any)}
                 disabled={readOnly}
                 className="w-full border border-gray-300 rounded-lg pl-14 pr-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
-                placeholder="0"
+                placeholder="Enter amount"
               />
             </div>
           </div>

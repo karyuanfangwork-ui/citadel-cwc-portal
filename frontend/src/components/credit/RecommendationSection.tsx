@@ -60,8 +60,12 @@ const RecommendationSection: React.FC<Props> = ({ applicationId, applicationStat
       ]);
       setCurrent(cur);
       setHistory(list);
-      // If there is a DRAFT by the current user, open the editor
+      // If there is a DRAFT, keep it as the current working record so the
+      // author can continue editing it even though /current only returns
+      // submitted or acknowledged recommendations.
       const myDraft = list.find(r => r.status === 'DRAFT' && r.authorId === currentUserId);
+      const workingRecommendation = cur ?? myDraft ?? null;
+      if (workingRecommendation) setCurrent(workingRecommendation);
       if (myDraft) {
         setEditDraft({
           recommendationType: myDraft.recommendationType,

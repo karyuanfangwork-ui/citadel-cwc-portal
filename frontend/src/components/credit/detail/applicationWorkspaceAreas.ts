@@ -234,6 +234,13 @@ export function getVisibleWorkspaceLocalTabs(
   _featureFlags: WorkspaceFeatureFlags = {},
 ): WorkspaceAreaLocalTab[] {
   const tabs = getWorkspaceArea(areaId).localTabs;
+  if (lane === 'PERSONAL_FAST') {
+    if (areaId === 'application-parties') return tabs.filter(tab => tab.id === 'application' || tab.id === 'borrower');
+    if (areaId === 'financials') return tabs.filter(tab => tab.id === 'income');
+    if (areaId === 'risk-compliance') return tabs.filter(tab => tab.id === 'bureau-kyc');
+    if (areaId === 'assessment-recommendation') return tabs.filter(tab => tab.id === 'assessment');
+    if (areaId === 'decision-completion') return [];
+  }
   if (areaId === 'application-parties') {
     if (borrowerType === 'INDIVIDUAL' || borrowerType === 'JOINT' || lane === 'PERSONAL_FAST') {
       return tabs.filter(tab => tab.id !== 'related-parties');
@@ -249,4 +256,12 @@ export function getVisibleWorkspaceLocalTabs(
   }
 
   return tabs;
+}
+
+/** Primary/utility areas applicable to the lightweight Personal Fast journey. */
+export function getVisibleWorkspaceAreas(
+  lane?: string | null,
+): WorkspaceAreaDefinition[] {
+  if (lane !== 'PERSONAL_FAST') return APPLICATION_WORKSPACE_AREAS;
+  return APPLICATION_WORKSPACE_AREAS.filter(area => area.id !== 'decision-completion');
 }

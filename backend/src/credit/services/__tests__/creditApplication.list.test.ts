@@ -19,6 +19,7 @@ jest.mock('../../../utils/prisma', () => ({
 }));
 
 import prisma from '../../../utils/prisma';
+import { Prisma } from '@prisma/client';
 import { creditApplicationService } from '../creditApplication.service';
 
 const mockedFindMany = prisma.creditApplication.findMany as jest.Mock;
@@ -164,6 +165,18 @@ describe('listApplications — server-side quick filters + sort (F8)', () => {
 
     const orderByArg = mockedFindMany.mock.calls[0][0].orderBy;
     expect(orderByArg).toEqual({ createdAt: 'desc' });
+  });
+
+  it('serializes Prisma Decimal requested amounts as JSON numbers', async () => {
+    mockedFindMany.mockResolvedValue([
+      makeAppResult(makeApp(3, { requestedAmount: new Prisma.Decimal('6000000') })),
+    ]);
+    mockedCount.mockResolvedValue(1);
+
+    const result = await creditApplicationService.listApplications({});
+
+    expect(result.applications[0].requestedAmount).toBe(6000000);
+    expect(typeof result.applications[0].requestedAmount).toBe('number');
   });
 
   it('does not leak slaBreaches relation into the list payload', async () => {

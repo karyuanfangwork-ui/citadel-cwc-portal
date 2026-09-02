@@ -619,6 +619,10 @@ class CreditApplicationService {
 
     const applicationsWithBreach = applications.map(app => ({
       ...app,
+      // Prisma Decimal instances are serialized by Express as their internal
+      // object shape unless converted at the API boundary. The frontend
+      // expects a JSON number and otherwise renders "Data quality error".
+      requestedAmount: formatCurrency(app.requestedAmount),
       hasOpenSlaBreach: breachedAppIds.has(app.id),
     }));
 

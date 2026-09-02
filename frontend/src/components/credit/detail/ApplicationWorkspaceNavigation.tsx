@@ -3,6 +3,7 @@ import {
   APPLICATION_WORKSPACE_AREAS,
   ApplicationWorkspaceArea,
   getVisibleWorkspaceLocalTabs,
+  getVisibleWorkspaceAreas,
   WorkspaceAreaDefinition,
 } from './applicationWorkspaceAreas';
 
@@ -45,8 +46,9 @@ const ApplicationWorkspaceNavigation: React.FC<ApplicationWorkspaceNavigationPro
   mobileOpen = false,
   onMobileClose,
 }) => {
-  const primaryAreas = APPLICATION_WORKSPACE_AREAS.filter(area => area.type === 'primary');
-  const utilityAreas = APPLICATION_WORKSPACE_AREAS.filter(area => area.type === 'utility');
+  const visibleAreas = getVisibleWorkspaceAreas(lane);
+  const primaryAreas = visibleAreas.filter(area => area.type === 'primary');
+  const utilityAreas = visibleAreas.filter(area => area.type === 'utility');
   const selectedArea = APPLICATION_WORKSPACE_AREAS.find(area => area.id === activeArea) ?? primaryAreas[0];
 
   return (

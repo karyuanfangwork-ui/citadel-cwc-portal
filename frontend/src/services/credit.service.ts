@@ -541,9 +541,60 @@ export interface EvidenceMappingSnapshot {
  * but the frontend interface uses rm / analyst / rmId / analystId.
  */
 
+function decimalToNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number' || typeof value === 'string') {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  // Prisma Decimal values can be serialized as their decimal.js internals
+  // when returned directly from an Express response.
+  if (typeof value === 'object') {
+    const decimal = value as { s?: number; e?: number; d?: number[] };
+    if (Array.isArray(decimal.d) && typeof decimal.e === 'number') {
+      if (decimal.d.length === 0 || decimal.d.every((chunk) => chunk === 0)) return 0;
+      const coefficient = decimal.d
+        .map((chunk, index) => index === 0 ? String(chunk) : String(chunk).padStart(7, '0'))
+        .join('');
+      const numberValue = Number(`${decimal.s === -1 ? '-' : ''}${coefficient}e${decimal.e - coefficient.length + 1}`);
+      return Number.isFinite(numberValue) ? numberValue : null;
+    }
+  }
+
+  return null;
+}
+
+function normalizeFacility(raw: any): CreditFacility {
+  const facility = { ...raw };
+  const decimalFields = [
+    'amount', 'ratePct', 'approvedAmount', 'approvedRate', 'existingLimit',
+    'proposedChange', 'newLimit', 'outstandingBalance', 'undisbursedLimit',
+    'recommendedAmount',
+  ];
+  decimalFields.forEach((field) => {
+    if (facility[field] == null) return;
+    const value = decimalToNumber(facility[field]);
+    facility[field] = value;
+  });
+  return facility as CreditFacility;
+}
+
 export function normalizeApplication(raw: any): CreditApplication {
   if (!raw) return raw;
   const app = { ...raw };
+
+  // Prisma serializes Decimal fields as strings over JSON, while the UI
+  // contract exposes requestedAmount as a number. Normalize at the boundary
+  // so numeric inputs do not mis-render as their placeholder value.
+  if (app.requestedAmount != null) {
+    app.requestedAmount = decimalToNumber(app.requestedAmount);
+  }
+
+  if (Array.isArray(app.facilities)) {
+    app.facilities = app.facilities.map(normalizeFacility);
+  }
+
   if ('assignedRm' in app) {
     app.rm = app.assignedRm;
     delete app.assignedRm;
@@ -1166,16 +1217,24 @@ export interface ScoreFactorResult {
 
 /** Normalize a single CreditScoreRun so that factorBreakdown is always populated */
 function normalizeScoreRun(run: CreditScoreRun): CreditScoreRun {
-  if ((!run.factorBreakdown || run.factorBreakdown.length === 0) && run.factorScores) {
-    run = { ...run, factorBreakdown: Object.entries(run.factorScores).map(([key, val]) => ({
+  const normalizedTotalScore = decimalToNumber(run.totalScore);
+  const normalizedRun = {
+    ...run,
+    totalScore: normalizedTotalScore ?? 0,
+  };
+  if ((!Array.isArray(run.factorBreakdown) || run.factorBreakdown.length === 0) && run.factorScores) {
+    return { ...normalizedRun, factorBreakdown: Object.entries(run.factorScores).map(([key, val]) => ({
       factorKey: key,
       factorLabel: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      score: Math.round(val.score * 10) / 10,   // round to 1 decimal (e.g. 93.3 instead of 93.333…)
-      weight: val.weight / 100,   // API weight is pct (e.g. 30), interface expects ratio (0.30)
-      weightedScore: Math.round(val.weightedScore * 10) / 10,
-    }))};
+      score: Number(val.score),
+      weight: Number(val.weight) / 100,
+      weightedScore: Number(val.weightedScore),
+    })) };
   }
-  return run;
+  return {
+    ...normalizedRun,
+    factorBreakdown: Array.isArray(run.factorBreakdown) ? run.factorBreakdown : [],
+  };
 }
 
 // ── Credit API Service ─────────────────────────────────────────
@@ -1701,17 +1760,17 @@ const creditService = {
   // Facilities
   async listFacilities(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/facilities`);
-    return res.data.data.facilities as CreditFacility[];
+    return (res.data.data.facilities as any[]).map(normalizeFacility);
   },
 
   async createFacility(applicationId: string, data: Partial<CreditFacility>) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/facilities`, data);
-    return res.data.data.facility as CreditFacility;
+    return normalizeFacility(res.data.data.facility);
   },
 
   async updateFacility(id: string, data: Partial<CreditFacility>) {
     const res = await apiClient.patch(`/credit/applications/facilities/${id}`, data);
-    return res.data.data.facility as CreditFacility;
+    return normalizeFacility(res.data.data.facility);
   },
 
   async deleteFacility(id: string) {

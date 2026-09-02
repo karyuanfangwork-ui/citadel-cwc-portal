@@ -46,6 +46,8 @@ import {
 import { AuditChainService } from '../src/credit/services/auditChain.service';
 import { CANONICAL_FACTOR_WEIGHTS } from '../src/credit/services/scorecard.service';
 import { FALLBACK_BANDS } from '../src/credit/services/ratingBand.service';
+import { computeNetDsr } from '../src/credit/services/retailIncome.service';
+import { scoreBandFor } from '../src/credit/services/borrowerCreditData.service';
 const prisma = new PrismaClient();
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -99,7 +101,33 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
           borrowerType: BorrowerType.CORPORATE,
           borrowerNumber: `DEMO-CORP-${String(index + 1).padStart(3, '0')}`,
           segment: acct.name.includes('SME') ? 'SME' : 'CORPORATE',
+          name: acct.name,
           accountId: acct.id,
+          registrationNumber: acct.registrationNumber ?? null,
+          industry: acct.industry,
+          phone: acct.phone,
+          email: acct.email,
+          address: `${acct.city}, ${acct.state}, ${acct.country}`,
+          mailingAddress: `${acct.city}, ${acct.state}, ${acct.country}`,
+          businessNature: acct.industry === 'Manufacturing'
+            ? 'Manufacture and distribution of industrial components'
+            : acct.industry === 'Technology'
+              ? 'Technology services and software solutions'
+              : 'Property development and investment',
+          businessType: 'Sdn Bhd',
+          authorizedRepresentative: acct.name.includes('SME')
+            ? 'Ahmad bin Ali'
+            : acct.name.includes('Tech')
+              ? 'Raj Kumar a/l Muthu'
+              : 'Michael Tan Wei Ming',
+          dateOfIncorporation: acct.name.includes('SME')
+            ? new Date('2020-01-15')
+            : acct.name.includes('Tech')
+              ? new Date('2021-06-01')
+              : new Date('2018-04-20'),
+          annualTurnover: acct.annualRevenue,
+          annualIncome: acct.name.includes('Property') ? 6500000 : acct.name.includes('SME') ? 1800000 : 450000,
+          yearsTrading: acct.name.includes('Property') ? 8 : acct.name.includes('Tech') ? 5 : 6,
           creditRiskRating: riskRating,
           amlRiskTier: amlTier,
           exposureLimit: exposure,
@@ -107,6 +135,23 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
           isSanctionedEntity: false,
           sourceOfWealth: 'Business operations and investments',
           purposeOfAccount: 'Credit facility application',
+        },
+      });
+    } else {
+      // Repair legacy demo rows that relied on CRM names only. Keep the CRM
+      // link, but make the credit identity self-contained as required by the
+      // BorrowerProfile data-quality rules.
+      bp = await prisma.borrowerProfile.update({
+        where: { id: bp.id },
+        data: {
+          name: acct.name,
+          registrationNumber: acct.registrationNumber ?? null,
+          industry: acct.industry,
+          phone: acct.phone,
+          email: acct.email,
+          address: `${acct.city}, ${acct.state}, ${acct.country}`,
+          mailingAddress: `${acct.city}, ${acct.state}, ${acct.country}`,
+          annualTurnover: acct.annualRevenue,
         },
       });
     }
@@ -202,6 +247,9 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
   for (const [index, acct] of individualAccounts.entries()) {
     const firstName = acct.name.includes('High') ? 'Dato' : 'Aminah';
     const lastName = acct.name.includes('High') ? 'Lee @ Dato Lee' : 'binti Yusof';
+    const individualName = `${firstName} ${lastName}`;
+    const individualNric = acct.name.includes('High') ? '800101-10-5123' : '920505-07-5124';
+    const individualDateOfBirth = acct.name.includes('High') ? new Date('1980-01-01') : new Date('1992-05-05');
     let contact = await findExisting(prisma.crmContact, { accountId: acct.id, firstName, lastName });
     if (!contact) {
       contact = await prisma.crmContact.create({
@@ -216,7 +264,17 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
           borrowerType: BorrowerType.INDIVIDUAL,
           borrowerNumber: `DEMO-IND-${String(index + 1).padStart(3, '0')}`,
           segment: 'INDIVIDUAL',
+          name: individualName,
           contactId: contact.id,
+          nricPassport: individualNric,
+          dateOfBirth: individualDateOfBirth,
+          gender: acct.name.includes('High') ? 'Male' : 'Female',
+          nationality: 'Malaysian',
+          phone: acct.phone,
+          email: acct.email,
+          address: `${acct.city}, ${acct.state}, ${acct.country}`,
+          mailingAddress: `${acct.city}, ${acct.state}, ${acct.country}`,
+          industry: acct.industry,
           creditRiskRating: acct.name.includes('High') ? RiskRating.A : RiskRating.BBB,
           amlRiskTier: acct.name.includes('High') ? AmlRiskTier.MEDIUM : AmlRiskTier.LOW,
           exposureLimit: acct.name.includes('High') ? 5000000 : 500000,
@@ -228,6 +286,22 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
           sourceOfWealth: acct.name.includes('High') ? 'Investments, property portfolio & business dividends' : 'Employment income',
           purposeOfAccount: acct.name.includes('High') ? 'Investment loan & personal credit facility' : 'Home renovation loan',
           isSanctionedEntity: false,
+        },
+      });
+    } else {
+      bp = await prisma.borrowerProfile.update({
+        where: { id: bp.id },
+        data: {
+          name: individualName,
+          nricPassport: individualNric,
+          dateOfBirth: individualDateOfBirth,
+          gender: acct.name.includes('High') ? 'Male' : 'Female',
+          nationality: 'Malaysian',
+          phone: acct.phone,
+          email: acct.email,
+          address: `${acct.city}, ${acct.state}, ${acct.country}`,
+          mailingAddress: `${acct.city}, ${acct.state}, ${acct.country}`,
+          industry: acct.industry,
         },
       });
     }
@@ -259,7 +333,199 @@ async function seedBorrowerProfiles(accounts: any[], relationshipOwnerId?: strin
 }
 
 // ---------------------------------------------------------------------------
-// 2b. Related Party Groups — connects borrower profiles
+// 2b. Retail income profiles — income, statutory deductions, commitments
+// ---------------------------------------------------------------------------
+async function seedBorrowerIncome(profiles: any[]) {
+  const fixtures = [
+    {
+      borrowerNumber: 'DEMO-IND-001',
+      employmentType: 'SELF_EMPLOYED',
+      employerName: 'Lee Capital Advisory',
+      monthlyGrossIncome: 166667,
+      epfMonthlyAmount: 0,
+      monthlyTaxDeduction: 18500,
+      monthlySocsoDeduction: 0,
+      hirePurchaseCommitment: 6800,
+      creditCardCommitment: 3200,
+      existingLoanCommitment: 12500,
+      otherCommitments: 4500,
+    },
+    {
+      borrowerNumber: 'DEMO-IND-002',
+      employmentType: 'SALARIED',
+      employerName: 'Citadel Group Technologies Sdn Bhd',
+      monthlyGrossIncome: 10000,
+      epfMonthlyAmount: 1100,
+      monthlyTaxDeduction: 750,
+      monthlySocsoDeduction: 50,
+      hirePurchaseCommitment: 1450,
+      creditCardCommitment: 480,
+      existingLoanCommitment: 900,
+      otherCommitments: 350,
+    },
+  ];
+
+  let seeded = 0;
+  for (const fixture of fixtures) {
+    const borrower = profiles.find(profile => profile.borrowerNumber === fixture.borrowerNumber);
+    if (!borrower) continue;
+
+    const dsr = computeNetDsr({ ...fixture, proposedInstalment: 0 });
+    await prisma.borrowerIncome.upsert({
+      where: { borrowerId: borrower.id },
+      create: {
+        borrowerId: borrower.id,
+        employmentType: fixture.employmentType,
+        employerName: fixture.employerName,
+        monthlyGrossIncome: new Prisma.Decimal(fixture.monthlyGrossIncome),
+        epfMonthlyAmount: new Prisma.Decimal(fixture.epfMonthlyAmount),
+        monthlyTaxDeduction: new Prisma.Decimal(fixture.monthlyTaxDeduction),
+        monthlySocsoDeduction: new Prisma.Decimal(fixture.monthlySocsoDeduction),
+        hirePurchaseCommitment: new Prisma.Decimal(fixture.hirePurchaseCommitment),
+        creditCardCommitment: new Prisma.Decimal(fixture.creditCardCommitment),
+        existingLoanCommitment: new Prisma.Decimal(fixture.existingLoanCommitment),
+        otherCommitments: new Prisma.Decimal(fixture.otherCommitments),
+        monthlyNetIncome: new Prisma.Decimal(dsr.netIncome),
+      },
+      update: {
+        employmentType: fixture.employmentType,
+        employerName: fixture.employerName,
+        monthlyGrossIncome: new Prisma.Decimal(fixture.monthlyGrossIncome),
+        epfMonthlyAmount: new Prisma.Decimal(fixture.epfMonthlyAmount),
+        monthlyTaxDeduction: new Prisma.Decimal(fixture.monthlyTaxDeduction),
+        monthlySocsoDeduction: new Prisma.Decimal(fixture.monthlySocsoDeduction),
+        hirePurchaseCommitment: new Prisma.Decimal(fixture.hirePurchaseCommitment),
+        creditCardCommitment: new Prisma.Decimal(fixture.creditCardCommitment),
+        existingLoanCommitment: new Prisma.Decimal(fixture.existingLoanCommitment),
+        otherCommitments: new Prisma.Decimal(fixture.otherCommitments),
+        monthlyNetIncome: new Prisma.Decimal(dsr.netIncome),
+      },
+    });
+
+    await prisma.borrowerCreditProfile.upsert({
+      where: { borrowerId: borrower.id },
+      create: {
+        borrowerId: borrower.id,
+        dsrPercent: new Prisma.Decimal(dsr.grossDsrPercent),
+        netDsrPercent: new Prisma.Decimal(dsr.netDsrPercent),
+        dsrBasis: dsr.dsrBasis,
+      },
+      update: {
+        dsrPercent: new Prisma.Decimal(dsr.grossDsrPercent),
+        netDsrPercent: new Prisma.Decimal(dsr.netDsrPercent),
+        dsrBasis: dsr.dsrBasis,
+      },
+    });
+    seeded += 1;
+  }
+
+  console.log(`  ✅ ${seeded} borrower income profiles (income, deductions & commitments)`);
+}
+
+// ---------------------------------------------------------------------------
+// 2c. Bureau reports and facility rows — synthetic CTOS-style snapshots
+// ---------------------------------------------------------------------------
+async function seedBorrowerBureauReports(profiles: any[], uploadedById: string) {
+  const fixtures = [
+    {
+      borrowerNumber: 'DEMO-CORP-001', creditScore: 742,
+      facilities: [
+        { facilityType: 'TERM_LOAN', lender: 'Citadel Commercial Bank', balance: 3200000, installment: 68000, conductStatus: 'PASS' },
+        { facilityType: 'REVOLVING_CREDIT', lender: 'Meridian Bank Berhad', balance: 850000, installment: 17000, conductStatus: 'PASS' },
+      ],
+    },
+    {
+      borrowerNumber: 'DEMO-CORP-002', creditScore: 668,
+      facilities: [
+        { facilityType: 'TERM_LOAN', lender: 'Nusantara Bank', balance: 1200000, installment: 29500, conductStatus: 'PASS' },
+        { facilityType: 'CREDIT_CARD', lender: 'Nusantara Bank', balance: 18500, installment: 950, conductStatus: 'WATCH' },
+      ],
+    },
+    {
+      borrowerNumber: 'DEMO-CORP-003', creditScore: 705,
+      facilities: [
+        { facilityType: 'PROJECT_FINANCE', lender: 'Citadel Commercial Bank', balance: 18500000, installment: 245000, conductStatus: 'PASS' },
+        { facilityType: 'OVERDRAFT', lender: 'Meridian Bank Berhad', balance: 2400000, installment: 36000, conductStatus: 'PASS' },
+      ],
+    },
+    {
+      borrowerNumber: 'DEMO-IND-001', creditScore: 781,
+      facilities: [
+        { facilityType: 'TERM_LOAN', lender: 'Citadel Retail Bank', balance: 2450000, installment: 6800, conductStatus: 'PASS' },
+        { facilityType: 'CREDIT_CARD', lender: 'Citadel Retail Bank', balance: 32000, installment: 3200, conductStatus: 'PASS' },
+      ],
+    },
+    {
+      borrowerNumber: 'DEMO-IND-002', creditScore: 718,
+      facilities: [
+        { facilityType: 'TERM_LOAN', lender: 'Citadel Retail Bank', balance: 185000, installment: 1450, conductStatus: 'PASS' },
+        { facilityType: 'CREDIT_CARD', lender: 'Meridian Bank Berhad', balance: 9200, installment: 480, conductStatus: 'PASS' },
+        { facilityType: 'OVERDRAFT', lender: 'Nusantara Bank', balance: 15000, installment: 900, conductStatus: 'PASS' },
+      ],
+    },
+  ];
+
+  const reportDate = new Date('2026-08-15');
+  let seeded = 0;
+  for (const fixture of fixtures) {
+    const borrower = profiles.find(profile => profile.borrowerNumber === fixture.borrowerNumber);
+    if (!borrower) continue;
+
+    const fileName = `${fixture.borrowerNumber.toLowerCase()}-ctos-report.pdf`;
+    const filePath = `seed/credit-bureau/${fileName}`;
+    const existing = await prisma.borrowerBureauReport.findFirst({
+      where: { borrowerId: borrower.id, source: 'CTOS', fileName },
+      select: { id: true },
+    });
+
+    const reportData = {
+      source: 'CTOS',
+      reportDate,
+      fileName,
+      filePath,
+      uploadedById,
+      verified: true,
+    };
+    const report = existing
+      ? await prisma.borrowerBureauReport.update({ where: { id: existing.id }, data: reportData })
+      : await prisma.borrowerBureauReport.create({ data: { borrowerId: borrower.id, ...reportData } });
+
+    await prisma.borrowerBureauFacility.deleteMany({ where: { reportId: report.id } });
+    await prisma.borrowerBureauFacility.createMany({
+      data: fixture.facilities.map(facility => ({
+        reportId: report.id,
+        facilityType: facility.facilityType,
+        lender: facility.lender,
+        balance: new Prisma.Decimal(facility.balance),
+        installment: new Prisma.Decimal(facility.installment),
+        conductStatus: facility.conductStatus,
+      })),
+    });
+
+    await prisma.borrowerCreditProfile.upsert({
+      where: { borrowerId: borrower.id },
+      create: {
+        borrowerId: borrower.id,
+        creditScore: fixture.creditScore,
+        scoreBand: scoreBandFor(fixture.creditScore),
+        scoreSource: 'CTOS',
+        scoreAsOf: reportDate,
+      },
+      update: {
+        creditScore: fixture.creditScore,
+        scoreBand: scoreBandFor(fixture.creditScore),
+        scoreSource: 'CTOS',
+        scoreAsOf: reportDate,
+      },
+    });
+    seeded += 1;
+  }
+
+  console.log(`  ✅ ${seeded} bureau reports with facility rows`);
+}
+
+// ---------------------------------------------------------------------------
+// 2d. Related Party Groups — connects borrower profiles
 // ---------------------------------------------------------------------------
 async function seedRelatedPartyGroups(profiles: any[]) {
   if (profiles.length < 3) return;
@@ -450,6 +716,13 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
           data: { applicationId: app.id, borrowerProfileId: profiles[guarantorIdx].id, role: 'guarantor', liabilityPct: 20 },
         });
       }
+    } else {
+      // Keep existing demo applications synchronized with the fixture. This
+      // repairs legacy rows without recreating their related records.
+      app = await prisma.creditApplication.update({
+        where: { id: app.id },
+        data: { requestedAmount: def.amount },
+      });
     }
     createdApps.push(app);
   }
@@ -1843,6 +2116,8 @@ export async function seedCreditDemo(adminId: string, analystId: string) {
 
   const accounts = await seedCrmAccounts(adminId);
   const profiles = await seedBorrowerProfiles(accounts, adminId);
+  await seedBorrowerIncome(profiles);
+  await seedBorrowerBureauReports(profiles, adminId);
   await seedRelatedPartyGroups(profiles);
   const apps = await seedCreditApplications(profiles, adminId, analystId);
   await seedDocuments(apps, profiles, adminId);

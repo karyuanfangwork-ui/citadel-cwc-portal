@@ -77,7 +77,6 @@ import {
   TAB_TO_TAB360,
 } from './credit/creditUtils';
 import RejectionBanner from './credit/RejectionBanner';
-import PersonalFastView from './credit/PersonalFastView';
 import { buildApplicationReadinessViewModel } from '../src/components/credit/detail/applicationReadinessViewModel';
 
 const CreditApplicationDetail: React.FC = () => {
@@ -783,7 +782,7 @@ const CreditApplicationDetail: React.FC = () => {
       {/* ── Application 360 Workspace — 3-column layout ── */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden credit-module">
 
-        {lane !== 'PERSONAL_FAST' && (
+        {(
           <div className="lg:hidden flex items-center justify-between border-b px-4 py-2" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', borderColor: 'var(--cr-outline-variant)' }}>
             <button type="button" aria-label="Open workspace menu" onClick={() => setShowMobileNav(true)} className="flex items-center gap-2 text-sm font-bold text-slate-700">
               <span className="material-symbols-outlined text-lg" aria-hidden="true">menu</span>
@@ -793,8 +792,8 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* ── Primary Application Workspace Navigation — hidden for Personal Fast lane ── */}
-        {lane !== 'PERSONAL_FAST' && (
+        {/* ── Primary Application Workspace Navigation ── */}
+        {(
           <ApplicationWorkspaceNavigation
             activeArea={activeArea}
             activeTab={rawTab || activeTab}
@@ -918,71 +917,9 @@ const CreditApplicationDetail: React.FC = () => {
               </div>
             )}
 
-            {lane === 'PERSONAL_FAST' && currentState === 'DRAFT' && (readiness || readinessLoading) && (
-              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--cr-surface-container-lowest)', border: '1px solid var(--cr-outline-variant)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-base" style={{ color: 'var(--cr-outline)' }}>checklist</span>
-                  <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--cr-outline)' }}>Submission Readiness</h3>
-                  {readinessLoading && <span className="text-xs ml-auto" style={{ color: 'var(--cr-outline)' }}>Checking…</span>}
-                  {!readinessLoading && readiness && (
-                    <span className={`text-xs font-bold ml-auto px-2 py-0.5 rounded-full ${readiness.ready ? 'text-green-700 bg-green-50 border border-green-200' : 'text-red-700 bg-red-50 border border-red-200'}`}>
-                      {readiness.ready ? 'Ready to submit' : `${readiness.errors.length} issue${readiness.errors.length !== 1 ? 's' : ''} blocking`}
-                    </span>
-                  )}
-                </div>
-                {readiness && (
-                  <ul className="space-y-1.5">
-                    {readiness.errors.map((e, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-red-700">
-                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">cancel</span>
-                        {e.message}
-                      </li>
-                    ))}
-                    {readiness.warnings.map((w, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-amber-700">
-                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">warning</span>
-                        {w.message}
-                      </li>
-                    ))}
-                    {readiness.satisfied?.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-blue-700">
-                        <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">verified</span>
-                        {s.message}
-                      </li>
-                    ))}
-                    {readiness.ready && readiness.warnings.length === 0 && (readiness.satisfied?.length ?? 0) === 0 && (
-                      <li className="flex items-center gap-2 text-xs text-green-700">
-                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                        All checks passed — application is ready to submit.
-                      </li>
-                    )}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {/* P2-2: Personal Fast — single scrollable view */}
-            {lane === 'PERSONAL_FAST' ? (
-              <PersonalFastView
-                app={app}
-                lane={lane}
-                laneReason={laneReason}
-                onUpdated={(updated) => setApp(updated)}
-                onDirtyChange={setDirty}
-                onRefresh={fetchApp}
-                setApp={setApp}
-                canApprove={canApprove}
-                isFeatureEnabled={isFeatureEnabled}
-                signoffs={signoffs}
-                allSigned={allSigned}
-                approvals={approvals}
-                onNavigate={(tab) => handleTabChange(tab as DetailTab360)}
-              />
-            ) : (
             <div id="credit-detail-content">
               {renderTab(activeTab)}
             </div>
-            )}
           </div>
           </div>{/* /max-w container */}
         </main>
