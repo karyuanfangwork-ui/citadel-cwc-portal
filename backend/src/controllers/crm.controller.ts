@@ -1553,13 +1553,13 @@ class CrmController {
     const reportOptions = { visibleOwnerIds: reportOwnerIds, recordedByUserId: recordedByUserId ?? null };
     if (req.query.format === 'detail-csv') {
       const detail = await getDailyOperationalActivityDetail(fromDay, toDay, reportOptions);
-      respondOrCsv(res, detail, 'crm-activity-detail.csv', ['eventType', 'volumeDate', 'outcomeDate', 'occurredAt', 'company', 'accountId', 'leadId', 'leadTitle', 'contactName', 'opportunityId', 'activityType', 'activitySubject', 'callCategory', 'callOutcome', 'emailOutcome', 'meetingOutcome', 'engagementOutcome', 'source', 'recordedBy', 'recordedByEmail'], d => d, 'csv');
+      respondOrCsv(res, detail, 'crm-activity-detail.csv', ['eventType', 'volumeDate', 'outcomeDate', 'occurredAt', 'company', 'accountId', 'leadId', 'leadTitle', 'contactName', 'opportunityId', 'activityType', 'activitySubject', 'callCategory', 'callOutcome', 'emailOutcome', 'meetingOutcome', 'engagementOutcome', 'source', 'recordOwner', 'recordOwnerEmail', 'recordedBy', 'recordedByEmail'], d => d, 'csv');
       return;
     }
     const report = await getDailyOperationalReport(fromDay, toDay, reportOptions);
     const companyCsv = req.query.format === 'company-csv';
     const metricColumns = ['emailsSent', 'newCalls', 'followUpCalls', 'meetings', 'whatsappTouches', 'siteVisits', 'emailBounces', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'meetingsPresented', 'meetingsCancelled', 'meetingsNoShow', 'leadsConverted', 'merchantsSignedUp', 'merchantsDeclined'];
-    respondOrCsv(res, report, companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv', companyCsv ? ['companyName', 'accountId', 'activityCount', ...metricColumns] : ['date', ...metricColumns], d => companyCsv ? d.byCompany : d.daily, companyCsv ? 'csv' : req.query.format as string);
+    respondOrCsv(res, report, companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv', companyCsv ? ['companyName', 'accountId', 'activityLoggedCount', 'activityOutcomeCount', ...metricColumns] : ['date', ...metricColumns], d => companyCsv ? d.byCompany : d.daily, companyCsv ? 'csv' : req.query.format as string);
   });
 
   getLeadAgingReport = asyncHandler(async (req: AuthRequest, res: Response) => {

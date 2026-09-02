@@ -59,7 +59,8 @@ export const DAILY_OPERATIONAL_COLUMNS: Array<[string, keyof DailyOperationalRow
 interface DailyOperationalCompanyRow extends Omit<DailyOperationalRow, 'date'> {
   companyName: string;
   accountId: string | null;
-  activityCount: number;
+  activityLoggedCount: number;
+  activityOutcomeCount: number;
 }
 
 interface DailyOperationalReport {
@@ -690,7 +691,7 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
 
   React.useEffect(() => {
     setLoading(true);
-    crmService.getDailyOperationalReport({ from, to, ...(userId ? { userId } : {}) })
+    crmService.getDailyOperationalReport({ from, to, ...(userId ? { userId, ownerId: userId } : {}) })
       .then(setData)
       .finally(() => setLoading(false));
   }, [from, to, userId]);
@@ -708,7 +709,8 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
    downloadCsv(data.byCompany.map(row => Object.fromEntries([
      ['Company', row.companyName],
      ['AccountId', row.accountId ?? ''],
-     ['Activities', row.activityCount],
+     ['Activities Logged', row.activityLoggedCount],
+     ['Activities With Outcomes', row.activityOutcomeCount],
      ...DAILY_OPERATIONAL_COLUMNS.map(([label, key]) => [label, row[key]]),
    ])), 'crm-daily-operational-by-company.csv');
  };
@@ -727,10 +729,10 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-primary">Daily CRM-recorded operational activity</p>
-          <p className="text-xs text-text-secondary mt-1">Timezone: {data.period.timezone}. Counts rep-recorded activity only — newly imported and system-generated rows are excluded. Historical imports created before source tracking may remain classified as CRM. Volume is dated when logged and outcomes when recorded. Signed Up, Declined and Leads Converted are lifecycle events attributed to the record owner, not the selected rep.</p>
+          <p className="text-xs text-text-secondary mt-1">Timezone: {data.period.timezone}. Activities are attributed to the recorder; conversions, wins and losses are attributed to the record owner. Newly imported and system-generated rows are excluded.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <label className="text-xs font-semibold text-text-secondary">Sales rep:</label>
+          <label className="text-xs font-semibold text-text-secondary">Sales rep (owner &amp; recorder):</label>
           <select aria-label="Sales rep:" value={userId} onChange={e => setUserId(e.target.value)}
             className="border border-border rounded-lg px-2 py-1.5 text-xs bg-bg-surface text-text-primary">
             <option value="">All visible owners</option>
@@ -772,7 +774,8 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
             <thead>
               <tr className="text-text-secondary uppercase border-b border-border">
                 <th className="text-left px-3 py-3">Company</th>
-                <th className="text-right px-2 py-3">Activities</th>
+                <th className="text-right px-2 py-3">Activities Logged</th>
+                <th className="text-right px-2 py-3">With Outcomes</th>
                 {columns.map(([label, key]) => <th key={key} className="text-right px-2 py-3">{label}</th>)}
               </tr>
             </thead>
@@ -780,7 +783,8 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
               {data.byCompany.map(row => (
                 <tr key={`${row.accountId ?? 'none'}:${row.companyName}`} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 text-text-primary font-medium">{row.companyName}</td>
-                  <td className="px-2 py-2 text-right font-semibold text-text-primary">{row.activityCount}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-text-primary">{row.activityLoggedCount}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-text-primary">{row.activityOutcomeCount}</td>
                   {columns.map(([, key]) => <td key={key} className="px-2 py-2 text-right text-text-secondary">{row[key]}</td>)}
                 </tr>
               ))}

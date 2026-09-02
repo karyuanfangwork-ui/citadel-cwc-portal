@@ -30,7 +30,8 @@ export interface DailyOperationalTotals extends Omit<DailyOperationalRow, 'date'
 export interface DailyOperationalCompanyRow extends Omit<DailyOperationalRow, 'date'> {
   companyName: string;
   accountId: string | null;
-  activityCount: number;
+  activityLoggedCount: number;
+  activityOutcomeCount: number;
 }
 
 export interface DailyOperationalReport {

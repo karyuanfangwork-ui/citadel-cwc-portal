@@ -121,6 +121,19 @@ describe('CRM daily operational report', () => {
       merchantsSignedUp: result.daily[0].merchantsSignedUp,
       merchantsDeclined: result.daily[0].merchantsDeclined,
     });
-    expect(result.byCompany.reduce((sum, company) => sum + company.activityCount, 0)).toBe(6);
+    expect(result.byCompany.reduce((sum, company) => sum + company.activityLoggedCount, 0)).toBe(6);
+  });
+
+  it('separates logged activities from outcomes recorded during the period', async () => {
+    mockPrisma.crmActivity.findMany.mockResolvedValue([{
+      activityType: 'MEETING', callCategory: null, callOutcome: null,
+      emailOutcome: null, meetingOutcome: 'COMPLETED', engagementOutcome: null,
+      createdAt: new Date('2026-08-16T02:00:00.000Z'),
+      outcomeRecordedAt: new Date('2026-08-17T02:00:00.000Z'),
+      accountId: null, contactId: null, leadId: null, opportunityId: null,
+      account: null, contact: null, lead: null, opportunity: null,
+    }]);
+    const result = await getDailyOperationalReport('2026-08-17', '2026-08-17', { visibleOwnerIds: null });
+    expect(result.byCompany[0]).toMatchObject({ activityLoggedCount: 0, activityOutcomeCount: 1 });
   });
 });

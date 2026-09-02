@@ -16,7 +16,7 @@ export function emptyRow(date: string): DailyOperationalRow {
 }
 export function emptyCompanyRow(companyName: string, accountId: string | null): DailyOperationalCompanyRow {
   const { date: _date, ...metrics } = emptyRow('COMPANY');
-  return { companyName, accountId, activityCount: 0, ...metrics };
+  return { companyName, accountId, activityLoggedCount: 0, activityOutcomeCount: 0, ...metrics };
 }
 export function hasOutcome(activity: MetricInput): boolean {
   return Boolean(activity.callOutcome || activity.emailOutcome || activity.meetingOutcome || activity.engagementOutcome);
