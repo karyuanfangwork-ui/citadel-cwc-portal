@@ -295,9 +295,10 @@ const CrmOpportunityDetail = () => {
     if (!id) return;
     try {
       setSaving(true);
-      const { callCategory, callOutcome, emailOutcome, meetingOutcome, ...activityBase } = activityForm;
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, ...activityBase } = activityForm;
       const payload = {
         ...activityBase,
+        engagementOutcome: engagementOutcome ?? null,
         ...(activityForm.activityType === 'CALL' || activityForm.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
         ...(activityForm.activityType === 'EMAIL' ? { emailOutcome } : {}),
         ...(activityForm.activityType === 'MEETING' ? { meetingOutcome } : {}),
@@ -369,9 +370,10 @@ const CrmOpportunityDetail = () => {
     setSavingActivityEdit(true);
     try {
       const { id: _aid, ...activityPayload } = editActivityForm;
-      const { callCategory, callOutcome, emailOutcome, meetingOutcome, ...activityBase } = activityPayload;
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, ...activityBase } = activityPayload;
       const payload = {
         ...activityBase,
+        engagementOutcome: engagementOutcome ?? null,
         ...(activityPayload.activityType === 'CALL' || activityPayload.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
         ...(activityPayload.activityType === 'EMAIL' ? { emailOutcome } : {}),
         ...(activityPayload.activityType === 'MEETING' ? { meetingOutcome } : {}),
@@ -1200,6 +1202,13 @@ const CrmOpportunityDetail = () => {
                   </select>
                 </div>
               )}
+              <div>
+                <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Engagement</label>
+                <select value={activityForm.engagementOutcome ?? ''} onChange={e => setActivityForm(f => ({ ...f, engagementOutcome: (e.target.value || null) as CrmActivity['engagementOutcome'] }))}
+                  className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                  <option value="">Not recorded</option><option value="INTERESTED">Interested</option><option value="NOT_INTERESTED">Not interested</option><option value="PENDING">Pending</option>
+                </select>
+              </div>
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}

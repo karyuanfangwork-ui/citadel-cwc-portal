@@ -15,21 +15,12 @@ export type EngagementOutcome = typeof ENGAGEMENT_OUTCOMES[number];
 
 export interface DailyOperationalRow {
   date: string;
-  emailsSent: number;
-  emailBounces: number;
-  newCalls: number;
-  followUpCalls: number;
-  callEngagement: number;
-  interested: number;
-  noAnswer: number;
-  notInterested: number;
-  wrongNumber: number;
-  notReachable: number;
-  meetings: number;
-  meetingsArranged: number;
-  meetingsPresented: number;
-  merchantsSignedUp: number;
-  merchantsDeclined: number;
+  emailsSent: number; newCalls: number; followUpCalls: number; meetings: number;
+  whatsappTouches: number; siteVisits: number;
+  emailBounces: number; callEngagement: number; interested: number; noAnswer: number;
+  notInterested: number; wrongNumber: number; notReachable: number;
+  meetingsArranged: number; meetingsPresented: number; meetingsCancelled: number; meetingsNoShow: number;
+  leadsConverted: number; merchantsSignedUp: number; merchantsDeclined: number;
 }
 
 export interface DailyOperationalTotals extends Omit<DailyOperationalRow, 'date'> {

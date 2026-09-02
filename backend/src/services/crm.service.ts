@@ -676,6 +676,7 @@ export async function convertLead(
         status: 'CONVERTED',
         convertedAt: new Date(),
         convertedToOppId: opportunity.id,
+        accountId,
       },
     });
 
@@ -688,6 +689,7 @@ export async function convertLead(
         userId,
         accountId,
         opportunityId: opportunity.id,
+        source: 'SYSTEM',
       },
     });
 
@@ -766,6 +768,7 @@ export async function moveOpportunityStage(
         userId,
         accountId: opportunity.accountId,
         opportunityId,
+        source: 'SYSTEM',
       },
     });
 

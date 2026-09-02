@@ -217,6 +217,8 @@ export interface CrmActivity {
   emailOutcome: 'SENT' | 'BOUNCED' | 'REPLIED' | 'RESEND_REQUIRED' | null;
   meetingOutcome: 'ARRANGED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   engagementOutcome: 'INTERESTED' | 'NOT_INTERESTED' | 'PENDING' | null;
+  outcomeRecordedAt?: string | null;
+  source?: 'CRM' | 'IMPORT' | 'SYSTEM';
   sourceEntity?: 'LEAD' | 'OPPORTUNITY';
   reminderSent: boolean;
   createdAt: string; updatedAt: string;

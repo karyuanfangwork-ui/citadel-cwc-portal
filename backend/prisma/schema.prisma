@@ -2670,6 +2670,7 @@ model CrmLead {
 
   // Conversion tracking
   convertedAt      DateTime? @map("converted_at") @db.Timestamp(6)
+  lostAt           DateTime? @map("lost_at") @db.Timestamp(6)
   convertedToOppId String?   @map("converted_to_opp_id") @db.Uuid
 
   // Phase 2 additions — follow-up tracking
@@ -2701,6 +2702,7 @@ model CrmLead {
   @@index([status])
   @@index([accountId])
   @@index([contactId])
+  @@index([lostAt])
   @@index([territoryId])
   @@index([tenantId])
   @@index([tenantId, status]) // P2-08: composite for lead pipeline queries
@@ -2928,7 +2930,7 @@ model CrmActivity {
   description  String?         @db.Text
   userId       String          @map("user_id") @db.Uuid
 
-  // Polymorphic relations — only one should be set
+  // Company attribution is resolved from the account link; an opportunity link may also be set as deal context when it belongs to the same account.
   accountId     String? @map("account_id") @db.Uuid
   contactId     String? @map("contact_id") @db.Uuid
   leadId        String? @map("lead_id") @db.Uuid
@@ -2945,6 +2947,8 @@ model CrmActivity {
   emailOutcome      String? @map("email_outcome") @db.VarChar(30)
   meetingOutcome    String? @map("meeting_outcome") @db.VarChar(30)
   engagementOutcome String? @map("engagement_outcome") @db.VarChar(30)
+  outcomeRecordedAt DateTime? @map("outcome_recorded_at") @db.Timestamp(6)
+  source            String  @default("CRM") @map("source") @db.VarChar(10)
 
   // Activity Reminders (Sprint 2)
   reminderSent Boolean @default(false) @map("reminder_sent")
@@ -2968,6 +2972,8 @@ model CrmActivity {
   @@index([activityType])
   @@index([scheduledAt])
   @@index([createdAt(sort: Desc)])
+  @@index([source, createdAt(sort: Desc)])
+  @@index([outcomeRecordedAt(sort: Desc)])
   @@map("crm_activities")
 }
 

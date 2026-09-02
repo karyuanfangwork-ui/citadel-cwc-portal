@@ -1,6 +1,7 @@
 const mockPrisma = {
   crmActivity: { findMany: jest.fn() },
   crmLead: { findMany: jest.fn() },
+  crmOpportunity: { findMany: jest.fn() },
 };
 
 jest.mock('../utils/prisma', () => ({ __esModule: true, default: mockPrisma }));
@@ -42,9 +43,10 @@ describe('CRM daily operational report', () => {
         createdAt: new Date('2026-08-17T05:00:00.000Z'),
       },
     ]);
+    mockPrisma.crmOpportunity.findMany.mockResolvedValue([]);
     mockPrisma.crmLead.findMany.mockResolvedValue([
-      { status: 'CONVERTED', convertedAt: new Date('2026-08-17T05:00:00.000Z'), updatedAt: new Date('2026-08-17T05:00:00.000Z') },
-      { status: 'LOST', convertedAt: null, updatedAt: new Date('2026-08-17T06:00:00.000Z') },
+      { status: 'CONVERTED', convertedAt: new Date('2026-08-17T05:00:00.000Z'), lostAt: null, convertedToOppId: null, updatedAt: new Date('2026-08-17T05:00:00.000Z'), companyName: null, accountId: null, account: null },
+      { status: 'LOST', convertedAt: null, lostAt: new Date('2026-08-17T06:00:00.000Z'), convertedToOppId: null, updatedAt: new Date('2026-08-17T06:00:00.000Z'), companyName: null, accountId: null, account: null },
     ]);
   });
 
@@ -63,18 +65,34 @@ describe('CRM daily operational report', () => {
     })).toEqual({ companyName: 'Unassigned / Invalid linkage', accountId: null });
   });
 
+  it('attributes an activity with a matching account and opportunity to the account company', () => {
+    expect(resolveCompanyAttribution({
+      accountId: 'account-1', contactId: null, leadId: null, opportunityId: 'opportunity-1',
+      account: { id: 'account-1', name: 'Matching Company' },
+      contact: null,
+      opportunity: { account: { id: 'account-1', name: 'Matching Company' } },
+      lead: null,
+    })).toEqual({ companyName: 'Matching Company', accountId: 'account-1' });
+  });
+
+  it('keeps an activity with conflicting account and opportunity companies invalid', () => {
+    expect(resolveCompanyAttribution({
+      accountId: 'account-1', contactId: null, leadId: null, opportunityId: 'opportunity-1',
+      account: { id: 'account-1', name: 'Account Company' },
+      contact: null,
+      opportunity: { account: { id: 'account-2', name: 'Opportunity Company' } },
+      lead: null,
+    })).toEqual({ companyName: 'Unassigned / Invalid linkage', accountId: null });
+  });
+
   it('aggregates structured activity outcomes and lead lifecycle events by day', async () => {
-    const result = await getDailyOperationalReport(
-      new Date('2026-08-17T00:00:00.000Z'),
-      new Date('2026-08-17T23:59:59.999Z'),
-      ['owner-1'],
-    );
+    const result = await getDailyOperationalReport('2026-08-17', '2026-08-17', { visibleOwnerIds: ['owner-1'] });
 
     expect(result.period.timezone).toBe('Asia/Kuala_Lumpur');
     expect(result.daily).toHaveLength(1);
     expect(result.daily[0]).toMatchObject({
       date: '2026-08-17',
-      emailsSent: 0,
+      emailsSent: 1,
       emailBounces: 1,
       newCalls: 1,
       followUpCalls: 1,
@@ -84,7 +102,8 @@ describe('CRM daily operational report', () => {
       meetings: 3,
       meetingsArranged: 1,
       meetingsPresented: 1,
-      merchantsSignedUp: 1,
+      leadsConverted: 1,
+      merchantsSignedUp: 0,
       merchantsDeclined: 1,
     });
     expect(result.totals).toMatchObject({

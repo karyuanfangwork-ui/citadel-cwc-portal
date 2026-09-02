@@ -186,7 +186,7 @@ describe('CrmOpportunityDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
 
     await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
-      activityType: 'CALL', callCategory: 'FOLLOW_UP_CALL', callOutcome: 'ANSWERED',
+      activityType: 'CALL', callCategory: 'FOLLOW_UP_CALL', callOutcome: 'ANSWERED', engagementOutcome: null,
       subject: 'Discussed proposal', opportunityId: 'opp-1',
     }));
   });
@@ -203,7 +203,7 @@ describe('CrmOpportunityDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
 
     await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
-      activityType: 'EMAIL', emailOutcome: 'REPLIED', subject: 'Email follow-up', opportunityId: 'opp-1',
+      activityType: 'EMAIL', emailOutcome: 'REPLIED', engagementOutcome: null, subject: 'Email follow-up', opportunityId: 'opp-1',
     }));
   });
 
@@ -219,7 +219,7 @@ describe('CrmOpportunityDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
 
     await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
-      activityType: 'MEETING', meetingOutcome: 'COMPLETED', subject: 'Completed review meeting', opportunityId: 'opp-1',
+      activityType: 'MEETING', meetingOutcome: 'COMPLETED', engagementOutcome: null, subject: 'Completed review meeting', opportunityId: 'opp-1',
     }));
   });
 

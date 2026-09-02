@@ -42,11 +42,19 @@ interface ActivitySummaryReport {
 
 interface DailyOperationalRow {
   date: string;
-  emailsSent: number; emailBounces: number; newCalls: number; followUpCalls: number;
-  callEngagement: number; interested: number; noAnswer: number; notInterested: number;
-  wrongNumber: number; notReachable: number; meetings: number; meetingsArranged: number; meetingsPresented: number;
-  merchantsSignedUp: number; merchantsDeclined: number;
+  emailsSent: number; newCalls: number; followUpCalls: number; meetings: number; whatsappTouches: number; siteVisits: number;
+  emailBounces: number; callEngagement: number; interested: number; noAnswer: number; notInterested: number; wrongNumber: number; notReachable: number;
+  meetingsArranged: number; meetingsPresented: number; meetingsCancelled: number; meetingsNoShow: number;
+  leadsConverted: number; merchantsSignedUp: number; merchantsDeclined: number;
 }
+
+export const DAILY_OPERATIONAL_COLUMNS: Array<[string, keyof DailyOperationalRow]> = [
+  ['Email Sent', 'emailsSent'], ['Bounce', 'emailBounces'], ['New Calls', 'newCalls'], ['Follow-up', 'followUpCalls'],
+  ['Engagement', 'callEngagement'], ['Interested', 'interested'], ['No Answer', 'noAnswer'], ['Not Interested', 'notInterested'],
+  ['Wrong Number', 'wrongNumber'], ['Not Reachable', 'notReachable'], ['WhatsApp', 'whatsappTouches'], ['Site Visits', 'siteVisits'],
+  ['Meetings', 'meetings'], ['Arranged', 'meetingsArranged'], ['Presented', 'meetingsPresented'], ['Cancelled', 'meetingsCancelled'],
+  ['No Show', 'meetingsNoShow'], ['Leads Converted', 'leadsConverted'], ['Signed Up', 'merchantsSignedUp'], ['Declined', 'merchantsDeclined'],
+];
 
 interface DailyOperationalCompanyRow extends Omit<DailyOperationalRow, 'date'> {
   companyName: string;
@@ -674,7 +682,7 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
   const [data, setData] = React.useState<DailyOperationalReport | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [owners, setOwners] = React.useState<CrmUser[]>([]);
-  const [ownerId, setOwnerId] = React.useState('');
+  const [userId, setUserId] = React.useState('');
 
   React.useEffect(() => {
     crmService.listCrmUsers().then(setOwners).catch(() => setOwners([]));
@@ -682,83 +690,48 @@ function DailyOperationalPanel({ from, to }: { from: string; to: string }) {
 
   React.useEffect(() => {
     setLoading(true);
-    crmService.getDailyOperationalReport({ from, to, ...(ownerId ? { ownerId } : {}) })
+    crmService.getDailyOperationalReport({ from, to, ...(userId ? { userId } : {}) })
       .then(setData)
       .finally(() => setLoading(false));
-  }, [from, to, ownerId]);
+  }, [from, to, userId]);
 
   const handleExport = () => {
     if (!data) return;
-    downloadCsv(data.daily.map(row => ({
-      Date: row.date,
-      'Email Sent': row.emailsSent,
-      'Email Bounce': row.emailBounces,
-      'New Calls': row.newCalls,
-      'Follow-up Calls': row.followUpCalls,
-      Engagement: row.callEngagement,
-      Interested: row.interested,
-      'No Answer': row.noAnswer,
-      'Not Interested': row.notInterested,
-      'Wrong Number': row.wrongNumber,
-      'Not Reachable': row.notReachable,
-      Meetings: row.meetings,
-      'Meetings Arranged': row.meetingsArranged,
-      'Meetings Presented': row.meetingsPresented,
-      'Merchants Signed Up': row.merchantsSignedUp,
-      'Merchants Declined': row.merchantsDeclined,
-    })), 'crm-daily-operational.csv');
+    downloadCsv(data.daily.map(row => Object.fromEntries([
+      ['Date', row.date],
+      ...DAILY_OPERATIONAL_COLUMNS.map(([label, key]) => [label, row[key]]),
+    ])), 'crm-daily-operational.csv');
  };
 
  const handleCompanyExport = () => {
- if (!data) return;
- downloadCsv(data.byCompany.map(row => ({
- Company: row.companyName,
- AccountId: row.accountId ?? '',
- Activities: row.activityCount,
- 'Email Sent': row.emailsSent,
- 'Email Bounce': row.emailBounces,
- 'New Calls': row.newCalls,
- 'Follow-up Calls': row.followUpCalls,
- Engagement: row.callEngagement,
- Interested: row.interested,
- 'No Answer': row.noAnswer,
- 'Not Interested': row.notInterested,
- 'Wrong Number': row.wrongNumber,
- 'Not Reachable': row.notReachable,
- Meetings: row.meetings,
- 'Meetings Arranged': row.meetingsArranged,
- 'Meetings Presented': row.meetingsPresented,
- 'Merchants Signed Up': row.merchantsSignedUp,
- 'Merchants Declined': row.merchantsDeclined,
- })), 'crm-daily-operational-by-company.csv');
+   if (!data) return;
+   downloadCsv(data.byCompany.map(row => Object.fromEntries([
+     ['Company', row.companyName],
+     ['AccountId', row.accountId ?? ''],
+     ['Activities', row.activityCount],
+     ...DAILY_OPERATIONAL_COLUMNS.map(([label, key]) => [label, row[key]]),
+   ])), 'crm-daily-operational-by-company.csv');
  };
 
  const handleActivityDetailExport = () => {
-   crmService.downloadDailyOperationalActivityDetail({ from, to, ...(ownerId ? { ownerId } : {}) });
+   crmService.downloadDailyOperationalActivityDetail({ from, to, ...(userId ? { userId } : {}) });
  };
 
  if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
-  const columns: Array<[string, keyof DailyOperationalRow]> = [
-    ['Email Sent', 'emailsSent'], ['Bounce', 'emailBounces'], ['New Calls', 'newCalls'],
-    ['Follow-up', 'followUpCalls'], ['Engagement', 'callEngagement'], ['Interested', 'interested'],
-    ['No Answer', 'noAnswer'], ['Not Interested', 'notInterested'], ['Wrong Number', 'wrongNumber'],
-    ['Not Reachable', 'notReachable'], ['Meetings', 'meetings'], ['Meetings Arranged', 'meetingsArranged'],
-    ['Meetings Presented', 'meetingsPresented'], ['Signed Up', 'merchantsSignedUp'],
-    ['Declined', 'merchantsDeclined'],
-  ];
+  const columns = DAILY_OPERATIONAL_COLUMNS;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text-primary">Daily CRM-recorded operational activity</p>
-          <p className="text-xs text-text-secondary mt-1">Timezone: {data.period.timezone}. Imported leads are not counted as calls or emails.</p>
+          <p className="text-xs text-text-secondary mt-1">Timezone: {data.period.timezone}. Counts rep-recorded activity only — newly imported and system-generated rows are excluded. Historical imports created before source tracking may remain classified as CRM. Volume is dated when logged and outcomes when recorded. Signed Up, Declined and Leads Converted are lifecycle events attributed to the record owner, not the selected rep.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <label className="text-xs font-semibold text-text-secondary">Sales rep:</label>
-          <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
+          <select aria-label="Sales rep:" value={userId} onChange={e => setUserId(e.target.value)}
             className="border border-border rounded-lg px-2 py-1.5 text-xs bg-bg-surface text-text-primary">
             <option value="">All visible owners</option>
             {owners.map(owner => <option key={owner.id} value={owner.id}>{owner.firstName} {owner.lastName}</option>)}

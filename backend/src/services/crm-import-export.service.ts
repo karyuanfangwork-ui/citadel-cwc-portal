@@ -584,6 +584,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
                 subject: String(data.activitySubject),
                 leadId: createdLead.id,
                 userId,
+                source: 'IMPORT',
               },
             });
           }
@@ -795,6 +796,7 @@ async function executeLeadActivityUpdate(job: any, userId: string, visibleOwnerI
             subject,
             leadId: lead.id,
             userId,
+            source: 'IMPORT',
           },
         });
         await tx.auditLog.create({

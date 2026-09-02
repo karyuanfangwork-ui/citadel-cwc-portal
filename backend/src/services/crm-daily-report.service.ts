@@ -1,291 +1,91 @@
 import prisma from '../utils/prisma';
-import {
-  DailyOperationalReport,
-  DailyOperationalRow,
-  DailyOperationalTotals,
-  DailyOperationalCompanyRow,
-} from './crm-daily-report.types';
+import { DailyOperationalCompanyRow, DailyOperationalReport, DailyOperationalTotals } from './crm-daily-report.types';
+import { applyOutcomeMetrics, applyVolumeMetrics, emptyCompanyRow, emptyRow, MetricInput } from './crm-daily-report.metrics';
+import { REPORT_TIMEZONE, dateKey, dateKeys, dayWindow } from './crm-report-window';
 
-type VisibleOwnerIds = string[] | null;
-
-const REPORT_TIMEZONE = 'Asia/Kuala_Lumpur';
-
-function dateKey(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: REPORT_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function emptyRow(date: string): DailyOperationalRow {
-  return {
-    date,
-    emailsSent: 0,
-    emailBounces: 0,
-    newCalls: 0,
-    followUpCalls: 0,
-    callEngagement: 0,
-    interested: 0,
-    noAnswer: 0,
-    notInterested: 0,
-    wrongNumber: 0,
-    notReachable: 0,
-    meetings: 0,
-    meetingsArranged: 0,
-    meetingsPresented: 0,
-    merchantsSignedUp: 0,
-    merchantsDeclined: 0,
-  };
-}
-
-function emptyCompanyRow(companyName: string, accountId: string | null): DailyOperationalCompanyRow {
-  const { date: _date, ...metrics } = emptyRow('COMPANY');
-  return { companyName, accountId, activityCount: 0, ...metrics };
-}
-
+export interface DailyReportOptions { visibleOwnerIds: string[] | null; recordedByUserId?: string | null; }
 export interface CompanyAttributionInput {
-  accountId: string | null;
-  contactId: string | null;
-  leadId: string | null;
-  opportunityId: string | null;
+  accountId: string | null; contactId: string | null; leadId: string | null; opportunityId: string | null;
   account: { id: string; name: string } | null;
   contact: { account: { id: string; name: string } | null } | null;
-  lead: { companyName: string | null } | null;
+  lead: { companyName: string | null; accountId?: string | null; account?: { id: string; name: string } | null } | null;
   opportunity: { account: { id: string; name: string } | null } | null;
 }
-
 export function resolveCompanyAttribution(activity: CompanyAttributionInput): { companyName: string; accountId: string | null } {
   const linkedCount = [activity.accountId, activity.contactId, activity.leadId, activity.opportunityId].filter(Boolean).length;
-  if (linkedCount > 1) return { companyName: 'Unassigned / Invalid linkage', accountId: null };
+  const matchingContext = Boolean(activity.accountId && activity.opportunityId && activity.opportunity?.account?.id === activity.accountId);
+  if (linkedCount > 1 && !matchingContext) return { companyName: 'Unassigned / Invalid linkage', accountId: null };
   if (activity.account?.name) return { companyName: activity.account.name, accountId: activity.account.id };
   if (activity.opportunity?.account?.name) return { companyName: activity.opportunity.account.name, accountId: activity.opportunity.account.id };
   if (activity.contact?.account?.name) return { companyName: activity.contact.account.name, accountId: activity.contact.account.id };
+  if (activity.lead?.account?.name) return { companyName: activity.lead.account.name, accountId: activity.lead.account.id };
   if (activity.lead?.companyName) return { companyName: activity.lead.companyName, accountId: null };
   return { companyName: 'Unassigned / No company', accountId: null };
 }
-
-function dateKeys(from: Date, to: Date): string[] {
-  const keys: string[] = [];
-  const cursor = new Date(from);
-  cursor.setUTCHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setUTCHours(0, 0, 0, 0);
-  while (cursor <= end) {
-    keys.push(dateKey(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return keys;
+export function companyKey(companyName: string, accountId: string | null): string {
+  return accountId ? `account:${accountId}` : `name:${companyName.trim().replace(/\s+/g, ' ').toLowerCase()}`;
 }
-
-function visibleActivityWhere(visibleOwnerIds: VisibleOwnerIds) {
-  if (visibleOwnerIds === null) return {};
-  return {
-    OR: [
-      { account: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
-      { contact: { account: { ownerId: { in: visibleOwnerIds }, deletedAt: null } } },
-      { lead: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
-      { opportunity: { ownerId: { in: visibleOwnerIds }, deletedAt: null } },
-      {
-        accountId: null,
-        contactId: null,
-        leadId: null,
-        opportunityId: null,
-        userId: { in: visibleOwnerIds },
-      },
-    ],
-  };
+function visibleActivityWhere(owners: string[] | null) {
+  if (owners === null) return {};
+  return { OR: [
+    { account: { ownerId: { in: owners }, deletedAt: null } },
+    { contact: { account: { ownerId: { in: owners }, deletedAt: null } } },
+    { lead: { ownerId: { in: owners, }, deletedAt: null } },
+    { opportunity: { ownerId: { in: owners }, deletedAt: null } },
+    { accountId: null, contactId: null, leadId: null, opportunityId: null, userId: { in: owners } },
+  ] };
 }
-
-function activeEntityWhere() {
-  return {
-    OR: [
-      { accountId: null, contactId: null, leadId: null, opportunityId: null },
-      { account: { deletedAt: null } },
-      { contact: { deletedAt: null } },
-      { lead: { deletedAt: null } },
-      { opportunity: { deletedAt: null } },
-    ],
-  };
+function activeEntityWhere() { return { OR: [
+  { accountId: null, contactId: null, leadId: null, opportunityId: null },
+  { account: { deletedAt: null } }, { contact: { deletedAt: null } }, { lead: { deletedAt: null } }, { opportunity: { deletedAt: null } },
+] }; }
+function ownerScope(owners: string[] | null) { return owners === null ? {} : { ownerId: { in: owners } }; }
+export const ACTIVITY_METRIC_SELECT = {
+  id: true, activityType: true, callCategory: true, callOutcome: true, emailOutcome: true, meetingOutcome: true, engagementOutcome: true,
+  createdAt: true, outcomeRecordedAt: true, accountId: true, contactId: true, leadId: true, opportunityId: true,
+  account: { select: { id: true, name: true } }, contact: { select: { account: { select: { id: true, name: true } } } },
+  lead: { select: { id: true, title: true, contactName: true, companyName: true, accountId: true, account: { select: { id: true, name: true } } } },
+  opportunity: { select: { account: { select: { id: true, name: true } } } },
+} as const;
+export function activityReportWhere(from: Date, to: Date, options: DailyReportOptions) {
+  return { AND: [{ source: 'CRM' }, { OR: [{ createdAt: { gte: from, lte: to } }, { outcomeRecordedAt: { gte: from, lte: to } }] }, activeEntityWhere(), visibleActivityWhere(options.visibleOwnerIds), ...(options.recordedByUserId ? [{ userId: options.recordedByUserId }] : [])] };
 }
-
-function addActivity(row: Omit<DailyOperationalRow, 'date'>, activity: {
-  activityType: string;
-  callCategory: string | null;
-  callOutcome: string | null;
-  emailOutcome: string | null;
-  meetingOutcome: string | null;
-  engagementOutcome: string | null;
-}) {
-  if (activity.activityType === 'EMAIL') {
-    if (activity.emailOutcome === 'BOUNCED') row.emailBounces++;
-    else row.emailsSent++;
-  }
-
-  if (activity.activityType === 'CALL' || activity.activityType === 'FOLLOW_UP') {
-    if (activity.callCategory === 'FOLLOW_UP_CALL' || activity.activityType === 'FOLLOW_UP') row.followUpCalls++;
-    else row.newCalls++;
-
-    if (activity.callOutcome && activity.callOutcome !== 'NO_ANSWER' && activity.callOutcome !== 'NOT_REACHABLE') {
-      row.callEngagement++;
-    }
-    if (activity.engagementOutcome === 'INTERESTED' || activity.callOutcome === 'INTERESTED') row.interested++;
-    if (activity.callOutcome === 'NO_ANSWER') row.noAnswer++;
-    if (activity.callOutcome === 'NOT_INTERESTED' || activity.engagementOutcome === 'NOT_INTERESTED') row.notInterested++;
-    if (activity.callOutcome === 'WRONG_NUMBER') row.wrongNumber++;
-    if (activity.callOutcome === 'NOT_REACHABLE') row.notReachable++;
-  }
-
-  if (activity.activityType === 'MEETING') {
-    row.meetings++;
-    if (activity.meetingOutcome === 'ARRANGED') row.meetingsArranged++;
-    if (activity.meetingOutcome === 'COMPLETED') row.meetingsPresented++;
+const metricInput = (activity: any): MetricInput => ({ activityType: activity.activityType, callCategory: activity.callCategory, callOutcome: activity.callOutcome, emailOutcome: activity.emailOutcome, meetingOutcome: activity.meetingOutcome, engagementOutcome: activity.engagementOutcome });
+const ACTIVITY_CHUNK_SIZE = 2000;
+async function fetchActivitiesInChunks(where: ReturnType<typeof activityReportWhere>, chunkSize = ACTIVITY_CHUNK_SIZE) {
+  const all: any[] = []; let cursor: { id: string } | undefined;
+  for (;;) {
+    const batch = await prisma.crmActivity.findMany({ where, select: ACTIVITY_METRIC_SELECT, orderBy: { id: 'asc' }, take: chunkSize, ...(cursor ? { cursor, skip: 1 } : {}) });
+    all.push(...batch); if (batch.length < chunkSize) return all;
+    cursor = { id: batch[batch.length - 1].id };
   }
 }
-
-export async function getDailyOperationalReport(
-  from: Date,
-  to: Date,
-  visibleOwnerIds: VisibleOwnerIds = null,
-): Promise<DailyOperationalReport> {
-  const keys = dateKeys(from, to);
-  const rows = new Map(keys.map((key) => [key, emptyRow(key)]));
-
-  const activities = await prisma.crmActivity.findMany({
-    where: {
-      AND: [
-        { createdAt: { gte: from, lte: to } },
-        activeEntityWhere(),
-        visibleActivityWhere(visibleOwnerIds),
-      ],
-    },
-    select: {
-      activityType: true,
-      callCategory: true,
-      callOutcome: true,
-      emailOutcome: true,
-      meetingOutcome: true,
-      engagementOutcome: true,
-      createdAt: true,
-      accountId: true,
-      contactId: true,
-      leadId: true,
-      opportunityId: true,
-      account: { select: { id: true, name: true } },
-      contact: { select: { account: { select: { id: true, name: true } } } },
-      lead: { select: { companyName: true } },
-      opportunity: { select: { account: { select: { id: true, name: true } } } },
-    },
-  });
-
+export async function getDailyOperationalReport(fromDay: string, toDay: string, options: DailyReportOptions): Promise<DailyOperationalReport> {
+  const { from, to } = dayWindow(fromDay, toDay); const rows = new Map(dateKeys(fromDay, toDay).map(key => [key, emptyRow(key)]));
   const byCompanyMap = new Map<string, DailyOperationalCompanyRow>();
-
-  for (const activity of activities) {
-    const row = rows.get(dateKey(activity.createdAt));
-    if (!row) continue;
-    addActivity(row, activity);
-    const attribution = resolveCompanyAttribution(activity);
-    const companyKey = `${attribution.accountId ?? ''}:${attribution.companyName}`;
-    const companyRow = byCompanyMap.get(companyKey) ?? emptyCompanyRow(attribution.companyName, attribution.accountId);
-    companyRow.activityCount++;
-    addActivity(companyRow, activity);
-    byCompanyMap.set(companyKey, companyRow);
+  const companyRowFor = (name: string, accountId: string | null) => { const key = companyKey(name, accountId); const found = byCompanyMap.get(key); if (found) return found; const created = emptyCompanyRow(name, accountId); byCompanyMap.set(key, created); return created; };
+  for (const activity of await fetchActivitiesInChunks(activityReportWhere(from, to, options))) {
+    const attribution = resolveCompanyAttribution(activity); const company = companyRowFor(attribution.companyName, attribution.accountId); const input = metricInput(activity);
+    const volume = rows.get(dateKey(activity.createdAt)); if (volume) { company.activityCount++; applyVolumeMetrics(volume, input); applyVolumeMetrics(company, input); }
+    const outcome = rows.get(dateKey(activity.outcomeRecordedAt ?? activity.createdAt)); if (outcome) { applyOutcomeMetrics(outcome, input); applyOutcomeMetrics(company, input); }
   }
-
-  const leadOwnerWhere = visibleOwnerIds === null ? {} : { ownerId: { in: visibleOwnerIds } };
-  const lifecycleLeads = await prisma.crmLead.findMany({
-    where: {
-      ...leadOwnerWhere,
-      deletedAt: null,
-      OR: [
-        { status: 'CONVERTED', convertedAt: { gte: from, lte: to } },
-        { status: 'LOST', updatedAt: { gte: from, lte: to } },
-      ],
-    },
-    select: {
-      status: true,
-      convertedAt: true,
-      updatedAt: true,
-      companyName: true,
-      account: { select: { id: true, name: true } },
-    },
-  });
-
-  for (const lead of lifecycleLeads) {
-    const eventDate = lead.status === 'CONVERTED' && lead.convertedAt ? lead.convertedAt : lead.updatedAt;
-    const row = rows.get(dateKey(eventDate));
-    if (!row) continue;
-    if (lead.status === 'CONVERTED') row.merchantsSignedUp++;
-    if (lead.status === 'LOST') row.merchantsDeclined++;
-    const companyName = lead.account?.name || lead.companyName || 'Unassigned / No company';
-    const companyKey = `${lead.account?.id ?? ''}:${companyName}`;
-    const companyRow = byCompanyMap.get(companyKey) ?? emptyCompanyRow(companyName, lead.account?.id ?? null);
-    if (lead.status === 'CONVERTED') companyRow.merchantsSignedUp++;
-    if (lead.status === 'LOST') companyRow.merchantsDeclined++;
-    byCompanyMap.set(companyKey, companyRow);
-  }
-
-  const totals = emptyRow('TOTAL') as DailyOperationalTotals;
-  for (const row of rows.values()) {
-    for (const key of Object.keys(totals) as Array<keyof DailyOperationalTotals>) {
-      if (key !== 'date') totals[key] += row[key];
-    }
-  }
-
-  return {
-    daily: [...rows.values()],
-    totals,
-    byCompany: [...byCompanyMap.values()].sort((a, b) => b.activityCount - a.activityCount || a.companyName.localeCompare(b.companyName)),
-    period: { from, to, timezone: REPORT_TIMEZONE },
-  };
+  const opportunities = await prisma.crmOpportunity.findMany({ where: { ...ownerScope(options.visibleOwnerIds), deletedAt: null, OR: [{ wonAt: { gte: from, lte: to } }, { lostAt: { gte: from, lte: to } }] }, select: { wonAt: true, lostAt: true, account: { select: { id: true, name: true } } } });
+  for (const opportunity of opportunities) { const company = companyRowFor(opportunity.account?.name ?? 'Unassigned / No company', opportunity.account?.id ?? null); if (opportunity.wonAt) { const row = rows.get(dateKey(opportunity.wonAt)); if (row) { row.merchantsSignedUp++; company.merchantsSignedUp++; } } if (opportunity.lostAt) { const row = rows.get(dateKey(opportunity.lostAt)); if (row) { row.merchantsDeclined++; company.merchantsDeclined++; } } }
+  const leads = await prisma.crmLead.findMany({ where: { ...ownerScope(options.visibleOwnerIds), deletedAt: null, OR: [{ status: 'CONVERTED', convertedAt: { gte: from, lte: to } }, { status: 'LOST', convertedToOppId: null, lostAt: { gte: from, lte: to } }] }, select: { status: true, convertedAt: true, lostAt: true, convertedToOppId: true, companyName: true, accountId: true, account: { select: { id: true, name: true } } } });
+  for (const lead of leads) { const company = companyRowFor(lead.account?.name || lead.companyName || 'Unassigned / No company', lead.account?.id ?? lead.accountId ?? null); if (lead.status === 'CONVERTED' && lead.convertedAt) { const row = rows.get(dateKey(lead.convertedAt)); if (row) { row.leadsConverted++; company.leadsConverted++; } } if (lead.status === 'LOST' && !lead.convertedToOppId && lead.lostAt) { const row = rows.get(dateKey(lead.lostAt)); if (row) { row.merchantsDeclined++; company.merchantsDeclined++; } } }
+  const totals = emptyRow('TOTAL') as DailyOperationalTotals; for (const row of rows.values()) for (const key of Object.keys(totals) as Array<keyof DailyOperationalTotals>) if (key !== 'date') totals[key] += row[key];
+  return { daily: [...rows.values()], totals, byCompany: [...byCompanyMap.values()].sort((a, b) => b.activityCount - a.activityCount || a.companyName.localeCompare(b.companyName)), period: { from, to, timezone: REPORT_TIMEZONE } };
 }
-
-export async function getDailyOperationalActivityDetail(
-  from: Date,
-  to: Date,
-  visibleOwnerIds: VisibleOwnerIds = null,
-): Promise<Record<string, unknown>[]> {
-  const activities = await prisma.crmActivity.findMany({
-    where: {
-      AND: [
-        { createdAt: { gte: from, lte: to } },
-        activeEntityWhere(),
-        visibleActivityWhere(visibleOwnerIds),
-      ],
-    },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      activityType: true,
-      subject: true,
-      createdAt: true,
-      leadId: true,
-      accountId: true,
-      contactId: true,
-      opportunityId: true,
-      user: { select: { firstName: true, lastName: true, email: true } },
-      account: { select: { id: true, name: true } },
-      contact: { select: { account: { select: { id: true, name: true } } } },
-      lead: { select: { id: true, title: true, contactName: true, companyName: true } },
-      opportunity: { select: { account: { select: { id: true, name: true } } } },
-    },
-  });
-
-  return activities.map((activity) => {
-    const attribution = resolveCompanyAttribution(activity);
-    return {
-      date: dateKey(activity.createdAt),
-      createdAt: activity.createdAt.toISOString(),
-      company: attribution.companyName,
-      leadId: activity.lead?.id ?? activity.leadId ?? '',
-      leadTitle: activity.lead?.title ?? '',
-      contactName: activity.lead?.contactName ?? '',
-      activityType: activity.activityType,
-      activitySubject: activity.subject,
-      recordedBy: `${activity.user.firstName} ${activity.user.lastName}`.trim() || activity.user.email,
-      recordedByEmail: activity.user.email,
-    };
-  });
+export interface DetailRow { eventType: 'ACTIVITY' | 'LEAD_CONVERTED' | 'LEAD_LOST' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST'; volumeDate: string; outcomeDate: string; occurredAt: string; company: string; accountId: string; leadId: string; leadTitle: string; contactName: string; opportunityId: string; activityType: string; activitySubject: string; callCategory: string; callOutcome: string; emailOutcome: string; meetingOutcome: string; engagementOutcome: string; source: string; recordedBy: string; recordedByEmail: string; }
+const blankDetail = () => ({ accountId: '', leadId: '', leadTitle: '', contactName: '', opportunityId: '', activityType: '', activitySubject: '', callCategory: '', callOutcome: '', emailOutcome: '', meetingOutcome: '', engagementOutcome: '', source: '', recordedBy: '', recordedByEmail: '' });
+const personName = (person: { firstName: string; lastName: string; email: string }) => `${person.firstName} ${person.lastName}`.trim() || person.email;
+export async function getDailyOperationalActivityDetail(fromDay: string, toDay: string, options: DailyReportOptions): Promise<DetailRow[]> {
+  const { from, to } = dayWindow(fromDay, toDay);
+  const activities = await prisma.crmActivity.findMany({ where: activityReportWhere(from, to, options), orderBy: { createdAt: 'asc' }, select: { ...ACTIVITY_METRIC_SELECT, subject: true, source: true, user: { select: { firstName: true, lastName: true, email: true } } } });
+  const rows: DetailRow[] = activities.map((activity: any) => { const attribution = resolveCompanyAttribution(activity); const outcomeAt = activity.outcomeRecordedAt ?? activity.createdAt; return { ...blankDetail(), eventType: 'ACTIVITY', volumeDate: dateKey(activity.createdAt), outcomeDate: dateKey(outcomeAt), occurredAt: activity.createdAt.toISOString(), company: attribution.companyName, accountId: attribution.accountId ?? '', leadId: activity.lead?.id ?? activity.leadId ?? '', leadTitle: activity.lead?.title ?? '', contactName: activity.lead?.contactName ?? '', opportunityId: activity.opportunityId ?? '', activityType: activity.activityType, activitySubject: activity.subject, callCategory: activity.callCategory ?? '', callOutcome: activity.callOutcome ?? '', emailOutcome: activity.emailOutcome ?? '', meetingOutcome: activity.meetingOutcome ?? '', engagementOutcome: activity.engagementOutcome ?? '', source: activity.source, recordedBy: personName(activity.user), recordedByEmail: activity.user.email }; });
+  const opportunities = await prisma.crmOpportunity.findMany({ where: { ...ownerScope(options.visibleOwnerIds), deletedAt: null, OR: [{ wonAt: { gte: from, lte: to } }, { lostAt: { gte: from, lte: to } }] }, select: { id: true, name: true, wonAt: true, lostAt: true, account: { select: { id: true, name: true } }, owner: { select: { firstName: true, lastName: true, email: true } } } });
+  for (const opportunity of opportunities) { const at = opportunity.wonAt ?? opportunity.lostAt; if (!at) continue; rows.push({ ...blankDetail(), eventType: opportunity.wonAt ? 'OPPORTUNITY_WON' : 'OPPORTUNITY_LOST', volumeDate: '', outcomeDate: dateKey(at), occurredAt: at.toISOString(), company: opportunity.account?.name ?? 'Unassigned / No company', accountId: opportunity.account?.id ?? '', opportunityId: opportunity.id, activitySubject: opportunity.name, recordedBy: personName(opportunity.owner), recordedByEmail: opportunity.owner.email }); }
+  const leads = await prisma.crmLead.findMany({ where: { ...ownerScope(options.visibleOwnerIds), deletedAt: null, OR: [{ status: 'CONVERTED', convertedAt: { gte: from, lte: to } }, { status: 'LOST', convertedToOppId: null, lostAt: { gte: from, lte: to } }] }, select: { id: true, title: true, status: true, convertedAt: true, lostAt: true, convertedToOppId: true, companyName: true, accountId: true, account: { select: { id: true, name: true } }, owner: { select: { firstName: true, lastName: true, email: true } } } });
+  for (const lead of leads) { const at = lead.status === 'CONVERTED' ? lead.convertedAt : lead.lostAt; if (!at) continue; rows.push({ ...blankDetail(), eventType: lead.status === 'CONVERTED' ? 'LEAD_CONVERTED' : 'LEAD_LOST', volumeDate: '', outcomeDate: dateKey(at), occurredAt: at.toISOString(), company: lead.account?.name || lead.companyName || 'Unassigned / No company', accountId: lead.account?.id ?? lead.accountId ?? '', leadId: lead.id, leadTitle: lead.title, opportunityId: lead.convertedToOppId ?? '', recordedBy: personName(lead.owner), recordedByEmail: lead.owner.email }); }
+  return rows.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 }

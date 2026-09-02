@@ -335,8 +335,6 @@ describe('CRM controller broad write coverage', () => {
         activityType: 'CALL',
         subject: `Import Coverage Activity ${suffix}`,
         accountId,
-        contactId,
-        leadId,
         opportunityId,
         scheduledAt: `${today}T09:00:00.000Z`,
         durationMinutes: 30,
@@ -927,8 +925,8 @@ describe('CRM controller broad read coverage', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
     expect(res.text).toContain('activitySubject');
-    expect(res.text).toContain('EMAIL SENT');
-    expect(res.text).toContain(`Activity Target Co ${suffix}`);
+    expect(res.text).toContain('source');
+    expect(res.text).not.toContain('EMAIL SENT');
   });
 
   it('reaches common CRM read/report controller endpoints as an admin', async () => {

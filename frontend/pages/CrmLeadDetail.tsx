@@ -161,7 +161,15 @@ const CrmLeadDetail = () => {
     if (!id) return;
     try {
       setSaving(true);
-      const activity = await crmService.createActivity({ ...activityForm, leadId: id });
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, ...activityBase } = activityForm;
+      const payload = {
+        ...activityBase,
+        engagementOutcome: engagementOutcome ?? null,
+        ...(activityForm.activityType === 'CALL' || activityForm.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
+        ...(activityForm.activityType === 'EMAIL' ? { emailOutcome } : {}),
+        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome } : {}),
+      };
+      const activity = await crmService.createActivity({ ...payload, leadId: id });
       setShowAddActivity(false);
       setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' });
       reload();
@@ -1328,13 +1336,17 @@ const CrmLeadDetail = () => {
                   <label className="block text-xs font-semibold text-[#45464d] mb-1">Meeting outcome</label>
                   <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
                     className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
-                    <option value="ARRANGED">Arranged</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="CANCELLED">Cancelled</option>
-                    <option value="NO_SHOW">No show</option>
+                    <option value="ARRANGED">Arranged</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No show</option>
                   </select>
                 </div>
               )}
+              <div>
+                <label className="block text-xs font-semibold text-[#45464d] mb-1">Engagement</label>
+                <select value={activityForm.engagementOutcome ?? ''} onChange={e => setActivityForm(f => ({ ...f, engagementOutcome: (e.target.value || null) as CrmActivity['engagementOutcome'] }))}
+                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
+                  <option value="">Not recorded</option><option value="INTERESTED">Interested</option><option value="NOT_INTERESTED">Not interested</option><option value="PENDING">Pending</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}

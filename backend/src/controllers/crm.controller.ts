@@ -16,6 +16,8 @@ import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
 import { buildMatchFields } from '../services/crm-duplicate.service';
 import crmReportsService from '../services/crm-reports.service';
 import { getDailyOperationalActivityDetail, getDailyOperationalReport } from '../services/crm-daily-report.service';
+import { outcomeStamp } from '../services/crm-activity-outcome';
+import { dayWindow, normalizeDayInput } from '../services/crm-report-window';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
 import * as importExportService from '../services/crm-import-export.service';
@@ -667,6 +669,9 @@ class CrmController {
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     if (emailDeliveryDate !== undefined) data.emailDeliveryDate = emailDeliveryDate ? new Date(emailDeliveryDate) : null;
+    if (rest.status !== undefined && rest.status !== existing.status) {
+      data.lostAt = rest.status === 'LOST' ? new Date() : null;
+    }
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect }, account: { select: { id: true, name: true, industry: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
@@ -1003,6 +1008,7 @@ class CrmController {
         ...rest, userId: req.user!.id,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
         completedAt: completedAt ? new Date(completedAt) : undefined,
+        ...outcomeStamp(rest),
       },
       include: { user: { select: userSelect }, account: { select: { id: true, name: true } } },
     });
@@ -1023,6 +1029,7 @@ class CrmController {
     const data: any = { ...rest };
     if (scheduledAt !== undefined) data.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
     if (completedAt !== undefined) data.completedAt = completedAt ? new Date(completedAt) : null;
+    Object.assign(data, outcomeStamp(rest, existing));
     const activity = await prisma.crmActivity.update({ where: { id: req.params.id as string }, data });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmActivity', resourceId: activity.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { activity } });
@@ -1528,33 +1535,31 @@ class CrmController {
   });
 
   getDailyOperationalReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const from = parseReportDate(req.query.from as string | undefined, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-    const to = parseReportDate(req.query.to as string | undefined, new Date(), true);
+    let fromDay: string;
+    let toDay: string;
+    try {
+      fromDay = normalizeDayInput(req.query.from as string | undefined, new Date());
+      toDay = normalizeDayInput(req.query.to as string | undefined, new Date());
+      dayWindow(fromDay, toDay);
+    } catch (error) {
+      throw new AppError((error as Error).message, 400);
+    }
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const requestedOwnerId = req.query.ownerId as string | undefined;
-    if (requestedOwnerId && visibleOwnerIds !== null && !visibleOwnerIds.includes(requestedOwnerId)) {
-      throw new AppError('Forbidden owner report scope', 403);
-    }
-    const reportOwnerIds = requestedOwnerId
-      ? [requestedOwnerId]
-      : visibleOwnerIds;
+    if (requestedOwnerId && visibleOwnerIds !== null && !visibleOwnerIds.includes(requestedOwnerId)) throw new AppError('Forbidden owner report scope', 403);
+    const recordedByUserId = req.query.userId as string | undefined;
+    if (recordedByUserId && visibleOwnerIds !== null && !visibleOwnerIds.includes(recordedByUserId)) throw new AppError('Forbidden reporting scope', 403);
+    const reportOwnerIds = requestedOwnerId ? [requestedOwnerId] : visibleOwnerIds;
+    const reportOptions = { visibleOwnerIds: reportOwnerIds, recordedByUserId: recordedByUserId ?? null };
     if (req.query.format === 'detail-csv') {
-      const detail = await getDailyOperationalActivityDetail(from, to, reportOwnerIds);
-      respondOrCsv(res, detail, 'crm-activity-detail.csv', [
-        'date', 'createdAt', 'company', 'leadId', 'leadTitle', 'contactName',
-        'activityType', 'activitySubject', 'recordedBy', 'recordedByEmail',
-      ], d => d, 'csv');
+      const detail = await getDailyOperationalActivityDetail(fromDay, toDay, reportOptions);
+      respondOrCsv(res, detail, 'crm-activity-detail.csv', ['eventType', 'volumeDate', 'outcomeDate', 'occurredAt', 'company', 'accountId', 'leadId', 'leadTitle', 'contactName', 'opportunityId', 'activityType', 'activitySubject', 'callCategory', 'callOutcome', 'emailOutcome', 'meetingOutcome', 'engagementOutcome', 'source', 'recordedBy', 'recordedByEmail'], d => d, 'csv');
       return;
     }
-    const report = await getDailyOperationalReport(from, to, reportOwnerIds);
+    const report = await getDailyOperationalReport(fromDay, toDay, reportOptions);
     const companyCsv = req.query.format === 'company-csv';
-    respondOrCsv(res, report,
-      companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv',
-      companyCsv
-        ? ['companyName', 'accountId', 'activityCount', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetings', 'meetingsArranged', 'meetingsPresented', 'merchantsSignedUp', 'merchantsDeclined']
-        : ['date', 'emailsSent', 'emailBounces', 'newCalls', 'followUpCalls', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetings', 'meetingsArranged', 'meetingsPresented', 'merchantsSignedUp', 'merchantsDeclined'],
-      d => companyCsv ? d.byCompany : d.daily,
-      companyCsv ? 'csv' : req.query.format as string);
+    const metricColumns = ['emailsSent', 'newCalls', 'followUpCalls', 'meetings', 'whatsappTouches', 'siteVisits', 'emailBounces', 'callEngagement', 'interested', 'noAnswer', 'notInterested', 'wrongNumber', 'notReachable', 'meetingsArranged', 'meetingsPresented', 'meetingsCancelled', 'meetingsNoShow', 'leadsConverted', 'merchantsSignedUp', 'merchantsDeclined'];
+    respondOrCsv(res, report, companyCsv ? 'crm-daily-operational-by-company.csv' : 'crm-daily-operational.csv', companyCsv ? ['companyName', 'accountId', 'activityCount', ...metricColumns] : ['date', ...metricColumns], d => companyCsv ? d.byCompany : d.daily, companyCsv ? 'csv' : req.query.format as string);
   });
 
   getLeadAgingReport = asyncHandler(async (req: AuthRequest, res: Response) => {

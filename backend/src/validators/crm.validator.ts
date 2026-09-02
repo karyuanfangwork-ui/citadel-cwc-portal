@@ -219,7 +219,7 @@ export const updatePipelineSchema = z.object({
 // ACTIVITIES
 // ============================================================================
 
-const activityBodySchema = z.object({
+const activityBodyObject = z.object({
   activityType: z.enum(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT']),
   subject: z.string().min(1).max(255),
   description: z.string().optional(),
@@ -230,17 +230,24 @@ const activityBodySchema = z.object({
   scheduledAt: z.string().optional(),
   completedAt: z.string().optional(),
   durationMinutes: z.coerce.number().int().nonnegative().optional(),
-  callCategory: z.enum(['NEW_CALL', 'FOLLOW_UP_CALL']).optional(),
-  callOutcome: z.enum(['ANSWERED', 'NO_ANSWER', 'NOT_INTERESTED', 'WRONG_NUMBER', 'NOT_REACHABLE', 'INTERESTED']).optional(),
-  emailOutcome: z.enum(['SENT', 'BOUNCED', 'REPLIED', 'RESEND_REQUIRED']).optional(),
-  meetingOutcome: z.enum(['ARRANGED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).optional(),
-  engagementOutcome: z.enum(['INTERESTED', 'NOT_INTERESTED', 'PENDING']).optional(),
+  // Outcome fields accept null: the activity forms send an explicit null for
+  // "not recorded", and clearing an outcome on an existing activity has to be
+  // distinguishable from omitting the field.
+  callCategory: z.enum(['NEW_CALL', 'FOLLOW_UP_CALL']).nullish(),
+  callOutcome: z.enum(['ANSWERED', 'NO_ANSWER', 'NOT_INTERESTED', 'WRONG_NUMBER', 'NOT_REACHABLE', 'INTERESTED']).nullish(),
+  emailOutcome: z.enum(['SENT', 'BOUNCED', 'REPLIED', 'RESEND_REQUIRED']).nullish(),
+  meetingOutcome: z.enum(['ARRANGED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).nullish(),
+  engagementOutcome: z.enum(['INTERESTED', 'NOT_INTERESTED', 'PENDING']).nullish(),
   metadata: z.record(z.any()).optional(),
 });
+const activityLinkageRefinement = (body: Record<string, unknown>) => {
+  const links = ['accountId', 'contactId', 'leadId', 'opportunityId'].filter(key => Boolean(body[key]));
+  return links.length <= 1 || (links.length === 2 && links.includes('accountId') && links.includes('opportunityId'));
+};
+const activityBodySchema = activityBodyObject.refine(activityLinkageRefinement, { message: 'An activity may link to one record, or to an account and its opportunity' });
 
 export const createActivitySchema = z.object({ body: activityBodySchema });
-
-export const updateActivitySchema = z.object({ body: activityBodySchema.partial() });
+export const updateActivitySchema = z.object({ body: activityBodyObject.partial() });
 
 export const activityFiltersSchema = paginationSchema.extend({
   activityType: z.enum(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT']).optional(),
