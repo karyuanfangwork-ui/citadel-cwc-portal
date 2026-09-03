@@ -48,6 +48,7 @@ services:
       - internal
 
   backend:
+    image: ${BACKEND_IMAGE:-citadel-cwc-portal-backend:latest}
     platform: linux/amd64
     build:
       context: ./backend
@@ -135,6 +136,7 @@ services:
       - proxy
 
   frontend:
+    image: ${FRONTEND_IMAGE:-citadel-cwc-portal-frontend:latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
