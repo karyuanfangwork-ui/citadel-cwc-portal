@@ -5,7 +5,8 @@ PROD_HOST="root@152.42.246.217"
 PROD_DIR="/var/www/citadel-cwc-portal"
 COMPOSE_FILE="docker-compose.prod.yml"
 REGISTRY="ghcr.io/cgt-tech-admin"
-BACKUP_DIR="${BASH_SOURCE[0]%/*}/backups"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_DIR="$SCRIPT_DIR/backups"
 
 usage() {
   printf 'Usage: %s --sha <40-char-commit-sha> [--no-migrate]\n' "$0"
@@ -45,7 +46,11 @@ backend_image="$REGISTRY/citadel-cwc-portal-backend:$SHA"
 frontend_image="$REGISTRY/citadel-cwc-portal-frontend:$SHA"
 
 printf 'Pulling immutable images (no production build)...\n'
-remote "BACKEND_IMAGE='$backend_image' FRONTEND_IMAGE='$frontend_image' docker compose -f $COMPOSE_FILE pull backend frontend"
+if ! remote "BACKEND_IMAGE='$backend_image' FRONTEND_IMAGE='$frontend_image' docker compose -f $COMPOSE_FILE pull backend frontend"; then
+  printf 'Image pull failed. Configure read-only GHCR access on production, then rerun this command.\n' >&2
+  printf 'Required images: %s and %s\n' "$backend_image" "$frontend_image" >&2
+  exit 1
+fi
 remote "BACKEND_IMAGE='$backend_image' FRONTEND_IMAGE='$frontend_image' docker compose -f $COMPOSE_FILE up -d --no-build backend"
 
 printf 'Verifying backend health before schema work...\n'
