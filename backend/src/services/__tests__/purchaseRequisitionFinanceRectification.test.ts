@@ -15,6 +15,13 @@ describe("Finance Purchase Requisition transition rectification", () => {
       "PENDING_CEO_APPROVAL_FIN→PENDING_CFO_APPROVAL_FIN",
       "PENDING_CEO_APPROVAL_FIN→CEO_REJECTED_FIN",
     ]);
+    expect(FINANCE_RECTIFICATION_TRANSITIONS[1]).toEqual(
+      expect.objectContaining({
+        transitionLabel: "ADVANCE",
+        allowedRoles: [],
+        allowedExecutiveRoles: ["CEO"],
+      }),
+    );
     expect(FINANCE_RECTIFICATION_TRANSITIONS[2]).toEqual(
       expect.objectContaining({
         transitionLabel: "REJECT",

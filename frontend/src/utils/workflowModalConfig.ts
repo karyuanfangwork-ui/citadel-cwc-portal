@@ -659,9 +659,9 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Submit Decision',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      approvalService.bulkAction(
-        (values.decision as string) === 'APPROVE' ? 'approve' : 'reject',
-        [requestId],
+      financeWorkflowService.ceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined,
       ),
   },

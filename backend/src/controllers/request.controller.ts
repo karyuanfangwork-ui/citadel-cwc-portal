@@ -526,16 +526,10 @@ class RequestController {
                     }
                 }
 
-                // Update approval record
-                await prisma.requestApproval.update({
-                    where: { id: approval.id },
-                    data: {
-                        status: approvalStatus,
-                        comments: comment || null,
-                    },
-                });
-
-                // Versioned status, SLA, audit, assignment, history, and outbox command
+                // Keep the approval decision, status transition, and any follow-up
+                // approval in the same workflow command transaction. Updating the
+                // approval row before transition validation can leave an approved
+                // row attached to a request that is still pending.
                 await transitionHttpRequest({
                     req,
                     request,
@@ -543,22 +537,32 @@ class RequestController {
                     source: 'request.bulk-approval',
                     comment: comment,
                     requestPatch,
+                    transactionMutations: async (tx: any) => {
+                        await tx.requestApproval.update({
+                            where: { id: approval.id },
+                            data: {
+                                status: approvalStatus,
+                                comments: comment || null,
+                            },
+                        });
+
+                        if (action === 'approve' && CASCADING_APPROVALS[currentStatus]) {
+                            const cascade = CASCADING_APPROVALS[currentStatus];
+                            await tx.requestApproval.create({
+                                data: {
+                                    requestId: request.id,
+                                    approverType: cascade.approverType,
+                                    approverId: currentStatus === 'PENDING_CEO_APPROVAL_FIN' ? nextCfoId : undefined,
+                                    status: 'PENDING',
+                                },
+                            });
+                        }
+                    },
                 });
 
-                // Create follow-up approval if this is a cascading approval
-                if (action === 'approve' && CASCADING_APPROVALS[currentStatus]) {
-                    const cascade = CASCADING_APPROVALS[currentStatus];
-                    await prisma.requestApproval.create({
-                        data: {
-                            requestId: request.id,
-                            approverType: cascade.approverType,
-                            approverId: currentStatus === 'PENDING_CEO_APPROVAL_FIN' ? nextCfoId : undefined,
-                            status: 'PENDING',
-                        },
-                    });
-                    if (currentStatus === 'PENDING_CEO_APPROVAL_FIN' && nextCfoId) {
-                        await notify({ userId: nextCfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: request.id, role: 'CFO' }, relatedRequestId: request.id });
-                    }
+                // Notifications are sent only after the command commits.
+                if (action === 'approve' && currentStatus === 'PENDING_CEO_APPROVAL_FIN' && nextCfoId) {
+                    await notify({ userId: nextCfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: request.id, role: 'CFO' }, relatedRequestId: request.id });
                 }
 
                 // Create activity log

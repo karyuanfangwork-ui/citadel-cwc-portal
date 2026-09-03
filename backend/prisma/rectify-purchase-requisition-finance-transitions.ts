@@ -32,7 +32,7 @@ export const FINANCE_RECTIFICATION_TRANSITIONS: readonly ScopedTransitionDefinit
       transitionLabel: "ADVANCE",
       requiresComment: false,
       allowedRoles: [],
-      allowedExecutiveRoles: [],
+      allowedExecutiveRoles: ["CEO"],
     },
     {
       fromStatus: "PENDING_CEO_APPROVAL_FIN",
