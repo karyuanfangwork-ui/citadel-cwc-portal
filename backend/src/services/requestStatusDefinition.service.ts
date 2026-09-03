@@ -92,7 +92,15 @@ export async function getActiveStatusDefinitions(scope: StatusDefinitionScope = 
   if (!workflow) throw new AppError('Workflow type not found', 404);
 
   const category = workflow.code.split('_')[0]?.toUpperCase();
-  return definitions.filter((definition: { category: string | null }) => !definition.category || definition.category === 'GENERAL' || definition.category === category);
+  const workflowCategories = new Set([workflow.code.toUpperCase(), category, 'GENERAL']);
+  return definitions.filter((definition: { category: string | null }) => {
+    if (!definition.category) return true;
+    const categories = definition.category
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+    return categories.some((value) => workflowCategories.has(value));
+  });
 }
 
 export async function getAllStatusDefinitions(category?: string, client: any = prisma) {

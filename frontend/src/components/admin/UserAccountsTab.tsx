@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { formatAbsoluteTime, formatRelativeTime } from '../../utils/relativeTime';
 
 interface UserPagination {
     page: number;
@@ -196,6 +197,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             <th className="px-5 py-3">Entity</th>
                             <th className="px-5 py-3">Roles</th>
                             <th className="px-5 py-3">Status</th>
+                            <th className="px-5 py-3">Last Sign-In</th>
                             <th className="px-5 py-3 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -207,6 +209,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                     <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded-lg w-20" /></td>
                                     <td className="px-5 py-4"><div className="flex gap-1"><div className="h-5 bg-gray-200 rounded-full w-14" /><div className="h-5 bg-gray-200 rounded-full w-10" /></div></td>
                                     <td className="px-5 py-4"><div className="h-5 bg-gray-200 rounded-full w-14" /></td>
+                                    <td className="px-5 py-4"><div className="h-4 bg-gray-200 rounded-lg w-20" /></td>
                                     <td className="px-5 py-4"><div className="flex gap-2 justify-end"><div className="h-10 w-10 bg-gray-200 rounded-xl" /><div className="h-10 w-10 bg-gray-200 rounded-xl" /></div></td>
                                 </tr>
                             ))}
@@ -256,6 +259,21 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                         <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${user.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                                             {user.isActive ? 'Active' : 'Disabled'}
                                         </span>
+                                    </td>
+                                    <td className={`px-5 py-4 text-sm ${!user.isActive ? 'opacity-50' : ''}`}>
+                                        <div className="flex flex-col">
+                                            <span
+                                                className={user.lastLoginAt ? 'text-[#44546f]' : 'text-gray-400 italic'}
+                                                title={formatAbsoluteTime(user.lastLoginAt)}
+                                            >
+                                                {formatRelativeTime(user.lastLoginAt)}
+                                            </span>
+                                            {user.lastActiveAt && (
+                                                <span className="text-[11px] text-gray-400" title={formatAbsoluteTime(user.lastActiveAt)}>
+                                                    {`Active ${formatRelativeTime(user.lastActiveAt)}`}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex justify-end items-center gap-1" data-overflow-menu>
@@ -326,7 +344,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             ))}
                             {users.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-16 text-center" role="status">
+                                    <td colSpan={6} className="px-5 py-16 text-center" role="status">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
                                                 <span className="material-symbols-outlined text-3xl text-gray-400">person_off</span>

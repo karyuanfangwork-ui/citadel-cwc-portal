@@ -10,13 +10,21 @@ const POLICY_STEPS = [
     {
         stepOrder: 1,
         approverType: 'ROLE' as const,
+        roleId: 'CEO',
+        label: 'Chief Executive Officer approval',
+        timeoutHours: 72,
+        timeoutAction: 'REMINDER' as const,
+    },
+    {
+        stepOrder: 2,
+        approverType: 'ROLE' as const,
         roleId: 'CFO',
         label: 'Chief Financial Officer approval',
         timeoutHours: 72,
         timeoutAction: 'REMINDER' as const,
     },
     {
-        stepOrder: 2,
+        stepOrder: 3,
         approverType: 'ROLE' as const,
         roleId: 'GROUP_DCEO',
         label: 'Group Deputy CEO approval',
@@ -132,6 +140,7 @@ async function main() {
         }
 
         console.log(`✅ Purchase Requisition policy already published (version ${publishedVersion.versionNumber})`);
+        console.log('   Canonical steps: CEO (72h, REMINDER) → CFO (72h, REMINDER) → GROUP_DCEO (72h, REMINDER)');
         return;
     }
 
@@ -168,15 +177,18 @@ async function main() {
     });
 
     console.log(`✅ Published Purchase Requisition approval policy using ${publisher.email}`);
-    console.log('   Step 1: CFO');
-    console.log('   Step 2: GROUP_DCEO');
+    console.log('   Step 1: CEO (72h, REMINDER)');
+    console.log('   Step 2: CFO (72h, REMINDER)');
+    console.log('   Step 3: GROUP_DCEO (72h, REMINDER)');
 }
 
-main()
-    .catch((error) => {
-        console.error('❌ Purchase Requisition approval seed failed:', error);
-        process.exitCode = 1;
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+if (require.main === module) {
+    main()
+        .catch((error) => {
+            console.error('❌ Purchase Requisition approval seed failed:', error);
+            process.exitCode = 1;
+        })
+        .finally(async () => {
+            await prisma.$disconnect();
+        });
+}

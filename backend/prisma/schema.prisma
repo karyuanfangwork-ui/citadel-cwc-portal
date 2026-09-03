@@ -97,6 +97,7 @@ model User {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt        DateTime?      @map("last_login_at") @db.Timestamp(6)
+  lastActiveAt       DateTime?      @map("last_active_at") @db.Timestamp(6)
   passwordChangedAt  DateTime?      @map("password_changed_at") @db.Timestamp(6)
   mustResetPassword  Boolean        @default(false) @map("must_reset_password") // P0-2: force password change on next login
   outOfOffice        Boolean        @default(false) @map("out_of_office")

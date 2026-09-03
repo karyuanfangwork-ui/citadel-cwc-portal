@@ -2212,7 +2212,7 @@ class RequestController {
         // Fetch current request to validate transition
         const currentRequest = await prisma.request.findUnique({
             where: { id },
-            include: { serviceDesk: true },
+            include: { serviceDesk: true, requestType: { select: { workflowTypeId: true } } },
         });
         if (!currentRequest) {
             throw new AppError('Request not found', 404);
@@ -2231,7 +2231,10 @@ class RequestController {
 
         // Validate transition
         const { isValidTransition } = await import('../utils/workflowTransitions');
-        if (!(await isValidTransition(currentRequest.status, status))) {
+        if (!(await isValidTransition(currentRequest.status, status, {
+            tenantId: currentRequest.tenantId,
+            workflowTypeId: currentRequest.requestType?.workflowTypeId ?? null,
+        }))) {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 

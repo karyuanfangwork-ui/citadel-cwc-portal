@@ -65,6 +65,8 @@ export type FindingCode =
   | 'STATUS_DEFINITION_INACTIVE'
   | 'STATUS_DEFINITION_CATEGORY_MISMATCH'
   | 'STATUS_DEFINITION_LIFECYCLE_CONFLICT'
+  | 'RUNTIME_STATUS_MISSING_FROM_GRAPH'
+  | 'DUPLICATE_OUTGOING_LABEL'
   | 'UNKNOWN_TRANSITION_LABEL';
 
 export interface Finding {
@@ -72,6 +74,7 @@ export interface Finding {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  statusCode?: string;
 }
 
 export interface ValidationResult {

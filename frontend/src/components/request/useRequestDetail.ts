@@ -559,8 +559,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             setProcessingAction(true);
             // Route to the correct service based on request status
             const isITRequest = request?.status === 'PENDING_CEO_APPROVAL_IT';
+            const isFinanceRequest = request?.status === 'PENDING_CEO_APPROVAL_FIN';
             if (isITRequest) {
                 await itWorkflowService.ceoDecision(id, decision, comments, approverId);
+            } else if (isFinanceRequest) {
+                await financeWorkflowService.ceoDecision(id, decision, comments);
             } else {
                 await approvalService.ceoDecision(id, decision, comments);
             }

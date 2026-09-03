@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminService, WorkflowTransition, WorkflowTransitionInput } from '../../services/admin.service';
 import apiClient from '../../services/api';
 import workflowVersionService from '../../services/workflow-version.service';
+import { getRequestStatusLabel } from '../../utils/requestStatusLabels';
 
 const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'CMO', 'GROUP_DCEO'];
 const LABEL_OPTIONS = ['APPROVE', 'REJECT', 'SUBMIT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE'];
@@ -327,7 +328,7 @@ export const WorkflowTransitionTab: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-lg text-[#0052cc]">call_split</span>
                     <div className="text-left">
-                      <span className="font-bold text-[#101418]">{fromStatus}</span>
+                      <span className="font-bold text-[#101418]">{getRequestStatusLabel(fromStatus)}</span>
                       <span className="text-xs text-[#44546f] ml-3">{items.length} transition{items.length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
@@ -343,7 +344,8 @@ export const WorkflowTransitionTab: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-[#44546f] font-mono">→</span>
                           <div>
-                            <span className="font-bold text-sm text-[#101418]">{t.toStatus}</span>
+                            <span className="font-bold text-sm text-[#101418]">{getRequestStatusLabel(t.toStatus)}</span>
+                            <span className="ml-2 text-[10px] font-mono text-[#8993a4]" title="Raw status code">{t.toStatus}</span>
                             <div className="flex items-center gap-3 mt-1">
                               {t.transitionLabel && (
                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{t.transitionLabel}</span>

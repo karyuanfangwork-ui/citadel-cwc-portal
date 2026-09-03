@@ -65,6 +65,7 @@ export interface ValidationFinding {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  statusCode?: string;
 }
 
 export interface ValidationResult {
@@ -91,6 +92,8 @@ export interface WorkflowVersionDetail {
   graph: WorkflowGraph;
   validation: ValidationResult;
   remapPlan: RemapPlan;
+  activeCodes?: string[];
+  runtimeMissingCodes?: string[];
 }
 
 export interface PublishResult {

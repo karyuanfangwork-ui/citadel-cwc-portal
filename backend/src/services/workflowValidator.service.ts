@@ -218,9 +218,28 @@ export function validateStructure(graph: WorkflowGraph): ValidationResult {
     }
   }
 
+  const duplicateOutgoingLabels = new Set<string>();
   for (const edge of validEdges) {
     const from = label(nodesById.get(edge.fromNodeId)!);
     const to = label(nodesById.get(edge.toNodeId)!);
+
+    if (edge.transitionLabel) {
+      const duplicateKey = `${edge.fromNodeId}:${edge.transitionLabel}`;
+      const duplicate = validEdges.some((candidate) =>
+        candidate.id !== edge.id &&
+        candidate.fromNodeId === edge.fromNodeId &&
+        candidate.transitionLabel === edge.transitionLabel,
+      );
+      if (duplicate && !duplicateOutgoingLabels.has(duplicateKey)) {
+        duplicateOutgoingLabels.add(duplicateKey);
+        blocking.push({
+          code: 'DUPLICATE_OUTGOING_LABEL',
+          nodeId: edge.fromNodeId,
+          edgeId: edge.id,
+          message: `${from} has more than one outgoing transition labelled ${edge.transitionLabel}; labels must resolve deterministically`,
+        });
+      }
+    }
 
     if (edge.allowedRoles.length === 0 && edge.allowedExecutiveRoles.length === 0) {
       warnings.push({
@@ -256,6 +275,8 @@ export interface ValidateGraphInput {
   graph: WorkflowGraph;
   /** removed status code → surviving status code. Applied at publish. */
   statusRemap?: Record<string, string>;
+  /** Statuses referenced by runtime code for this workflow, excluding catalogue-only metadata. */
+  runtimeStatusCodes?: string[];
 }
 
 /**
@@ -273,6 +294,30 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
   const occupancy = await loadOccupancy(workflowTypeId, client);
 
   const findings: Finding[] = [];
+  const runtimeCodes = new Set(input.runtimeStatusCodes ?? await (async () => {
+    if (!client.workflowType?.findUnique) return [];
+    const workflow = await client.workflowType.findUnique({ where: { id: workflowTypeId }, select: { code: true } });
+    if (workflow?.code !== 'FINANCE') return [];
+    return [
+      'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+      'PENDING_CEO_APPROVAL_FIN', 'CEO_APPROVED_FIN', 'CEO_REJECTED_FIN',
+      'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
+      'PENDING_GROUP_DCEO_APPROVAL', 'GROUP_DCEO_APPROVED', 'GROUP_DCEO_REJECTED',
+      'PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION',
+      'PAYMENT_CONFIRMED_FIN', 'TICKET_CLOSED_FIN', 'REJECTED', 'CANCELLED',
+    ];
+  })());
+  const graphCodes = new Set(graph.nodes.map((node) => node.statusCode).filter((code): code is string => Boolean(code)));
+  const occupiedCodes = new Set(occupancy.keys());
+  for (const statusCode of runtimeCodes) {
+    if (graphCodes.has(statusCode) || occupiedCodes.has(statusCode)) continue;
+    findings.push({
+      code: 'RUNTIME_STATUS_MISSING_FROM_GRAPH',
+      statusCode,
+      message: `Runtime references ${statusCode}, but no live request occupies it and it is absent from this workflow graph — add the status or document an approved legacy fallback`,
+    });
+  }
+
   const nodesByStatus = new Map(
     graph.nodes.filter((n) => n.statusCode !== null).map((n) => [n.statusCode as string, n]),
   );
@@ -334,6 +379,7 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
       }
       findings.push({
         code: 'STATUS_IN_USE_REMOVED',
+        statusCode: status,
         message: `${count} request${count === 1 ? ' is' : 's are'} currently in ${status} — it cannot be removed from this workflow`,
       });
       continue;
@@ -343,6 +389,7 @@ export async function validateLiveData(input: ValidateGraphInput, client: any = 
       findings.push({
         code: 'OCCUPIED_STATUS_NO_EXIT',
         nodeId: node.id,
+        statusCode: status,
         message: `${count} request${count === 1 ? ' is' : 's are'} in ${status}, which would have no available transitions`,
       });
     }

@@ -176,13 +176,12 @@ export async function replaceGraph(versionId: string, nodes: NodeInput[], edges:
     if (new Set(nodeIds).size !== nodeIds.length) throw new AppError('Duplicate node ids in graph update', 422);
     if (new Set(edgeIds).size !== edgeIds.length) throw new AppError('Duplicate edge ids in graph update', 422);
 
+    // The submitted snapshot is authoritative. Remove the old graph first
+    // inside this transaction so newly-added statuses cannot collide with the
+    // version/status uniqueness constraint during upsert.
+    await tx.workflowEdge.deleteMany({ where: { workflowVersionId: versionId } });
+    await tx.workflowNode.deleteMany({ where: { workflowVersionId: versionId } });
     await upsertNodes(versionId, nodes, tx);
-    await tx.workflowEdge.deleteMany({
-      where: { workflowVersionId: versionId, ...(edgeIds.length > 0 ? { id: { notIn: edgeIds } } : {}) },
-    });
-    await tx.workflowNode.deleteMany({
-      where: { workflowVersionId: versionId, ...(nodeIds.length > 0 ? { id: { notIn: nodeIds } } : {}) },
-    });
     await upsertEdges(versionId, edges, tx);
   });
 }

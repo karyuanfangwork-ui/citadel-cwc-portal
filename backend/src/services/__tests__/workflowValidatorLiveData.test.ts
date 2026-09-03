@@ -115,6 +115,26 @@ describe('validateLiveData', () => {
     mockLoadOccupancy.mockResolvedValue(new Map());
     await expect(validateLiveData(input)).resolves.toEqual([]);
   });
+
+  it('reports an unoccupied runtime status missing from the graph exactly once', async () => {
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      runtimeStatusCodes: ['CEO_APPROVED_FIN'],
+    });
+    expect(findings.filter((finding) => finding.code === 'RUNTIME_STATUS_MISSING_FROM_GRAPH')).toHaveLength(1);
+    expect(findings[0].message).toContain('CEO_APPROVED_FIN');
+  });
+
+  it('does not double-report an occupied runtime status missing from the graph', async () => {
+    mockLoadOccupancy.mockResolvedValue(occupy([['CEO_APPROVED_FIN', 1]]));
+    const findings = await validateLiveData({
+      workflowTypeId: 'wf1',
+      graph: graph(),
+      runtimeStatusCodes: ['CEO_APPROVED_FIN'],
+    });
+    expect(findings.map((finding) => finding.code)).toEqual(['STATUS_IN_USE_REMOVED']);
+  });
 });
 
 describe('validateLiveData with a status remap', () => {

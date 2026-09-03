@@ -19,7 +19,7 @@ interface WorkflowCanvasProps {
 
 export default function WorkflowCanvas({ nodes, edges, readOnly, onNodesChange, onEdgesChange, onConnect, onNodeClick, onEdgeClick }: WorkflowCanvasProps) {
   return (
-    <div className="h-full min-h-[520px] w-full bg-[#f7f9fc]" aria-label="Workflow canvas">
+    <div className="h-full min-h-0 w-full bg-[#f7f9fc]" aria-label="Workflow canvas">
       <ReactFlow
         nodes={nodes}
         edges={edges}

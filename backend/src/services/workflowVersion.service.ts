@@ -99,14 +99,28 @@ export async function createDraft(workflowTypeId: string): Promise<{ id: string;
 
 export async function getVersionDetail(
   versionId: string,
-): Promise<{ version: unknown; graph: WorkflowGraph; validation: ValidationResult; remapPlan: RemapPlan }> {
+): Promise<{ version: unknown; graph: WorkflowGraph; validation: ValidationResult; remapPlan: RemapPlan; activeCodes: string[]; runtimeMissingCodes: string[] }> {
   const version = await prisma.workflowVersion.findUnique({ where: { id: versionId } });
   if (!version) throw new Error(`Workflow version ${versionId} not found`);
 
   const { workflowTypeId, graph } = await loadGraph(versionId);
   const validation = await validateGraph({ workflowTypeId, graph });
   const remapPlan = await planStatusRemap({ workflowTypeId, draftGraph: graph });
-  return { version, graph, validation, remapPlan };
+  const activeVersion = version.status === 'ACTIVE'
+    ? version
+    : await prisma.workflowVersion.findFirst({
+        where: { workflowTypeId, status: 'ACTIVE' },
+        select: { id: true },
+      });
+  const activeGraph = activeVersion
+    ? activeVersion.id === versionId ? graph : (await loadGraph(activeVersion.id)).graph
+    : null;
+  const activeCodes = [...new Set(activeGraph?.nodes.map((node) => node.statusCode).filter((code): code is string => Boolean(code)) ?? [])].sort();
+  const runtimeMissingCodes = [...new Set(validation.blocking
+    .filter((finding) => finding.code === 'RUNTIME_STATUS_MISSING_FROM_GRAPH' || finding.code === 'STATUS_IN_USE_REMOVED')
+    .map((finding) => finding.statusCode)
+    .filter((code): code is string => Boolean(code)))].sort();
+  return { version, graph, validation, remapPlan, activeCodes, runtimeMissingCodes };
 }
 
 function describeBlocking(validation: ValidationResult): string {

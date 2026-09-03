@@ -14,6 +14,7 @@ import { validatePassword, checkPasswordBreach } from '../utils/password';
 import { createRedisClient, ensureConnected } from '../utils/redis';
 
 import prisma from '../utils/prisma';
+import { recordAuthEvent } from '../utils/authAudit';
 const lockoutRedis = createRedisClient({ maxRetriesPerRequest: 1 });
 
 type LockoutEntry = {
@@ -103,6 +104,27 @@ async function clearFailedLogin(email: string): Promise<void> {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+export function buildRegistrationUserData(input: {
+    email: string;
+    passwordHash: string;
+    firstName: string;
+    lastName: string;
+    department?: string | null;
+    jobTitle?: string | null;
+}) {
+    const now = new Date();
+    return {
+        email: input.email,
+        passwordHash: input.passwordHash,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        department: input.department ?? null,
+        jobTitle: input.jobTitle ?? null,
+        lastLoginAt: now,
+        lastActiveAt: now,
+    };
+}
+
 function generateAccessToken(userId: string, email: string, tenantId?: string): { token: string; jti: string } {
     const jti = crypto.randomUUID();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,7 +206,7 @@ class AuthController {
 
         const passwordHash = await bcrypt.hash(password, 12);
         const user = await prisma.user.create({
-            data: { email, passwordHash, firstName, lastName, department, jobTitle },
+            data: buildRegistrationUserData({ email, passwordHash, firstName, lastName, department, jobTitle }),
         });
 
         const normalStaffRole = await prisma.role.findUnique({ where: { name: 'NORMAL_STAFF' } });
@@ -240,12 +262,30 @@ class AuthController {
 
         if (!user || !user.isActive) {
             await recordFailedLogin(normalizedEmail);
+            await recordAuthEvent({
+                action: 'AUTH_LOGIN_FAILED',
+                email: normalizedEmail,
+                userId: user?.id ?? null,
+                tenantId: user?.tenantId ?? null,
+                ipAddress: req.ip ?? null,
+                userAgent: req.headers['user-agent'] ?? null,
+                reason: user ? 'ACCOUNT_INACTIVE' : 'UNKNOWN_EMAIL',
+            });
             throw new AppError('Invalid email or password', 401);
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
             await recordFailedLogin(normalizedEmail);
+            await recordAuthEvent({
+                action: 'AUTH_LOGIN_FAILED',
+                email: normalizedEmail,
+                userId: user.id,
+                tenantId: user.tenantId ?? null,
+                ipAddress: req.ip ?? null,
+                userAgent: req.headers['user-agent'] ?? null,
+                reason: 'INVALID_PASSWORD',
+            });
             throw new AppError('Invalid email or password', 401);
         }
 
@@ -275,7 +315,16 @@ class AuthController {
             },
         });
 
-        await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        const now = new Date();
+        await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: now, lastActiveAt: now } });
+        await recordAuthEvent({
+            action: 'AUTH_LOGIN_SUCCESS',
+            email: user.email,
+            userId: user.id,
+            tenantId: user.tenantId ?? null,
+            ipAddress: req.ip ?? null,
+            userAgent: req.headers['user-agent'] ?? null,
+        });
 
         setAuthCookies(res, accessToken, refreshToken);
         logger.info(`User logged in: ${user.email}`);
@@ -312,6 +361,14 @@ class AuthController {
             if (refreshToken) {
                 await prisma.session.deleteMany({ where: { token: hashRefreshToken(refreshToken), userId: req.user.id } });
             }
+            await recordAuthEvent({
+                action: 'AUTH_LOGOUT',
+                email: req.user.email,
+                userId: req.user.id,
+                tenantId: req.user.tenantId ?? null,
+                ipAddress: req.ip ?? null,
+                userAgent: req.headers['user-agent'] ?? null,
+            });
         }
 
         clearAuthCookies(res);
@@ -364,6 +421,12 @@ class AuthController {
                 ipAddress: req.ip,
                 userAgent: req.headers['user-agent'],
             },
+        });
+
+        // Refresh proves continued activity, not a new authentication.
+        await prisma.user.update({
+            where: { id: decoded.userId },
+            data: { lastActiveAt: new Date() },
         });
 
         const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email, decoded.tenantId);

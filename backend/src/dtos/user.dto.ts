@@ -35,6 +35,7 @@ export const userSummarySelect = {
     createdAt: true,
     updatedAt: true,
     lastLoginAt: true,
+    lastActiveAt: true,
     executiveRole: true,
     managerId: true,
 } as const;

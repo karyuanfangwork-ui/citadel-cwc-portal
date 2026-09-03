@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { stripHtml } from '@/src/utils/format';
 import CustomFieldsPanel from '@/src/components/request-detail/CustomFieldsPanel';
 import AssignAgentModal from '@/src/components/request-detail/AssignAgentModal';
+import { getRequestStatusLabel } from '@/src/utils/requestStatusLabels';
 
 interface Activity {
   id: string;
@@ -82,8 +83,7 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   REJECTED:                { bg: 'bg-red-100',    text: 'text-red-800',   dot: 'bg-red-500' },
 };
 
-const formatStatusLabel = (status: string) =>
-  status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const formatStatusLabel = (status: string) => getRequestStatusLabel(status);
 
 const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
   request,

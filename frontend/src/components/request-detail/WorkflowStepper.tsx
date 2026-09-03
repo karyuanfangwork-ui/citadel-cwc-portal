@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { getSlaDisplayDueMs } from './slaDisplay';
+import { getRequestStatusLabel } from '../../utils/requestStatusLabels';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,6 +113,9 @@ const STATUS_TO_STEP: Record<string, string> = {
   OFFBOARDING_COMPLETED: 'Offboarding Complete',
 
   // Finance
+  PENDING_CEO_APPROVAL_FIN: 'CEO Approval',
+  CEO_APPROVED_FIN: 'CEO Approved',
+  CEO_REJECTED_FIN: 'CEO Rejected',
   PENDING_FINANCE_HEAD_APPROVAL: 'Finance Head Approval',
   FINANCE_HEAD_APPROVED: 'Finance Head Approved',
   FINANCE_HEAD_REJECTED: 'Finance Head Rejected',
@@ -222,6 +226,7 @@ const STATUS_ORDER: string[] = [
   'OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES', 'OFFBOARDING_COMPLETED',
   // Finance
   'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+  'PENDING_CEO_APPROVAL_FIN', 'CEO_APPROVED_FIN', 'CEO_REJECTED_FIN',
   'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED',
   'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
   'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN',
@@ -242,6 +247,8 @@ const STATUS_ORDER: string[] = [
  * Steps without an entry fall back to position-based completion.
  */
 const APPROVAL_STEP_TYPES: Record<string, string> = {
+  PENDING_CEO_APPROVAL_FIN: 'CEO',
+  CEO_APPROVED_FIN: 'CEO',
   PENDING_CEO_APPROVAL: 'CEO',
   CEO_APPROVED: 'CEO',
   PENDING_GROUP_DCEO_APPROVAL: 'GROUP_DCEO',
@@ -318,7 +325,7 @@ function buildSteps(
 
     // Status not in steps — use STATUS_ORDER to infer which steps are completed.
     const currentGlobalIdx = STATUS_ORDER.indexOf(status);
-    const statusLabel = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    const statusLabel = STATUS_TO_STEP[status] ?? getRequestStatusLabel(status);
 
     // If terminal and not in steps, mark steps appropriately
     if (isTerminal) {
@@ -379,7 +386,7 @@ function buildSteps(
   }
 
   // Fallback: use a single node if we can't map the status
-  const label = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  const label = STATUS_TO_STEP[status] ?? getRequestStatusLabel(status);
   if (isTerminal) {
     const state = REJECTED_STATUSES.has(status) ? 'rejected' as StepState : 'completed' as StepState;
     return [{ step: status, label, order: 0, state }];

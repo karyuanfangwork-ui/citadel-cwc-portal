@@ -181,4 +181,24 @@ describe('UserAccountsTab', () => {
     fireEvent.click(screen.getByText(/disable account/i));
     expect(onToggleUserStatus).toHaveBeenCalledWith(adminUser);
   });
+
+  it('renders last sign-in and active timestamps with tooltips', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T12:00:00.000Z'));
+    const user = {
+      ...adminUser,
+      lastLoginAt: '2026-09-02T09:00:00.000Z',
+      lastActiveAt: '2026-09-02T11:00:00.000Z',
+    };
+    render(<UserAccountsTab {...baseProps} users={[user]} />);
+    expect(screen.getByText('Last Sign-In')).toBeTruthy();
+    expect(screen.getByText('3 hours ago')).toHaveAttribute('title');
+    expect(screen.getByText('Active 1 hour ago')).toHaveAttribute('title');
+  });
+
+  it('renders Never without an active line for users with no sign-in history', () => {
+    render(<UserAccountsTab {...baseProps} users={[{ ...adminUser, lastLoginAt: null, lastActiveAt: null }]} />);
+    expect(screen.getByText('Never')).toBeTruthy();
+    expect(screen.queryByText(/^Active /)).toBeNull();
+  });
 });

@@ -6,7 +6,7 @@ import prisma from '../utils/prisma';
 // Updated P6-02: added 28 missing transitions identified in the comparison.
 // ---------------------------------------------------------------------------
 
-const VALID_TRANSITIONS: Record<string, string[]> = {
+export const VALID_TRANSITIONS: Record<string, string[]> = {
   // ── Generic / IT Simple ──────────────────────────────────────────────────
   SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'CANCELLED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT', 'HR_SCREENING', 'PENDING_FROM_ENTITY_APPROVAL', 'PROCUREMENT_IN_PROGRESS', 'OFFBOARDING_SUBMITTED'],
   IN_REVIEW: ['IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING', 'REJECTED', 'CANCELLED', 'RESOLVED'],
@@ -72,8 +72,11 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
   // ── Finance Purchase Requisition ──────────────────────────────────────────
   FINANCE_PENDING_ACK: ['FINANCE_ACKNOWLEDGED', 'CANCELLED'],
-  FINANCE_ACKNOWLEDGED: ['FINANCE_IN_PROGRESS', 'PENDING_CFO_APPROVAL_FIN', 'CANCELLED'],
-  FINANCE_IN_PROGRESS: ['PENDING_CFO_APPROVAL_FIN', 'TICKET_CLOSED_FIN', 'CANCELLED'],
+  FINANCE_ACKNOWLEDGED: ['FINANCE_IN_PROGRESS', 'PENDING_CEO_APPROVAL_FIN', 'PENDING_CFO_APPROVAL_FIN', 'CANCELLED'],
+  FINANCE_IN_PROGRESS: ['PENDING_CEO_APPROVAL_FIN', 'PENDING_CFO_APPROVAL_FIN', 'TICKET_CLOSED_FIN', 'CANCELLED'],
+  PENDING_CEO_APPROVAL_FIN: ['PENDING_CFO_APPROVAL_FIN', 'CEO_REJECTED_FIN'],
+  CEO_REJECTED_FIN: ['REJECTED'],
+  CEO_APPROVED_FIN: ['PENDING_CFO_APPROVAL_FIN'],
   PENDING_CFO_APPROVAL_FIN: ['CFO_APPROVED_FIN', 'CFO_REJECTED_FIN'],
   CFO_APPROVED_FIN: ['PENDING_GROUP_DCEO_APPROVAL', 'PAYMENT_PROCESSING_FIN', 'FINANCE_IN_PROGRESS', 'COMPLETED'],  // COMPLETED=ESM Travel
   CFO_REJECTED_FIN: ['REJECTED'],
@@ -118,19 +121,41 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 // Runtime lookups — DB-first, fallback to seed map
 // ---------------------------------------------------------------------------
 
+/** Runtime resolution scope. Null values mean the global fallback scope. */
+export interface TransitionScope {
+  tenantId?: string | null;
+  workflowTypeId?: string | null;
+}
+
 /**
- * Check if a status transition is valid.
- *
- * The workflow_transitions table is authoritative. The seed map is consulted
- * ONLY when the table is entirely empty (an unseeded environment) — never for a
- * single missing pair, because that would silently re-permit transitions an
- * administrator has deactivated.
+ * Resolve active transition policies most-specific-first:
+ * (tenant, workflow) → (tenant, global workflow) → (global tenant, workflow)
+ * → (global, global). The seed map is consulted only when the table is empty.
  */
-export async function isValidTransition(from: string, to: string): Promise<boolean> {
-  const active = await prisma.workflowTransition.count({
-    where: { fromStatus: from, toStatus: to, isActive: true },
-  });
-  if (active > 0) return true;
+function transitionScopes(scope: TransitionScope = {}) {
+  return [
+    { tenantId: scope.tenantId ?? null, workflowTypeId: scope.workflowTypeId ?? null },
+    { tenantId: scope.tenantId ?? null, workflowTypeId: null },
+    { tenantId: null, workflowTypeId: scope.workflowTypeId ?? null },
+    { tenantId: null, workflowTypeId: null },
+  ];
+}
+
+export async function isValidTransition(from: string, to: string, scope: TransitionScope = {}): Promise<boolean> {
+  if (scope.tenantId === undefined && scope.workflowTypeId === undefined) {
+    const active = await prisma.workflowTransition.count({ where: { fromStatus: from, toStatus: to, isActive: true } });
+    if (active > 0) return true;
+    const seeded = await prisma.workflowTransition.count();
+    if (seeded > 0) return false;
+    return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+  }
+
+  for (const policyScope of transitionScopes(scope)) {
+    const active = await prisma.workflowTransition.count({
+      where: { fromStatus: from, toStatus: to, ...policyScope, isActive: true },
+    });
+    if (active > 0) return true;
+  }
 
   const seeded = await prisma.workflowTransition.count();
   if (seeded > 0) return false;
@@ -140,17 +165,26 @@ export async function isValidTransition(from: string, to: string): Promise<boole
 }
 
 /**
- * Get all valid next statuses from a given status.
- *
- * DB-first: returns active rows from the table. Only falls back to the seed
- * map when the table is completely empty (unseeded environment).
+ * Get all valid next statuses using the same scope precedence as
+ * `isValidTransition`. A matching scoped row suppresses broader fallback rows.
  */
-export async function getValidNextStatuses(from: string): Promise<string[]> {
-  const rows = await prisma.workflowTransition.findMany({
-    where: { fromStatus: from, isActive: true },
-    select: { toStatus: true },
-  });
-  if (rows.length > 0) return rows.map((r) => r.toStatus);
+export async function getValidNextStatuses(from: string, scope: TransitionScope = {}): Promise<string[]> {
+  if (scope.tenantId === undefined && scope.workflowTypeId === undefined) {
+    const rows = await prisma.workflowTransition.findMany({ where: { fromStatus: from, isActive: true }, select: { toStatus: true } });
+    if (rows.length > 0) return rows.map((r) => r.toStatus);
+    const seeded = await prisma.workflowTransition.count();
+    if (seeded > 0) return [];
+    return VALID_TRANSITIONS[from] || [];
+  }
+
+  for (const policyScope of transitionScopes(scope)) {
+    const rows = await prisma.workflowTransition.findMany({
+      where: { fromStatus: from, ...policyScope, isActive: true },
+      select: { toStatus: true },
+      orderBy: { toStatus: 'asc' },
+    });
+    if (rows.length > 0) return [...new Set(rows.map((r) => r.toStatus))];
+  }
 
   const seeded = await prisma.workflowTransition.count();
   if (seeded > 0) return [];

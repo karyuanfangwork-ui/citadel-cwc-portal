@@ -86,7 +86,9 @@ export interface TransitionOptions {
   tenantId?: string;
   /** Additional request scalar fields committed atomically with the transition. */
   requestPatch?: Record<string, unknown>;
-  /** Tenant-scoped idempotency key supplied by retryable callers. */
+  /** Additional domain writes committed with the status command. */
+  transactionMutations?: (tx: any, context: { requestId: string; tenantId: string; departmentId: string | null; newVersion: number; historyId: string; now: Date }) => Promise<void>;
+  /** Tenant-scoped key supplied by retryable callers. */
   idempotencyKey?: string;
   /** Actor to authorize against transition policy (opt-in). When provided, canActorTransition is checked before guards. */
   actor?: TransitionActor;
@@ -227,6 +229,7 @@ export async function transitionRequest(
     source = 'unknown',
     tenantId,
     requestPatch,
+    transactionMutations,
     idempotencyKey,
     userEmail,
     ipAddress,
@@ -281,7 +284,10 @@ export async function transitionRequest(
   let validationSkipped = false;
 
   if (!skipValidation) {
-    const valid = await isValidTransition(fromStatus, toStatus);
+    const valid = await isValidTransition(fromStatus, toStatus, {
+      tenantId: currentRequest.tenantId,
+      workflowTypeId: currentRequest.requestType?.workflow?.id ?? null,
+    });
     if (!valid) {
       throw new AppError(`Invalid status transition from ${fromStatus} to ${toStatus}`, 422);
     }
@@ -393,6 +399,7 @@ export async function transitionRequest(
     metadata,
     idempotencyKey,
     requestPatch: updateData,
+    transactionMutations,
     slaTransition,
     audit: { userEmail, ipAddress, userAgent },
   });

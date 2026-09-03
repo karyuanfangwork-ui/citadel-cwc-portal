@@ -1,4 +1,5 @@
 import React from 'react';
+import { getRequestStatusLabel } from '../../utils/requestStatusLabels';
 
 /**
  * Universal StateBadge — renders any status string as a pill with color + icon + label.
@@ -167,7 +168,7 @@ const StateBadge: React.FC<StateBadgeProps> = ({
 }) => {
   const colors = STATUS_COLORS[state.toUpperCase()] || { bg: '#6b728020', text: '#6b7280' };
   const icon = STATUS_ICONS[state.toUpperCase()] || 'circle';
-  const label = state.replace(/_/g, ' ');
+  const label = getRequestStatusLabel(state);
   const isSm = size === 'sm';
 
   return (

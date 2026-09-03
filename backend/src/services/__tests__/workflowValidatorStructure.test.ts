@@ -160,4 +160,11 @@ describe('validateStructure', () => {
     graph.edges.push({ ...graph.edges[0] });
     expect(codes(validateStructure(graph).blocking)).toContain('DUPLICATE_EDGE');
   });
+
+  it('blocks duplicate outgoing transition labels', () => {
+    const graph = validGraph();
+    graph.edges[0].transitionLabel = 'ADVANCE';
+    graph.edges.push(edge('NEW', 'CLOSED', { id: 'new-to-closed', transitionLabel: 'ADVANCE' }));
+    expect(codes(validateStructure(graph).blocking)).toContain('DUPLICATE_OUTGOING_LABEL');
+  });
 });

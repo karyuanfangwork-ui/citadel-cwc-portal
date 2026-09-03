@@ -5,6 +5,7 @@ import {
     acknowledge,
     routeToCfo,
     setFinalizedAmountAndRouteCfo,
+    ceoDecision,
     cfoDecision,
     groupDceoDecision,
     reassignGroupDceoApprover,
@@ -31,6 +32,7 @@ router.post(
     uploadMultipleFiles('invoices', 5),
     setFinalizedAmountAndRouteCfo,
 );
+router.post('/requests/:id/ceo-decision', authorize('CEO'), ceoDecision);
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
 router.post('/requests/:id/group-dceo-decision', authorize('GROUP_DCEO'), groupDceoDecision);
 router.post('/requests/:id/reassign-group-dceo-approver', authorize('ADMIN', 'AGENT'), reassignGroupDceoApprover);

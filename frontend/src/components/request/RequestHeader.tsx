@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import ActionBanner from '@/src/components/request-detail/ActionBanner';
 import { detectRequestRole } from '@/src/utils/roleDetection';
+import { getRequestStatusLabel } from '@/src/utils/requestStatusLabels';
 
 interface Activity {
   id: string;
@@ -156,7 +157,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
             <div className="flex items-center gap-3 mb-1">
               <h3 className="text-lg font-bold text-green-900">Ticket Closed</h3>
               <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">
-                {request.status.replace(/_/g, ' ')}
+                {getRequestStatusLabel(request.status)}
               </span>
             </div>
             <p className="text-sm text-green-700">This request has been completed and closed.</p>

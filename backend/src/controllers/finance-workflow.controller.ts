@@ -9,6 +9,7 @@ import { getTransitionMeta } from '../utils/workflowTransitions';
 import prisma from '../utils/prisma';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { runPurchaseRequisitionApprovalShadow } from '../services/purchaseRequisitionApprovalShadow.service';
+import { resolveRequestId } from '../utils/resolve';
 
 // All Finance Purchase Requisitions require Group Deputy CEO approval after CFO review,
 // regardless of the request amount. Budget proposals follow their separate path below.
@@ -368,6 +369,94 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             return res.status(403).json({ error: error.message });
         }
         res.status(500).json({ status: 'error', message: 'Failed to route to CFO' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/ceo-decision */
+export const ceoDecision = async (req: Request, res: Response) => {
+    try {
+        const resolvedId = await resolveRequestId(String(req.params.id));
+        const { decision, comments } = req.body;
+        const user = (req as any).user;
+        if (!resolvedId) return res.status(404).json({ status: 'error', message: 'Request not found' });
+        if (!['APPROVED', 'REJECTED'].includes(decision)) {
+            return res.status(400).json({ status: 'error', message: 'decision must be APPROVED or REJECTED' });
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id: resolvedId },
+            include: { serviceDesk: true, requestType: true, approvals: { where: { approverType: 'CEO', status: 'PENDING' } } },
+        });
+        if (!request) return res.status(404).json({ status: 'error', message: 'Request not found' });
+        if (request.serviceDesk?.code !== 'FINANCE' || request.requestType?.code !== 'PURCHASE_REQUISITION') {
+            return res.status(400).json({ status: 'error', message: 'Only Finance Purchase Requisition CEO decisions are supported here' });
+        }
+        if (request.status !== 'PENDING_CEO_APPROVAL_FIN') {
+            return res.status(400).json({ status: 'error', message: 'Request is not pending Finance CEO approval' });
+        }
+        const pendingApproval = request.approvals[0];
+        if (!pendingApproval || (pendingApproval.approverId && pendingApproval.approverId !== user?.id && !(user?.roles || []).includes('ADMIN'))) {
+            return res.status(403).json({ status: 'error', message: 'You are not the designated CEO approver for this request' });
+        }
+
+        if (decision === 'REJECTED') {
+            await transitionRequest(resolvedId, 'CEO_REJECTED_FIN', {
+                ...transitionOpts(req, {
+                    comment: comments || 'CEO rejected the request',
+                    source: 'finance-workflow/ceo-reject',
+                    metadata: { decision, approverType: 'CEO' },
+                }),
+                transactionMutations: async (tx: any) => {
+                    await tx.requestApproval.update({ where: { id: pendingApproval.id }, data: { status: 'REJECTED', approverId: user.id, comments: comments || null } });
+                    await tx.requestActivity.create({
+                        data: {
+                            requestId: resolvedId,
+                            authorId: user.id,
+                            authorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'CEO',
+                            authorRole: 'CEO',
+                            activityType: 'REJECTION',
+                            message: `CEO rejected the request${comments ? ': ' + comments : ''}`,
+                            isSystemGenerated: false,
+                        },
+                    });
+                },
+            });
+            const { resumeSla } = await import('../services/sla-pause.service');
+            await resumeSla(resolvedId);
+            return res.json({ status: 'success', message: 'Request rejected by CEO' });
+        }
+
+        const cfoId = await findFinanceCfo(request.tenantId);
+        if (!cfoId) return res.status(409).json({ status: 'error', message: 'No active CFO approver is configured for this tenant' });
+        await transitionRequest(resolvedId, 'PENDING_CFO_APPROVAL_FIN', {
+            ...transitionOpts(req, {
+                source: 'finance-workflow/ceo-approve',
+                requestPatch: { assignedToId: cfoId },
+                metadata: { decision, approverType: 'CEO', nextApproverType: 'CFO' },
+            }),
+            transactionMutations: async (tx: any) => {
+                await tx.requestApproval.update({ where: { id: pendingApproval.id }, data: { status: 'APPROVED', approverId: user.id, comments: comments || null } });
+                await tx.requestApproval.create({ data: { requestId: resolvedId, approverType: 'CFO', approverId: cfoId, status: 'PENDING', comments: null } });
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: resolvedId,
+                        authorId: user.id,
+                        authorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'CEO',
+                        authorRole: 'CEO',
+                        activityType: 'APPROVAL',
+                        message: `CEO approved the request and routed it to CFO`,
+                        isSystemGenerated: false,
+                    },
+                });
+            },
+        });
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', resolvedId, { decision, approverType: 'CEO', newStatus: 'PENDING_CFO_APPROVAL_FIN', previousStatus: request.status, comments: comments || null }, { status: request.status });
+        await notify({ userId: cfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: resolvedId, role: 'CFO' }, relatedRequestId: resolvedId });
+        return res.json({ status: 'success', message: 'Request approved by CEO and routed to CFO' });
+    } catch (error: any) {
+        console.error('finance ceoDecision error:', error);
+        if (typeof error?.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 500) return res.status(error.statusCode).json({ error: error.message });
+        return res.status(500).json({ status: 'error', message: 'Failed to process Finance CEO decision' });
     }
 };
 

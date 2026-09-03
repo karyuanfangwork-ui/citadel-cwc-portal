@@ -11,6 +11,7 @@ import { startAuditRetentionJob, stopAuditRetentionJob, runAuditRetentionCheck }
 import { acquireLock, releaseLock } from './schedulerLock.service';
 import { startSlaTimerWorker, stopSlaTimerWorker } from '../workers/timer.worker';
 import { dispatchOutboxBatch } from './outboxDispatcher.service';
+import { startSessionPrunerJob, stopSessionPrunerJob, pruneExpiredSessions } from '../jobs/session-pruner';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -42,6 +43,7 @@ const DEFAULT_CONFIGS: Omit<SchedulerConfigRow, 'id' | 'updatedAt'>[] = [
   { jobKey: 'credit.aml_rescreen',    label: 'AML Quarterly Re-Screen',   enabled: true, mode: 'cron', cronExpr: '0 2 1 1,4,7,10 *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.audit_retention', label: 'Audit Retention & Hash Check', enabled: true, mode: 'cron', cronExpr: '0 3 * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'workflow.outbox', label: 'Workflow Outbox Dispatcher', enabled: true, mode: 'interval', cronExpr: null, intervalMs: 30000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'auth.session_prune', label: 'Expired Session Pruner', enabled: true, mode: 'cron', cronExpr: '0 4 * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
 ];
 
 async function seedDefaults(): Promise<void> {
@@ -56,6 +58,16 @@ async function seedDefaults(): Promise<void> {
     });
   }
   logger.info('[Scheduler] Default configs seeded');
+}
+
+async function ensureMissingDefaults(): Promise<void> {
+  for (const cfg of DEFAULT_CONFIGS) {
+    await prisma.schedulerConfig.upsert({
+      where: { jobKey: cfg.jobKey },
+      update: {},
+      create: cfg,
+    });
+  }
 }
 
 function toJobConfig(row: SchedulerConfigRow): JobConfig {
@@ -85,6 +97,8 @@ function startJobByKey(row: SchedulerConfigRow): void {
     startAuditRetentionJob(cfg);
   } else if (row.jobKey === 'workflow.outbox') {
     // Interval-based: scheduler calls triggerJob on each tick; start is a no-op.
+  } else if (row.jobKey === 'auth.session_prune') {
+    startSessionPrunerJob(cfg);
   }
 }
 
@@ -103,6 +117,8 @@ function stopJobByKey(jobKey: string): void {
     stopAmlRescreenChecker();
   } else if (jobKey === 'credit.audit_retention') {
     stopAuditRetentionJob();
+  } else if (jobKey === 'auth.session_prune') {
+    stopSessionPrunerJob();
   }
   // workflow.outbox has no persistent worker to stop.
 }
@@ -110,6 +126,7 @@ function stopJobByKey(jobKey: string): void {
 export async function initScheduler(): Promise<void> {
   const count = await prisma.schedulerConfig.count();
   if (count === 0) await seedDefaults();
+  else await ensureMissingDefaults();
 
   const rows = await prisma.schedulerConfig.findMany();
   for (const row of rows) {
@@ -127,6 +144,7 @@ export async function shutdownScheduler(): Promise<void> {
   stopCreditSlaChecker();
   stopAmlRescreenChecker();
   stopAuditRetentionJob();
+  stopSessionPrunerJob();
   await stopSlaTimerWorker();
   logger.info('[Scheduler] All jobs stopped');
 }
@@ -205,6 +223,8 @@ export async function triggerJob(jobKey: string): Promise<void> {
       await runAuditRetentionCheck();
     } else if (jobKey === 'workflow.outbox') {
       await dispatchOutboxBatch({ workerId: `scheduler-${process.pid}` });
+    } else if (jobKey === 'auth.session_prune') {
+      await pruneExpiredSessions();
     }
   });
 
