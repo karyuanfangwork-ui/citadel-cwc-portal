@@ -178,3 +178,18 @@ body.modal-open .edgem-watermark {
   background: #cbd5e1;
   border-radius: 10px;
 }
+
+/* CRM Reports intentionally retains the light reporting canvas in dark mode.
+   Keep its semantic tokens self-contained so text and controls remain readable. */
+.crm-reports-light-mode {
+  --color-text-primary: #111827;
+  --color-text-secondary: #44546f;
+  --color-text-tertiary: #9ca3af;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-surface-muted: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-bg-surface: #ffffff;
+  --color-bg-subtle: #f8fafc;
+}

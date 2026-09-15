@@ -79,16 +79,22 @@ interface LeadAgingReport {
 interface WinLossReport {
   byReason: Array<{ lostReason: string; count: number; totalValue: number }>;
   totalWon: { count: number; value: number };
-  totalConvertedLeads: number;
-  convertedLeads: Array<{
-    id: string; title: string; companyName: string | null; accountName: string | null;
-    ownerName: string; convertedAt: string;
+  wonOpportunities: Array<{
+    id: string; name: string; accountName: string | null; ownerName: string;
+    value: number; wonAt: string;
   }>;
   totalLost: { count: number; value: number };
+  totalLostOpportunities: { count: number; value: number };
+  lostOpportunities: Array<{
+    id: string; name: string; accountName: string | null; ownerName: string;
+    value: number; lostReason: string | null; lostAt: string;
+  }>;
   totalLostLeads: number;
+  totalLostLeadEstimatedValue: number;
+  lostLeadEstimatedValueCount: number;
   lostLeads: Array<{
     id: string; title: string; companyName: string | null; accountName: string | null;
-    ownerName: string; lostReason: string | null; updatedAt: string;
+    ownerName: string; lostReason: string | null; estimatedValue: number | null; lostAt: string;
   }>;
   winRate: number;
   period: { from: string; to: string };
@@ -204,12 +210,50 @@ function StatusChips({ items }: { items: Array<{ status: string; count: number }
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
+function SummaryCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
   return (
     <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col gap-1">
       <span className="text-xs text-text-secondary uppercase tracking-wide">{label}</span>
       <span className="text-2xl font-bold text-text-primary">{value}</span>
+      {detail && <span className="text-xs text-text-secondary">{detail}</span>}
     </div>
+  );
+}
+
+type OutcomeDonutLabelProps = {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  percent?: number;
+  name?: string;
+};
+
+function OutcomeDonutLabel({
+  cx = 0, cy = 0, midAngle = 0, outerRadius = 0, percent = 0, name = '',
+}: OutcomeDonutLabelProps) {
+  const angle = (-midAngle * Math.PI) / 180;
+  const sin = Math.sin(angle);
+  const cos = Math.cos(angle);
+  const segmentEdge = outerRadius + 2;
+  const bend = outerRadius + 18;
+  const labelRadius = outerRadius + 32;
+  const startX = cx + segmentEdge * cos;
+  const startY = cy + segmentEdge * sin;
+  const bendX = cx + bend * cos;
+  const bendY = cy + bend * sin;
+  const labelX = cx + labelRadius * cos;
+  const labelY = cy + labelRadius * sin;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
+  const labelColour = name === 'Won' ? '#10B981' : '#EF4444';
+
+  return (
+    <g>
+      <path d={`M${startX},${startY}L${bendX},${bendY}L${labelX},${labelY}`} fill="none" stroke={labelColour} strokeWidth={1.25} />
+      <text x={labelX} y={labelY} dx={cos >= 0 ? 3 : -3} textAnchor={textAnchor} dominantBaseline="central" fill={labelColour} fontSize={13}>
+        {`${name} ${Math.round(percent * 100)}%`}
+      </text>
+    </g>
   );
 }
 
@@ -237,7 +281,7 @@ function DateRangeRow({
           <button
             key={p.label}
             onClick={() => { onFromChange(p.from()); onToChange(p.to()); }}
-            className="px-3 py-1 rounded-lg text-xs font-medium border border-border bg-bg-surface text-text-secondary hover:bg-bg-subtle hover:text-text-primary hover:border-brand-300 transition-colors"
+            className="px-3 py-1 rounded-lg text-xs font-medium border border-border bg-white dark:bg-white text-slate-700 dark:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-100 hover:text-slate-900 dark:hover:text-slate-900 hover:border-slate-400 dark:hover:border-slate-400 transition-colors"
             style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
             {p.label}
@@ -252,7 +296,8 @@ function DateRangeRow({
             type="date"
             value={from}
             onChange={e => onFromChange(e.target.value)}
-            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-white text-slate-950 dark:text-slate-950 focus:outline-none focus:ring-2`}
+            style={{ colorScheme: 'light' }}
           />
         </label>
         <label className="flex items-center gap-2 text-sm text-text-secondary">
@@ -261,7 +306,8 @@ function DateRangeRow({
             type="date"
             value={to}
             onChange={e => onToChange(e.target.value)}
-            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-white text-slate-950 dark:text-slate-950 focus:outline-none focus:ring-2`}
+            style={{ colorScheme: 'light' }}
           />
         </label>
         <button
@@ -919,71 +965,70 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
         Account: lead.accountName || '',
         Owner: lead.ownerName || '—',
         Reason: lead.lostReason || 'Not specified',
-        'Lost Date': new Date(lead.updatedAt).toLocaleDateString('en-MY'),
+        'Estimated Value': lead.estimatedValue ?? '',
+        'Lost Date': new Date(lead.lostAt).toLocaleDateString('en-MY'),
       })),
       'lost-leads-report.csv',
-    );
-  };
-
-  const handleConvertedLeadsExport = () => {
-    if (!data || data.convertedLeads.length === 0) return;
-    downloadCsv(
-      data.convertedLeads.map(lead => ({
-        'Lead ID': lead.id,
-        Lead: lead.title,
-        Company: lead.companyName || lead.accountName || 'Not specified',
-        Account: lead.accountName || '',
-        Owner: lead.ownerName || '—',
-        'Won Date': new Date(lead.convertedAt).toLocaleDateString('en-MY'),
-      })),
-      'won-leads-report.csv',
     );
   };
 
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
+  // Keep the page usable while a browser is connected to an older API process.
+  // The fallback is removed naturally once that process serves the new response shape.
+  const lostOpportunities = data.totalLostOpportunities ?? data.totalLost;
+  const wonOpportunities = data.wonOpportunities ?? [];
+  const lostOpportunityRecords = data.lostOpportunities ?? [];
+  const closedOpportunityCount = data.totalWon.count + lostOpportunities.count;
+
+  const WinLossMetricCard = ({ label, value, detail }: { label: string; value: string | number; detail?: string }) => (
+    <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col gap-1">
+      <span className="text-xs text-slate-700 dark:text-slate-700 uppercase tracking-wide">{label}</span>
+      <span className="text-2xl font-bold text-slate-950 dark:text-slate-950">{value}</span>
+      {detail && <span className="text-xs text-slate-700 dark:text-slate-700">{detail}</span>}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <SummaryCard label="Deal Win Rate" value={`${data.winRate.toFixed(1)}%`} />
-        <SummaryCard label="Won Deals" value={`${data.totalWon.count} (${myr.format(data.totalWon.value)})`} />
-        <SummaryCard label="Won Leads" value={data.totalConvertedLeads} />
-        <SummaryCard label="Lost Deals" value={`${data.totalLost.count} (${myr.format(data.totalLost.value)})`} />
-        <SummaryCard label="Lost Leads" value={data.totalLostLeads} />
+        <WinLossMetricCard label="Won Opportunity Value" value={myr.format(data.totalWon.value)} detail={`${data.totalWon.count} Closed Won ${data.totalWon.count === 1 ? 'opportunity' : 'opportunities'}`} />
+        <WinLossMetricCard label="Lost Opportunity Value" value={myr.format(lostOpportunities.value)} detail={`${lostOpportunities.count} Closed Lost ${lostOpportunities.count === 1 ? 'opportunity' : 'opportunities'}`} />
+        <WinLossMetricCard label="Lost Leads" value={data.totalLostLeads} />
+        <WinLossMetricCard label="Opportunity Win Rate" value={`${data.winRate.toFixed(1)}%`} detail={`${data.totalWon.count} Closed Won · ${lostOpportunities.count} Closed Lost`} />
       </div>
 
-      {data.convertedLeads.length > 0 && (
+      {wonOpportunities.length > 0 && (
         <div className="bg-bg-surface border border-border rounded-xl p-5">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <h3 className="text-sm font-semibold text-text-primary">Won Leads</h3>
-            <CsvBtn onClick={handleConvertedLeadsExport} label="Export Won Leads" />
+            <h3 className="text-sm font-semibold text-text-primary">Closed Won Opportunities</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-text-secondary text-xs uppercase">
-                  <th className="text-left pb-2">Lead</th>
-                  <th className="text-left pb-2">Company</th>
+                  <th className="text-left pb-2">Opportunity</th>
                   <th className="text-left pb-2">Account</th>
                   <th className="text-left pb-2">Owner</th>
+                  <th className="text-right pb-2">Value</th>
                   <th className="text-right pb-2">Won Date</th>
                 </tr>
               </thead>
               <tbody>
-                {data.convertedLeads.map(lead => (
-                  <tr key={lead.id} className="border-t border-border">
+                {wonOpportunities.map(opportunity => (
+                  <tr key={opportunity.id} className="border-t border-border">
                     <td className="py-2 pr-3">
-                      <Link to={`/crm/leads/${lead.id}`} className="text-brand-600 hover:underline font-medium">
-                        {lead.title}
+                      <Link to={`/crm/opportunities/${opportunity.id}`} className="text-brand-600 hover:underline font-medium">
+                        {opportunity.name}
                       </Link>
-                      <div className="text-xs text-text-secondary">{lead.id}</div>
+                      <div className="text-xs text-text-secondary">{opportunity.id}</div>
                     </td>
-                    <td className="py-2 pr-3 text-text-primary">{lead.companyName || lead.accountName || 'Not specified'}</td>
-                    <td className="py-2 pr-3 text-text-secondary">{lead.accountName || '—'}</td>
-                    <td className="py-2 pr-3 text-text-secondary">{lead.ownerName || '—'}</td>
-                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(lead.convertedAt).toLocaleDateString('en-MY')}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{opportunity.accountName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{opportunity.ownerName || '—'}</td>
+                    <td className="py-2 text-right text-text-primary whitespace-nowrap">{myr.format(opportunity.value)}</td>
+                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(opportunity.wonAt).toLocaleDateString('en-MY')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1007,6 +1052,7 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
                   <th className="text-left pb-2">Account</th>
                   <th className="text-left pb-2">Owner</th>
                   <th className="text-left pb-2">Reason</th>
+                  <th className="text-right pb-2">Est. Value</th>
                   <th className="text-right pb-2">Lost Date</th>
                 </tr>
               </thead>
@@ -1023,7 +1069,8 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
                     <td className="py-2 pr-3 text-text-secondary">{lead.accountName || '—'}</td>
                     <td className="py-2 pr-3 text-text-secondary">{lead.ownerName || '—'}</td>
                     <td className="py-2 pr-3 text-text-secondary">{lead.lostReason || 'Not specified'}</td>
-                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(lead.updatedAt).toLocaleDateString('en-MY')}</td>
+                    <td className="py-2 text-right text-text-primary whitespace-nowrap">{Number.isFinite(lead.estimatedValue) ? myr.format(lead.estimatedValue) : 'Not captured'}</td>
+                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(lead.lostAt).toLocaleDateString('en-MY')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1032,57 +1079,74 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
         </div>
       )}
 
-      {/* Lead outcomes chart — uses the same lead records shown above. */}
+      {lostOpportunityRecords.length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Closed Lost Opportunities</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-text-secondary text-xs uppercase">
+                  <th className="text-left pb-2">Opportunity</th>
+                  <th className="text-left pb-2">Account</th>
+                  <th className="text-left pb-2">Owner</th>
+                  <th className="text-left pb-2">Reason</th>
+                  <th className="text-right pb-2">Value</th>
+                  <th className="text-right pb-2">Lost Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lostOpportunityRecords.map(opportunity => (
+                  <tr key={opportunity.id} className="border-t border-border">
+                    <td className="py-2 pr-3">
+                      <Link to={`/crm/opportunities/${opportunity.id}`} className="text-brand-600 hover:underline font-medium">
+                        {opportunity.name}
+                      </Link>
+                      <div className="text-xs text-text-secondary">{opportunity.id}</div>
+                    </td>
+                    <td className="py-2 pr-3 text-text-secondary">{opportunity.accountName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{opportunity.ownerName || '—'}</td>
+                    <td className="py-2 pr-3 text-text-secondary">{opportunity.lostReason || 'Not specified'}</td>
+                    <td className="py-2 text-right text-text-primary whitespace-nowrap">{myr.format(opportunity.value)}</td>
+                    <td className="py-2 text-right text-text-secondary whitespace-nowrap">{new Date(opportunity.lostAt).toLocaleDateString('en-MY')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Lead Outcomes</h3>
-          {data.totalConvertedLeads + data.totalLostLeads > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Opportunity Win Rate</h3>
+          {closedOpportunityCount > 0 ? (
+            <ResponsiveContainer width="100%" height={270}>
+              <PieChart margin={{ top: 20, right: 80, bottom: 20, left: 80 }}>
                 <Pie
                   data={[
-                    { name: 'Won Leads', value: data.totalConvertedLeads },
-                    { name: 'Lost Leads', value: data.totalLostLeads },
+                    { name: 'Won', value: data.totalWon.count },
+                    { name: 'Lost', value: lostOpportunities.count },
                   ]}
-                  cx="50%" cy="50%" innerRadius={60} outerRadius={90}
-                  dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  cx="50%" cy="50%" innerRadius={54} outerRadius={80}
+                  dataKey="value" label={OutcomeDonutLabel} labelLine={false}
                 >
                   <Cell fill="#10B981" />
                   <Cell fill="#EF4444" />
                 </Pie>
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                <Legend />
+                <Tooltip
+                  contentStyle={{ ...CHART_TOOLTIP_STYLE, backgroundColor: '#ffffff', color: '#111827' }}
+                  itemStyle={{ color: '#111827' }}
+                  labelStyle={{ color: '#111827' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-text-secondary py-20 text-center">No converted or lost leads in this period.</p>
+            <p className="text-sm text-text-secondary py-20 text-center">No won or lost outcomes in this period.</p>
           )}
-        </div>
-
-        {/* Deal outcomes — never render an empty chart. */}
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Deal Outcomes</h3>
-          {data.totalWon.count + data.totalLost.count > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: 'Won Deals', value: data.totalWon.count },
-                    { name: 'Lost Deals', value: data.totalLost.count },
-                  ]}
-                  cx="50%" cy="50%" innerRadius={60} outerRadius={90}
-                  dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  <Cell fill="#10B981" />
-                  <Cell fill="#EF4444" />
-                </Pie>
-                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-text-secondary py-20 text-center">No won or lost deals in this period.</p>
-          )}
+          <div className="flex justify-center gap-5 text-sm text-text-secondary">
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-emerald-500" />Won</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-red-500" />Lost</span>
+          </div>
         </div>
 
         {/* Lost Reasons BarChart */}
@@ -1412,7 +1476,7 @@ export default function CrmReports() {
 
   return (
     <>
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8 space-y-6">
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="crm-reports-light-mode px-4 sm:px-8 py-4 sm:py-8 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-secondary">
         <Link to="/crm" className="hover:text-text-primary transition-colors">CRM</Link>
@@ -1432,7 +1496,7 @@ export default function CrmReports() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-brand-600 text-white'
-                : 'text-text-secondary hover:text-text-primary bg-bg-subtle border border-border'
+                : 'bg-white dark:bg-white text-slate-700 dark:text-slate-700 border border-border hover:text-slate-950 dark:hover:text-slate-950 hover:border-slate-900 dark:hover:border-slate-900'
             }`}
           >
             {tab.label}
