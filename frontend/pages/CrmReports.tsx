@@ -350,7 +350,7 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
   const handleExport = () => {
     if (!data) return;
     downloadCsv(
-      data.bySource.map(r => ({ Source: r.source, Total: r.total, Converted: r.converted, Lost: r.lost, 'Conv. Rate': r.conversionRate.toFixed(1) + '%' })),
+      data.bySource.map(r => ({ Source: r.source, 'Completed Outcomes': r.total, Converted: r.converted, Lost: r.lost, 'Conv. Rate': r.conversionRate.toFixed(1) + '%' })),
       'lead-conversion-report.csv',
     );
   };
@@ -362,14 +362,14 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
     <div className="space-y-5">
       <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Overall Conversion Rate" value={`${data.overallConversionRate.toFixed(1)}%`} />
+        <SummaryCard label="Conversion Rate (Completed Outcomes)" value={`${data.overallConversionRate.toFixed(1)}%`} />
         <SummaryCard label="Period From" value={data.period.from ? new Date(data.period.from).toLocaleDateString('en-MY') : '—'} />
         <SummaryCard label="Period To" value={data.period.to ? new Date(data.period.to).toLocaleDateString('en-MY') : '—'} />
       </div>
 
-      {/* Bar Chart: Lead Conversion by Source */}
+      {/* Bar Chart: Lead outcomes by source */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">Conversion by Source</h3>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Lead Outcomes by Source</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.bySource} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -377,16 +377,16 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
             <Legend />
-            <Bar dataKey="total" fill="#4F46E5" name="Total" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="total" fill="#4F46E5" name="Completed Outcomes" radius={[4, 4, 0, 0]} />
             <Bar dataKey="converted" fill="#10B981" name="Converted" radius={[4, 4, 0, 0]} />
             <Bar dataKey="lost" fill="#EF4444" name="Lost" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Pie Chart: Lead Status Distribution */}
+      {/* Pie Chart: Lead outcomes by status */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Status</h3>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Completed Outcomes by Status</h3>
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
             <Pie
@@ -418,10 +418,10 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
           <thead>
             <tr className="text-text-secondary text-xs uppercase">
               <th className="text-left pb-2">Source</th>
-              <th className="text-right pb-2">Total</th>
+              <th className="text-right pb-2">Completed</th>
               <th className="text-right pb-2">Converted</th>
               <th className="text-right pb-2">Lost</th>
-              <th className="text-right pb-2">Conv. Rate</th>
+              <th className="text-right pb-2">Conversion Rate</th>
             </tr>
           </thead>
           <tbody>
