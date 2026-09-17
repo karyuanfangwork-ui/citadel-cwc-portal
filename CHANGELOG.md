@@ -1,5 +1,17 @@
 # Change Log
 
+## 2026-09-17
+
+### CRM Reports — Pipeline Forecast stage drill-down
+
+- Made non-zero Pipeline Forecast stage deal counts clickable and added an in-place opportunities modal with the selected stage in its title.
+- Reused the existing paginated, authorization-scoped Opportunities API with the Pipeline Forecast's pipeline and stage filters.
+- Added opportunity name, merchant/company, primary contact, owner, value, and expected-close-date columns; names use the existing Opportunity details route.
+- Added loading, empty, and error states plus Previous/Next pagination, backdrop/X/Close controls, and Escape-to-close support without refreshing the Reports page.
+- Made the dialog surface opaque and high contrast, added keyboard focus management and visible focus indicators, and prevent invalid opportunity values from rendering as currency `NaN`.
+- Aligned the dialog with the established Pipeline Forecast language: navy translucent backdrop, rounded white surface, report-blue actions and links, shared borders, typography, spacing, and interaction states.
+- Ordered stage drill-down rows alphabetically by Merchant / Company across all pagination pages.
+
 ## 2026-09-15
 
 ### CRM Reports — Win/Loss board metrics

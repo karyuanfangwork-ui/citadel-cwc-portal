@@ -220,6 +220,16 @@ function SummaryCard({ label, value, detail }: { label: string; value: string | 
   );
 }
 
+interface PipelineForecastStageOpportunity {
+  id: string; name: string; value: number; expectedCloseDate: string | null;
+  accountName: string; contactName: string | null; ownerName: string;
+}
+
+interface PipelineForecastStageDrilldown {
+  stageId: string;
+  stageName: string;
+}
+
 type OutcomeDonutLabelProps = {
   cx?: number;
   cy?: number;
@@ -527,6 +537,14 @@ function PipelineForecastPanel() {
   const [selectedPipelineId, setSelectedPipelineId] = React.useState<string>('');
   const [data, setData] = React.useState<PipelineForecastReport | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [drilldown, setDrilldown] = React.useState<PipelineForecastStageDrilldown | null>(null);
+  const [drilldownPage, setDrilldownPage] = React.useState(1);
+  const [drilldownItems, setDrilldownItems] = React.useState<PipelineForecastStageOpportunity[]>([]);
+  const [drilldownPagination, setDrilldownPagination] = React.useState({ page: 1, pageSize: 10, total: 0, totalPages: 0 });
+  const [drilldownLoading, setDrilldownLoading] = React.useState(false);
+  const [drilldownError, setDrilldownError] = React.useState<string | null>(null);
+  const drilldownDialogRef = React.useRef<HTMLDivElement>(null);
+  const drilldownTriggerRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     crmService.listPipelines().then(pipes => {
@@ -544,6 +562,48 @@ function PipelineForecastPanel() {
       .then(setData)
       .finally(() => setLoading(false));
   }, [selectedPipelineId]);
+
+  React.useEffect(() => {
+    if (!drilldown || !selectedPipelineId) return;
+    let active = true;
+    setDrilldownLoading(true);
+    setDrilldownError(null);
+    crmService.getPipelineForecastStageOpportunities(selectedPipelineId, drilldown.stageId, drilldownPage, 10)
+      .then(result => {
+        if (!active) return;
+        setDrilldownItems(result.items);
+        setDrilldownPagination(result.pagination);
+      })
+      .catch(() => {
+        if (active) setDrilldownError('Unable to load opportunities. Please try again.');
+      })
+      .finally(() => { if (active) setDrilldownLoading(false); });
+    return () => { active = false; };
+  }, [drilldown, drilldownPage, selectedPipelineId]);
+
+  React.useEffect(() => {
+    if (!drilldown) return;
+    drilldownDialogRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDrilldown(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [drilldown]);
+
+  const openDrilldown = (stageId: string, stageName: string, trigger: HTMLButtonElement) => {
+    drilldownTriggerRef.current = trigger;
+    setDrilldownPage(1);
+    setDrilldownItems([]);
+    setDrilldown({ stageId, stageName });
+  };
+
+  const closeDrilldown = () => {
+    setDrilldown(null);
+    requestAnimationFrame(() => drilldownTriggerRef.current?.focus());
+  };
+
+  const formatOpportunityValue = (value: number) => Number.isFinite(value) ? myr.format(value) : '—';
 
   const handleExport = () => {
     if (!data) return;
@@ -622,7 +682,18 @@ function PipelineForecastPanel() {
                 {data.stages.map(row => (
                   <tr key={row.stageId} className="border-t border-border">
                     <td className="py-2 text-text-primary">{row.stageName}</td>
-                    <td className="py-2 text-right text-text-secondary">{row.dealCount}</td>
+                    <td className="py-2 text-right text-text-secondary">
+                      {row.dealCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={event => openDrilldown(row.stageId, row.stageName, event.currentTarget)}
+                          className="font-medium text-brand-600 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-500 rounded"
+                          aria-label={`View ${row.dealCount} opportunities in ${row.stageName}`}
+                        >
+                          {row.dealCount}
+                        </button>
+                      ) : row.dealCount}
+                    </td>
                     <td className="py-2 text-right">{myr.format(row.totalValue)}</td>
                     <td className="py-2 text-right">{row.probability}%</td>
                     <td className="py-2 text-right font-semibold">{myr.format(row.weightedValue)}</td>
@@ -633,6 +704,58 @@ function PipelineForecastPanel() {
             </div>
           </details>
         </>
+      )}
+      {drilldown && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onMouseDown={closeDrilldown}>
+          <div className="absolute inset-0 bg-[#213145]/40 backdrop-blur-sm" />
+          <div
+            ref={drilldownDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pipeline-stage-opportunities-title"
+            aria-describedby="pipeline-stage-opportunities-summary"
+            tabIndex={-1}
+            className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#e2e8f0]/30 bg-white shadow-2xl outline-none"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#e2e8f0] px-6 py-4">
+              <div>
+                <h2 id="pipeline-stage-opportunities-title" className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>{drilldown.stageName} Opportunities</h2>
+                {!drilldownLoading && !drilldownError && <p id="pipeline-stage-opportunities-summary" className="mt-1 text-[13px] text-[#45464d]">{drilldownPagination.total} opportunit{drilldownPagination.total === 1 ? 'y' : 'ies'}</p>}
+              </div>
+              <button type="button" onClick={closeDrilldown} className="rounded-full p-2 text-[#45464d] transition-colors hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-500" aria-label="Close opportunities dialog">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="min-h-48 overflow-y-auto px-6 py-5 custom-scrollbar">
+              {drilldownLoading ? <Skeleton /> : drilldownError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{drilldownError}</div>
+              ) : drilldownItems.length === 0 ? (
+                <p className="text-sm text-text-secondary">No opportunities are currently available for this stage.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[850px] text-sm text-[#0b1c30]">
+                    <thead><tr className="border-y border-[#e2e8f0] bg-[#f8f9ff] text-left text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">
+                      <th className="pb-2 pr-4">Opportunity Name</th><th className="pb-2 pr-4">Merchant / Company</th><th className="pb-2 pr-4">Primary Contact</th><th className="pb-2 pr-4">Owner / Salesperson</th><th className="pb-2 pr-4 text-right">Opportunity Value</th><th className="pb-2 text-right">Expected Close Date</th>
+                    </tr></thead>
+                    <tbody>{drilldownItems.map(opportunity => <tr key={opportunity.id} className="border-b border-[#e2e8f0] last:border-b-0">
+                      <td className="py-3 pr-4"><Link to={`/crm/opportunities/${opportunity.id}`} className="font-medium text-brand-600 underline decoration-1 underline-offset-2 transition-colors hover:text-brand-700 hover:decoration-2 focus:outline-none focus:ring-2 focus:ring-brand-500" onClick={closeDrilldown}>{opportunity.name}</Link></td>
+                      <td className="py-3 pr-4 text-[#45464d]">{opportunity.accountName || '—'}</td><td className="py-3 pr-4 text-[#45464d]">{opportunity.contactName || '—'}</td><td className="py-3 pr-4 text-[#45464d]">{opportunity.ownerName || '—'}</td><td className="py-3 pr-4 text-right font-medium whitespace-nowrap">{formatOpportunityValue(opportunity.value)}</td><td className="py-3 text-right whitespace-nowrap text-[#45464d]">{opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toLocaleDateString('en-MY') : '—'}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e2e8f0] px-6 py-4">
+              <span className="text-[13px] text-[#45464d]">Page {drilldownPagination.page} of {drilldownPagination.totalPages || 1}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={drilldownLoading || drilldownPagination.page <= 1} onClick={() => setDrilldownPage(page => page - 1)} className="rounded-lg border border-[#c6c6cd] px-3 py-1.5 text-sm font-medium text-[#45464d] transition-colors hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+                <button type="button" disabled={drilldownLoading || drilldownPagination.page >= drilldownPagination.totalPages} onClick={() => setDrilldownPage(page => page + 1)} className="rounded-lg border border-[#c6c6cd] px-3 py-1.5 text-sm font-medium text-[#45464d] transition-colors hover:bg-brand-50 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+                <button type="button" onClick={closeDrilldown} className="ml-2 rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

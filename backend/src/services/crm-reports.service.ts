@@ -291,7 +291,7 @@ export async function getPipelineForecastReport(
   pipelineId: string,
   visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<PipelineForecastReport> {
-  const scopedOpportunityWhere = { deletedAt: null, ...ownerScope(visibleOwnerIds) };
+  const scopedOpportunityWhere = { pipelineId, deletedAt: null, ...ownerScope(visibleOwnerIds) };
   const stages = await prisma.crmPipelineStage.findMany({
     where: { pipelineId },
     orderBy: { displayOrder: 'asc' },
