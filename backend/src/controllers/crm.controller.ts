@@ -753,6 +753,7 @@ class CrmController {
     const search = req.query.search as string | undefined;
     const pipelineId = req.query.pipelineId as string | undefined;
     const stageId = req.query.stageId as string | undefined;
+    const sortBy = req.query.sortBy as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
     const accountId = req.query.accountId as string | undefined;
     const overdue = req.query.overdue === 'true';
@@ -778,7 +779,11 @@ class CrmController {
     const [opportunities, total] = await Promise.all([
       prisma.crmOpportunity.findMany({
         where, skip, take: limit,
-        orderBy: { updatedAt: 'desc' },
+        // Pipeline Forecast drill-down requests an account-name ordering. Keep
+        // it in the database so each paginated result is globally alphabetical.
+        orderBy: sortBy === 'merchant'
+          ? [{ account: { name: 'asc' } }, { id: 'asc' }]
+          : { updatedAt: 'desc' },
         include: {
           account: { select: { id: true, name: true } },
           contact: { select: { id: true, firstName: true, lastName: true } },
@@ -788,7 +793,13 @@ class CrmController {
       }),
       prisma.crmOpportunity.count({ where }),
     ]);
-    res.json({ status: 'success', data: { opportunities, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+    // Prisma Decimal values must be normalized for API consumers. Returning a
+    // number keeps CRM tables and reports from rendering an invalid currency.
+    const serializedOpportunities = opportunities.map((opportunity) => ({
+      ...opportunity,
+      value: Number(opportunity.value),
+    }));
+    res.json({ status: 'success', data: { opportunities: serializedOpportunities, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   getOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {

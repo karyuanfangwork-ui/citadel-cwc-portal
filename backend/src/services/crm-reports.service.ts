@@ -108,55 +108,47 @@ export async function getLeadConversionReport(
   visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<LeadConversionReport> {
   const ownerFilter = scopedOwnerFilter(ownerId, visibleOwnerIds);
-  const dateFilter = {
-    createdAt: { gte: from, lte: to },
-  };
 
-  // Leads grouped by source
-  const leadsBySource = await prisma.crmLead.groupBy({
-    by: ['source'],
-    _count: true,
-    where: {
-      ...ownerFilter,
-      ...dateFilter,
-      deletedAt: null,
-    },
-  });
-
-  // Converted leads by source
+  // Lead conversion is an event. Scope it by when the lead was converted, not
+  // when it was created. A conversion is deliberately distinct from an
+  // opportunity win.
   const convertedBySource = await prisma.crmLead.groupBy({
     by: ['source'],
     _count: true,
     where: {
       ...ownerFilter,
-      ...dateFilter,
       status: 'CONVERTED',
+      convertedAt: { not: null, gte: from, lte: to },
       deletedAt: null,
     },
   });
 
-  // Lost leads by source
+  // The report's denominator is completed lead outcomes during the same
+  // period, so conversion rates do not mix conversion events with a creation
+  // cohort. Lost leads are also event-scoped for that reason.
   const lostBySource = await prisma.crmLead.groupBy({
     by: ['source'],
     _count: true,
     where: {
       ...ownerFilter,
-      ...dateFilter,
       status: 'LOST',
+      lostAt: { not: null, gte: from, lte: to },
       deletedAt: null,
     },
   });
 
-  // Build source map
+  // Build the completed-outcome source map. Use the union so a source with
+  // only conversions (or only losses) remains visible.
   const convertedMap = new Map(convertedBySource.map((r) => [r.source, r._count]));
   const lostMap = new Map(lostBySource.map((r) => [r.source, r._count]));
+  const sources = new Set([...convertedMap.keys(), ...lostMap.keys()]);
 
-  const bySource = leadsBySource.map((row) => {
-    const total = row._count;
-    const converted = convertedMap.get(row.source) || 0;
-    const lost = lostMap.get(row.source) || 0;
+  const bySource = Array.from(sources).map((source) => {
+    const converted = convertedMap.get(source) || 0;
+    const lost = lostMap.get(source) || 0;
+    const total = converted + lost;
     return {
-      source: row.source,
+      source,
       total,
       converted,
       lost,
@@ -164,21 +156,12 @@ export async function getLeadConversionReport(
     };
   });
 
-  // Leads grouped by status
-  const leadsByStatus = await prisma.crmLead.groupBy({
-    by: ['status'],
-    _count: true,
-    where: {
-      ...ownerFilter,
-      ...dateFilter,
-      deletedAt: null,
-    },
-  });
-
-  const byStatus = leadsByStatus.map((row) => ({
-    status: row.status,
-    count: row._count,
-  }));
+  const convertedEventCount = convertedBySource.reduce((sum, row) => sum + row._count, 0);
+  const lostEventCount = lostBySource.reduce((sum, row) => sum + row._count, 0);
+  const byStatus = [
+    ...(convertedEventCount > 0 ? [{ status: 'CONVERTED', count: convertedEventCount }] : []),
+    ...(lostEventCount > 0 ? [{ status: 'LOST', count: lostEventCount }] : []),
+  ];
 
   // Overall conversion rate
   const totalLeads = bySource.reduce((sum, r) => sum + r.total, 0);
@@ -204,28 +187,47 @@ export async function getSalesPerformanceReport(
 ): Promise<SalesPerformanceReport> {
   const baseFilter: Record<string, unknown> = {
     deletedAt: null,
-    createdAt: { gte: from, lte: to },
     ...ownerScope(visibleOwnerIds),
   };
   if (pipelineId) {
     baseFilter.pipelineId = pipelineId;
   }
 
-  // All opportunities in period
-  const opportunities = await prisma.crmOpportunity.findMany({
-    where: baseFilter,
-    select: {
-      id: true,
-      value: true,
-      ownerId: true,
-      wonAt: true,
-      lostAt: true,
-      stage: { select: { isWonStage: true, isLostStage: true } },
-      owner: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+  const opportunitySelect = {
+    id: true,
+    value: true,
+    ownerId: true,
+    owner: { select: { id: true, firstName: true, lastName: true } },
+  };
 
-  // Group by owner
+  // Creation and outcome metrics deliberately use independent populations.
+  // A terminal stage alone is not enough: the lifecycle records the outcome
+  // event in wonAt/lostAt when the opportunity is moved into that stage.
+  const [createdOpportunities, wonOpportunities, lostOpportunities] = await Promise.all([
+    prisma.crmOpportunity.findMany({
+      where: { ...baseFilter, createdAt: { gte: from, lte: to } },
+      select: opportunitySelect,
+    }),
+    prisma.crmOpportunity.findMany({
+      where: {
+        ...baseFilter,
+        stage: { isWonStage: true },
+        wonAt: { not: null, gte: from, lte: to },
+      },
+      select: opportunitySelect,
+    }),
+    prisma.crmOpportunity.findMany({
+      where: {
+        ...baseFilter,
+        stage: { isLostStage: true },
+        lostAt: { not: null, gte: from, lte: to },
+      },
+      select: opportunitySelect,
+    }),
+  ]);
+
+  // Merge the three scoped populations by the opportunity's owner. This also
+  // retains owners who have outcomes in the period but no newly-created deal.
   const ownerMap = new Map<
     string,
     {
@@ -239,30 +241,36 @@ export async function getSalesPerformanceReport(
     }
   >();
 
-  for (const opp of opportunities) {
+  const ownerEntry = (opp: (typeof createdOpportunities)[number]) => {
     const ownerId = opp.ownerId;
-    const ownerName = `${opp.owner.firstName} ${opp.owner.lastName}`;
-    if (!ownerMap.has(ownerId)) {
-      ownerMap.set(ownerId, {
+    let entry = ownerMap.get(ownerId);
+    if (!entry) {
+      entry = {
         ownerId,
-        ownerName,
+        ownerName: `${opp.owner.firstName} ${opp.owner.lastName}`,
         totalDeals: 0,
         wonDeals: 0,
         lostDeals: 0,
         totalWonValue: 0,
         totalLostValue: 0,
-      });
+      };
+      ownerMap.set(ownerId, entry);
     }
-    const entry = ownerMap.get(ownerId)!;
-    entry.totalDeals++;
+    return entry;
+  };
 
-    if (opp.stage.isWonStage) {
-      entry.wonDeals++;
-      entry.totalWonValue += Number(opp.value);
-    } else if (opp.stage.isLostStage) {
-      entry.lostDeals++;
-      entry.totalLostValue += Number(opp.value);
-    }
+  for (const opp of createdOpportunities) {
+    ownerEntry(opp).totalDeals++;
+  }
+  for (const opp of wonOpportunities) {
+    const entry = ownerEntry(opp);
+    entry.wonDeals++;
+    entry.totalWonValue += Number(opp.value);
+  }
+  for (const opp of lostOpportunities) {
+    const entry = ownerEntry(opp);
+    entry.lostDeals++;
+    entry.totalLostValue += Number(opp.value);
   }
 
   const byOwner = Array.from(ownerMap.values()).map((entry) => ({
@@ -291,7 +299,7 @@ export async function getPipelineForecastReport(
   pipelineId: string,
   visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<PipelineForecastReport> {
-  const scopedOpportunityWhere = { deletedAt: null, ...ownerScope(visibleOwnerIds) };
+  const scopedOpportunityWhere = { pipelineId, deletedAt: null, ...ownerScope(visibleOwnerIds) };
   const stages = await prisma.crmPipelineStage.findMany({
     where: { pipelineId },
     orderBy: { displayOrder: 'asc' },
@@ -573,19 +581,31 @@ export interface WinLossReport {
     totalValue: number;
   }>;
   totalWon: { count: number; value: number };
-  /** Converted CRM leads are tracked separately from won opportunities/deals. */
-  totalConvertedLeads: number;
-  convertedLeads: Array<{
+  wonOpportunities: Array<{
     id: string;
-    title: string;
-    companyName: string | null;
+    name: string;
     accountName: string | null;
     ownerName: string;
-    convertedAt: Date;
+    value: number;
+    wonAt: Date;
   }>;
+  /** Combined loss count: closed-lost opportunities plus lost leads. Value is opportunity value only. */
   totalLost: { count: number; value: number };
-  /** Lost CRM leads are tracked separately from lost opportunities/deals. */
+  totalLostOpportunities: { count: number; value: number };
+  lostOpportunities: Array<{
+    id: string;
+    name: string;
+    accountName: string | null;
+    ownerName: string;
+    value: number;
+    lostReason: string | null;
+    lostAt: Date;
+  }>;
   totalLostLeads: number;
+  /** Sum of estimated values for leads lost before conversion. */
+  totalLostLeadEstimatedValue: number;
+  /** Number of lost leads with an estimated value captured. */
+  lostLeadEstimatedValueCount: number;
   lostLeads: Array<{
     id: string;
     title: string;
@@ -593,7 +613,8 @@ export interface WinLossReport {
     accountName: string | null;
     ownerName: string;
     lostReason: string | null;
-    updatedAt: Date;
+    estimatedValue: number | null;
+    lostAt: Date;
   }>;
   winRate: number;
   period: { from: Date; to: Date };
@@ -607,85 +628,100 @@ export async function getWinLossReport(
 ): Promise<WinLossReport> {
   const ownerFilter = scopedOwnerFilter(ownerId, visibleOwnerIds);
 
-  // Won deals
+  // A win is an opportunity that is currently in a configured closed-won stage.
   const wonDeals = await prisma.crmOpportunity.findMany({
     where: {
       ...ownerFilter,
+      stage: { isWonStage: true },
       wonAt: { not: null, gte: from, lte: to },
       deletedAt: null,
     },
-    select: { id: true, value: true },
+    orderBy: { wonAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      value: true,
+      wonAt: true,
+      account: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+    },
   });
 
-  // Lost deals grouped by reason
+  // An opportunity loss must likewise still be in a configured closed-lost stage.
   const lostDeals = await prisma.crmOpportunity.findMany({
     where: {
       ...ownerFilter,
+      stage: { isLostStage: true },
       lostAt: { not: null, gte: from, lte: to },
       deletedAt: null,
     },
-    select: { id: true, value: true, lostReason: true },
+    orderBy: { lostAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      value: true,
+      lostReason: true,
+      lostAt: true,
+      account: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+    },
   });
 
-  // Leads have their own lifecycle and do not create an opportunity when lost.
-  // Use updatedAt as the status-transition timestamp because CrmLead has no
-  // dedicated lostAt column; the lead status update is the authoritative event.
+  // A lead lost before conversion is also a loss, but it is not an opportunity loss.
   const lostLeads = await prisma.crmLead.findMany({
     where: {
       ...ownerFilter,
       status: 'LOST',
-      updatedAt: { gte: from, lte: to },
+      lostAt: { not: null, gte: from, lte: to },
       deletedAt: null,
     },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { lostAt: 'desc' },
     select: {
       id: true,
       title: true,
       companyName: true,
+      estimatedValue: true,
       lostReason: true,
-      updatedAt: true,
+      lostAt: true,
       account: { select: { name: true } },
       owner: { select: { firstName: true, lastName: true } },
     },
   });
 
-  const lostLeadDetails = lostLeads.map((lead) => ({
-    id: lead.id,
-    title: lead.title,
-    companyName: lead.companyName,
-    accountName: lead.account?.name ?? null,
-    ownerName: `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
-    lostReason: lead.lostReason,
-    updatedAt: lead.updatedAt,
-  }));
-
-  const convertedLeads = await prisma.crmLead.findMany({
-    where: {
-      ...ownerFilter,
-      status: 'CONVERTED',
-      convertedAt: { not: null, gte: from, lte: to },
-      deletedAt: null,
-    },
-    orderBy: { convertedAt: 'desc' },
-    select: {
-      id: true,
-      title: true,
-      companyName: true,
-      convertedAt: true,
-      account: { select: { name: true } },
-      owner: { select: { firstName: true, lastName: true } },
-    },
-  });
-
-  const convertedLeadDetails = convertedLeads
-    .filter((lead): lead is typeof lead & { convertedAt: Date } => lead.convertedAt !== null)
+  const lostLeadDetails = lostLeads
+    .filter((lead): lead is typeof lead & { lostAt: Date } => lead.lostAt !== null)
     .map((lead) => ({
       id: lead.id,
       title: lead.title,
       companyName: lead.companyName,
       accountName: lead.account?.name ?? null,
       ownerName: `${lead.owner.firstName} ${lead.owner.lastName}`.trim(),
-      convertedAt: lead.convertedAt,
+      lostReason: lead.lostReason,
+      estimatedValue: lead.estimatedValue === null ? null : Number(lead.estimatedValue),
+      lostAt: lead.lostAt,
+    }));
+
+  const wonOpportunityDetails = wonDeals
+    .filter((deal): deal is typeof deal & { wonAt: Date } => deal.wonAt !== null)
+    .map((deal) => ({
+      id: deal.id,
+      name: deal.name,
+      accountName: deal.account?.name ?? null,
+      ownerName: `${deal.owner.firstName} ${deal.owner.lastName}`.trim(),
+      value: Number(deal.value || 0),
+      wonAt: deal.wonAt,
+    }));
+
+  const lostOpportunityDetails = lostDeals
+    .filter((deal): deal is typeof deal & { lostAt: Date } => deal.lostAt !== null)
+    .map((deal) => ({
+      id: deal.id,
+      name: deal.name,
+      accountName: deal.account?.name ?? null,
+      ownerName: `${deal.owner.firstName} ${deal.owner.lastName}`.trim(),
+      value: Number(deal.value || 0),
+      lostReason: deal.lostReason,
+      lostAt: deal.lostAt,
     }));
 
   // Aggregate by loss reason
@@ -697,6 +733,12 @@ export async function getWinLossReport(
     entry.totalValue += Number(deal.value || 0);
     reasonMap.set(reason, entry);
   }
+  for (const lead of lostLeadDetails) {
+    const reason = lead.lostReason || 'Not specified';
+    const entry = reasonMap.get(reason) || { count: 0, totalValue: 0 };
+    entry.count++;
+    reasonMap.set(reason, entry);
+  }
 
   const byReason = Array.from(reasonMap.entries()).map(([lostReason, data]) => ({
     lostReason,
@@ -705,16 +747,22 @@ export async function getWinLossReport(
 
   const totalWonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
   const totalLostValue = lostDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-  const totalDeals = wonDeals.length + lostDeals.length;
-  const winRate = totalDeals > 0 ? Math.round((wonDeals.length / totalDeals) * 100) : 0;
+  const totalLostLeadEstimatedValue = lostLeadDetails.reduce((sum, lead) => sum + (lead.estimatedValue || 0), 0);
+  const lostLeadEstimatedValueCount = lostLeadDetails.filter((lead) => lead.estimatedValue !== null).length;
+  // Opportunity win rate excludes leads; a conversion by itself is not a win.
+  const totalOpportunities = wonDeals.length + lostDeals.length;
+  const winRate = totalOpportunities > 0 ? Math.round((wonDeals.length / totalOpportunities) * 100) : 0;
 
   return {
     byReason,
     totalWon: { count: wonDeals.length, value: totalWonValue },
-    totalConvertedLeads: convertedLeadDetails.length,
-    convertedLeads: convertedLeadDetails,
-    totalLost: { count: lostDeals.length, value: totalLostValue },
+    wonOpportunities: wonOpportunityDetails,
+    totalLost: { count: lostDeals.length + lostLeadDetails.length, value: totalLostValue },
+    totalLostOpportunities: { count: lostDeals.length, value: totalLostValue },
+    lostOpportunities: lostOpportunityDetails,
     totalLostLeads: lostLeadDetails.length,
+    totalLostLeadEstimatedValue,
+    lostLeadEstimatedValueCount,
     lostLeads: lostLeadDetails,
     winRate,
     period: { from, to },

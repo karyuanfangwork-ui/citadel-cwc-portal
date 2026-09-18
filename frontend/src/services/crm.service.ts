@@ -713,6 +713,32 @@ const crmService = {
     const res = await api.get('/crm/reports/pipeline-forecast', { params: { pipelineId } });
     return res.data.data;
   },
+  async getPipelineForecastStageOpportunities(pipelineId: string, stageId: string, page = 1, pageSize = 10) {
+    const res = await api.get('/crm/opportunities', {
+      params: { pipelineId, stageId, page, limit: pageSize, sortBy: 'merchant' },
+    });
+    const { opportunities, pagination } = res.data.data as { opportunities: CrmOpportunity[]; pagination: Pagination };
+    const items = opportunities.map((opportunity) => ({
+        id: opportunity.id,
+        name: opportunity.name,
+        value: Number.isFinite(Number(opportunity.value)) ? Number(opportunity.value) : Number.NaN,
+        expectedCloseDate: opportunity.expectedCloseDate,
+        accountName: opportunity.account?.name || '',
+        contactName: opportunity.contact
+          ? [opportunity.contact.firstName, opportunity.contact.lastName].filter(Boolean).join(' ') || null
+          : null,
+        ownerName: opportunity.owner
+          ? [opportunity.owner.firstName, opportunity.owner.lastName].filter(Boolean).join(' ') || opportunity.owner.email
+          : '',
+      }))
+      // Keep the visible page ordered for clients still connected to an older
+      // API process while the server remains the source of global pagination.
+      .sort((left, right) => left.accountName.localeCompare(right.accountName, 'en', { sensitivity: 'base' }) || left.id.localeCompare(right.id));
+    return {
+      items,
+      pagination: { page: pagination.page, pageSize: pagination.limit, total: pagination.total, totalPages: pagination.totalPages },
+    };
+  },
   async getActivitySummaryReport(params?: Record<string, string>) {
     const res = await api.get('/crm/reports/activity-summary', { params });
     return res.data.data;

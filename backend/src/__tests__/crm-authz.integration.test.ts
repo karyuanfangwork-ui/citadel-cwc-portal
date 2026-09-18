@@ -543,6 +543,23 @@ describe('CRM report authorization', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.totalPipelineValue).toBe(2000);
   });
+
+  it('returns the same visible count when opportunities are filtered by pipeline and forecast stage', async () => {
+    const forecast = await request(app)
+      .get(`/api/v1/crm/reports/pipeline-forecast?pipelineId=${pipelineId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+    const stage = forecast.body.data.stages.find((row: { dealCount: number }) => row.dealCount > 0);
+    const opportunities = await request(app)
+      .get(`/api/v1/crm/opportunities?pipelineId=${pipelineId}&stageId=${stage.stageId}&page=1&limit=10&sortBy=merchant`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(opportunities.status).toBe(200);
+    expect(opportunities.body.data.pagination.total).toBe(stage.dealCount);
+    expect(opportunities.body.data.opportunities).toHaveLength(stage.dealCount);
+    expect(opportunities.body.data.opportunities[0].name).toContain('Visible Opportunity');
+    expect(opportunities.body.data.opportunities[0].value).toBe(2000);
+  });
+
 });
 
 describe('CRM parent entity authorization', () => {
