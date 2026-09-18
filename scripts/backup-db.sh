@@ -4,6 +4,8 @@ set -euo pipefail
 # Configuration
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 DB_CONTAINER="${DB_CONTAINER:-$(docker compose -f docker-compose.prod.yml ps -q postgres)}"
+DB_USER="${DB_USER:-cwc_admin}"
+DB_NAME="${DB_NAME:-help_center}"
 S3_BUCKET="${S3_BUCKET:-}"
 S3_ENDPOINT="${S3_ENDPOINT:-}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
@@ -16,7 +18,7 @@ mkdir -p "$BACKUP_DIR"
 echo "[$(date)] Starting database backup..."
 
 # Dump and compress
-docker exec "$DB_CONTAINER" pg_dump -U postgres help_center | gzip > "$BACKUP_FILE"
+docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" | gzip > "$BACKUP_FILE"
 
 # Verify backup is not empty
 if [ ! -s "$BACKUP_FILE" ]; then
