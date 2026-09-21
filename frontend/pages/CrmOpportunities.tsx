@@ -13,6 +13,8 @@ import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 
+const normalizeLogicalStageName = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
 const CrmOpportunities = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -36,6 +38,41 @@ const CrmOpportunities = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  const stageFilterOptions = useMemo(() => {
+    if (pipelineFilter) {
+      return (pipelines.find(pipeline => pipeline.id === pipelineFilter)?.stages ?? []).map(stage => ({
+        value: stage.id,
+        label: stage.name,
+      }));
+    }
+
+    const logicalStages = new Map<string, { value: string; label: string }>();
+    pipelines.forEach(pipeline => pipeline.stages?.forEach(stage => {
+      const logicalName = normalizeLogicalStageName(stage.name);
+      if (logicalName && !logicalStages.has(logicalName)) {
+        logicalStages.set(logicalName, { value: logicalName, label: stage.name.trim() });
+      }
+    }));
+    return [...logicalStages.values()];
+  }, [pipelines, pipelineFilter]);
+
+  const handlePipelineFilterChange = useCallback((nextPipelineId: string) => {
+    const selectedLogicalStage = !stageFilter
+      ? ''
+      : pipelineFilter
+        ? normalizeLogicalStageName(
+          pipelines.find(pipeline => pipeline.id === pipelineFilter)?.stages?.find(stage => stage.id === stageFilter)?.name ?? '',
+        )
+        : stageFilter;
+    const nextStages = nextPipelineId
+      ? pipelines.find(pipeline => pipeline.id === nextPipelineId)?.stages ?? []
+      : pipelines.flatMap(pipeline => pipeline.stages ?? []);
+    const matchingStage = nextStages.find(stage => normalizeLogicalStageName(stage.name) === selectedLogicalStage);
+
+    setPipelineFilter(nextPipelineId);
+    setStageFilter(matchingStage ? (nextPipelineId ? matchingStage.id : selectedLogicalStage) : '');
+  }, [pipelines, pipelineFilter, stageFilter]);
 
   // ── Sort state (3-cycle: asc → desc → none) ─────────────────
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -193,7 +230,16 @@ const CrmOpportunities = () => {
   const fetchOpportunities = useCallback(async (page = 1) => {
     try { setLoading(true);
       const overdue = filterParam === 'overdue';
-      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: (overdue ? '' : pipelineFilter) || undefined, stageId: (overdue ? '' : stageFilter) || undefined, overdue: overdue || undefined, ownerId: ownerIdParam || undefined });
+      const data = await crmService.listOpportunities({
+        page,
+        limit: 20,
+        search: search || undefined,
+        pipelineId: (overdue ? '' : pipelineFilter) || undefined,
+        stageId: (overdue || !pipelineFilter ? '' : stageFilter) || undefined,
+        stageName: (overdue || pipelineFilter ? '' : stageFilter) || undefined,
+        overdue: overdue || undefined,
+        ownerId: ownerIdParam || undefined,
+      });
       setOpportunities(data.opportunities); setPagination(data.pagination);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, [search, pipelineFilter, stageFilter, filterParam, ownerIdParam, ownerFilter]);
@@ -360,7 +406,7 @@ const CrmOpportunities = () => {
                 className="w-full bg-[#f8f9ff] border border-[#c6c6cd] rounded-lg pl-10 pr-4 py-2 text-[13px] outline-none focus:border-[#006a61] focus:ring-0" />
             </div>
             {pipelines.length > 1 && (
-              <select value={pipelineFilter} onChange={e => { setPipelineFilter(e.target.value); setStageFilter(''); }}
+              <select value={pipelineFilter} onChange={e => handlePipelineFilterChange(e.target.value)}
                 className="px-3 py-2 border border-[#c6c6cd] rounded-lg text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] outline-none cursor-pointer transition-all focus:border-[#006a61]" style={{ fontFamily: 'Inter, sans-serif' }}>
                 <option value="">All Pipelines</option>
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -369,10 +415,8 @@ const CrmOpportunities = () => {
             <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
               className="px-3 py-2 border border-[#c6c6cd] rounded-lg text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] outline-none cursor-pointer transition-all focus:border-[#006a61]" style={{ fontFamily: 'Inter, sans-serif' }}>
               <option value="">All Stages</option>
-              {(pipelineFilter ? pipelines.filter(p => p.id === pipelineFilter) : pipelines).flatMap(p =>
-                (p.stages || []).map(s => ({ id: s.id, name: s.name, pipelineName: p.name }))
-              ).map(s => (
-                <option key={s.id} value={s.id}>{pipelines.length > 1 && !pipelineFilter ? s.pipelineName + ' \u2013 ' + s.name : s.name}</option>
+              {stageFilterOptions.map(stage => (
+                <option key={stage.value} value={stage.value}>{stage.label}</option>
               ))}
             </select>
             <select value={ownerFilter} onChange={e => setOwnerFilter(e.target.value)}

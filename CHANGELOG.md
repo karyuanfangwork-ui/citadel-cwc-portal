@@ -2,6 +2,12 @@
 
 ## 2026-09-21
 
+### CRM Opportunities — scalable Stage filter
+
+- Changed the Opportunities Stage filter to show one normalized logical stage name across All Pipelines, while retaining ID-based, pipeline-specific stage selection when a Pipeline is chosen.
+- Added server-side `stageName` filtering that resolves matching stages from the authenticated tenant's active pipelines before opportunity pagination; search, pipeline, overdue, authorization, tenant scope, soft-delete, and result-count behavior are preserved.
+- Pipeline changes now preserve a selected logical stage only when it exists in the newly selected scope, preventing stale stage IDs.
+
 ### CRM Clients — alphabetical ordering
 
 - Changed the unified CRM Clients list to order the complete scoped Accounts and Contacts result set by displayed client name, case-insensitively, before applying pagination.

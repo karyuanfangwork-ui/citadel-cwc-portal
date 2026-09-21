@@ -35,6 +35,9 @@ import prisma from '../utils/prisma';
 
 const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true, jobTitle: true, department: true };
 
+/** Logical CRM stages are user-configurable names, so compare them consistently across pipelines. */
+const normalizeLogicalStageName = (name: string) => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
 /** Parse CRM report dates as inclusive calendar dates when supplied as YYYY-MM-DD. */
 function parseReportDate(value: string | undefined, fallback: Date, endOfDay = false): Date {
   if (!value) return fallback;
@@ -753,6 +756,7 @@ class CrmController {
     const search = req.query.search as string | undefined;
     const pipelineId = req.query.pipelineId as string | undefined;
     const stageId = req.query.stageId as string | undefined;
+    const stageName = req.query.stageName as string | undefined;
     const sortBy = req.query.sortBy as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
     const accountId = req.query.accountId as string | undefined;
@@ -764,6 +768,23 @@ class CrmController {
     if (visibleOwnerIds === null && ownerId) where.ownerId = ownerId; // admin may filter to one owner
     if (pipelineId) where.pipelineId = pipelineId;
     if (stageId) where.stageId = stageId;
+    if (!stageId && stageName?.trim()) {
+      const logicalStageName = normalizeLogicalStageName(stageName);
+      // Query tenant-scoped active pipelines first, then use their matching
+      // stage IDs in the opportunity query. This keeps logical-stage filtering
+      // in the database and before pagination without treating one stage ID as
+      // universal across pipelines.
+      const activePipelines = await prisma.crmPipeline.findMany({
+        where: { isActive: true },
+        select: { stages: { select: { id: true, name: true } } },
+      });
+      where.stageId = {
+        in: activePipelines
+          .flatMap(pipeline => pipeline.stages)
+          .filter(stage => normalizeLogicalStageName(stage.name) === logicalStageName)
+          .map(stage => stage.id),
+      };
+    }
     if (accountId) where.accountId = accountId;
     if (overdue) {
       where.expectedCloseDate = { lt: new Date() };
