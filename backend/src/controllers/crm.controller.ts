@@ -2350,15 +2350,18 @@ class CrmController {
     res.json({ status: 'success', data: changes });
   });
 
-  // ======== CUSTOMERS (Unified Accounts + Contacts) ========
+  // ======== CUSTOMERS (Account-based, with canonical contacts) ========
   listCustomers = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string | undefined;
     const tab = (req.query.tab as string) || 'all'; // all | mine | active | follow-up | open-opp
     const ownerId = req.query.ownerId as string | undefined;
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const now = new Date();
 
-    // Build account where clause
+    // One client result is one account. Contacts are included only through their
+    // canonical accountId relationship; secondary account-role affiliations are
+    // deliberately excluded here to avoid duplicate client cards.
     const accountWhere: any = { deletedAt: null };
     Object.assign(accountWhere, applyOwnerScope({}, visibleOwnerIds));
     if (visibleOwnerIds === null && ownerId) accountWhere.ownerId = ownerId;
@@ -2367,55 +2370,61 @@ class CrmController {
         { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { industry: { contains: search, mode: 'insensitive' } },
+        {
+          contacts: {
+            some: {
+              deletedAt: null,
+              isActive: true,
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ];
     }
     if (tab === 'mine') accountWhere.ownerId = req.user!.id;
     if (tab === 'active') accountWhere.isActive = true;
 
-    // Build contact where clause
-    const contactWhere: any = { deletedAt: null, isActive: true };
-    if (visibleOwnerIds !== null) {
-      contactWhere.account = { ownerId: { in: visibleOwnerIds } };
+    if (tab === 'follow-up') {
+      accountWhere.contacts = {
+        some: { deletedAt: null, isActive: true, followUpDate: { lt: now } },
+      };
     }
-    if (search) {
-      contactWhere.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { account: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
-    if (tab === 'mine') {
-      contactWhere.account = { ...(contactWhere.account || {}), ownerId: req.user!.id };
+    if (tab === 'open-opp') {
+      accountWhere.opportunities = {
+        some: { stage: { isWonStage: false, isLostStage: false } },
+      };
     }
 
-    // Fetch both in parallel
-    const [accounts, contacts] = await Promise.all([
+    const [accounts, total] = await Promise.all([
       prisma.crmAccount.findMany({
         where: accountWhere,
+        skip,
+        take: limit,
         include: {
           owner: { select: userSelect },
-          _count: { select: { contacts: true, opportunities: true } },
+          contacts: {
+            where: { deletedAt: null, isActive: true },
+            orderBy: [{ isPrimary: 'desc' }, { firstName: 'asc' }, { lastName: 'asc' }],
+          },
+          _count: {
+            select: {
+              contacts: { where: { deletedAt: null, isActive: true } },
+              opportunities: true,
+            },
+          },
           opportunities: {
             where: { stage: { isWonStage: false, isLostStage: false } },
             select: { value: true },
           },
           activities: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
       }),
-      prisma.crmContact.findMany({
-        where: contactWhere,
-        include: {
-          account: { select: { id: true, name: true, industry: true, ownerId: true, owner: { select: userSelect } } },
-          opportunities: {
-            where: { stage: { isWonStage: false, isLostStage: false } },
-            select: { value: true },
-          },
-          activities: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-        orderBy: { updatedAt: 'desc' },
-      }),
+      prisma.crmAccount.count({ where: accountWhere }),
     ]);
 
     // Derive segment from companySize or annualRevenue
@@ -2428,7 +2437,6 @@ class CrmController {
     };
 
     // Derive next follow-up from contact followUpDate or account's latest scheduled activity
-    const now = new Date();
     const formatFollowUp = (dateStr: string | null | undefined): { label: string; overdue: boolean } => {
       if (!dateStr) return { label: '—', overdue: false };
       const d = new Date(dateStr);
@@ -2440,12 +2448,17 @@ class CrmController {
       return { label: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), overdue: false };
     };
 
-    // Build unified customer rows
+    // Build one row per account with its active canonical contacts embedded.
     type CustomerRow = {
-      id: string; type: 'account' | 'contact';
+      id: string;
       name: string; segment: 'RETAIL' | 'SME' | 'CORPORATE';
       segmentLabel: string; // Premium / Mid-Market / Enterprise
       contactInfo: { phone: string | null; email: string | null };
+      contacts: Array<{
+        id: string; firstName: string; lastName: string; email: string | null;
+        phone: string | null; mobile: string | null; jobTitle: string | null;
+        isPrimary: boolean; followUpDate: string | null;
+      }>;
       relationshipMgr: { id: string; firstName: string; lastName: string } | null;
       opptyCount: number; pipelineValue: number;
       lastActivity: string | null;
@@ -2453,68 +2466,42 @@ class CrmController {
       isActive: boolean; createdAt: string;
     };
 
-    const customerRows: CustomerRow[] = [];
-
-    for (const a of accounts) {
+    const customerRows: CustomerRow[] = accounts.map((a) => {
       const pipelineValue = a.opportunities?.reduce((s: number, o: any) => s + (o.value ?? 0), 0) ?? 0;
       const seg = deriveSegment(a);
       const lastAct = a.activities?.[0]?.createdAt ?? null;
-      const fu = formatFollowUp(null); // accounts don't have followUpDate directly
-      // Tab filters for follow-up and open-opp
-      if (tab === 'follow-up') continue; // accounts don't have followUpDate
-      if (tab === 'open-opp' && (a.opportunities?.length ?? 0) === 0) continue;
-      customerRows.push({
-        id: a.id, type: 'account', name: a.name, segment: seg,
+      const relevantFollowUp = a.contacts
+        .filter((contact) => contact.followUpDate)
+        .sort((left, right) => left.followUpDate!.getTime() - right.followUpDate!.getTime())[0];
+      return {
+        id: a.id, name: a.name, segment: seg,
         segmentLabel: seg === 'CORPORATE' ? 'Enterprise' : seg === 'SME' ? 'Mid-Market' : 'Premium',
         contactInfo: { phone: a.phone ?? null, email: a.email ?? null },
+        contacts: a.contacts.map((contact) => ({
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          phone: contact.phone,
+          mobile: contact.mobile,
+          jobTitle: contact.jobTitle,
+          isPrimary: contact.isPrimary,
+          followUpDate: contact.followUpDate ? contact.followUpDate.toISOString() : null,
+        })),
         relationshipMgr: a.owner ?? null,
         opptyCount: a.opportunities?.length ?? 0,
         pipelineValue,
         lastActivity: lastAct ? lastAct.toISOString() : null,
-        nextFollowUp: fu,
+        nextFollowUp: formatFollowUp(relevantFollowUp?.followUpDate?.toISOString()),
         isActive: a.isActive,
         createdAt: a.createdAt.toISOString(),
-      });
-    }
-
-    for (const c of contacts) {
-      const pipelineValue = c.opportunities?.reduce((s: number, o: any) => s + (o.value ?? 0), 0) ?? 0;
-      const accountAny = c.account as any;
-      const seg = accountAny ? deriveSegment(accountAny) : 'RETAIL';
-      const lastAct = c.activities?.[0]?.createdAt ?? null;
-      const fu = formatFollowUp(c.followUpDate ? c.followUpDate.toISOString() : null);
-      if (tab === 'follow-up' && (!c.followUpDate || new Date(c.followUpDate!) >= now)) continue;
-      if (tab === 'open-opp' && (c.opportunities?.length ?? 0) === 0) continue;
-      customerRows.push({
-        id: c.id, type: 'contact',
-        name: `${c.firstName} ${c.lastName}`,
-        segment: seg,
-        segmentLabel: seg === 'CORPORATE' ? 'Enterprise' : seg === 'SME' ? 'Mid-Market' : 'Premium',
-        contactInfo: { phone: c.phone ?? c.mobile ?? null, email: c.email ?? null },
-        relationshipMgr: accountAny?.owner ?? null,
-        opptyCount: c.opportunities?.length ?? 0,
-        pipelineValue,
-        lastActivity: lastAct ? lastAct.toISOString() : null,
-        nextFollowUp: fu,
-        isActive: c.isActive,
-        createdAt: c.createdAt.toISOString(),
-      });
-    }
-
-    // Sort by updatedAt (most recent first)
-    customerRows.sort((a, b) => {
-      const dateA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
-      const dateB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
-      return dateB - dateA;
+      };
     });
-
-    const total = customerRows.length;
-    const paged = customerRows.slice(skip, skip + limit);
 
     res.json({
       status: 'success',
       data: {
-        customers: paged,
+        customers: customerRows,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       },
     });
@@ -2528,10 +2515,9 @@ class CrmController {
       contactScope.account = { ownerId: { in: visibleOwnerIds } };
     }
 
-    const [totalAccounts, totalContacts, activeAccounts, followUpContacts, smeAccounts, corporateAccounts] =
+    const [totalAccounts, activeAccounts, followUpContacts, smeAccounts, corporateAccounts] =
       await Promise.all([
         prisma.crmAccount.count({ where: accountScope }),
-        prisma.crmContact.count({ where: contactScope }),
         prisma.crmAccount.count({ where: { ...accountScope, isActive: true } }),
         prisma.crmContact.count({
           where: { ...contactScope, followUpDate: { lt: new Date() } },
@@ -2552,9 +2538,9 @@ class CrmController {
         }),
       ]);
 
-    const total = totalAccounts + totalContacts;
+    const total = totalAccounts;
     const retail = total - smeAccounts - corporateAccounts;
-    const active = activeAccounts + totalContacts; // contacts are always active in our query
+    const active = activeAccounts;
 
     res.json({
       status: 'success',

@@ -1,5 +1,19 @@
 # Change Log
 
+## 2026-09-21
+
+### CRM Clients — alphabetical ordering
+
+- Changed the unified CRM Clients list to order the complete scoped Accounts and Contacts result set by displayed client name, case-insensitively, before applying pagination.
+- Added a deterministic `id` tie-breaker for duplicate client names; existing search, filters, owner visibility, soft-delete exclusion, authorization, and pagination behavior remain unchanged.
+
+### CRM Clients — account/contact grouping
+
+- Changed the unified Clients endpoint and page from mixed Account and Contact rows to one alphabetically paginated Account client card/row with its active canonical Contacts embedded.
+- Contact-name and email searches now return the owning Account card; inactive or soft-deleted Contacts and secondary `CrmContactAccountRole` affiliations are excluded.
+- Updated All, Mine, Active, Overdue Follow-ups, and Open Opportunities scopes to return Account cards, retaining authorization, owner visibility, tenant scoping, and the existing open-opportunity definition.
+- Updated Client totals and pagination to count Accounts rather than the former combined Account-plus-Contact result set.
+
 ## 2026-09-17
 
 ### CRM Reports — Sales Performance outcome dates
