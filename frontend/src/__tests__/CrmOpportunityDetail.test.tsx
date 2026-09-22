@@ -215,11 +215,14 @@ describe('CrmOpportunityDetail', () => {
 
     expect(screen.getByText('Meeting outcome')).toBeInTheDocument();
     fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'COMPLETED' } });
+    const scheduledAt = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+    expect(scheduledAt).toBeRequired();
+    fireEvent.change(scheduledAt, { target: { value: '2026-09-22T14:00' } });
     fireEvent.change(screen.getAllByRole('textbox')[0], { target: { value: 'Completed review meeting' } });
     fireEvent.click(screen.getByRole('button', { name: 'Log Activity' }));
 
     await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith({
-      activityType: 'MEETING', meetingOutcome: 'COMPLETED', engagementOutcome: null, subject: 'Completed review meeting', opportunityId: 'opp-1',
+      activityType: 'MEETING', meetingOutcome: 'COMPLETED', engagementOutcome: null, scheduledAt: '2026-09-22T14:00', subject: 'Completed review meeting', opportunityId: 'opp-1',
     }));
   });
 

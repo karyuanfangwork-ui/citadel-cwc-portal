@@ -127,7 +127,8 @@ const CrmOpportunityDetail = () => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState('');
   const [lostReason, setLostReason] = useState('');
-  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
+  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL', scheduledAt: '' });
+  const [activityScheduleError, setActivityScheduleError] = useState<string | null>(null);
   const [showEditActivity, setShowEditActivity] = useState(false);
   const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
   const [savingActivityEdit, setSavingActivityEdit] = useState(false);
@@ -293,15 +294,19 @@ const CrmOpportunityDetail = () => {
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    if (activityForm.activityType === 'MEETING' && !activityForm.scheduledAt) {
+      setActivityScheduleError('Scheduled date and time is required for meetings.');
+      return;
+    }
     try {
       setSaving(true);
-      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, ...activityBase } = activityForm;
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, scheduledAt, ...activityBase } = activityForm;
       const payload = {
         ...activityBase,
         engagementOutcome: engagementOutcome ?? null,
         ...(activityForm.activityType === 'CALL' || activityForm.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
         ...(activityForm.activityType === 'EMAIL' ? { emailOutcome } : {}),
-        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome } : {}),
+        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome, scheduledAt } : {}),
       };
       await crmService.createActivity({ ...payload, opportunityId: id });
       reload();
@@ -1153,6 +1158,7 @@ const CrmOpportunityDetail = () => {
                   setActivityForm(f => ({
                     ...f,
                     activityType,
+                    scheduledAt: activityType === 'MEETING' ? f.scheduledAt : undefined,
                     callCategory: activityType === 'CALL' ? 'NEW_CALL' : activityType === 'FOLLOW_UP' ? 'FOLLOW_UP_CALL' : undefined,
                     callOutcome: ['CALL', 'FOLLOW_UP'].includes(activityType) ? f.callOutcome : undefined,
                     emailOutcome: activityType === 'EMAIL' ? (f.emailOutcome ?? 'SENT') : undefined,
@@ -1194,13 +1200,22 @@ const CrmOpportunityDetail = () => {
                 </div>
               )}
               {activityForm.activityType === 'MEETING' && (
-                <div>
-                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Meeting outcome</label>
-                  <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
-                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
-                    {MEETING_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Meeting outcome</label>
+                    <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                      {MEETING_OUTCOMES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Scheduled At *</label>
+                    <input type="datetime-local" required value={activityForm.scheduledAt ?? ''} onInvalid={() => setActivityScheduleError('Scheduled date and time is required for meetings.')} onChange={e => { setActivityScheduleError(null); setActivityForm(f => ({ ...f, scheduledAt: e.target.value })); }}
+                      aria-invalid={Boolean(activityScheduleError)} aria-describedby={activityScheduleError ? 'opportunity-meeting-schedule-error' : undefined}
+                      className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+                    {activityScheduleError && <p id="opportunity-meeting-schedule-error" className="mt-1 text-xs text-red-700">{activityScheduleError}</p>}
+                  </div>
+                </>
               )}
               <div>
                 <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Engagement</label>

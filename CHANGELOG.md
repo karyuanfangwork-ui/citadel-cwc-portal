@@ -1,5 +1,11 @@
 # Change Log
 
+## 2026-09-22
+
+### CRM Meetings — scheduled activity creation
+
+- Standardized meeting scheduling across Lead, Contact, and Opportunity activity forms: a required Scheduled At value is now sent with new meeting activities so they can be included consistently in Dashboard “Meetings Today”; non-meeting activity behavior and existing Dashboard, report, timezone, lifecycle, and schema logic are preserved.
+
 ## 2026-09-21
 
 ### CRM Opportunities — scalable Stage filter
