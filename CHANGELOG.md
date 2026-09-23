@@ -1,5 +1,11 @@
 # Change Log
 
+## 2026-09-23
+
+### CRM Leads — import navigation
+
+- Fixed Import Leads to target the Lead import workflow directly for users with CRM import permission, and restricted Leads import/export controls to their respective existing permissions. Authorized styling and export behavior remain unchanged.
+
 ## 2026-09-22
 
 ### CRM Meetings — scheduled activity creation

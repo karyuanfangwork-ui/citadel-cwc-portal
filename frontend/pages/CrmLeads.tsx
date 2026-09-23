@@ -59,6 +59,8 @@ const CrmLeads = () => {
   const filterParam = searchParams.get('filter') || '';
   const [prioritySort, setPrioritySort] = useState(false);
   const { user } = useAuth();
+  const canImportLeads = hasPermission(user, 'crm:import');
+  const canExportLeads = hasPermission(user, 'crm:export');
 
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -441,14 +443,16 @@ const CrmLeads = () => {
                 Priority
               </button>
 
-              <button
-                onClick={() => navigate('/crm/import-export')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
-                style={{ cursor: 'pointer' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>upload_file</span>
-                Import Leads
-              </button>
+              {canImportLeads && (
+                <button
+                  onClick={() => navigate('/crm/import-export?tab=import&entity=LEAD')}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>upload_file</span>
+                  Import Leads
+                </button>
+              )}
 
               <button
                 onClick={() => { setShowCreate(true); setFormErrors([]); }}
@@ -546,9 +550,11 @@ const CrmLeads = () => {
                   <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
                   </button>
-                  <button onClick={handleExport} disabled={exporting} className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors disabled:opacity-50" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: exporting ? 'wait' : 'pointer' }} title={exporting ? 'Exporting...' : 'Export'} aria-label={exporting ? 'Exporting leads' : 'Export leads'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{exporting ? 'progress_activity' : 'download'}</span>
-                  </button>
+                  {canExportLeads && (
+                    <button onClick={handleExport} disabled={exporting} className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors disabled:opacity-50" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: exporting ? 'wait' : 'pointer' }} title={exporting ? 'Exporting...' : 'Export'} aria-label={exporting ? 'Exporting leads' : 'Export leads'}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{exporting ? 'progress_activity' : 'download'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmLeads from '../../pages/CrmLeads';
 
@@ -7,6 +7,7 @@ const mockListLeads = vi.fn();
 const mockListCrmUsers = vi.fn();
 const mockRequestExport = vi.fn();
 const mockDownloadExport = vi.fn();
+let permissions = ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'];
 
 vi.mock('../services/crm.service', () => ({
   default: {
@@ -25,7 +26,7 @@ vi.mock('../context/AuthContext', () => ({
     user: {
       id: 'user-1',
       email: 'admin@test.local',
-      permissions: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
+      permissions,
     },
   }),
 }));
@@ -43,15 +44,22 @@ vi.mock('../components/crm/LeadsTable', () => ({
   ),
 }));
 
-const renderPage = () =>
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+};
+
+const renderPage = (withLocationProbe = false) =>
   render(
     <MemoryRouter initialEntries={['/crm/leads']}>
       <CrmLeads />
+      {withLocationProbe && <LocationProbe />}
     </MemoryRouter>
   );
 
 describe('CrmLeads', () => {
   beforeEach(() => {
+    permissions = ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'];
     mockListCrmUsers.mockResolvedValue([]);
     mockRequestExport.mockResolvedValue({ jobId: 'export-1' });
     mockDownloadExport.mockResolvedValue(undefined);
@@ -112,7 +120,28 @@ describe('CrmLeads', () => {
     });
   });
 
+  it('opens the Lead import workflow when Import Leads is clicked', async () => {
+    permissions = [...permissions, 'crm:import'];
+    renderPage(true);
+
+    (await screen.findByRole('button', { name: /import leads/i })).click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/crm/import-export?tab=import&entity=LEAD');
+    });
+  });
+
+  it('hides import and export actions from users without their permissions', async () => {
+    renderPage();
+
+    await screen.findByRole('heading', { name: /my leads/i });
+
+    expect(screen.queryByRole('button', { name: /import leads/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /export leads/i })).not.toBeInTheDocument();
+  });
+
   it('requests and downloads a lead export using the active filters', async () => {
+    permissions = [...permissions, 'crm:export'];
     renderPage();
 
     const exportButton = await screen.findByRole('button', { name: /export leads/i });
@@ -131,6 +160,7 @@ describe('CrmLeads', () => {
   });
 
   it('exports only the selected leads when a selection exists', async () => {
+    permissions = [...permissions, 'crm:export'];
     renderPage();
 
     (await screen.findByRole('button', { name: 'Select lead-1' })).click();
