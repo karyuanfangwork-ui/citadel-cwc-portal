@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmContactDetail from '../../pages/CrmContactDetail';
@@ -53,6 +53,7 @@ describe('CrmContactDetail', () => {
     mockUseDraftMessage.mockReturnValue({ draftForContact: vi.fn(), loading: false, error: null, content: null });
     mockUseKycGaps.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
     mockUseRiskProfile.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
+    mockCreateActivity.mockResolvedValue({});
     mockGetContact.mockResolvedValue({
       id: 'contact-1',
       firstName: 'Aisha',
@@ -81,5 +82,20 @@ describe('CrmContactDetail', () => {
 
     expect(screen.getByText('Call category')).toBeInTheDocument();
     expect(screen.getByText('Call outcome')).toBeInTheDocument();
+  });
+
+  it('requires and submits Scheduled At when logging a meeting', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /log call/i }));
+    const modal = screen.getByRole('heading', { name: 'Log Activity' }).parentElement!;
+    fireEvent.change(within(modal).getAllByRole('combobox')[0], { target: { value: 'MEETING' } });
+    const scheduledAt = modal.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+    expect(scheduledAt).toBeRequired();
+    fireEvent.invalid(scheduledAt);
+    expect(await screen.findByText('Scheduled date and time is required for meetings.')).toBeInTheDocument();
+    fireEvent.change(scheduledAt, { target: { value: '2026-09-22T14:00' } });
+    fireEvent.change(modal.querySelector('input:not([type])')!, { target: { value: 'Contact review' } });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Log Activity' }));
+    await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith(expect.objectContaining({ activityType: 'MEETING', scheduledAt: '2026-09-22T14:00', contactId: 'contact-1' })));
   });
 });

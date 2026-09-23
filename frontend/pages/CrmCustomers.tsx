@@ -11,11 +11,21 @@ import api from '@/src/services/api';
 
 interface CustomerRow {
   id: string;
-  type: 'account' | 'contact';
   name: string;
   segment: Segment;
   segmentLabel: string;
   contactInfo: { phone: string | null; email: string | null };
+  contacts: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    phone: string | null;
+    mobile: string | null;
+    jobTitle: string | null;
+    isPrimary: boolean;
+    followUpDate: string | null;
+  }>;
   relationshipMgr: { id: string; firstName: string; lastName: string } | null;
   opptyCount: number;
   pipelineValue: number;
@@ -163,7 +173,7 @@ const CrmCustomers: React.FC = () => {
 
   /* ── Row click ────────────────────────────────────────────── */
   const handleRowClick = (c: CustomerRow) => {
-    navigate(c.type === 'account' ? `/crm/accounts/${c.id}` : `/crm/contacts/${c.id}`);
+    navigate(`/crm/accounts/${c.id}`);
   };
 
   /* ── Pagination ───────────────────────────────────────────── */
@@ -188,8 +198,7 @@ const CrmCustomers: React.FC = () => {
         for (const id of ids) {
           const c = customers.find(x => x.id === id);
           if (!c) continue;
-          if (c.type === 'account') await crmService.deleteAccount(id);
-          else await crmService.deleteContact(id);
+          await crmService.deleteAccount(id);
         }
         clearSelection();
         fetchCustomers();
@@ -378,7 +387,7 @@ const CrmCustomers: React.FC = () => {
               ) : (
                 customers.map(c => (
                   <tr
-                    key={`${c.type}-${c.id}`}
+                    key={c.id}
                     className={`hover:bg-[#f8f9ff] transition-colors cursor-pointer ${
                       selectedIds.has(c.id) ? 'bg-[#86f2e4]/10' : ''
                     }`}
@@ -393,7 +402,7 @@ const CrmCustomers: React.FC = () => {
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <CustomerNameCell name={c.name} type={c.type} segment={c.segment} />
+                      <CustomerNameCell name={c.name} type="account" segment={c.segment} />
                     </td>
                     <td className="px-4 py-4 text-center">
                       <span className="text-sm font-medium">{c.segmentLabel}</span>
@@ -401,6 +410,23 @@ const CrmCustomers: React.FC = () => {
                     <td className="px-4 py-4">
                       <div className="text-sm">{c.contactInfo.phone || '—'}</div>
                       <div className="text-[11px] text-[#45464d]">{c.contactInfo.email || ''}</div>
+                      <div className="mt-2 border-t border-[#e2e8f0] pt-2 space-y-1.5">
+                        {c.contacts.length === 0 ? (
+                          <div className="text-xs text-[#76777d]">No active contacts</div>
+                        ) : c.contacts.map(contact => (
+                          <div key={contact.id} className="text-xs text-[#0b1c30]">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <span>{contact.firstName} {contact.lastName}</span>
+                              {contact.isPrimary && (
+                                <span className="rounded bg-[#dce9ff] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#006a61]">Primary</span>
+                              )}
+                            </div>
+                            <div className="text-[#45464d]">
+                              {contact.jobTitle ? `${contact.jobTitle} · ` : ''}{contact.email || contact.phone || contact.mobile || '—'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       {c.relationshipMgr ? (

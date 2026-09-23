@@ -93,4 +93,12 @@ describe('CrmAccountDetail', () => {
     expect(screen.getByRole('option', { name: 'New call' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Select outcome' })).toBeInTheDocument();
   });
+
+  it('keeps the existing Schedule Meeting action and datetime-local field available', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Activities' }));
+    fireEvent.click(screen.getByRole('button', { name: /schedule meeting/i }));
+    expect(screen.getByText('Scheduled At')).toBeInTheDocument();
+    expect(document.querySelector('input[type="datetime-local"]')).toBeInTheDocument();
+  });
 });

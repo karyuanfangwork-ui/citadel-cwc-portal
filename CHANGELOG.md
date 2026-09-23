@@ -1,5 +1,31 @@
 # Change Log
 
+## 2026-09-22
+
+### CRM Meetings — scheduled activity creation
+
+- Standardized meeting scheduling across Lead, Contact, and Opportunity activity forms: a required Scheduled At value is now sent with new meeting activities so they can be included consistently in Dashboard “Meetings Today”; non-meeting activity behavior and existing Dashboard, report, timezone, lifecycle, and schema logic are preserved.
+
+## 2026-09-21
+
+### CRM Opportunities — scalable Stage filter
+
+- Changed the Opportunities Stage filter to show one normalized logical stage name across All Pipelines, while retaining ID-based, pipeline-specific stage selection when a Pipeline is chosen.
+- Added server-side `stageName` filtering that resolves matching stages from the authenticated tenant's active pipelines before opportunity pagination; search, pipeline, overdue, authorization, tenant scope, soft-delete, and result-count behavior are preserved.
+- Pipeline changes now preserve a selected logical stage only when it exists in the newly selected scope, preventing stale stage IDs.
+
+### CRM Clients — alphabetical ordering
+
+- Changed the unified CRM Clients list to order the complete scoped Accounts and Contacts result set by displayed client name, case-insensitively, before applying pagination.
+- Added a deterministic `id` tie-breaker for duplicate client names; existing search, filters, owner visibility, soft-delete exclusion, authorization, and pagination behavior remain unchanged.
+
+### CRM Clients — account/contact grouping
+
+- Changed the unified Clients endpoint and page from mixed Account and Contact rows to one alphabetically paginated Account client card/row with its active canonical Contacts embedded.
+- Contact-name and email searches now return the owning Account card; inactive or soft-deleted Contacts and secondary `CrmContactAccountRole` affiliations are excluded.
+- Updated All, Mine, Active, Overdue Follow-ups, and Open Opportunities scopes to return Account cards, retaining authorization, owner visibility, tenant scoping, and the existing open-opportunity definition.
+- Updated Client totals and pagination to count Accounts rather than the former combined Account-plus-Contact result set.
+
 ## 2026-09-17
 
 ### CRM Reports — Sales Performance outcome dates

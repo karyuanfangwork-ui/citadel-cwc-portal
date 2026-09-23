@@ -6,6 +6,7 @@ import CrmLeadDetail from '../../pages/CrmLeadDetail';
 const mockGetLead = vi.fn();
 const mockListCrmUsers = vi.fn();
 const mockUpdateActivity = vi.fn();
+const mockCreateActivity = vi.fn();
 const mockUpdateNote = vi.fn();
 const mockDeleteNote = vi.fn();
 const mockUseNextBestAction = vi.fn();
@@ -24,7 +25,7 @@ vi.mock('../services/crm.service', () => ({
     createNote: vi.fn(),
     updateNote: (...args: unknown[]) => mockUpdateNote(...args),
     deleteNote: (...args: unknown[]) => mockDeleteNote(...args),
-    createActivity: vi.fn(),
+    createActivity: (...args: unknown[]) => mockCreateActivity(...args),
     listActivities: vi.fn(),
     sendActivityReminder: vi.fn(),
     listPipelines: vi.fn(),
@@ -125,6 +126,7 @@ describe('CrmLeadDetail header redesign', () => {
     mockGetLead.mockResolvedValue(lead);
     mockListCrmUsers.mockResolvedValue([]);
     mockUpdateNote.mockResolvedValue(lead.notes[0]);
+    mockCreateActivity.mockResolvedValue({ id: 'activity-1' });
     mockDeleteNote.mockResolvedValue(undefined);
     mockUseNextBestAction.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
   });
@@ -447,5 +449,20 @@ describe('CrmLeadDetail header redesign', () => {
     expect(screen.getByText('High priority:')).toBeInTheDocument();
     expect(screen.getByText('Recommended:')).toBeInTheDocument();
     expect(screen.getByText('Optional:')).toBeInTheDocument();
+  });
+
+  it('requires and submits Scheduled At when logging a meeting', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /log activity/i }));
+    const modal = screen.getByRole('heading', { name: 'Log Activity' }).parentElement!;
+    fireEvent.change(within(modal).getAllByRole('combobox')[0], { target: { value: 'MEETING' } });
+    const scheduledAt = modal.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+    expect(scheduledAt).toBeRequired();
+    fireEvent.invalid(scheduledAt);
+    expect(await screen.findByText('Scheduled date and time is required for meetings.')).toBeInTheDocument();
+    fireEvent.change(scheduledAt, { target: { value: '2026-09-22T14:00' } });
+    fireEvent.change(modal.querySelector('input:not([type])')!, { target: { value: 'Lead review' } });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Log Activity' }));
+    await waitFor(() => expect(mockCreateActivity).toHaveBeenCalledWith(expect.objectContaining({ activityType: 'MEETING', scheduledAt: '2026-09-22T14:00', leadId: 'lead-1' })));
   });
 });

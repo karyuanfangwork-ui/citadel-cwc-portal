@@ -38,7 +38,8 @@ const CrmLeadDetail = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'audit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
-  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
+  const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL', scheduledAt: '' });
+  const [activityScheduleError, setActivityScheduleError] = useState<string | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [editingNote, setEditingNote] = useState<CrmNote | null>(null);
   const [editNoteContent, setEditNoteContent] = useState('');
@@ -159,15 +160,19 @@ const CrmLeadDetail = () => {
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    if (activityForm.activityType === 'MEETING' && !activityForm.scheduledAt) {
+      setActivityScheduleError('Scheduled date and time is required for meetings.');
+      return;
+    }
     try {
       setSaving(true);
-      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, ...activityBase } = activityForm;
+      const { callCategory, callOutcome, emailOutcome, meetingOutcome, engagementOutcome, scheduledAt, ...activityBase } = activityForm;
       const payload = {
         ...activityBase,
         engagementOutcome: engagementOutcome ?? null,
         ...(activityForm.activityType === 'CALL' || activityForm.activityType === 'FOLLOW_UP' ? { callCategory, callOutcome } : {}),
         ...(activityForm.activityType === 'EMAIL' ? { emailOutcome } : {}),
-        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome } : {}),
+        ...(activityForm.activityType === 'MEETING' ? { meetingOutcome, scheduledAt } : {}),
       };
       const activity = await crmService.createActivity({ ...payload, leadId: id });
       setShowAddActivity(false);
@@ -1288,7 +1293,11 @@ const CrmLeadDetail = () => {
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Type</label>
-                <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
+                <select value={activityForm.activityType} onChange={e => {
+                  const activityType = e.target.value as CrmActivityType;
+                  setActivityScheduleError(null);
+                  setActivityForm(f => ({ ...f, activityType, scheduledAt: activityType === 'MEETING' ? f.scheduledAt : undefined }));
+                }}
                   className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -1332,13 +1341,22 @@ const CrmLeadDetail = () => {
                 </div>
               )}
               {activityForm.activityType === 'MEETING' && (
-                <div>
-                  <label className="block text-xs font-semibold text-[#45464d] mb-1">Meeting outcome</label>
-                  <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
-                    className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
-                    <option value="ARRANGED">Arranged</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No show</option>
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#45464d] mb-1">Meeting outcome</label>
+                    <select value={activityForm.meetingOutcome ?? 'ARRANGED'} onChange={e => setActivityForm(f => ({ ...f, meetingOutcome: e.target.value as CrmActivity['meetingOutcome'] }))}
+                      className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
+                      <option value="ARRANGED">Arranged</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="NO_SHOW">No show</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#45464d] mb-1">Scheduled At *</label>
+                    <input type="datetime-local" required value={activityForm.scheduledAt ?? ''} onInvalid={() => setActivityScheduleError('Scheduled date and time is required for meetings.')} onChange={e => { setActivityScheduleError(null); setActivityForm(f => ({ ...f, scheduledAt: e.target.value })); }}
+                      aria-invalid={Boolean(activityScheduleError)} aria-describedby={activityScheduleError ? 'lead-meeting-schedule-error' : undefined}
+                      className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }} />
+                    {activityScheduleError && <p id="lead-meeting-schedule-error" className="mt-1 text-xs text-red-700">{activityScheduleError}</p>}
+                  </div>
+                </>
               )}
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Engagement</label>
