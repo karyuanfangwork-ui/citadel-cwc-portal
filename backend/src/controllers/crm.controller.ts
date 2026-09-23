@@ -10,6 +10,7 @@ import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
 import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
 import { notify } from '../services/notification.service';
+import { buildCrmActivityReminderVariables } from '../services/crm-activity-reminder.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import { trackFieldChanges } from '../services/crm-field-change.service';
 import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
@@ -1083,7 +1084,13 @@ class CrmController {
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const activity = await prisma.crmActivity.findFirst({
       where: scopedActivityWhere({ id: activityId }, visibleOwnerIds),
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        opportunity: { select: { name: true } },
+        lead: { select: { title: true } },
+        account: { select: { name: true } },
+        contact: { select: { firstName: true, lastName: true } },
+      },
     });
     if (!activity) throw new AppError('Activity not found', 404);
     if (activity.reminderSent) {
@@ -1097,22 +1104,12 @@ class CrmController {
       data: { reminderSent: true },
     });
 
-    // Build variables for notification
-    const scheduledLabel = activity.scheduledAt
-      ? new Date(activity.scheduledAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '—';
-
     // Send in-app notification to the activity's assigned user (or current user)
     const targetUserId = activity.userId || req.user!.id;
     await notify({
       userId: targetUserId,
       eventType: 'crm_activity_reminder',
-      variables: {
-        activityType: activity.activityType,
-        subject: activity.subject || '(no subject)',
-        scheduledAt: scheduledLabel,
-        remindedBy: `${req.user!.firstName} ${req.user!.lastName}`,
-      },
+      variables: buildCrmActivityReminderVariables(activity),
     });
 
     await prisma.auditLog.create({

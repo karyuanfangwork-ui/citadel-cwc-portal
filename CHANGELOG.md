@@ -2,6 +2,11 @@
 
 ## 2026-09-23
 
+### CRM Activity Reminders — meaningful notification content
+
+- Replaced raw CRM reminder event-key fallbacks with activity type, subject, due time, and linked Opportunity, Lead, Account, or Contact context; scheduled and manual reminders now use one payload contract.
+- Activated and updated the CRM reminder template, with a targeted rectify command for existing configurations; notification navigation, scheduling rules, reminder de-duplication, schema, and unrelated notification types are preserved.
+
 ### CRM Leads — import navigation
 
 - Fixed Import Leads to target the Lead import workflow directly for users with CRM import permission, and restricted Leads import/export controls to their respective existing permissions. Authorized styling and export behavior remain unchanged.
