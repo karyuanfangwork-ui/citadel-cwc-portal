@@ -10,6 +10,7 @@ import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
 import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
 import { notify } from '../services/notification.service';
+import { buildCrmActivityReminderVariables } from '../services/crm-activity-reminder.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import { trackFieldChanges } from '../services/crm-field-change.service';
 import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
@@ -30,6 +31,8 @@ import * as duplicateService from '../services/crm-duplicate.service';
 import { broadcast } from '../utils/sseClients';
 import * as leadDocumentService from '../services/crm-lead-document.service';
 import * as crmHierarchyService from '../services/crm-hierarchy.service';
+import * as leadLifecycleService from '../services/crm-lead-lifecycle.service';
+import * as opportunityLifecycleService from '../services/crm-opportunity-lifecycle.service';
 
 import prisma from '../utils/prisma';
 
@@ -667,22 +670,18 @@ class CrmController {
       where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
     });
     if (!existing) throw new AppError('Lead not found', 404);
+    const lifecycleFields = ['status', 'lostReason', 'lostAt', 'convertedAt', 'convertedToOppId'];
+    if (lifecycleFields.some((field) => Object.prototype.hasOwnProperty.call(req.body, field))) {
+      throw new AppError('Lead lifecycle fields must be changed through dedicated lifecycle actions', 400);
+    }
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
     const { followUpDate, emailDeliveryDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     if (emailDeliveryDate !== undefined) data.emailDeliveryDate = emailDeliveryDate ? new Date(emailDeliveryDate) : null;
-    if (rest.status !== undefined && rest.status !== existing.status) {
-      data.lostAt = rest.status === 'LOST' ? new Date() : null;
-    }
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect }, account: { select: { id: true, name: true, industry: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
-    // Emit workflow event if status changed
-    if (rest.status && rest.status !== existing.status) {
-      const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
-      emitWorkflowEvent('lead.status.changed', 'LEAD', lead.id, { ...lead, previousStatus: existing.status });
-    }
     res.json({ status: 'success', data: { lead } });
     broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
     // Recompute rule-based score on update
@@ -691,6 +690,34 @@ class CrmController {
         logger.warn(`[CRM] Rule scoring failed for lead ${lead.id}`, { error: err }),
       );
     });
+  });
+
+  advanceLeadStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const lead = await leadLifecycleService.advanceLeadStatus(req.params.id as string, req.body.status, req.user!, visibleOwnerIds);
+    res.json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
+  });
+
+  markLeadLost = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const lead = await leadLifecycleService.markLeadLost(req.params.id as string, req.body.reason, req.user!, visibleOwnerIds);
+    res.json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
+  });
+
+  markLeadUnqualified = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const lead = await leadLifecycleService.markLeadUnqualified(req.params.id as string, req.user!, visibleOwnerIds);
+    res.json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
+  });
+
+  reopenLead = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const lead = await leadLifecycleService.reopenLead(req.params.id as string, req.body.reason, req.user!, visibleOwnerIds);
+    res.json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
   });
 
   convertLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -870,17 +897,16 @@ class CrmController {
       if (!contact || contact.accountId !== account.id) throw new AppError('Contact not found', 404);
     }
     const { expectedCloseDate, ...rest } = req.body;
-    // Auto-set probability from the selected stage if not explicitly provided
-    let probability = req.body.probability;
-    if (probability === undefined && rest.stageId) {
-      const stage = await prisma.crmPipelineStage.findUnique({ where: { id: rest.stageId } });
-      if (stage) probability = stage.probability;
-    }
+    const stage = await prisma.crmPipelineStage.findFirst({
+      where: { pipelineId: rest.pipelineId, isWonStage: false, isLostStage: false },
+      orderBy: { displayOrder: 'asc' },
+    });
+    if (!stage) throw new AppError('Selected pipeline has no active starting stage', 400);
     // Compute fxRateToBase from currency if not MYR
     const currency = rest.currency || 'MYR';
     const fxRate = currency === BASE_CURRENCY ? 1 : (DEFAULT_FX_RATES.find(r => r.currency === currency)?.rateToBase ?? null);
     const opportunity = await prisma.crmOpportunity.create({
-      data: { ...rest, ownerId: req.user!.id, probability, fxRateToBase: fxRate, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
+      data: { ...rest, stageId: stage.id, ownerId: req.user!.id, probability: stage.probability, fxRateToBase: fxRate, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
       include: { account: { select: { id: true, name: true } }, stage: true, owner: { select: userSelect } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, newValues: req.body } });
@@ -895,6 +921,9 @@ class CrmController {
     });
     if (!existing) throw new AppError('Opportunity not found', 404);
     assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
+    const lifecycleFields = ['stageId', 'pipelineId', 'probability', 'wonAt', 'lostAt', 'lostReason'];
+    const attemptedLifecycleField = lifecycleFields.find(field => Object.prototype.hasOwnProperty.call(req.body, field));
+    if (attemptedLifecycleField) throw new AppError(`${attemptedLifecycleField} can only be changed through the Opportunity lifecycle actions`, 400);
     const { expectedCloseDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
@@ -906,24 +935,14 @@ class CrmController {
     const opportunity = await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data, include: { stage: true, owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('OPPORTUNITY', opportunity.id, existing as any, req.body, req.user!.id).catch(() => {});
-    // Emit workflow event if stage changed
-    if (rest.stageId && rest.stageId !== existing.stageId) {
-      const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
-      emitWorkflowEvent('opportunity.stage.changed', 'OPPORTUNITY', opportunity.id, { ...opportunity, previousStageId: existing.stageId });
-    }
     res.json({ status: 'success', data: { opportunity } });
     broadcast('crm_update', { type: 'opportunity.updated', entityType: 'opportunity', id: opportunity.id, changedBy: req.user!.id });
   });
 
   moveStage = asyncHandler(async (req: AuthRequest, res: Response) => {
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
-    const existing = await prisma.crmOpportunity.findFirst({
-      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
-    });
-    if (!existing) throw new AppError('Opportunity not found', 404);
     try {
-      const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason, visibleOwnerIds);
-      await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
+      const opportunity = await opportunityLifecycleService.moveOpportunityStage(req.params.id as string, req.body.stageId, { id: req.user!.id, email: req.user!.email }, visibleOwnerIds);
       res.json({ status: 'success', data: { opportunity } });
       broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
 
@@ -944,6 +963,25 @@ class CrmController {
       }
       throw err;
     }
+  });
+
+  markOpportunityLost = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    try {
+      const opportunity = await opportunityLifecycleService.markOpportunityLost(req.params.id as string, req.body.reason, { id: req.user!.id, email: req.user!.email }, visibleOwnerIds);
+      res.json({ status: 'success', data: { opportunity } });
+      broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
+    } catch (err: any) {
+      if (err.gateFailed) return res.status(err.needsApproval ? 403 : 422).json({ status: 'error', error: err.message, needsApproval: !!err.needsApproval });
+      throw err;
+    }
+  });
+
+  reopenOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const opportunity = await opportunityLifecycleService.reopenOpportunity(req.params.id as string, req.body.reason, { id: req.user!.id, email: req.user!.email }, visibleOwnerIds);
+    res.json({ status: 'success', data: { opportunity } });
+    broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   deleteOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -988,7 +1026,29 @@ class CrmController {
   updatePipeline = asyncHandler(async (req: AuthRequest, res: Response) => {
     const existing = await prisma.crmPipeline.findUnique({ where: { id: req.params.id as string } });
     if (!existing) throw new AppError('Pipeline not found', 404);
-    const pipeline = await prisma.crmPipeline.update({ where: { id: req.params.id as string }, data: req.body });
+    const { stages = [], ...pipelineData } = req.body;
+    const pipeline = await prisma.$transaction(async (tx) => {
+      for (const stagePatch of stages) {
+        const { id, probability, ...stageData } = stagePatch;
+        const currentStage = await tx.crmPipelineStage.findFirst({ where: { id, pipelineId: existing.id } });
+        if (!currentStage) throw new AppError('Stage not found in this pipeline', 404);
+        const updatedStage = await tx.crmPipelineStage.update({
+          where: { id },
+          data: { ...stageData, ...(probability === undefined ? {} : { probability }) },
+        });
+        if (probability !== undefined) {
+          await tx.crmOpportunity.updateMany({
+            where: { stageId: updatedStage.id },
+            data: { probability: updatedStage.probability },
+          });
+        }
+      }
+      return tx.crmPipeline.update({
+        where: { id: existing.id },
+        data: pipelineData,
+        include: { stages: { orderBy: { displayOrder: 'asc' } } },
+      });
+    });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmPipeline', resourceId: pipeline.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { pipeline } });
   });
@@ -1083,7 +1143,13 @@ class CrmController {
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const activity = await prisma.crmActivity.findFirst({
       where: scopedActivityWhere({ id: activityId }, visibleOwnerIds),
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        opportunity: { select: { name: true } },
+        lead: { select: { title: true } },
+        account: { select: { name: true } },
+        contact: { select: { firstName: true, lastName: true } },
+      },
     });
     if (!activity) throw new AppError('Activity not found', 404);
     if (activity.reminderSent) {
@@ -1097,22 +1163,12 @@ class CrmController {
       data: { reminderSent: true },
     });
 
-    // Build variables for notification
-    const scheduledLabel = activity.scheduledAt
-      ? new Date(activity.scheduledAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '—';
-
     // Send in-app notification to the activity's assigned user (or current user)
     const targetUserId = activity.userId || req.user!.id;
     await notify({
       userId: targetUserId,
       eventType: 'crm_activity_reminder',
-      variables: {
-        activityType: activity.activityType,
-        subject: activity.subject || '(no subject)',
-        scheduledAt: scheduledLabel,
-        remindedBy: `${req.user!.firstName} ${req.user!.lastName}`,
-      },
+      variables: buildCrmActivityReminderVariables(activity),
     });
 
     await prisma.auditLog.create({

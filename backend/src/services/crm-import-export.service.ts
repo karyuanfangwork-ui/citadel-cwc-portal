@@ -35,6 +35,11 @@ function parseImportDate(value: unknown): Date | null {
   return isNaN(date.getTime()) ? null : date;
 }
 
+export function parseOptionalLeadEstimatedValue(value: unknown): number | null {
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) return null;
+  return Number(value);
+}
+
 const ENTITY_FIELDS: Record<string, FieldDef[]> = {
   LEAD_ACTIVITY_UPDATE: [
     { key: 'leadId', label: 'Lead ID', required: true, type: 'string', maxLength: 36 },
@@ -94,7 +99,6 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'name', label: 'Opportunity Name', required: true, type: 'string' },
     { key: 'value', label: 'Deal Value', required: false, type: 'number' },
     { key: 'currency', label: 'Currency', required: false, type: 'string', default: 'MYR' },
-    { key: 'probability', label: 'Probability (%)', required: false, type: 'number' },
     { key: 'expectedCloseDate', label: 'Expected Close Date', required: false, type: 'date' },
     { key: 'description', label: 'Description', required: false, type: 'string' },
   ],
@@ -481,7 +485,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
   }
 
   // Get default pipeline for opportunities
-  let defaultPipeline: { id: string; stages: { id: string; name: string; displayOrder: number }[] } | null = null;
+  let defaultPipeline: { id: string; stages: { id: string; name: string; displayOrder: number; isWonStage: boolean; isLostStage: boolean }[] } | null = null;
   if (job.entity === 'OPPORTUNITY') {
     defaultPipeline = await prisma.crmPipeline.findFirst({
       where: { isDefault: true, isActive: true },
@@ -569,7 +573,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
               industry: data.industry ? String(data.industry).trim() : null,
               address: data.address ? String(data.address) : null,
               source: (data.source as LeadSource) || LeadSource.OTHER,
-              estimatedValue: data.estimatedValue ? Number(data.estimatedValue) : undefined,
+              estimatedValue: parseOptionalLeadEstimatedValue(data.estimatedValue),
               description: data.description ? String(data.description) : null,
               remark: data.remark ? String(data.remark) : null,
               emailDeliveryDate: parseImportDate(data.emailDeliveryDate),
@@ -653,7 +657,8 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
           if (!pipeline || pipeline.stages.length === 0) {
             throw new Error('No pipeline found. Please create a pipeline first.');
           }
-          const firstStage = pipeline.stages[0];
+          const firstStage = pipeline.stages.find(stage => !stage.isWonStage && !stage.isLostStage);
+          if (!firstStage) throw new Error('No active starting stage found in the selected pipeline.');
           // Find or create a default account for imported opportunities
           let opportunityAccountId = data.accountId ? String(data.accountId) : null;
           if (!opportunityAccountId) {
@@ -674,7 +679,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
               name: String(data.name || 'Imported Opportunity'),
               value: data.value ? Number(data.value) : 0,
               currency: String(data.currency || 'MYR'),
-              probability: data.probability ? Math.round(Number(data.probability)) : 0,
+              probability: firstStage.probability,
               expectedCloseDate: data.expectedCloseDate ? new Date(String(data.expectedCloseDate)) : undefined,
               description: data.description ? String(data.description) : null,
               ownerId: userId,

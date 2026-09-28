@@ -2,6 +2,7 @@ import prisma from '../utils/prisma';
 import { notify } from './notification.service';
 import { logger } from '../utils/logger';
 import { resolveAssignmentForLead } from './crm-assignment.service';
+import { buildCrmActivityReminderVariables } from './crm-activity-reminder.service';
 
 // ---------------------------------------------------------------------------
 // 1. Activity Reminders
@@ -22,12 +23,13 @@ export async function checkActivityReminders(): Promise<void> {
     select: {
       id: true,
       subject: true,
+      activityType: true,
       scheduledAt: true,
       userId: true,
-      leadId: true,
-      opportunityId: true,
-      accountId: true,
-      contactId: true,
+      opportunity: { select: { name: true } },
+      lead: { select: { title: true } },
+      account: { select: { name: true } },
+      contact: { select: { firstName: true, lastName: true } },
     },
   });
 
@@ -39,19 +41,11 @@ export async function checkActivityReminders(): Promise<void> {
   logger.info(`[CRM][ActivityReminders] Found ${activities.length} upcoming activities needing reminders`);
 
   for (const activity of activities) {
-    const scheduledTime = activity.scheduledAt!.toLocaleString();
     try {
       await notify({
         userId: activity.userId,
         eventType: 'crm_activity_reminder',
-        variables: {
-          activitySubject: activity.subject,
-          scheduledTime,
-          leadId: activity.leadId ?? '',
-          opportunityId: activity.opportunityId ?? '',
-          accountId: activity.accountId ?? '',
-          contactId: activity.contactId ?? '',
-        },
+        variables: buildCrmActivityReminderVariables(activity),
       });
       // Mark reminder as sent so we don't re-notify
       await prisma.crmActivity.update({

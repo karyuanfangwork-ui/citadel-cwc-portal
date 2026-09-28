@@ -36,7 +36,12 @@ vi.mock('../hooks/useCrmUpdate', () => ({
 }));
 
 vi.mock('../components/crm/OpportunitiesTable', () => ({
-  default: () => <div data-testid="opportunities-table">Opportunities Table</div>,
+  default: (props: Record<string, unknown>) => (
+    <div data-testid="opportunities-table">
+      Opportunities Table
+      <output data-testid="opportunity-listing-mutation-props">{String(['pipelines', 'selectedIds', 'onEdit', 'onDelete', 'onStageChange'].some(key => key in props))}</output>
+    </div>
+  ),
 }));
 
 const renderPage = () =>
@@ -91,6 +96,13 @@ describe('CrmOpportunities', () => {
     expect(screen.getByRole('button', { name: /create opportunity/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/filter opportunities/i)).toBeInTheDocument();
     expect(screen.getByTestId('opportunities-table')).toBeInTheDocument();
+  });
+
+  it('does not pass listing mutation or selection controls to the opportunity table', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId('opportunities-table')).toBeInTheDocument());
+    expect(screen.getByTestId('opportunity-listing-mutation-props')).toHaveTextContent('false');
   });
 
   it('shows unique logical stages globally and sends stageName for all-pipeline filtering', async () => {

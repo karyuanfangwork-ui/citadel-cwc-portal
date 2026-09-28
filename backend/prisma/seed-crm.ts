@@ -252,7 +252,7 @@ async function main() {
     { name: 'Closed Lost', displayOrder: 5, probability: 0, color: '#ef4444', isWonStage: false, isLostStage: true },
   ];
   const existingPipeline = await prisma.crmPipeline.findFirst({ where: { name: 'Sales Pipeline' }, include: { stages: true } });
-  let pipeline: typeof existingPipeline & { stages: { id: string; name: string; displayOrder: number }[] };
+  let pipeline: typeof existingPipeline & { stages: { id: string; name: string; displayOrder: number; probability: number }[] };
   if (existingPipeline) {
     pipeline = existingPipeline;
     console.log(`   Pipeline already exists, reusing: ${pipeline.name}`);
@@ -271,8 +271,10 @@ async function main() {
   console.log(`   ✓ Pipeline: ${pipeline.name} with ${pipeline.stages.length} stages`);
 
   const stageMap: Record<string, string> = {};
+  const stageProbabilityMap: Record<string, number> = {};
   for (const stage of pipeline.stages) {
     stageMap[stage.name] = stage.id;
+    stageProbabilityMap[stage.name] = stage.probability;
   }
   console.log('\n🎯 Creating CRM Leads...');
   let leadsCreated = 0;
@@ -323,7 +325,7 @@ async function main() {
         ownerId: salesManager.id,
         value: lead.estimatedValue || 50000,
         currency: 'MYR',
-        probability: stageName === 'Proposal' ? 50 : 30,
+        probability: stageProbabilityMap[stageName],
         description: lead.description,
         expectedCloseDate: new Date(Date.now() + (30 + i * 15) * 24 * 60 * 60 * 1000), // 30-120 days out
       },

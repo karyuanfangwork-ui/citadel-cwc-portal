@@ -1,8 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import type { CrmLead, LeadStatus } from '../../services/crm.service';
-import { hasPermission } from '../../utils/permissions';
-import StatusDropdown from './StatusDropdown';
+import type { CrmLead } from '../../services/crm.service';
 import {
   STATUS_STYLES,
   SOURCE_LABELS,
@@ -31,11 +29,7 @@ interface LeadsTableProps {
   onToggleSelect: (id: string) => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
-  onEdit: (lead: CrmLead) => void;
-  onDelete: (lead: CrmLead) => void;
-  onStatusChange: (leadId: string, newStatus: LeadStatus) => void;
   isAllSelected: boolean;
-  user: any;
 }
 
 // ── Design tokens (Kinetic Enterprise) ────────────────────────────────
@@ -118,7 +112,6 @@ const TableHeader: React.FC<{
         {sortableCol('Follow-up', 'followUpDate')}
         <th style={{ ...labelCaps, padding: '10px 12px' }} className="hidden xl:table-cell">Source</th>
         <th style={{ ...labelCaps, padding: '10px 12px', textAlign: 'left' }}>Owner</th>
-        <th style={{ padding: '10px 12px', position: 'sticky', right: 0, background: T.surfaceLow, zIndex: 10, minWidth: 100 }} />
       </tr>
     </thead>
   );
@@ -129,11 +122,7 @@ const LeadRow: React.FC<{
   lead: CrmLead;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
-  onEdit: (lead: CrmLead) => void;
-  onDelete: (lead: CrmLead) => void;
-  onStatusChange: (leadId: string, newStatus: LeadStatus) => void;
-  canDelete: boolean;
-}> = ({ lead, isSelected, onToggleSelect, onEdit, onDelete, onStatusChange, canDelete }) => {
+}> = ({ lead, isSelected, onToggleSelect }) => {
   const st = STATUS_STYLES[lead.status] || STATUS_STYLES.NEW;
 
   // Urgency indicators
@@ -223,9 +212,12 @@ const LeadRow: React.FC<{
       </td>
 
       {/* Status */}
-      <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+      <td style={{ padding: '10px 12px' }}>
         <div className="flex items-center gap-1">
-          <StatusDropdown currentStatus={lead.status} onChange={newStatus => onStatusChange(lead.id, newStatus)} compact />
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold" style={{ background: st.bg, color: st.text }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{st.icon}</span>
+            {lead.status.replace(/_/g, ' ')}
+          </span>
           {badge && (
             <span
               className="w-2 h-2 rounded-full shrink-0"
@@ -326,54 +318,6 @@ const LeadRow: React.FC<{
         )}
       </td>
 
-      {/* Actions — hover-revealed */}
-      <td
-        style={{
-          padding: '10px 12px',
-          position: 'sticky',
-          right: 0,
-          zIndex: 10,
-          background: isSelected ? '#e5eeff' : T.surfaceLowest,
-          minWidth: 100,
-          textAlign: 'right',
-        }}
-        className="group-hover:!bg-[#f8f9ff]"
-      >
-        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Link
-            to={`/crm/leads/${lead.id}`}
-            className="p-1.5 rounded transition-colors"
-            style={{ color: T.onSurfaceVar }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.tealLight; (e.currentTarget as HTMLElement).style.color = T.tealDark; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
-            title="View details"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>visibility</span>
-          </Link>
-          <button
-            onClick={e => { e.stopPropagation(); onEdit(lead); }}
-            className="p-1.5 rounded transition-colors"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.onSurfaceVar }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.tealLight; (e.currentTarget as HTMLElement).style.color = T.tealDark; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
-            title="Edit lead"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>
-          </button>
-          {canDelete && (
-            <button
-              onClick={e => { e.stopPropagation(); onDelete(lead); }}
-              className="p-1.5 rounded transition-colors"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.onSurfaceVar }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = T.dangerBg; (e.currentTarget as HTMLElement).style.color = T.danger; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = T.onSurfaceVar; }}
-              title="Delete lead"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
-            </button>
-          )}
-        </div>
-      </td>
     </tr>
   );
 };
@@ -383,11 +327,7 @@ const MobileLeadRow: React.FC<{
   lead: CrmLead;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
-  onEdit: (lead: CrmLead) => void;
-  onDelete: (lead: CrmLead) => void;
-  onStatusChange: (leadId: string, newStatus: LeadStatus) => void;
-  canDelete: boolean;
-}> = ({ lead, isSelected, onToggleSelect, onEdit, onDelete, onStatusChange, canDelete }) => {
+}> = ({ lead, isSelected, onToggleSelect }) => {
   const st = STATUS_STYLES[lead.status] || STATUS_STYLES.NEW;
   const followUpOverdue = lead.followUpDate && isOverdue(lead.followUpDate) && !isToday(lead.followUpDate);
   const initials = lead.title
@@ -505,14 +445,8 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
   onToggleSelect,
   onSelectAll,
   onClearSelection,
-  onEdit,
-  onDelete,
-  onStatusChange,
   isAllSelected,
-  user,
 }) => {
-  const canDelete = hasPermission(user, 'crm:delete');
-
   // Desktop table
   const desktopTable = (
     <div className="hidden lg:block w-full overflow-x-auto rounded-xl border shadow-sm" style={{ borderColor: T.outline, background: T.surfaceLowest }}>
@@ -525,10 +459,6 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
               lead={lead}
               isSelected={selectedIds.has(lead.id)}
               onToggleSelect={onToggleSelect}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onStatusChange={onStatusChange}
-              canDelete={canDelete}
             />
           ))}
         </tbody>
@@ -548,10 +478,6 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
           lead={lead}
           isSelected={selectedIds.has(lead.id)}
           onToggleSelect={onToggleSelect}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onStatusChange={onStatusChange}
-          canDelete={canDelete}
         />
       ))}
     </div>

@@ -176,7 +176,7 @@ function evaluateCondition(cond: ConditionConfig, data: Record<string, any>): bo
 /**
  * Execute a single workflow action
  */
-async function executeAction(
+export async function executeAction(
   action: ActionConfig,
   entityType: string,
   entityId: string,
@@ -222,9 +222,16 @@ async function executeAction(
     }
 
     case 'UPDATE_FIELD': {
-      const targetEntityType = action.config.entityType || entityType;
+      const targetEntityType = String(action.config.entityType || entityType).toUpperCase();
       const field = action.config.field;
       const value = action.config.value;
+
+      if (targetEntityType === 'OPPORTUNITY' && ['probability', 'stageId', 'pipelineId', 'lostReason', 'lostAt', 'wonAt'].includes(field)) {
+        return { error: `Workflow UPDATE_FIELD cannot modify Opportunity ${field}` };
+      }
+      if (targetEntityType === 'LEAD' && ['status', 'lostReason', 'lostAt', 'convertedAt', 'convertedToOppId'].includes(field)) {
+        return { error: `Workflow UPDATE_FIELD cannot modify Lead ${field}` };
+      }
 
       if (targetEntityType === 'LEAD') {
         await prisma.crmLead.update({ where: { id: entityId }, data: { [field]: value } });

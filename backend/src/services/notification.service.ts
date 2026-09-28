@@ -51,6 +51,15 @@ interface MaterializedNotificationContent {
   wrapInLayout: boolean;
 }
 
+function crmActivityReminderFallback(variables: Record<string, string>): Pick<MaterializedNotificationContent, 'pushSubject' | 'pushBodyText' | 'emailSubject' | 'emailBodyHtml'> {
+  const activityTypeLabel = variables.activityTypeLabel || 'Activity';
+  const activitySubject = variables.activitySubject || 'CRM activity';
+  const scheduledTime = variables.scheduledTime || '—';
+  const subject = variables.reminderTitle || `${activityTypeLabel} Reminder`;
+  const body = `${activitySubject} — Due ${scheduledTime}`;
+  return { pushSubject: subject, pushBodyText: body, emailSubject: subject, emailBodyHtml: body };
+}
+
 async function isEmailGloballyEnabled(): Promise<boolean> {
   const now = Date.now();
   if (_emailEnabledCache && now < _emailEnabledCache.expiresAt) {
@@ -282,19 +291,22 @@ async function materializeContent(delivery: any): Promise<MaterializedNotificati
     ? payload.body
     : `Event: ${event.eventType}`;
 
+  const crmReminderFallback = event.eventType === 'crm_activity_reminder'
+    ? crmActivityReminderFallback(variables)
+    : null;
   const pushSubject = template
     ? renderTemplate(template.pushTitle ?? template.emailSubject ?? '', enrichedVars)
-    : fallbackSubject;
+    : crmReminderFallback?.pushSubject ?? fallbackSubject;
   const pushBodyText = template
     ? renderTemplate(template.pushBody ?? '', enrichedVars)
-    : fallbackBody;
+    : crmReminderFallback?.pushBodyText ?? fallbackBody;
 
   const emailSubject = template
     ? renderTemplate(template.emailSubject ?? '', enrichedVars)
-    : fallbackSubject;
+    : crmReminderFallback?.emailSubject ?? fallbackSubject;
   const emailBodyHtml = template
     ? renderTemplate(template.emailBody ?? '', enrichedVars)
-    : fallbackBody;
+    : crmReminderFallback?.emailBodyHtml ?? fallbackBody;
 
   return { pushSubject, pushBodyText, emailSubject, emailBodyHtml, relatedRequestId, wrapInLayout };
 }

@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client';
-import { generateWinLossDebrief } from './crm-ai.service';
 import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error.middleware';
 import { applyOwnerScope } from './crm-scope.service';
+import { isActiveLeadStatus } from './crm-lead-lifecycle.service';
 
 import prisma from '../utils/prisma';
 
@@ -587,7 +587,6 @@ export async function convertLead(
   data: {
     opportunityName: string;
     pipelineId: string;
-    stageId: string;
     value?: number;
     expectedCloseDate?: string;
     createAccount?: boolean;
@@ -603,8 +602,8 @@ export async function convertLead(
     });
     if (!lead) throw new AppError('Lead not found', 404);
 
-    if (lead.status === 'CONVERTED') {
-      throw new Error('Lead is already converted');
+    if (!isActiveLeadStatus(lead.status)) {
+      throw new AppError('Only active leads can be converted', 400);
     }
 
     // Create account if needed
@@ -645,10 +644,12 @@ export async function convertLead(
       throw new Error('Lead must have an account or createAccount must be true');
     }
 
-    // Look up the stage to inherit its default probability
-    const stage = await tx.crmPipelineStage.findUniqueOrThrow({
-      where: { id: data.stageId },
+    // Conversion always starts at the pipeline's first active stage.
+    const stage = await tx.crmPipelineStage.findFirst({
+      where: { pipelineId: data.pipelineId, isWonStage: false, isLostStage: false },
+      orderBy: { displayOrder: 'asc' },
     });
+    if (!stage) throw new AppError('Selected pipeline has no active starting stage', 400);
 
     // Determine contactId: prefer existing, then newly created during conversion
     const contactId = lead.contactId || lead.contact?.id || null;
@@ -660,7 +661,7 @@ export async function convertLead(
         accountId,
         contactId,
         pipelineId: data.pipelineId,
-        stageId: data.stageId,
+        stageId: stage.id,
         ownerId: userId,
         value: data.value || lead.estimatedValue || 0,
         probability: stage.probability,
@@ -695,109 +696,6 @@ export async function convertLead(
 
     return opportunity;
   });
-}
-
-// ============================================================================
-// OPPORTUNITY STAGE CHANGE
-// ============================================================================
-
-import { validateStageTransition } from './crm-stage-gate.service';
-
-export async function moveOpportunityStage(
-  opportunityId: string,
-  stageId: string,
-  userId: string,
-  lostReason?: string,
-  visibleOwnerIds: string[] | null = [userId]
-) {
-  const result = await prisma.$transaction(async (tx) => {
-    const opportunity = await tx.crmOpportunity.findFirst({
-      where: applyOwnerScope({ id: opportunityId, deletedAt: null }, visibleOwnerIds),
-      include: { stage: true },
-    });
-    if (!opportunity) throw new AppError('Opportunity not found', 404);
-
-    const newStage = await tx.crmPipelineStage.findUniqueOrThrow({
-      where: { id: stageId },
-    });
-
-    // Ensure same pipeline
-    if (newStage.pipelineId !== opportunity.pipelineId) {
-      throw new Error('Stage must belong to the same pipeline');
-    }
-
-    // Stage gate validation
-    const gateResult = validateStageTransition(opportunity, opportunity.stage as any, newStage as any);
-    if (!gateResult.ok) {
-      const err: any = new Error(gateResult.reason);
-      err.needsApproval = !!gateResult.needsApproval;
-      err.gateFailed = true;
-      throw err;
-    }
-
-    const updateData: Prisma.CrmOpportunityUpdateInput = {
-      stage: { connect: { id: stageId } },
-      probability: newStage.probability,
-    };
-
-    if (newStage.isWonStage) {
-      updateData.wonAt = new Date();
-      updateData.probability = 100;
-    } else if (newStage.isLostStage) {
-      updateData.lostAt = new Date();
-      updateData.lostReason = lostReason;
-      updateData.probability = 0;
-    }
-
-    const updated = await tx.crmOpportunity.update({
-      where: { id: opportunityId },
-      data: updateData,
-      include: {
-        stage: true,
-        account: { select: { id: true, name: true } },
-        owner: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    // Log activity
-    await tx.crmActivity.create({
-      data: {
-        activityType: 'NOTE',
-        subject: `Deal moved to ${newStage.name}`,
-        description: `Opportunity "${opportunity.name}" moved from "${opportunity.stage.name}" to "${newStage.name}"`,
-        userId,
-        accountId: opportunity.accountId,
-        opportunityId,
-        source: 'SYSTEM',
-      },
-    });
-
-    // Record stage history
-    await tx.crmOpportunityStageHistory.create({
-      data: {
-        opportunityId,
-        fromStageName: opportunity.stage.name,
-        toStageName: newStage.name,
-        movedByUserId: userId,
-      },
-    });
-
-    return { updated, newStage };
-  });
-
-  // Fire-and-forget AI debrief when deal closes
-  if (result.newStage.isWonStage || result.newStage.isLostStage) {
-    setImmediate(() => {
-      generateWinLossDebrief(opportunityId)
-        .then(async (debrief) => {
-          const content = `**AI Win/Loss Debrief**\n\n${debrief.summary}\n\n**Key Factors:**\n${debrief.keyFactors.map(f => `• ${f}`).join('\n')}\n\n**Lessons Learned:**\n${debrief.lessonsLearned.map(l => `• ${l}`).join('\n')}\n\n**Follow-On Actions:**\n${debrief.followOnActions.map(a => `• ${a}`).join('\n')}`;
-          await prisma.crmNote.create({ data: { content, opportunityId, authorId: userId } });
-        })
-        .catch(err => logger.warn('[CRM] Win/loss debrief failed', { error: err }));
-    });
-  }
-
-  return result.updated;
 }
 
 export const opportunityTimelineActivityInclude = {
@@ -908,6 +806,5 @@ export default {
   getDashboardStats,
   exportDashboardCsv,
   convertLead,
-  moveOpportunityStage,
   getPipelineStats,
 };

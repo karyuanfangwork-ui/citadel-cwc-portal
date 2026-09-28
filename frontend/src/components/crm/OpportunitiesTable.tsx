@@ -1,8 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { CrmOpportunity } from '../../services/crm.service';
-import { hasPermission } from '../../utils/permissions';
-import StageDropdown from './StageDropdown';
 import {
   formatCurrency,
   formatShortDate,
@@ -21,25 +19,10 @@ export interface SortConfig {
   direction: SortDirection;
 }
 
-interface PipelineRef {
-  id: string;
-  stages?: { id: string; name: string; probability: number; displayOrder?: number; color?: string; isWonStage?: boolean; isLostStage?: boolean }[];
-}
-
 interface OpportunitiesTableProps {
   opportunities: CrmOpportunity[];
-  pipelines: PipelineRef[];
   sortConfig: SortConfig | null;
   onSort: (field: SortField) => void;
-  selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-  onEdit: (opp: CrmOpportunity) => void;
-  onDelete: (opp: CrmOpportunity) => void;
-  onStageChange: (oppId: string, stageId: string, lostReason?: string) => void;
-  isAllSelected: boolean;
-  user: any;
 }
 
 // ── Sort indicator ──────────────────────────────────────────────
@@ -53,11 +36,7 @@ const SortIcon: React.FC<{ active: boolean; direction: SortDirection | null }> =
 const TableHeader: React.FC<{
   sortConfig: SortConfig | null;
   onSort: (field: SortField) => void;
-  isAllSelected: boolean;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-  oppCount: number;
-}> = ({ sortConfig, onSort, isAllSelected, onSelectAll, onClearSelection, oppCount }) => {
+}> = ({ sortConfig, onSort }) => {
   const sortableCol = (label: string, field: SortField) => (
     <th
       className={`text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d] cursor-pointer select-none hover:text-[#006a61] transition-colors`}
@@ -74,15 +53,6 @@ const TableHeader: React.FC<{
   return (
     <thead className="bg-[#f0f4f8] border-b border-[#e2e8f0]">
       <tr>
-        <th className="px-4 py-3 w-10">
-          <input
-            type="checkbox"
-            checked={isAllSelected && oppCount > 0}
-            onChange={() => isAllSelected ? onClearSelection() : onSelectAll()}
-            className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer"
-            title={isAllSelected ? 'Deselect all' : 'Select all on this page'}
-          />
-        </th>
         {sortableCol('Opportunity', 'name')}
         <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Account Name</th>
         {sortableCol('Stage', 'stageId')}
@@ -90,7 +60,6 @@ const TableHeader: React.FC<{
         {sortableCol('Probability', 'probability')}
         {sortableCol('Close Date', 'expectedCloseDate')}
         <th className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</th>
-        <th className="px-4 py-3 sticky right-0 bg-[#f0f4f8] z-10"></th>
       </tr>
     </thead>
   );
@@ -99,27 +68,12 @@ const TableHeader: React.FC<{
 // ── Desktop table row ────────────────────────────────────────────
 const OppRow: React.FC<{
   opp: CrmOpportunity;
-  stages: { id: string; name: string; probability: number; displayOrder?: number; color?: string; isWonStage?: boolean; isLostStage?: boolean }[];
-  isSelected: boolean;
-  onToggleSelect: (id: string) => void;
-  onEdit: (opp: CrmOpportunity) => void;
-  onDelete: (opp: CrmOpportunity) => void;
-  onStageChange: (oppId: string, stageId: string, lostReason?: string) => void;
-  canDelete: boolean;
-}> = ({ opp, stages, isSelected, onToggleSelect, onEdit, onDelete, onStageChange, canDelete }) => {
+}> = ({ opp }) => {
   const contactName = opp.contact ? `${opp.contact.firstName} ${opp.contact.lastName}`.trim() : null;
   const closeDateOverdue = opp.expectedCloseDate && isOverdue(opp.expectedCloseDate) && !isToday(opp.expectedCloseDate);
 
   return (
-    <tr className={`border-b border-[#e2e8f0] hover:bg-[#f0f4f8] transition-colors ${isSelected ? 'bg-[#e8f0fe]' : ''}`}>
-      <td className="px-4 py-2.5 w-10">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelect(opp.id)}
-          className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer"
-        />
-      </td>
+    <tr className="border-b border-[#e2e8f0] hover:bg-[#f0f4f8] transition-colors">
       <td className="px-4 py-2.5" style={{ minWidth: 180 }}>
         <Link
           to={`/crm/opportunities/${opp.id}`}
@@ -136,14 +90,11 @@ const OppRow: React.FC<{
       <td className="px-4 py-2.5">
         <span className="text-sm text-[#0b1c30] line-clamp-1">{opp.account?.name || '—'}</span>
       </td>
-      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+      <td className="px-4 py-2.5">
         {opp.stage ? (
-          <StageDropdown
-            currentStage={opp.stage}
-            stages={stages}
-            onChange={(stageId, lostReason) => onStageChange(opp.id, stageId, lostReason)}
-            compact
-          />
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: `${stageBadgeColor(opp.stage)}20`, color: stageBadgeColor(opp.stage) }}>
+            {opp.stage.name}
+          </span>
         ) : (
           <span className="text-xs text-[#45464d]">—</span>
         )}
@@ -182,28 +133,6 @@ const OppRow: React.FC<{
           <span className="text-xs text-text-tertiary">—</span>
         )}
       </td>
-      <td className="px-4 py-2.5 sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)]">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={e => { e.stopPropagation(); onEdit(opp); }}
-            className="p-1 rounded hover:bg-gray-100 transition-colors"
-            style={{ border: 'none', background: 'none', cursor: 'pointer' }}
-            title="Edit opportunity"
-          >
-            <span className="material-symbols-outlined text-base text-[#76777d] hover:text-[#006a61]">edit</span>
-          </button>
-          {canDelete && (
-            <button
-              onClick={e => { e.stopPropagation(); onDelete(opp); }}
-              className="p-1 rounded hover:bg-red-50 transition-colors"
-              style={{ border: 'none', background: 'none', cursor: 'pointer' }}
-              title="Delete opportunity"
-            >
-              <span className="material-symbols-outlined text-base text-text-secondary hover:text-red-600">delete</span>
-            </button>
-          )}
-        </div>
-      </td>
     </tr>
   );
 };
@@ -211,38 +140,22 @@ const OppRow: React.FC<{
 // ── Mobile stacked card ──────────────────────────────────────────
 const MobileOppCard: React.FC<{
   opp: CrmOpportunity;
-  stages: { id: string; name: string; probability: number; displayOrder?: number; color?: string; isWonStage?: boolean; isLostStage?: boolean }[];
-  isSelected: boolean;
-  onToggleSelect: (id: string) => void;
-  onEdit: (opp: CrmOpportunity) => void;
-  onDelete: (opp: CrmOpportunity) => void;
-  onStageChange: (oppId: string, stageId: string, lostReason?: string) => void;
-  canDelete: boolean;
-}> = ({ opp, stages, isSelected, onToggleSelect, onEdit, onDelete, onStageChange, canDelete }) => {
+}> = ({ opp }) => {
   const contactName = opp.contact ? `${opp.contact.firstName} ${opp.contact.lastName}`.trim() : null;
   const closeDateOverdue = opp.expectedCloseDate && isOverdue(opp.expectedCloseDate) && !isToday(opp.expectedCloseDate);
 
   return (
-    <div className={`bg-white border rounded-xl p-4 transition-all ${isSelected ? 'border-[#006a61] ring-2 ring-[#006a61]/10' : 'border-[#e2e8f0] hover:border-[#006a61]/30'}`}>
-      {/* Row 1: checkbox + name + stage */}
+    <div className="bg-white border rounded-xl p-4 transition-all border-[#e2e8f0] hover:border-[#006a61]/30">
+      {/* Row 1: name + stage */}
       <div className="flex items-start gap-2 mb-2">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelect(opp.id)}
-          className="w-4 h-4 rounded border-[#e2e8f0] text-[#006a61] focus:ring-[#006a61] cursor-pointer mt-0.5"
-        />
         <Link to={`/crm/opportunities/${opp.id}`} className="text-sm font-bold text-[#0b1c30] hover:text-[#006a61] flex-1 line-clamp-2" title={opp.name}>
           {opp.name}
         </Link>
-        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1 shrink-0">
           {opp.stage && (
-            <StageDropdown
-              currentStage={opp.stage}
-              stages={stages}
-              onChange={(stageId, lostReason) => onStageChange(opp.id, stageId, lostReason)}
-              compact
-            />
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: `${stageBadgeColor(opp.stage)}20`, color: stageBadgeColor(opp.stage) }}>
+              {opp.stage.name}
+            </span>
           )}
         </div>
       </div>
@@ -285,16 +198,6 @@ const MobileOppCard: React.FC<{
             {opp.owner.firstName}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-1">
-          <button onClick={() => onEdit(opp)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
-            <span className="material-symbols-outlined text-base text-[#76777d]">edit</span>
-          </button>
-          {canDelete && (
-            <button onClick={() => onDelete(opp)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2 }}>
-              <span className="material-symbols-outlined text-base text-[#76777d]">delete</span>
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -303,42 +206,19 @@ const MobileOppCard: React.FC<{
 // ── Main component ───────────────────────────────────────────────
 const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
   opportunities,
-  pipelines,
   sortConfig,
   onSort,
-  selectedIds,
-  onToggleSelect,
-  onSelectAll,
-  onClearSelection,
-  onEdit,
-  onDelete,
-  onStageChange,
-  isAllSelected,
-  user,
 }) => {
-  const canDelete = hasPermission(user, 'crm:delete');
-
-  // Helper: get stages for a given pipelineId
-  const getStages = (pipelineId: string) =>
-    pipelines.find(p => p.id === pipelineId)?.stages ?? [];
-
   // Desktop table
   const desktopTable = (
     <div className="hidden lg:block w-full overflow-x-auto rounded-xl border border-[#e2e8f0] bg-white">
       <table className="w-full" style={{ minWidth: 900 }}>
-        <TableHeader sortConfig={sortConfig} onSort={onSort} isAllSelected={isAllSelected} onSelectAll={onSelectAll} onClearSelection={onClearSelection} oppCount={opportunities.length} />
+        <TableHeader sortConfig={sortConfig} onSort={onSort} />
         <tbody>
           {opportunities.map(opp => (
             <OppRow
               key={opp.id}
               opp={opp}
-              stages={getStages(opp.pipelineId)}
-              isSelected={selectedIds.has(opp.id)}
-              onToggleSelect={onToggleSelect}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onStageChange={onStageChange}
-              canDelete={canDelete}
             />
           ))}
         </tbody>
@@ -356,13 +236,6 @@ const OpportunitiesTable: React.FC<OpportunitiesTableProps> = ({
         <MobileOppCard
           key={opp.id}
           opp={opp}
-          stages={getStages(opp.pipelineId)}
-          isSelected={selectedIds.has(opp.id)}
-          onToggleSelect={onToggleSelect}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onStageChange={onStageChange}
-          canDelete={canDelete}
         />
       ))}
       {opportunities.length === 0 && (

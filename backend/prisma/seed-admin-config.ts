@@ -362,12 +362,12 @@ export const SEED_NOTIFICATION_TEMPLATES = [
   {
     "name": "CRM Activity Reminder",
     "eventType": "crm_activity_reminder",
-    "emailSubject": "Reminder: \"{{activitySubject}}\" is scheduled for {{scheduledTime}}",
-    "emailBody": "<p>Hi {{userName}},</p>\n<p>This is a reminder that your CRM activity <strong>{{activitySubject}}</strong> is coming up on <strong>{{scheduledTime}}</strong>.</p>\n<p><a href=\"{{appUrl}}/crm\">Open CRM</a></p>",
+    "emailSubject": "{{reminderTitle}}",
+    "emailBody": "<p>Hi {{userName}},</p>\n<p><strong>{{activitySubject}}</strong></p>\n<p>Due {{scheduledTime}}</p>\n<p><a href=\"{{appUrl}}/crm\">Open CRM</a></p>",
     "smsBody": "",
-    "pushTitle": "Activity reminder: {{activitySubject}}",
-    "pushBody": "Scheduled for {{scheduledTime}}.",
-    "isActive": false
+    "pushTitle": "{{reminderTitle}}",
+    "pushBody": "{{activitySubject}} — Due {{scheduledTime}}",
+    "isActive": true
   },
 
   // ── CRM: Lead Aging (owner) ──────────────────────────────────────────────

@@ -164,11 +164,11 @@ const LEADS = [
 
 // Opportunities derived from qualified/contacted leads
 const OPPORTUNITIES = [
-  { name: `${DEMO_TAG} Kwok Family Trust — Full Structure`, stageName: 'Proposal', value: 450000, probability: 50, aiWinProbability: 72, aiWinReason: 'Strong referral source, high-value family office client with existing trust assets', expectedCloseDays: 45 },
-  { name: `${DEMO_TAG} Syed Corp Shariah Will Package`, stageName: 'Qualification', value: 180000, probability: 25, aiWinProbability: 45, aiWinReason: 'LinkedIn inbound shows intent, but no meeting set yet — typical B2B trust deal', expectedCloseDays: 90 },
-  { name: `${DEMO_TAG} Mahani Estate Planning Review`, stageName: 'Negotiation', value: 320000, probability: 75, aiWinProbability: 68, aiWinReason: 'Multiple stakeholder buy-in, proposal under review — typical long sales cycle', expectedCloseDays: 21 },
-  { name: `${DEMO_TAG} Tan & Partners Trust Restructuring`, stageName: 'Prospecting', value: 250000, probability: 10, aiWinProbability: 32, aiWinReason: 'Cold call initial contact, interest expressed but no formal engagement', expectedCloseDays: 120 },
-  { name: `${DEMO_TAG} Azman & Lee Probate Referral`, stageName: 'Qualification', value: 95000, probability: 25, aiWinProbability: 55, aiWinReason: 'Partner referral typically converts above 50%, moderate estate value', expectedCloseDays: 60 },
+  { name: `${DEMO_TAG} Kwok Family Trust — Full Structure`, stageName: 'Proposal', value: 450000, aiWinProbability: 72, aiWinReason: 'Strong referral source, high-value family office client with existing trust assets', expectedCloseDays: 45 },
+  { name: `${DEMO_TAG} Syed Corp Shariah Will Package`, stageName: 'Qualification', value: 180000, aiWinProbability: 45, aiWinReason: 'LinkedIn inbound shows intent, but no meeting set yet — typical B2B trust deal', expectedCloseDays: 90 },
+  { name: `${DEMO_TAG} Mahani Estate Planning Review`, stageName: 'Negotiation', value: 320000, aiWinProbability: 68, aiWinReason: 'Multiple stakeholder buy-in, proposal under review — typical long sales cycle', expectedCloseDays: 21 },
+  { name: `${DEMO_TAG} Tan & Partners Trust Restructuring`, stageName: 'Prospecting', value: 250000, aiWinProbability: 32, aiWinReason: 'Cold call initial contact, interest expressed but no formal engagement', expectedCloseDays: 120 },
+  { name: `${DEMO_TAG} Azman & Lee Probate Referral`, stageName: 'Qualification', value: 95000, aiWinProbability: 55, aiWinReason: 'Partner referral typically converts above 50%, moderate estate value', expectedCloseDays: 60 },
 ];
 
 const ACTIVITIES = [
@@ -323,8 +323,10 @@ async function main() {
   console.log(`   ✓ Pipeline: ${pipeline!.name} with ${pipeline!.stages.length} stages`);
 
   const stageMap: Record<string, string> = {};
+  const stageProbabilityMap: Record<string, number> = {};
   for (const stage of pipeline!.stages) {
     stageMap[stage.name] = stage.id;
+    stageProbabilityMap[stage.name] = stage.probability;
   }
 
   // ── 5. Create Leads ──
@@ -402,7 +404,7 @@ async function main() {
         ownerId: owner.id,
         value: opp.value,
         currency: 'MYR',
-        probability: opp.probability,
+        probability: stageProbabilityMap[opp.stageName],
         expectedCloseDate: new Date(Date.now() + opp.expectedCloseDays * 24 * 60 * 60 * 1000),
         description: `${DEMO_TAG} Trust & estate planning opportunity`,
         // Pre-populate AI win probability

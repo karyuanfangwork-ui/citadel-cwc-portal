@@ -55,6 +55,11 @@ async function main() {
 
   const stageMap: Record<string, string> = {};
   for (const s of pipeline.stages) stageMap[s.name] = s.id;
+  const stageProbability = (stageName: string) => {
+    const stage = pipeline.stages.find((candidate) => candidate.name === stageName);
+    if (!stage) throw new Error(`Stage not found: ${stageName}`);
+    return stage.probability;
+  };
 
   // ─── 2. Accounts (Customers) ────────────────────────────────────────────
   console.log('2. Creating accounts...');
@@ -303,48 +308,48 @@ async function main() {
     prisma.crmOpportunity.create({ data: {
       name: 'Petronas Digital Trust Restructuring', accountId: petronas.id, contactId: contacts[0].id,
       pipelineId: pipeline.id, stageId: stageMap['Prospecting'], ownerId: USERS.ahmad,
-      value: 12000000, currency: 'MYR', probability: 10, expectedCloseDate: futureDate(90),
+      value: 12000000, currency: 'MYR', probability: stageProbability('Prospecting'), expectedCloseDate: futureDate(90),
       description: 'Enterprise trust restructuring for Petronas Digital. Initial conversations with CTO.',
     }}),
     // Qualification
     prisma.crmOpportunity.create({ data: {
       name: 'Maybank Islamic Wealth Trust', accountId: maybank.id, contactId: contacts[2].id,
       pipelineId: pipeline.id, stageId: stageMap['Qualification'], ownerId: USERS.ahmad,
-      value: 8500000, currency: 'MYR', probability: 25, expectedCloseDate: futureDate(60),
+      value: 8500000, currency: 'MYR', probability: stageProbability('Qualification'), expectedCloseDate: futureDate(60),
       description: 'Islamic banking trust product partnership. VP of Corporate Trust is very interested.',
     }}),
     // Proposal
     prisma.crmOpportunity.create({ data: {
       name: 'Gentining Corporate Escrow', accountId: genting.id, contactId: contacts[4].id,
       pipelineId: pipeline.id, stageId: stageMap['Proposal'], ownerId: USERS.nurul,
-      value: 6000000, currency: 'MYR', probability: 50, expectedCloseDate: futureDate(30),
+      value: 6000000, currency: 'MYR', probability: stageProbability('Proposal'), expectedCloseDate: futureDate(30),
       description: 'Corporate trust restructuring proposal submitted. CFO reviewing terms.',
     }}),
     prisma.crmOpportunity.create({ data: {
       name: 'Sime Darby Employee Benefits Trust', accountId: simeDarby.id, contactId: contacts[5].id,
       pipelineId: pipeline.id, stageId: stageMap['Proposal'], ownerId: USERS.nurul,
-      value: 4500000, currency: 'MYR', probability: 50, expectedCloseDate: futureDate(45),
+      value: 4500000, currency: 'MYR', probability: stageProbability('Proposal'), expectedCloseDate: futureDate(45),
       description: 'Employee benefits trust proposal for plantation workers. HR Head is champion.',
     }}),
     // Negotiation
     prisma.crmOpportunity.create({ data: {
       name: 'TechVenture B2B Trust Platform', accountId: techVenture.id, contactId: contacts[6].id,
       pipelineId: pipeline.id, stageId: stageMap['Negotiation'], ownerId: USERS.nurul,
-      value: 2800000, currency: 'MYR', probability: 75, expectedCloseDate: futureDate(14),
+      value: 2800000, currency: 'MYR', probability: stageProbability('Negotiation'), expectedCloseDate: futureDate(14),
       description: 'Final negotiation on pricing. CEO wants 15% discount on annual fee.',
     }}),
     // Closed Won
     prisma.crmOpportunity.create({ data: {
       name: 'Green Valley Supply Chain Trust', accountId: greenValley.id, contactId: contacts[7].id,
       pipelineId: pipeline.id, stageId: stageMap['Closed Won'], ownerId: USERS.ahmad,
-      value: 1500000, currency: 'MYR', probability: 100, expectedCloseDate: daysAgo(10),
+      value: 1500000, currency: 'MYR', probability: stageProbability('Closed Won'), expectedCloseDate: daysAgo(10),
       description: 'Supply chain financing trust signed. Annual renewal expected.',
       wonAt: daysAgo(10),
     }}),
     prisma.crmOpportunity.create({ data: {
       name: 'Penang Property Escrow Trust', accountId: penangProp.id, contactId: contacts[8].id,
       pipelineId: pipeline.id, stageId: stageMap['Closed Won'], ownerId: USERS.nurul,
-      value: 3500000, currency: 'MYR', probability: 100, expectedCloseDate: daysAgo(25),
+      value: 3500000, currency: 'MYR', probability: stageProbability('Closed Won'), expectedCloseDate: daysAgo(25),
       description: 'Property development escrow trust won. 3-year contract signed.',
       wonAt: daysAgo(25),
     }}),
@@ -352,7 +357,7 @@ async function main() {
     prisma.crmOpportunity.create({ data: {
       name: 'Tan Boon Wah Personal Trust', accountId: boonWah.id, contactId: contacts[9].id,
       pipelineId: pipeline.id, stageId: stageMap['Closed Lost'], ownerId: USERS.ahmad,
-      value: 800000, currency: 'MYR', probability: 0, expectedCloseDate: daysAgo(20),
+      value: 800000, currency: 'MYR', probability: stageProbability('Closed Lost'), expectedCloseDate: daysAgo(20),
       description: 'HNWI decided to go with a private banker\'s trust recommendation instead.',
       lostReason: 'Competitor offered better terms through private banking channel.',
       lostAt: daysAgo(20),
@@ -361,13 +366,13 @@ async function main() {
     prisma.crmOpportunity.create({ data: {
       name: 'Dr. Nair Medical Practice Trust', accountId: rajeshNair.id, contactId: contacts[11].id,
       pipelineId: pipeline.id, stageId: stageMap['Qualification'], ownerId: USERS.ahmad,
-      value: 1200000, currency: 'MYR', probability: 25, expectedCloseDate: futureDate(60),
+      value: 1200000, currency: 'MYR', probability: stageProbability('Qualification'), expectedCloseDate: futureDate(60),
       description: 'Medical specialist seeking practice protection trust and family wealth trust.',
     }}),
     prisma.crmOpportunity.create({ data: {
       name: 'Aisha Education Trust', accountId: aisha.id, contactId: contacts[12].id,
       pipelineId: pipeline.id, stageId: stageMap['Prospecting'], ownerId: USERS.nurul,
-      value: 400000, currency: 'MYR', probability: 10, expectedCloseDate: futureDate(90),
+      value: 400000, currency: 'MYR', probability: stageProbability('Prospecting'), expectedCloseDate: futureDate(90),
       description: 'Professor exploring education trust for children\'s university fund.',
     }}),
   ]);

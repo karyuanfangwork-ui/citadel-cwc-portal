@@ -388,4 +388,52 @@ describe('notification.service durable pipeline', () => {
       eventType: 'REQUEST_CREATED',
     }));
   });
+
+  it('renders an active CRM activity reminder template without exposing the event key', async () => {
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1', tenantId: 'tenant-1', recipientId: 'user-1', channel: 'IN_APP', status: 'PENDING', attemptCount: 0,
+      event: {
+        id: 'event-1', eventKey: 'event-key', tenantId: 'tenant-1', departmentId: null,
+        eventType: 'crm_activity_reminder', classification: 'INTERNAL', resourceType: 'notification', resourceId: null,
+        payload: { variables: { reminderTitle: 'Meeting Reminder — ABC Sdn Bhd', activitySubject: 'Quarterly Review', scheduledTime: '24 Sep 2026, 15:00' }, relatedRequestId: null, wrapInLayout: true },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' }, notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue({
+      pushTitle: '{{reminderTitle}}', pushBody: '{{activitySubject}} — Due {{scheduledTime}}',
+      emailSubject: '{{reminderTitle}}', emailBody: '{{activitySubject}} — Due {{scheduledTime}}',
+    });
+
+    await deliverNotification('delivery-in-app');
+
+    expect(mockPrisma.notification.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        subject: 'Meeting Reminder — ABC Sdn Bhd',
+        body: 'Quarterly Review — Due 24 Sep 2026, 15:00',
+      }),
+    }));
+  });
+
+  it('uses a human-readable CRM reminder fallback when its template is missing or disabled', async () => {
+    mockPrisma.notificationDelivery.findUnique.mockImplementation(({ where }: any) => Promise.resolve({
+      id: where.id,
+      eventId: 'event-1', tenantId: 'tenant-1', recipientId: 'user-1', channel: 'IN_APP', status: 'PENDING', attemptCount: 0,
+      event: {
+        id: 'event-1', eventKey: 'event-key', tenantId: 'tenant-1', departmentId: null,
+        eventType: 'crm_activity_reminder', classification: 'INTERNAL', resourceType: 'notification', resourceId: null,
+        payload: { variables: { reminderTitle: 'Follow-up Reminder — Lead: John Tan', activitySubject: 'Discuss proposal', scheduledTime: '24 Sep 2026, 15:00' }, relatedRequestId: null, wrapInLayout: true },
+      },
+      recipient: { id: 'user-1', email: 'recipient@test.local', firstName: 'Jane', lastName: 'Doe', tenantId: 'tenant-1' }, notification: null,
+    }));
+    mockPrisma.notificationTemplate.findFirst.mockResolvedValue(null);
+
+    await deliverNotification('delivery-in-app');
+
+    const call = mockPrisma.notification.upsert.mock.calls.at(-1)[0];
+    expect(call.create.subject).toBe('Follow-up Reminder — Lead: John Tan');
+    expect(call.create.body).toBe('Discuss proposal — Due 24 Sep 2026, 15:00');
+    expect(call.create.subject).not.toContain('crm_activity_reminder');
+    expect(call.create.body).not.toContain('crm_activity_reminder');
+  });
 });

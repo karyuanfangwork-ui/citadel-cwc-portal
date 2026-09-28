@@ -100,6 +100,13 @@ export const contactFiltersSchema = paginationSchema.extend({
 // LEADS
 // ============================================================================
 
+// Keep an omitted estimate absent, allow an explicit null to clear it, and
+// normalize blank form values without letting z.coerce.number turn them into 0.
+const optionalLeadEstimatedValueSchema = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  z.union([z.null(), z.coerce.number().nonnegative()]).optional(),
+);
+
 const leadBodySchema = z.object({
   title: z.string().min(1).max(255),
   source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'WHATSAPP', 'OTHER']).default('OTHER'),
@@ -112,7 +119,7 @@ const leadBodySchema = z.object({
   companyName: z.string().max(255).optional(),
   industry: z.string().max(100).optional(),
   address: z.string().optional(),
-  estimatedValue: z.coerce.number().nonnegative().optional(),
+  estimatedValue: optionalLeadEstimatedValueSchema,
   description: z.string().optional(),
   remark: z.string().optional(),
   emailDeliveryDate: z.string().optional(),
@@ -123,11 +130,14 @@ const leadBodySchema = z.object({
 export const createLeadSchema = z.object({ body: leadBodySchema });
 
 export const updateLeadSchema = z.object({
-  body: leadBodySchema.partial().extend({
-    status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
-    lostReason: z.string().optional(),
-  }),
+  body: leadBodySchema.partial().strict(),
 });
+
+const requiredLifecycleReason = z.string().trim().min(1);
+export const markLeadLostSchema = z.object({ body: z.object({ reason: requiredLifecycleReason }).strict() });
+export const markLeadUnqualifiedSchema = z.object({ body: z.object({}).strict() });
+export const reopenLeadSchema = z.object({ body: z.object({ reason: requiredLifecycleReason }).strict() });
+export const advanceLeadStatusSchema = z.object({ body: z.object({ status: z.enum(['CONTACTED', 'QUALIFIED']) }).strict() });
 
 export const leadFiltersSchema = paginationSchema.extend({
   status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST']).optional(),
@@ -140,42 +150,54 @@ export const convertLeadSchema = z.object({
   body: z.object({
     opportunityName: z.string().min(1).max(255),
     pipelineId: z.string().uuid(),
-    stageId: z.string().uuid(),
     value: z.coerce.number().nonnegative().default(0),
     expectedCloseDate: z.string().optional(), // ISO date
     createAccount: z.coerce.boolean().default(false),
     accountName: z.string().max(255).optional(),
-  }),
+  }).strict(),
 });
 
 // ============================================================================
 // OPPORTUNITIES
 // ============================================================================
 
-const opportunityBodySchema = z.object({
+const opportunityCreateBodySchema = z.object({
   name: z.string().min(1).max(255),
   accountId: z.string().uuid(),
   contactId: z.string().uuid().optional(),
   pipelineId: z.string().uuid(),
-  stageId: z.string().uuid(),
   value: z.coerce.number().nonnegative().default(0),
   currency: z.string().length(3).default('MYR'),
-  probability: z.coerce.number().int().min(0).max(100).default(0),
+  forecastCategory: z.enum(['PIPELINE', 'BEST_CASE', 'COMMIT', 'OMITTED']).optional(),
   expectedCloseDate: z.string().optional(),
   description: z.string().optional(),
   ownerId: z.string().uuid().optional(),
-});
+}).strict();
 
-export const createOpportunitySchema = z.object({ body: opportunityBodySchema });
+const opportunityUpdateBodySchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  accountId: z.string().uuid().optional(),
+  contactId: z.string().uuid().nullable().optional(),
+  value: z.coerce.number().nonnegative().optional(),
+  currency: z.string().length(3).optional(),
+  forecastCategory: z.enum(['PIPELINE', 'BEST_CASE', 'COMMIT', 'OMITTED']).optional(),
+  expectedCloseDate: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  ownerId: z.string().uuid().optional(),
+}).strict();
 
-export const updateOpportunitySchema = z.object({ body: opportunityBodySchema.partial() });
+export const createOpportunitySchema = z.object({ body: opportunityCreateBodySchema });
+
+export const updateOpportunitySchema = z.object({ body: opportunityUpdateBodySchema });
 
 export const moveOpportunityStageSchema = z.object({
   body: z.object({
     stageId: z.string().uuid(),
-    lostReason: z.string().optional(),
-  }),
+  }).strict(),
 });
+
+export const markOpportunityLostSchema = z.object({ body: z.object({ reason: z.string() }).strict() });
+export const reopenOpportunitySchema = z.object({ body: z.object({ reason: z.string() }).strict() });
 
 export const opportunityFiltersSchema = paginationSchema.extend({
   accountId: z.string().uuid().optional(),
@@ -212,7 +234,20 @@ export const updatePipelineSchema = z.object({
     description: z.string().optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
-  }),
+    stages: z.array(z.object({
+      id: z.string().uuid(),
+      name: z.string().min(1).max(100).optional(),
+      displayOrder: z.coerce.number().int().min(0).optional(),
+      probability: z.coerce.number().int().min(0).max(100).optional(),
+      color: z.string().max(20).optional(),
+      isWonStage: z.coerce.boolean().optional(),
+      isLostStage: z.coerce.boolean().optional(),
+      requiredFields: z.array(z.string()).optional(),
+      enforceForwardOnly: z.coerce.boolean().optional(),
+      requiresApproval: z.coerce.boolean().optional(),
+      approvalThreshold: z.coerce.number().nonnegative().nullable().optional(),
+    }).strict()).optional(),
+  }).strict(),
 });
 
 // ============================================================================

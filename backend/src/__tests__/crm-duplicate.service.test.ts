@@ -1,4 +1,4 @@
-import { scoreSimilarity, buildMatchFields } from '../services/crm-duplicate.service';
+import { scoreSimilarity, buildMatchFields, sanitizeMergeFieldSelections } from '../services/crm-duplicate.service';
 
 describe('scoreSimilarity', () => {
   it('returns 1.0 for identical strings', () => {
@@ -50,5 +50,14 @@ describe('buildMatchFields', () => {
     const b = { email: 'b@b.com', phone: '222', contactName: 'Bob' };
     const { confidence } = buildMatchFields(a, b);
     expect(confidence).toBe(0);
+  });
+});
+
+describe('Lead duplicate merge field selections', () => {
+  it('rejects Lead lifecycle fields while preserving normal merge fields', () => {
+    expect(() => sanitizeMergeFieldSelections('LEAD', { status: 'LOST' })).toThrow('Unsupported merge field selections: status');
+    expect(() => sanitizeMergeFieldSelections('LEAD', { lostReason: 'Bypass' })).toThrow('Unsupported merge field selections: lostReason');
+    expect(sanitizeMergeFieldSelections('LEAD', { title: 'Updated title', estimatedValue: 0 }))
+      .toEqual({ title: 'Updated title', estimatedValue: 0 });
   });
 });

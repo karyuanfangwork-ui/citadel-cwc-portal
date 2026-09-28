@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, Pagination, LeadSource, LeadStatus } from '../src/services/crm.service';
-import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
-import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
-import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
@@ -59,6 +56,8 @@ const CrmLeads = () => {
   const filterParam = searchParams.get('filter') || '';
   const [prioritySort, setPrioritySort] = useState(false);
   const { user } = useAuth();
+  const canImportLeads = hasPermission(user, 'crm:import');
+  const canExportLeads = hasPermission(user, 'crm:export');
 
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -73,11 +72,6 @@ const CrmLeads = () => {
   const [exporting, setExporting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const forceCreateRef = useRef(false);
-  const [editingItem, setEditingItem] = useState<CrmLead | null>(null);
-  const [showEdit, setShowEdit] = useState(false);
-  const [deleteItem, setDeleteItem] = useState<CrmLead | null>(null);
-  const [showDelete, setShowDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   const [viewMode, setViewMode] = useState<'table' | 'card'>(() => {
@@ -96,20 +90,7 @@ const CrmLeads = () => {
     });
   }, []);
 
-  const handleStatusChange = async (leadId: string, newStatus: LeadStatus) => {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-    try {
-      await crmService.updateLead(leadId, { status: newStatus });
-    } catch {
-      fetchLeads();
-    }
-  };
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkProcessing, setBulkProcessing] = useState(false);
-  const [bulkToast, setBulkToast] = useState<string | null>(null);
-  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
-  const [showBulkStatusSelect, setShowBulkStatusSelect] = useState(false);
   const ownerIdParam = searchParams.get('ownerId') || '';
 
   const toggleSelect = (id: string) => {
@@ -122,53 +103,6 @@ const CrmLeads = () => {
 
   const selectAll = () => setSelectedIds(new Set(displayedLeads.map(l => l.id)));
   const clearSelection = () => setSelectedIds(new Set());
-
-  const handleBulkAssignOwner = async (newOwnerId: string) => {
-    setBulkProcessing(true);
-    let count = 0;
-    for (const id of selectedIds) {
-      try { await crmService.updateLead(id, { ownerId: newOwnerId }); count++; } catch {}
-    }
-    setSelectedIds(new Set());
-    setShowBulkOwnerSelect(false);
-    setBulkProcessing(false);
-    setBulkToast(`Assigned ${count} lead${count > 1 ? 's' : ''} to new owner`);
-    fetchLeads();
-    setTimeout(() => setBulkToast(null), 3000);
-  };
-
-  const handleBulkChangeStatus = async (newStatus: string) => {
-    setBulkProcessing(true);
-    let count = 0;
-    for (const id of selectedIds) {
-      try { await crmService.updateLead(id, { status: newStatus as LeadStatus }); count++; } catch {}
-    }
-    setSelectedIds(new Set());
-    setShowBulkStatusSelect(false);
-    setBulkProcessing(false);
-    setBulkToast(`Changed status of ${count} lead${count > 1 ? 's' : ''}`);
-    fetchLeads();
-    setTimeout(() => setBulkToast(null), 3000);
-  };
-
-  const handleBulkDelete = async () => {
-    setBulkProcessing(true);
-    let count = 0;
-    for (const id of selectedIds) {
-      try { await crmService.deleteLead(id); count++; } catch {}
-    }
-    setSelectedIds(new Set());
-    setBulkProcessing(false);
-    setBulkToast(`Deleted ${count} lead${count > 1 ? 's' : ''}`);
-    fetchLeads();
-    setTimeout(() => setBulkToast(null), 3000);
-  };
-
-  const bulkActions: BulkAction[] = hasPermission(user, 'crm:admin') ? [
-    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); } },
-    { label: 'Change Status', icon: 'swap_horiz', onClick: async () => { setShowBulkStatusSelect(true); } },
-    { label: 'Delete', icon: 'delete', variant: 'danger', onClick: handleBulkDelete },
-  ] : [];
 
   const checkDuplicateLead = async (field: 'contactEmail' | 'contactPhone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -308,65 +242,6 @@ const CrmLeads = () => {
     }
   };
 
-  const openEdit = (lead: CrmLead) => {
-    setEditingItem(lead);
-    setForm({
-      title: lead.title,
-      contactName: lead.contactName || '',
-      contactEmail: lead.contactEmail || '',
-      contactPhone: lead.contactPhone || '',
-      companyName: lead.companyName || '',
-      ownerId: lead.ownerId,
-      source: lead.source,
-      estimatedValue: lead.estimatedValue ?? undefined,
-      followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
-      followUpNote: lead.followUpNote ?? '',
-    });
-    setDuplicateWarning(null);
-    setShowEdit(true);
-  };
-
-  const closeEdit = () => {
-    setShowEdit(false);
-    setEditingItem(null);
-    setForm({});
-    setDuplicateWarning(null);
-    setFormErrors([]);
-  };
-
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingItem) return;
-    const normalizedForm = {
-      ...form,
-      contactEmail: typeof form.contactEmail === 'string' ? form.contactEmail.trim() : form.contactEmail,
-    };
-    const errors = validateLead(normalizedForm);
-    if (errors.length > 0) { setFormErrors(errors); return; }
-    const payload = cleanFormPayload(normalizedForm as Record<string, any>, NUMERIC_KEYS.lead);
-    delete payload.status;
-    // Send null when follow-up date was cleared but previously had a value
-    if (form.followUpDate === '' && editingItem.followUpDate) payload.followUpDate = null;
-    if (form.followUpNote === '' && editingItem.followUpNote) payload.followUpNote = null;
-    try {
-      setSaving(true);
-      await crmService.updateLead(editingItem.id, payload);
-      closeEdit();
-      fetchLeads();
-    } catch (e) { console.error(e); } finally { setSaving(false); }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteItem) return;
-    try {
-      setDeleting(true);
-      await crmService.deleteLead(deleteItem.id);
-      setShowDelete(false);
-      setDeleteItem(null);
-      fetchLeads();
-    } catch (e) { console.error(e); } finally { setDeleting(false); }
-  };
-
   // Shared input/select classes for modals
   const inputCls = (hasError = false) =>
     `w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${hasError ? 'border-[#ba1a1a] focus:ring-[#ba1a1a]/20' : 'border-[#e2e8f0] focus:ring-[#006a61]/20 focus:border-[#006a61]'}`;
@@ -441,14 +316,16 @@ const CrmLeads = () => {
                 Priority
               </button>
 
-              <button
-                onClick={() => navigate('/crm/import-export')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
-                style={{ cursor: 'pointer' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>upload_file</span>
-                Import Leads
-              </button>
+              {canImportLeads && (
+                <button
+                  onClick={() => navigate('/crm/import-export?tab=import&entity=LEAD')}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-[13px] font-semibold rounded-lg hover:bg-[#eff4ff] transition-all"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>upload_file</span>
+                  Import Leads
+                </button>
+              )}
 
               <button
                 onClick={() => { setShowCreate(true); setFormErrors([]); }}
@@ -546,9 +423,11 @@ const CrmLeads = () => {
                   <button className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: 'pointer' }} title="More Filters">
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>filter_list</span>
                   </button>
-                  <button onClick={handleExport} disabled={exporting} className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors disabled:opacity-50" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: exporting ? 'wait' : 'pointer' }} title={exporting ? 'Exporting...' : 'Export'} aria-label={exporting ? 'Exporting leads' : 'Export leads'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{exporting ? 'progress_activity' : 'download'}</span>
-                  </button>
+                  {canExportLeads && (
+                    <button onClick={handleExport} disabled={exporting} className="p-2 text-[#45464d] hover:bg-[#eff4ff] rounded-lg transition-colors disabled:opacity-50" style={{ background: 'none', border: '1px solid #e2e8f0', cursor: exporting ? 'wait' : 'pointer' }} title={exporting ? 'Exporting...' : 'Export'} aria-label={exporting ? 'Exporting leads' : 'Export leads'}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{exporting ? 'progress_activity' : 'download'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -609,9 +488,6 @@ const CrmLeads = () => {
                             <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="flex-1 bg-[#006a61] text-white py-2 rounded font-bold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style={{ border: 'none', cursor: 'pointer' }}>
                               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span> View
                             </button>
-                            <button onClick={() => openEdit(lead)} className="w-10 bg-[#eff4ff] flex items-center justify-center rounded hover:bg-[#dce9ff] transition-colors" style={{ border: 'none', cursor: 'pointer' }}>
-                              <span className="material-symbols-outlined text-[#0b1c30]" style={{ fontSize: 18 }}>edit</span>
-                            </button>
                             <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="w-10 bg-[#eff4ff] flex items-center justify-center rounded hover:bg-[#dce9ff] transition-colors" style={{ border: 'none', cursor: 'pointer' }}>
                               <span className="material-symbols-outlined text-[#0b1c30]" style={{ fontSize: 18 }}>open_in_new</span>
                             </button>
@@ -650,7 +526,6 @@ const CrmLeads = () => {
                               <span className="bg-[#eff4ff] text-[#0b1c30] px-3 py-1 rounded-full" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', border: '1px solid #e2e8f0' }}>Follow-up Call</span>
                             </div>
                             <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => openEdit(lead)} className="text-[#006a61] hover:underline font-bold" style={{ fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>Edit</button>
                               <button onClick={() => navigate(`/crm/leads/${lead.id}`)} className="text-[#45464d] hover:text-[#0b1c30] material-symbols-outlined" style={{ fontSize: 18, background: 'none', border: 'none', cursor: 'pointer' }}>visibility</button>
                             </div>
                           </div>
@@ -679,11 +554,7 @@ const CrmLeads = () => {
                   onToggleSelect={toggleSelect}
                   onSelectAll={selectAll}
                   onClearSelection={clearSelection}
-                  onEdit={openEdit}
-                  onDelete={(lead) => { setDeleteItem(lead); setShowDelete(true); }}
-                  onStatusChange={handleStatusChange}
                   isAllSelected={displayedLeads.length > 0 && displayedLeads.every(l => selectedIds.has(l.id))}
-                  user={user}
                 />
               )
             )}
@@ -760,12 +631,6 @@ const CrmLeads = () => {
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#e2e8f0]">
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-bold" style={{ color: TEAL, fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(lead.estimatedValue)}</span>
-                            <button onClick={(e) => { e.stopPropagation(); openEdit(lead); }} className="text-xs font-semibold transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEAL }}>Edit</button>
-                            {hasPermission(user, 'crm:delete') && (
-                              <button onClick={(e) => { e.stopPropagation(); setDeleteItem(lead); setShowDelete(true); }} className="text-xs font-semibold transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ba1a1a' }}>
-                                <span className="material-symbols-outlined text-sm align-middle">delete</span>
-                              </button>
-                            )}
                           </div>
                           {lead.owner && (
                             <div className="flex items-center gap-1.5">
@@ -827,55 +692,6 @@ const CrmLeads = () => {
 
         </div>
       </div>
-
-      {/* ── Bulk Action Bar ── */}
-      <BulkActionBar
-        selectedCount={selectedIds.size}
-        totalCount={displayedLeads.length}
-        onSelectAll={selectAll}
-        onClearSelection={clearSelection}
-        actions={bulkActions}
-        selectedIds={Array.from(selectedIds)}
-        loading={bulkProcessing}
-      />
-
-      {/* Bulk owner select */}
-      {showBulkOwnerSelect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-[#0b1c30] mb-4">Assign Owner</h3>
-            <select className={inputCls()} defaultValue="" onChange={(e) => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}>
-              <option value="" disabled>Select new owner</option>
-              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-            </select>
-            <button onClick={() => setShowBulkOwnerSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-[#45464d] hover:text-[#0b1c30]" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk status select */}
-      {showBulkStatusSelect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkStatusSelect(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-[#0b1c30] mb-4">Change Status</h3>
-            <select className={inputCls()} defaultValue="" onChange={(e) => { if (e.target.value) handleBulkChangeStatus(e.target.value); }}>
-              <option value="" disabled>Select new status</option>
-              {(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'] as LeadStatus[]).map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-            </select>
-            <button onClick={() => setShowBulkStatusSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-[#45464d]" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk toast */}
-      {bulkToast && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg text-white text-sm font-semibold flex items-center gap-2 shadow-lg" style={{ background: TEAL }}>
-          <span className="material-symbols-outlined text-[16px]">check_circle</span>
-          {bulkToast}
-        </div>
-      )}
 
       {/* ── Create Modal — Kinetic Enterprise design ── */}
       {showCreate && (
@@ -1045,8 +861,8 @@ const CrmLeads = () => {
                           <input
                             type="number"
                             placeholder="0.00"
-                            value={form.estimatedValue || ''}
-                            onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
+                            value={form.estimatedValue ?? ''}
+                            onChange={e => setForm(prev => ({ ...prev, estimatedValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
                             className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]"
                             style={{ fontFamily: 'Inter, sans-serif' }}
                           />
@@ -1124,171 +940,7 @@ const CrmLeads = () => {
         </div>
       )}
 
-      {/* ── Edit Modal — Kinetic Enterprise design ── */}
-      {showEdit && editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={closeEdit}>
-          <div className="absolute inset-0 bg-[#213145]/40 backdrop-blur-sm" />
-          <div className="relative bg-white w-full max-w-5xl max-h-[90vh] rounded-xl shadow-xl flex flex-col overflow-hidden border border-[#e2e8f0]/30" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="px-8 py-6 border-b border-[#e2e8f0] flex justify-between items-center shrink-0">
-              <div>
-                <h2 className="text-[24px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>Edit Lead</h2>
-                <p className="text-[13px] text-[#45464d] mt-1">Update lead details and qualification information.</p>
-              </div>
-              <button onClick={closeEdit} className="p-2 hover:bg-[#dce9ff] rounded-full text-[#45464d] transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
 
-            {/* Scrollable form body */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-              <form id="leadEditForm" onSubmit={handleEdit} className="space-y-10">
-                {/* Section: Lead Information */}
-                <section>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>person_add</span>
-                    </div>
-                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Information</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Title *</label>
-                      <input required type="text" value={form.title || ''} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} className={inputCls(formErrors.some(e => e.field === 'title'))} />
-                      {formErrors.some(e => e.field === 'title') && <p className="text-xs" style={{ color: '#ba1a1a' }}>{formErrors.find(e => e.field === 'title')?.message}</p>}
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Organization / Company</label>
-                      <input type="text" placeholder="Leave blank if individual" value={form.companyName || ''} onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))} className={inputCls()} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Contact Name</label>
-                      <input type="text" value={form.contactName || ''} onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))} className={inputCls()} />
-                    </div>
-                  </div>
-                </section>
-
-                {/* Section: Contact Details */}
-                <section>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>contact_mail</span>
-                    </div>
-                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Contact Details</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Email Address</label>
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
-                          <span className="material-symbols-outlined text-[18px]">mail</span>
-                        </span>
-                        <input type="email" value={form.contactEmail || ''} onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))} onBlur={e => checkDuplicateLead('contactEmail', e.target.value)} className={`pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] ${formErrors.some(e => e.field === 'contactEmail') ? 'border-[#ba1a1a] focus:ring-[#ba1a1a]/20' : ''}`} style={{ fontFamily: 'Inter, sans-serif' }} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Phone</label>
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-3 flex items-center text-[#76777d]">
-                          <span className="material-symbols-outlined text-[18px]">phone</span>
-                        </span>
-                        <input type="tel" value={form.contactPhone || ''} onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))} onBlur={e => checkDuplicateLead('contactPhone', e.target.value)} className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Owner</label>
-                      <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))} className={inputCls()}>
-                        <option value="">Myself (default)</option>
-                        {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Section: Lead Source & Qualification */}
-                <section>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-10 h-10 bg-[#d3e4fe] rounded-lg flex items-center justify-center text-[#006a61]">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
-                    </div>
-                    <h3 className="text-[18px] font-semibold text-[#0b1c30]" style={{ fontFamily: 'Inter, sans-serif' }}>Lead Source & Qualification</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Lead Source</label>
-                        <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))} className={inputCls()}>
-                          {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','WHATSAPP','OTHER'].map(s => (
-                            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Estimated Value (MYR)</label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#0b1c30] font-bold text-xs">RM</span>
-                          <input type="number" placeholder="0.00" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))} className="pl-10 w-full border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Date</label>
-                      <DateInput value={form.followUpDate ? form.followUpDate.slice(0, 10) : ''} onChange={value => setForm(prev => ({ ...prev, followUpDate: value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
-                    </div>
-                    <div className="md:col-span-2 flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Follow-Up Note</label>
-                      <input type="text" placeholder="e.g. Call back to discuss financing requirements" value={form.followUpNote || ''} onChange={e => setForm(prev => ({ ...prev, followUpNote: e.target.value || undefined }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px]" style={{ fontFamily: 'Inter, sans-serif' }} />
-                    </div>
-                    <div className="md:col-span-2 flex flex-col gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-[0.05em] text-[#45464d]">Qualification Notes</label>
-                      <p className="text-[11px] text-[#45464d] opacity-60">Supports markdown — use **bold**, - bullets, 1. numbering, or line breaks for formatting.</p>
-                      <textarea placeholder="Add details regarding the business model, credit history highlights, or specific financing requirements..." rows={5} value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="border border-[#e2e8f0] rounded-lg p-2.5 focus:ring-1 focus:ring-[#006a61] focus:border-[#006a61] outline-none transition-all text-[14px] resize-vertical" style={{ fontFamily: 'Inter, sans-serif' }} />
-                    </div>
-                  </div>
-                </section>
-
-                {duplicateWarning && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg border text-sm" style={{ background: '#ffdad6', borderColor: '#ba1a1a', color: '#ba1a1a' }}>
-                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">warning</span>
-                    <div className="flex-1">{duplicateWarning}</div>
-                    <button type="button" onClick={() => setDuplicateWarning(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
-                      <span className="material-symbols-outlined text-[16px]">close</span>
-                    </button>
-                  </div>
-                )}
-              </form>
-            </div>
-
-            {/* Footer */}
-            <div className="px-8 py-5 border-t border-[#e2e8f0] bg-[#eff4ff] flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2 text-[#45464d]">
-                <span className="material-symbols-outlined text-[18px]">info</span>
-                <span className="text-[13px] italic">Mandatory fields are marked with an asterisk (*)</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={closeEdit} className="px-6 py-2.5 border border-[#e2e8f0] rounded-lg text-[#45464d] font-semibold hover:bg-[#dce9ff] transition-colors" style={{ background: 'white', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-                <button type="submit" form="leadEditForm" disabled={saving} className="px-6 py-2.5 bg-[#006a61] text-white rounded-lg font-semibold hover:opacity-90 shadow-sm transition-all flex items-center gap-2 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer' }}>
-                  <span className="material-symbols-outlined text-[20px]">save</span>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={showDelete}
-        title="Delete Lead"
-        message={`Are you sure you want to delete "${deleteItem?.title}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        onConfirm={handleDelete}
-        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
-        loading={deleting}
-      />
     </>
   );
 };

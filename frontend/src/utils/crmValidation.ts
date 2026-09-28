@@ -41,16 +41,13 @@ export function validateContact(form: Record<string, any>): ValidationError[] {
   return errors;
 }
 
-export function validateOpportunity(form: Record<string, any>): ValidationError[] {
+export function validateOpportunity(form: Record<string, any>, requirePipeline = true): ValidationError[] {
   const errors: ValidationError[] = [];
   if (!form.name?.trim()) errors.push({ field: 'name', message: 'Name is required' });
   if (!form.accountId) errors.push({ field: 'accountId', message: 'Account is required' });
-  if (!form.pipelineId) errors.push({ field: 'pipelineId', message: 'Pipeline is required' });
-  if (!form.stageId) errors.push({ field: 'stageId', message: 'Stage is required' });
+  if (requirePipeline && !form.pipelineId) errors.push({ field: 'pipelineId', message: 'Pipeline is required' });
   if (form.value !== undefined && form.value !== '' && Number(form.value) < 0)
     errors.push({ field: 'value', message: 'Value cannot be negative' });
-  if (form.probability !== undefined && form.probability !== '' && (Number(form.probability) < 0 || Number(form.probability) > 100))
-    errors.push({ field: 'probability', message: 'Probability must be 0-100' });
   return errors;
 }
 

@@ -7,6 +7,7 @@ import { config } from '../config';
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const ownerEmail = `crm-sg-owner-${suffix}@test.local`;
 const otherEmail = `crm-sg-other-${suffix}@test.local`;
+const stageGateEmailPrefixes = ['crm-sg-owner-', 'crm-sg-other-'];
 
 let ownerId: string;
 let ownerToken: string;
@@ -23,7 +24,29 @@ let otherOppId: string;
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-sg-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
 
+async function cleanupStageGateFixtures() {
+  const users = await prisma.user.findMany({
+    where: { OR: stageGateEmailPrefixes.map((prefix) => ({ email: { startsWith: prefix } })) },
+    select: { id: true },
+  });
+  const userIds = users.map((user) => user.id);
+  if (userIds.length) {
+    await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.crmOpportunityStageHistory.deleteMany({ where: { opportunity: { ownerId: { in: userIds } } } });
+    await prisma.crmActivity.deleteMany({ where: { account: { ownerId: { in: userIds } } } });
+    await prisma.crmOpportunity.deleteMany({ where: { ownerId: { in: userIds } } });
+    await prisma.crmAccount.deleteMany({ where: { ownerId: { in: userIds } } });
+  }
+  await prisma.crmPipeline.deleteMany({ where: { name: { startsWith: 'SG Pipeline ' } } });
+  if (userIds.length) {
+    await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  }
+  await prisma.role.deleteMany({ where: { name: { startsWith: 'CRM_SG_TEST_' } } });
+}
+
 beforeAll(async () => {
+  await cleanupStageGateFixtures();
   const permissions = await Promise.all(
     ['crm:read', 'crm:write', 'crm:delete'].map((name) =>
       prisma.permission.upsert({
@@ -199,17 +222,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.auditLog.deleteMany({ where: { userId: ownerId } });
-  await prisma.crmOpportunityStageHistory.deleteMany({
-    where: { opportunity: { name: { contains: suffix } } },
-  });
-  await prisma.crmActivity.deleteMany({ where: { account: { name: { contains: suffix } } } });
-  await prisma.crmOpportunity.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.crmAccount.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.crmPipeline.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.userRole.deleteMany({ where: { user: { email: { in: [ownerEmail, otherEmail] } } } });
-  await prisma.user.deleteMany({ where: { email: { in: [ownerEmail, otherEmail] } } });
-  await prisma.role.deleteMany({ where: { name: `CRM_SG_TEST_${suffix}` } });
+  await cleanupStageGateFixtures();
 });
 
 describe('Stage gate - forward move', () => {
@@ -221,6 +234,9 @@ describe('Stage gate - forward move', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.opportunity.stageId).toBe(stage2Id);
+    expect(res.body.data.opportunity.probability).toBe(30);
+    const stored = await prisma.crmOpportunity.findUniqueOrThrow({ where: { id: oppForwardId } });
+    expect(stored.probability).toBe(30);
   });
 
   it('records a stage history entry after the move', async () => {
@@ -249,15 +265,14 @@ describe('Stage gate - forward move', () => {
   });
 });
 
-describe('Stage gate - forward-only enforcement', () => {
-  it('returns 422 when moving backward to a stage with enforceForwardOnly', async () => {
+describe('Stage gate - mandatory one-step enforcement', () => {
+  it('returns 400 when moving backward even when a stage configuration would permit it', async () => {
     const res = await request(app)
       .post(`/api/v1/crm/opportunities/${oppAtStage2Id}/move-stage`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ stageId: stage1Id });
 
-    expect(res.status).toBe(422);
-    expect(res.body.needsApproval).toBe(false);
+    expect(res.status).toBe(400);
   });
 });
 
