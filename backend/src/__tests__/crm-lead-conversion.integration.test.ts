@@ -7,20 +7,49 @@ import { config } from '../config';
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const ownerEmail = `crm-conv-owner-${suffix}@test.local`;
 const otherEmail = `crm-conv-other-${suffix}@test.local`;
+const conversionEmailPrefixes = ['crm-conv-owner-', 'crm-conv-other-'];
 
 let ownerId: string;
 let otherOwnerId: string;
 let ownerToken: string;
 let pipelineId: string;
 let stageId: string;
+let otherPipelineStageId: string;
 let ownedLeadId: string;
+let nullEstimatedValueLeadId: string;
 let otherLeadId: string;
 let alreadyConvertedLeadId: string;
+let lostLeadId: string;
+let unqualifiedLeadId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-conv-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
 
+async function cleanupLeadConversionFixtures() {
+  const users = await prisma.user.findMany({
+    where: { OR: conversionEmailPrefixes.map((prefix) => ({ email: { startsWith: prefix } })) },
+    select: { id: true },
+  });
+  const userIds = users.map((user) => user.id);
+  if (userIds.length) {
+    await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.crmOpportunityStageHistory.deleteMany({ where: { opportunity: { ownerId: { in: userIds } } } });
+    await prisma.crmActivity.deleteMany({ where: { account: { ownerId: { in: userIds } } } });
+    await prisma.crmOpportunity.deleteMany({ where: { ownerId: { in: userIds } } });
+    await prisma.crmLead.deleteMany({ where: { ownerId: { in: userIds } } });
+    await prisma.crmContact.deleteMany({ where: { account: { ownerId: { in: userIds } } } });
+    await prisma.crmAccount.deleteMany({ where: { ownerId: { in: userIds } } });
+  }
+  await prisma.crmPipeline.deleteMany({ where: { OR: [{ name: { startsWith: 'Conv Pipeline ' } }, { name: { startsWith: 'Conv Other Pipeline ' } }] } });
+  if (userIds.length) {
+    await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+  }
+  await prisma.role.deleteMany({ where: { name: { startsWith: 'CRM_CONV_TEST_' } } });
+}
+
 beforeAll(async () => {
+  await cleanupLeadConversionFixtures();
   const permissions = await Promise.all(
     ['crm:read', 'crm:write', 'crm:delete'].map((name) =>
       prisma.permission.upsert({
@@ -83,6 +112,15 @@ beforeAll(async () => {
   });
   pipelineId = pipeline.id;
   stageId = pipeline.stages[0].id;
+  const otherPipeline = await prisma.crmPipeline.create({
+    data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      name: `Conv Other Pipeline ${suffix}`,
+      stages: { create: [{ name: 'Other Prospect', displayOrder: 1, probability: 80 }] },
+    },
+    include: { stages: true },
+  });
+  otherPipelineStageId = otherPipeline.stages[0].id;
 
   const ownerAccount = await prisma.crmAccount.create({
     data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `Conv Owner Account ${suffix}`, ownerId: owner.id },
@@ -98,6 +136,18 @@ beforeAll(async () => {
     },
   });
   ownedLeadId = ownedLead.id;
+
+  const nullEstimatedValueLead = await prisma.crmLead.create({
+    data: {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      title: `Conv Null Estimate Lead ${suffix}`,
+      companyName: `Conv Null Estimate Co ${suffix}`,
+      ownerId: owner.id,
+      accountId: ownerAccount.id,
+      estimatedValue: null,
+    },
+  });
+  nullEstimatedValueLeadId = nullEstimatedValueLead.id;
 
   const otherAccount = await prisma.crmAccount.create({
     data: { tenantId: '00000000-0000-0000-0000-000000000001', name: `Conv Other Account ${suffix}`, ownerId: other.id },
@@ -126,26 +176,17 @@ beforeAll(async () => {
     },
   });
   alreadyConvertedLeadId = alreadyConverted.id;
+
+  const [lostLead, unqualifiedLead] = await Promise.all([
+    prisma.crmLead.create({ data: { tenantId: '00000000-0000-0000-0000-000000000001', title: `Conv Lost ${suffix}`, companyName: `Conv Lost Co ${suffix}`, ownerId: owner.id, accountId: ownerAccount.id, status: 'LOST', lostAt: new Date(), lostReason: 'Test loss' } }),
+    prisma.crmLead.create({ data: { tenantId: '00000000-0000-0000-0000-000000000001', title: `Conv Unqualified ${suffix}`, companyName: `Conv Unqualified Co ${suffix}`, ownerId: owner.id, accountId: ownerAccount.id, status: 'UNQUALIFIED' } }),
+  ]);
+  lostLeadId = lostLead.id;
+  unqualifiedLeadId = unqualifiedLead.id;
 });
 
 afterAll(async () => {
-  await prisma.auditLog.deleteMany({
-    where: { OR: [{ userId: ownerId }, { userId: otherOwnerId }, { resourceId: { in: [ownedLeadId, otherLeadId, alreadyConvertedLeadId].filter(Boolean) } }] },
-  });
-  await prisma.crmOpportunityStageHistory.deleteMany({
-    where: { opportunity: { account: { name: { contains: suffix } } } },
-  });
-  await prisma.crmActivity.deleteMany({
-    where: { OR: [{ subject: { contains: suffix } }, { account: { name: { contains: suffix } } }] },
-  });
-  await prisma.crmOpportunity.deleteMany({ where: { account: { name: { contains: suffix } } } });
-  await prisma.crmLead.deleteMany({ where: { companyName: { contains: suffix } } });
-  await prisma.crmContact.deleteMany({ where: { account: { name: { contains: suffix } } } });
-  await prisma.crmAccount.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.crmPipeline.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.userRole.deleteMany({ where: { user: { email: { in: [ownerEmail, otherEmail] } } } });
-  await prisma.user.deleteMany({ where: { email: { in: [ownerEmail, otherEmail] } } });
-  await prisma.role.deleteMany({ where: { name: `CRM_CONV_TEST_${suffix}` } });
+  await cleanupLeadConversionFixtures();
 });
 
 describe('Lead conversion - happy path', () => {
@@ -158,7 +199,6 @@ describe('Lead conversion - happy path', () => {
       .send({
         opportunityName: `Conv Opp ${suffix}`,
         pipelineId,
-        stageId,
         value: 5000,
       });
 
@@ -166,6 +206,7 @@ describe('Lead conversion - happy path', () => {
     expect(res.body.data.opportunity.id).toBeDefined();
     expect(res.body.data.opportunity.pipelineId).toBe(pipelineId);
     expect(res.body.data.opportunity.stageId).toBe(stageId);
+    expect(res.body.data.opportunity.probability).toBe(10);
     createdOpportunityId = res.body.data.opportunity.id;
   });
 
@@ -204,6 +245,54 @@ describe('Lead conversion - happy path', () => {
 
     expect(activity).not.toBeNull();
   });
+
+  it('rejects a client-supplied conversion stage', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/leads/${nullEstimatedValueLeadId}/convert`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        opportunityName: `Conv Mismatched Stage Opp ${suffix}`,
+        pipelineId,
+        stageId: otherPipelineStageId,
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('keeps the existing zero fallback when a lead with no estimate is converted without a value', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/leads/${nullEstimatedValueLeadId}/convert`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        opportunityName: `Conv Null Estimate Opp ${suffix}`,
+        pipelineId,
+    });
+
+    expect(res.status).toBe(200);
+    const opportunity = await prisma.crmOpportunity.findUnique({
+      where: { id: res.body.data.opportunity.id },
+      select: { value: true },
+    });
+    expect(opportunity?.value.toString()).toBe('0');
+  });
+
+  it.each(['CONTACTED', 'QUALIFIED'] as const)('allows conversion from active %s leads', async (status) => {
+    const lead = await prisma.crmLead.create({
+      data: {
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        title: `Conv ${status} ${suffix}`,
+        companyName: `Conv ${status} Co ${suffix}`,
+        ownerId,
+        accountId: (await prisma.crmLead.findUniqueOrThrow({ where: { id: ownedLeadId }, select: { accountId: true } })).accountId,
+        status,
+      },
+    });
+    const res = await request(app)
+      .post(`/api/v1/crm/leads/${lead.id}/convert`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ opportunityName: `Conv ${status} Opp ${suffix}`, pipelineId });
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('Lead conversion - authorization and idempotency', () => {
@@ -214,7 +303,6 @@ describe('Lead conversion - authorization and idempotency', () => {
       .send({
         opportunityName: `Hijacked Opp ${suffix}`,
         pipelineId,
-        stageId,
       });
 
     expect(res.status).toBe(404);
@@ -227,9 +315,20 @@ describe('Lead conversion - authorization and idempotency', () => {
       .send({
         opportunityName: `Double Conv Opp ${suffix}`,
         pipelineId,
-        stageId,
       });
 
     expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it.each([
+    ['lost', () => lostLeadId],
+    ['unqualified', () => unqualifiedLeadId],
+  ])('rejects conversion from a %s lead', async (_label, leadId) => {
+    const res = await request(app)
+      .post(`/api/v1/crm/leads/${leadId()}/convert`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ opportunityName: `Terminal conversion ${suffix}`, pipelineId });
+
+    expect(res.status).toBe(400);
   });
 });

@@ -33,7 +33,7 @@ const CrmLeadDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showConvert, setShowConvert] = useState(false);
   const [pipelines, setPipelines] = useState<CrmPipeline[]>([]);
-  const [convertForm, setConvertForm] = useState({ pipelineId: '', stageId: '', oppName: '', oppValue: '', expectedCloseDate: '' });
+  const [convertForm, setConvertForm] = useState({ pipelineId: '', oppName: '', oppValue: '', expectedCloseDate: '' });
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'audit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
@@ -131,14 +131,11 @@ const CrmLeadDetail = () => {
       setPipelines(pl);
       if (pl.length > 0) {
         const defaultPipeline = pl.find(p => p.isDefault) ?? pl[0];
-        const firstStage = defaultPipeline.stages?.[0];
-        setConvertForm({ pipelineId: defaultPipeline.id, stageId: firstStage?.id ?? '', oppName: lead?.title ?? '', oppValue: String(lead?.estimatedValue ?? ''), expectedCloseDate: '' });
+        setConvertForm({ pipelineId: defaultPipeline.id, oppName: lead?.title ?? '', oppValue: String(lead?.estimatedValue ?? ''), expectedCloseDate: '' });
       }
     } catch (e) { console.error(e); }
     setShowConvert(true);
   };
-
-  const selectedPipeline = pipelines.find(p => p.id === convertForm.pipelineId);
 
   const handleConvert = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +144,6 @@ const CrmLeadDetail = () => {
       setSaving(true);
       const opp = await crmService.convertLead(id, {
         pipelineId: convertForm.pipelineId,
-        stageId: convertForm.stageId,
         opportunityName: convertForm.oppName,
         value: convertForm.oppValue ? Number(convertForm.oppValue) : undefined,
         expectedCloseDate: convertForm.expectedCloseDate || undefined,
@@ -289,13 +285,30 @@ const CrmLeadDetail = () => {
   };
 
   const [showLostModal, setShowLostModal] = useState(false);
+  const [showAdvanceStatusModal, setShowAdvanceStatusModal] = useState(false);
+  const [showUnqualifiedConfirm, setShowUnqualifiedConfirm] = useState(false);
+  const [showReopenModal, setShowReopenModal] = useState(false);
   const [lostCategory, setLostCategory] = useState('');
   const [lostNote, setLostNote] = useState('');
+  const [reopenReason, setReopenReason] = useState('');
+  const [advanceStatus, setAdvanceStatus] = useState<'CONTACTED' | 'QUALIFIED' | ''>('');
 
   const handleMarkLost = () => {
     setLostCategory('');
     setLostNote('');
     setShowLostModal(true);
+  };
+
+  const handleAdvanceStatus = async () => {
+    if (!id || !advanceStatus) return;
+    try {
+      setSaving(true);
+      await crmService.advanceLeadStatus(id, advanceStatus);
+      setShowAdvanceStatusModal(false);
+      setAdvanceStatus('');
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
   };
 
   const handleConfirmLost = async () => {
@@ -304,10 +317,33 @@ const CrmLeadDetail = () => {
       ? `${lostCategory}: ${lostNote.trim()}`
       : lostCategory;
     try {
-      await crmService.updateLead(id, { status: 'LOST', lostReason });
+      await crmService.markLeadLost(id, lostReason);
       setShowLostModal(false);
       reload();
     } catch (e) { console.error(e); }
+  };
+
+  const handleMarkUnqualified = async () => {
+    if (!id) return;
+    try {
+      setSaving(true);
+      await crmService.markLeadUnqualified(id);
+      setShowUnqualifiedConfirm(false);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleReopen = async () => {
+    if (!id || !reopenReason.trim()) return;
+    try {
+      setSaving(true);
+      await crmService.reopenLead(id, reopenReason.trim());
+      setShowReopenModal(false);
+      setReopenReason('');
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
   };
 
   const handleChangeOwner = async (newOwnerId: string) => {
@@ -361,6 +397,7 @@ const CrmLeadDetail = () => {
         if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
         else payload[k] = v;
       }
+      if (editForm.estimatedValue === '' && lead!.estimatedValue !== null) payload.estimatedValue = null;
       // Clear fields intentionally set to empty
       for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'industry', 'address', 'remark', 'description', 'followUpNote']) {
         if (normalizedForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
@@ -406,6 +443,8 @@ const CrmLeadDetail = () => {
 
   const isConverted = lead.status === 'CONVERTED';
   const isLost = lead.status === 'LOST';
+  const isUnqualified = lead.status === 'UNQUALIFIED';
+  const isActiveLead = ['NEW', 'CONTACTED', 'QUALIFIED'].includes(lead.status);
   const ownerFullName = lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}`.trim() : null;
   const leadSourceLabel = lead.source ? lead.source.replace(/_/g, ' ') : null;
   const railPrimaryLabel = lead.companyName || lead.account?.name || lead.contactName || 'Lead details';
@@ -701,7 +740,7 @@ const CrmLeadDetail = () => {
                 >
                   <span className="material-symbols-outlined text-[16px]">open_in_new</span> View Opportunity
                 </Link>
-              ) : !isConverted && !isLost ? (
+              ) : isActiveLead ? (
                 <button
                   onClick={openConvert}
                   className="flex items-center gap-2 px-6 py-2.5 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-all shadow-sm"
@@ -726,13 +765,22 @@ const CrmLeadDetail = () => {
                   <span className="material-symbols-outlined text-[16px]">sticky_note_2</span> Add Note
                 </button>
               )}
-              {!isConverted && !isLost ? (
+              {isActiveLead ? (
                 <button
                   onClick={() => setDraftModal(true)}
                   className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
                   style={{ cursor: 'pointer' }}
                 >
                   <span className="material-symbols-outlined text-[16px]">auto_awesome</span> Draft Message
+                </button>
+              ) : null}
+              {lead.status === 'NEW' || lead.status === 'CONTACTED' ? (
+                <button
+                  onClick={() => { setAdvanceStatus(''); setShowAdvanceStatusModal(true); }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#e9fbf7] transition-all"
+                  style={{ cursor: 'pointer', color: '#006a61' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">trending_up</span> Advance Status
                 </button>
               ) : null}
               <button
@@ -742,13 +790,31 @@ const CrmLeadDetail = () => {
               >
                 <span className="material-symbols-outlined text-[18px]">edit</span> Edit Lead
               </button>
-              {!isConverted && !isLost ? (
+              {isActiveLead ? (
                 <button
                   onClick={handleMarkLost}
                   className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#fff5f5] transition-all"
                   style={{ cursor: 'pointer', color: '#ba1a1a' }}
                 >
                   <span className="material-symbols-outlined text-[16px]">cancel</span> Mark as Lost
+                </button>
+              ) : null}
+              {isActiveLead ? (
+                <button
+                  onClick={() => setShowUnqualifiedConfirm(true)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#fff9ed] transition-all"
+                  style={{ cursor: 'pointer', color: '#8a5a00' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">block</span> Mark Unqualified
+                </button>
+              ) : null}
+              {(isLost || isUnqualified) ? (
+                <button
+                  onClick={() => { setReopenReason(''); setShowReopenModal(true); }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#e9fbf7] transition-all"
+                  style={{ cursor: 'pointer', color: '#006a61' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">replay</span> Reopen
                 </button>
               ) : null}
               {hasPermission(user, 'crm:delete') ? (
@@ -1255,18 +1321,8 @@ const CrmLeadDetail = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#45464d] mb-1">Pipeline *</label>
-                <select value={convertForm.pipelineId} onChange={e => {
-                  const pl = pipelines.find(p => p.id === e.target.value);
-                  setConvertForm(f => ({ ...f, pipelineId: e.target.value, stageId: pl?.stages?.[0]?.id ?? '' }));
-                }} className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
+                <select value={convertForm.pipelineId} onChange={e => setConvertForm(f => ({ ...f, pipelineId: e.target.value }))} className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
                   {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#45464d] mb-1">Initial Stage *</label>
-                <select value={convertForm.stageId} onChange={e => setConvertForm(f => ({ ...f, stageId: e.target.value }))}
-                  className="w-full border border-[#e2e8f0] rounded-xl px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'white' }}>
-                  {(selectedPipeline?.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -1466,6 +1522,77 @@ const CrmLeadDetail = () => {
                 style={{ background: '#ba1a1a', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Mark as Lost
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showUnqualifiedConfirm}
+        title="Mark Lead Unqualified"
+        message="Mark this lead as unqualified? It can only return to the active pipeline through Reopen."
+        confirmLabel="Mark Unqualified"
+        onConfirm={handleMarkUnqualified}
+        onCancel={() => setShowUnqualifiedConfirm(false)}
+        loading={saving}
+      />
+
+      {showAdvanceStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAdvanceStatusModal(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-[#0b1c30]">Advance Lead Status</h2>
+              <button onClick={() => setShowAdvanceStatusModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined text-[#45464d]">close</span>
+              </button>
+            </div>
+            <label className="block text-sm font-semibold text-[#0b1c30] mb-1">New Status</label>
+            <select value={advanceStatus} onChange={e => setAdvanceStatus(e.target.value as 'CONTACTED' | 'QUALIFIED')}
+              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006a61]/20"
+              style={{ fontFamily: 'var(--font-sans)' }}>
+              <option value="">Select a forward status</option>
+              {lead?.status === 'NEW' ? <option value="CONTACTED">Contacted</option> : null}
+              <option value="QUALIFIED">Qualified</option>
+            </select>
+            <div className="flex justify-end gap-3 mt-5">
+              <button type="button" onClick={() => setShowAdvanceStatusModal(false)}
+                className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+              <button onClick={handleAdvanceStatus} disabled={!advanceStatus || saving}
+                className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                {saving ? 'Advancing…' : 'Advance Status'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReopenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowReopenModal(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-[#0b1c30]">Reopen Lead</h2>
+              <button onClick={() => setShowReopenModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined text-[#45464d]">close</span>
+              </button>
+            </div>
+            <label className="block text-sm font-semibold text-[#0b1c30] mb-1">Reopen Reason *</label>
+            <textarea rows={4} value={reopenReason} onChange={e => setReopenReason(e.target.value)}
+              placeholder="Why should this lead return to the active pipeline?"
+              className="w-full px-3 py-2 border border-[#e2e8f0] rounded-xl text-sm resize-none outline-none focus:ring-2 focus:ring-[#006a61]/20"
+              style={{ fontFamily: 'var(--font-sans)' }} />
+            <div className="flex justify-end gap-3 mt-5">
+              <button type="button" onClick={() => setShowReopenModal(false)}
+                className="px-5 py-2 rounded-full text-sm font-semibold border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-colors"
+                style={{ background: 'white', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+              <button onClick={handleReopen} disabled={!reopenReason.trim() || saving}
+                className="px-5 py-2 rounded-full text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                style={{ background: '#006a61', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                {saving ? 'Reopening…' : 'Reopen Lead'}
               </button>
             </div>
           </div>

@@ -1,5 +1,42 @@
 # Change Log
 
+## 2026-09-28
+
+### CRM regression validation — fixture cleanup
+
+- Hardened the Lead Lifecycle integration fixture cleanup to remove role assignments scoped to its own test-role prefix before deleting those roles, preventing stale interrupted-test records from blocking the focused lifecycle regression suite. No product behavior or database schema changed.
+
+### CRM Opportunities — lifecycle enforcement
+
+- Centralized Opportunity lifecycle transitions so new Opportunities and Lead conversions start at the first active pipeline stage, active deals advance exactly one stage at a time, Closed Lost requires a reason and supports a reasoned reopen, and Closed Won is terminal. Generic edits and workflow field actions cannot bypass stage, pipeline, probability, or terminal metadata safeguards; detail-page controls now expose only the permitted lifecycle actions.
+- Preserved stage probability synchronization, stage gates, history, activity, audit, Forecast Category editing, pipeline administration, reports, and existing Opportunity value behavior. No Prisma schema migration or historical data correction was added.
+
+### CRM integration tests — local fixture isolation
+
+- Hardened Forecast Category, Lead Lifecycle, Stage Gate, and Lead Conversion integration fixtures with scoped pre- and post-cleanup; Forecast Category and Lead Lifecycle records now carry unmistakable `[TEST]` markers, while cleanup remains limited to each suite's generated identifiers and preserves application data.
+- Removed the two confirmed Forecast Category test pipelines and their exact associated local test graph; no pipeline-management product behavior, CRM business rules, or production configuration was changed.
+
+### CRM Leads — lifecycle enforcement
+
+- Centralized Lead Lost, Unqualified, and Reopen actions behind validated endpoints; protected terminal status changes from generic updates, workflow field writes, and duplicate merges while preserving normal Lead edits, optional Estimated Value behavior, import-to-NEW behavior, and existing Opportunity lifecycle scope.
+- Added ordered active Lead progression through dedicated detail-page and API actions: forward skipping is allowed while backward and same-status movement remain blocked.
+
+### CRM Opportunities — stage-derived probability
+
+- Enforced the selected pipeline stage as the Probability source of truth for Opportunity create, stage/pipeline update, stage moves, Lead conversion, imports, and supported demo seeds; direct client and generic-workflow writes are rejected. Pipeline administrators can update a stage probability through validated fields and atomically synchronize only Opportunities in that stage. Manual Probability inputs were removed while preserving the schema, migrations, lifecycle rules, reporting, import structure, and existing historical data.
+
+### CRM listings — view-only existing records
+
+- Removed Lead and Opportunity listing mutation controls while preserving creation, detail navigation, filtering, sorting, pagination, Lead import/export, and selected-Lead export. Opportunity Forecast Category editing remains available from the detail-page edit form; lifecycle, stage, probability, reporting, import, backend, and database behavior are unchanged.
+
+### CRM Opportunities — Forecast Category persistence
+
+- Allowed the four supported Forecast Category values through Opportunity create and update validation, aligned the Omit form value with reporting, and preserved existing reporting, import, stage, probability, lifecycle, and database behavior.
+
+### CRM Leads — optional Estimated Value handling
+
+- Preserved blank Estimated Value as absent or null, retained explicit zero, and allowed users to clear an existing Lead estimate without changing Opportunity values, conversion fallback, database schema, or workflow-field behavior.
+
 ## 2026-09-23
 
 ### CRM Activity Reminders — meaningful notification content

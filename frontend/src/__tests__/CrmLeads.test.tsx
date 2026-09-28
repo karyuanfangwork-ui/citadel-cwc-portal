@@ -36,10 +36,11 @@ vi.mock('../hooks/useCrmUpdate', () => ({
 }));
 
 vi.mock('../components/crm/LeadsTable', () => ({
-  default: ({ onToggleSelect }: { onToggleSelect: (id: string) => void }) => (
+  default: ({ onToggleSelect, ...props }: { onToggleSelect: (id: string) => void; [key: string]: unknown }) => (
     <div data-testid="leads-table">
       Leads Table
       <button type="button" aria-label="Select lead-1" onClick={() => onToggleSelect('lead-1')}>Select</button>
+      <output data-testid="lead-listing-mutation-props">{String(['onEdit', 'onDelete', 'onStatusChange'].some(key => key in props))}</output>
     </div>
   ),
 }));
@@ -92,6 +93,13 @@ describe('CrmLeads', () => {
     expect(screen.getByRole('button', { name: /new lead/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/search lead name, company or id/i)).toBeInTheDocument();
     expect(screen.getByTestId('leads-table')).toBeInTheDocument();
+  });
+
+  it('keeps selection for export without passing listing mutation handlers', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId('leads-table')).toBeInTheDocument());
+    expect(screen.getByTestId('lead-listing-mutation-props')).toHaveTextContent('false');
   });
 
   it('uses the filtered total for the My Leads metric instead of the current page length', async () => {

@@ -6,9 +6,9 @@ import crmAiRoutes from './crm-ai.routes';
 import {
   createAccountSchema, updateAccountSchema,
   createContactSchema, updateContactSchema,
-  createLeadSchema, updateLeadSchema, convertLeadSchema,
-  createOpportunitySchema, updateOpportunitySchema, moveOpportunityStageSchema,
-  createPipelineSchema,
+  createLeadSchema, updateLeadSchema, convertLeadSchema, markLeadLostSchema, markLeadUnqualifiedSchema, reopenLeadSchema, advanceLeadStatusSchema,
+  createOpportunitySchema, updateOpportunitySchema, moveOpportunityStageSchema, markOpportunityLostSchema, reopenOpportunitySchema,
+  createPipelineSchema, updatePipelineSchema,
   createActivitySchema, updateActivitySchema,
   createNoteSchema, updateNoteSchema,
   createTrustProductSchema, updateTrustProductSchema, updateTrustProductStatusSchema,
@@ -63,6 +63,10 @@ router.get('/leads', requirePermission('crm:read'), crmController.listLeads);
 router.get('/leads/:id', requirePermission('crm:read'), crmController.getLead);
 router.post('/leads', requirePermission('crm:write'), validate(createLeadSchema), crmController.createLead);
 router.patch('/leads/:id', requirePermission('crm:write'), validate(updateLeadSchema), crmController.updateLead);
+router.post('/leads/:id/advance-status', requirePermission('crm:write'), validate(advanceLeadStatusSchema), crmController.advanceLeadStatus);
+router.post('/leads/:id/mark-lost', requirePermission('crm:write'), validate(markLeadLostSchema), crmController.markLeadLost);
+router.post('/leads/:id/mark-unqualified', requirePermission('crm:write'), validate(markLeadUnqualifiedSchema), crmController.markLeadUnqualified);
+router.post('/leads/:id/reopen', requirePermission('crm:write'), validate(reopenLeadSchema), crmController.reopenLead);
 router.post('/leads/:id/convert', requirePermission('crm:write'), validate(convertLeadSchema), crmController.convertLead);
 router.delete('/leads/:id', requirePermission('crm:delete'), crmController.deleteLead);
 
@@ -72,13 +76,15 @@ router.get('/opportunities/:id', requirePermission('crm:read'), crmController.ge
 router.post('/opportunities', requirePermission('crm:write'), validate(createOpportunitySchema), crmController.createOpportunity);
 router.patch('/opportunities/:id', requirePermission('crm:write'), validate(updateOpportunitySchema), crmController.updateOpportunity);
 router.post('/opportunities/:id/move-stage', requirePermission('crm:write'), validate(moveOpportunityStageSchema), crmController.moveStage);
+router.post('/opportunities/:id/mark-lost', requirePermission('crm:write'), validate(markOpportunityLostSchema), crmController.markOpportunityLost);
+router.post('/opportunities/:id/reopen', requirePermission('crm:write'), validate(reopenOpportunitySchema), crmController.reopenOpportunity);
 router.delete('/opportunities/:id', requirePermission('crm:delete'), crmController.deleteOpportunity);
 
 // ======== PIPELINES ========
 router.get('/pipelines', requirePermission('crm:read'), crmController.listPipelines);
 router.get('/pipelines/:id', requirePermission('crm:read'), crmController.getPipeline);
 router.post('/pipelines', requirePermission('crm:admin'), validate(createPipelineSchema), crmController.createPipeline);
-router.patch('/pipelines/:id', requirePermission('crm:admin'), crmController.updatePipeline);
+router.patch('/pipelines/:id', requirePermission('crm:admin'), validate(updatePipelineSchema), crmController.updatePipeline);
 
 // ======== ACTIVITIES ========
 router.get('/activities', requirePermission('crm:read'), crmController.listActivities);

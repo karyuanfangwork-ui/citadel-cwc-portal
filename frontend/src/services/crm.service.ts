@@ -124,11 +124,13 @@ export interface CrmPipelineStage {
   _count?: { opportunities: number };
 }
 
+export type ForecastCategory = 'PIPELINE' | 'BEST_CASE' | 'COMMIT' | 'OMITTED';
+
 export interface CrmOpportunity {
   id: string; name: string; accountId: string; contactId: string | null;
   pipelineId: string; stageId: string; ownerId: string;
   value: number; currency: string; probability: number;
-  forecastCategory?: string;
+  forecastCategory?: ForecastCategory;
   expectedCloseDate: string | null; description: string | null;
   lostReason: string | null; wonAt: string | null; lostAt: string | null;
   // AI scoring fields
@@ -547,6 +549,22 @@ const crmService = {
     const res = await api.patch(`/crm/leads/${id}`, data);
     return res.data.data.lead as CrmLead;
   },
+  async advanceLeadStatus(id: string, status: 'CONTACTED' | 'QUALIFIED') {
+    const res = await api.post(`/crm/leads/${id}/advance-status`, { status });
+    return res.data.data.lead as CrmLead;
+  },
+  async markLeadLost(id: string, reason: string) {
+    const res = await api.post(`/crm/leads/${id}/mark-lost`, { reason });
+    return res.data.data.lead as CrmLead;
+  },
+  async markLeadUnqualified(id: string) {
+    const res = await api.post(`/crm/leads/${id}/mark-unqualified`, {});
+    return res.data.data.lead as CrmLead;
+  },
+  async reopenLead(id: string, reason: string) {
+    const res = await api.post(`/crm/leads/${id}/reopen`, { reason });
+    return res.data.data.lead as CrmLead;
+  },
   async convertLead(id: string, data: any) {
     const res = await api.post(`/crm/leads/${id}/convert`, data);
     return res.data.data.opportunity as CrmOpportunity;
@@ -570,8 +588,16 @@ const crmService = {
     const res = await api.patch(`/crm/opportunities/${id}`, data);
     return res.data.data.opportunity as CrmOpportunity;
   },
-  async moveStage(id: string, stageId: string, lostReason?: string) {
-    const res = await api.post(`/crm/opportunities/${id}/move-stage`, { stageId, lostReason });
+  async moveStage(id: string, stageId: string) {
+    const res = await api.post(`/crm/opportunities/${id}/move-stage`, { stageId });
+    return res.data.data.opportunity as CrmOpportunity;
+  },
+  async markOpportunityLost(id: string, reason: string) {
+    const res = await api.post(`/crm/opportunities/${id}/mark-lost`, { reason });
+    return res.data.data.opportunity as CrmOpportunity;
+  },
+  async reopenOpportunity(id: string, reason: string) {
+    const res = await api.post(`/crm/opportunities/${id}/reopen`, { reason });
     return res.data.data.opportunity as CrmOpportunity;
   },
   async deleteOpportunity(id: string) { await api.delete(`/crm/opportunities/${id}`); },

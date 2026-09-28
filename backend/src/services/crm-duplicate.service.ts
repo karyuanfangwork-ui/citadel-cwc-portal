@@ -5,7 +5,6 @@ import prisma from '../utils/prisma';
 const MERGE_FIELD_ALLOWLIST: Record<string, Set<string>> = {
   LEAD: new Set([
     'title',
-    'status',
     'source',
     'contactName',
     'contactEmail',

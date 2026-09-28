@@ -10,7 +10,7 @@ export const NUMERIC_KEYS: Record<string, string[]> = {
   lead: ['estimatedValue'],
   account: ['annualRevenue'],
   contact: [],
-  opportunity: ['value', 'probability'],
+  opportunity: ['value'],
   trustProduct: ['assetValue'],
   beneficiary: ['allocationPct'],
 };

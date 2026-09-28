@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmNote, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount, CrmUser } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmNote, CrmStageHistory, CrmAccount, CrmUser } from '../src/services/crm.service';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
@@ -123,10 +123,13 @@ const CrmOpportunityDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history' | 'audit'>('overview');
   const [showMoveStage, setShowMoveStage] = useState(false);
+  const [showMarkLost, setShowMarkLost] = useState(false);
+  const [showReopen, setShowReopen] = useState(false);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState('');
   const [lostReason, setLostReason] = useState('');
+  const [reopenReason, setReopenReason] = useState('');
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL', scheduledAt: '' });
   const [activityScheduleError, setActivityScheduleError] = useState<string | null>(null);
   const [showEditActivity, setShowEditActivity] = useState(false);
@@ -149,8 +152,6 @@ const CrmOpportunityDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
-  const [editPipelines, setEditPipelines] = useState<CrmPipeline[]>([]);
-  const [editStages, setEditStages] = useState<CrmPipelineStage[]>([]);
   const [editAccounts, setEditAccounts] = useState<CrmAccount[]>([]);
   const [loadingEditDeps, setLoadingEditDeps] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
@@ -175,10 +176,7 @@ const CrmOpportunityDetail = () => {
     setEditForm({
       name: o.name ?? '',
       accountId: o.accountId ?? '',
-      pipelineId: o.pipelineId ?? '',
-      stageId: o.stageId ?? '',
       value: o.value?.toString() ?? '',
-      probability: o.probability?.toString() ?? '',
       expectedCloseDate: o.expectedCloseDate ? o.expectedCloseDate.slice(0, 10) : '',
       description: o.description ?? '',
       ownerId: o.ownerId ?? '',
@@ -188,14 +186,8 @@ const CrmOpportunityDetail = () => {
     setShowEdit(true);
     setLoadingEditDeps(true);
     try {
-      const [pipesRes, accsRes] = await Promise.all([
-        crmService.listPipelines(),
-        crmService.listAccounts({ limit: 200 }),
-      ]);
-      setEditPipelines(pipesRes);
+      const accsRes = await crmService.listAccounts({ limit: 200 });
       setEditAccounts(accsRes.accounts);
-      const currentPipeline = pipesRes.find((p: CrmPipeline) => p.id === o.pipelineId);
-      setEditStages(currentPipeline?.stages ?? []);
     } catch (err) {
       console.error('Failed to load edit dependencies', err);
     } finally {
@@ -203,16 +195,10 @@ const CrmOpportunityDetail = () => {
     }
   };
 
-  const handleEditPipelineChange = (pipelineId: string) => {
-    setEditForm(f => ({ ...f, pipelineId, stageId: '' }));
-    const pipe = editPipelines.find(p => p.id === pipelineId);
-    setEditStages(pipe?.stages ?? []);
-  };
-
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    const errors = validateOpportunity(editForm);
+    const errors = validateOpportunity(editForm, false);
     if (errors.length > 0) { setFormErrors(errors); return; }
     setSavingEdit(true);
     try {
@@ -280,7 +266,7 @@ const CrmOpportunityDetail = () => {
     if (!id || !selectedStageId) return;
     try {
       setSaving(true);
-      await crmService.moveStage(id, selectedStageId, lostReason || undefined);
+      await crmService.moveStage(id, selectedStageId);
       reload();
       setShowMoveStage(false);
       setLostReason('');
@@ -289,6 +275,22 @@ const CrmOpportunityDetail = () => {
       const gateMsg = e?.response?.data?.error as string | undefined;
       if (gateMsg) alert(gateMsg);
     } finally { setSaving(false); }
+  };
+
+  const handleMarkLost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !lostReason.trim()) return;
+    try { setSaving(true); await crmService.markOpportunityLost(id, lostReason); reload(); setShowMarkLost(false); setLostReason(''); }
+    catch (e: any) { alert(e?.response?.data?.error ?? 'Unable to mark opportunity as lost'); }
+    finally { setSaving(false); }
+  };
+
+  const handleReopen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !reopenReason.trim()) return;
+    try { setSaving(true); await crmService.reopenOpportunity(id, reopenReason); reload(); setShowReopen(false); setReopenReason(''); }
+    catch (e: any) { alert(e?.response?.data?.error ?? 'Unable to reopen opportunity'); }
+    finally { setSaving(false); }
   };
 
   const handleAddActivity = async (e: React.FormEvent) => {
@@ -480,6 +482,7 @@ const CrmOpportunityDetail = () => {
   const currentStageOrder = opp.stage?.displayOrder ?? 0;
   const isLost = opp.stage?.isLostStage;
   const isWon = opp.stage?.isWonStage;
+  const nextStage = stages.find(stage => stage.displayOrder === currentStageOrder + 1 && !stage.isLostStage);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: SURFACE }}>
@@ -549,12 +552,22 @@ const CrmOpportunityDetail = () => {
                     Delete
                   </button>
                 )}
-                <button onClick={() => { setSelectedStageId(opp.stageId); setShowMoveStage(true); }}
+                {!isWon && !isLost && nextStage && (
+                <button onClick={() => { setSelectedStageId(nextStage.id); setShowMoveStage(true); }}
                   className="px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:opacity-90 shadow-sm transition-all"
                   style={{ fontSize: 14, background: TEAL, color: WHITE, border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                  Move to Next Stage
+                  {nextStage.isWonStage ? 'Close as Won' : 'Move to Next Stage'}
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</span>
                 </button>
+                )}
+                {!isWon && !isLost && (
+                  <button onClick={() => setShowMarkLost(true)} className="px-4 py-2 rounded-lg font-semibold transition-colors"
+                    style={{ fontSize: 14, border: '1px solid #fecaca', color: ERROR, background: '#fff5f5', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Mark Closed Lost</button>
+                )}
+                {isLost && (
+                  <button onClick={() => setShowReopen(true)} className="px-4 py-2 rounded-lg font-semibold transition-colors"
+                    style={{ fontSize: 14, border: `1px solid ${BORDER}`, color: TEAL, background: WHITE, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Reopen Opportunity</button>
+                )}
               </div>
             </div>
           </div>
@@ -836,8 +849,7 @@ const CrmOpportunityDetail = () => {
                       </div>
                       <div>
                         <p className="uppercase font-bold" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: '-0.02em' }}>Probability</p>
-                        <InlineEdit value={opp.probability} type="number"
-                          onSave={async (v) => { await crmService.updateOpportunity(id!, { probability: Number(v) }); reload(); }} />
+                        <p style={{ fontSize: 14, color: DARK }}>{opp.stage?.probability ?? opp.probability}%</p>
                       </div>
                       <div>
                         <p className="uppercase font-bold" style={{ fontSize: 10, color: TEXT_MUTED, letterSpacing: '-0.02em' }}>Close Date</p>
@@ -1116,19 +1128,9 @@ const CrmOpportunityDetail = () => {
             <h2 className="font-semibold mb-4" style={{ fontSize: 24, letterSpacing: '-0.01em', color: DARK }}>Move Stage</h2>
             <form onSubmit={handleMoveStage} className="space-y-4">
               <div>
-                <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Select Stage</label>
-                <select value={selectedStageId} onChange={e => setSelectedStageId(e.target.value)}
-                  className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
-                  {stages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.probability}%)</option>)}
-                </select>
+                <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Next Stage</label>
+                <p className="w-full rounded-lg p-2.5" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW }}>{stages.find(s => s.id === selectedStageId)?.name ?? 'Next stage'}</p>
               </div>
-              {stages.find(s => s.id === selectedStageId)?.isLostStage && (
-                <div>
-                  <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Lost Reason</label>
-                  <input value={lostReason} onChange={e => setLostReason(e.target.value)}
-                    className="w-full rounded-lg p-2.5 outline-none transition-all" style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
-                </div>
-              )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowMoveStage(false)}
                   className="px-4 py-2 rounded-lg font-semibold hover:bg-[#dce9ff] transition-colors"
@@ -1139,6 +1141,30 @@ const CrmOpportunityDetail = () => {
                   {saving ? 'Moving…' : 'Move'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showMarkLost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowMarkLost(false)}>
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(33,49,69,0.4)' }} />
+          <div className="relative rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" style={{ background: WHITE }} onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold mb-4" style={{ fontSize: 24, color: DARK }}>Mark Closed Lost</h2><form onSubmit={handleMarkLost} className="space-y-4">
+              <div><label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Lost Reason</label><textarea required value={lostReason} onChange={e => setLostReason(e.target.value)} className="w-full rounded-lg p-2.5 outline-none" style={{ border: `1px solid ${BORDER}`, background: SURFACE_LOW }} /></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowMarkLost(false)} className="px-4 py-2 rounded-lg" style={{ border: `1px solid ${BORDER}`, background: WHITE }}>Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-white" style={{ background: ERROR, border: 'none' }}>{saving ? 'Saving…' : 'Mark Lost'}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showReopen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowReopen(false)}>
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(33,49,69,0.4)' }} />
+          <div className="relative rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" style={{ background: WHITE }} onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold mb-4" style={{ fontSize: 24, color: DARK }}>Reopen Opportunity</h2><form onSubmit={handleReopen} className="space-y-4">
+              <div><label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Reopen Reason</label><textarea required value={reopenReason} onChange={e => setReopenReason(e.target.value)} className="w-full rounded-lg p-2.5 outline-none" style={{ border: `1px solid ${BORDER}`, background: SURFACE_LOW }} /></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowReopen(false)} className="px-4 py-2 rounded-lg" style={{ border: `1px solid ${BORDER}`, background: WHITE }}>Cancel</button><button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-white" style={{ background: TEAL, border: 'none' }}>{saving ? 'Saving…' : 'Reopen'}</button></div>
             </form>
           </div>
         </div>
@@ -1344,7 +1370,7 @@ const CrmOpportunityDetail = () => {
                       className={`w-full rounded-lg p-2.5 outline-none transition-all ${formErrors.some(e => e.field === 'name') ? '!border-red-500' : ''}`}
                       style={{ border: `1px solid ${formErrors.some(e => e.field === 'name') ? '#f87171' : BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <div>
                       <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Account</label>
                       <select value={editForm.accountId ?? ''} onChange={e => setEditForm(f => ({ ...f, accountId: e.target.value }))}
@@ -1367,35 +1393,15 @@ const CrmOpportunityDetail = () => {
                 </div>
               </div>
 
-              {/* Section 2: Pipeline & Value */}
+              {/* Section 2: Value */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: SURFACE_MAX, color: TEAL }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>trending_up</span>
                   </div>
-                  <h3 className="font-semibold" style={{ fontSize: 18, color: DARK }}>Pipeline & Value</h3>
+                  <h3 className="font-semibold" style={{ fontSize: 18, color: DARK }}>Value</h3>
                 </div>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Pipeline</label>
-                      <select value={editForm.pipelineId ?? ''} onChange={e => handleEditPipelineChange(e.target.value)}
-                        className="w-full rounded-lg p-2.5 outline-none transition-all" disabled={loadingEditDeps}
-                        style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
-                        <option value="">— Select —</option>
-                        {editPipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Stage</label>
-                      <select value={editForm.stageId ?? ''} onChange={e => setEditForm(f => ({ ...f, stageId: e.target.value }))}
-                        className="w-full rounded-lg p-2.5 outline-none transition-all" disabled={loadingEditDeps || !editForm.pipelineId}
-                        style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
-                        <option value="">— Select —</option>
-                        {editStages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.probability}%)</option>)}
-                      </select>
-                    </div>
-                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Estimated Value (RM)</label>
@@ -1406,21 +1412,25 @@ const CrmOpportunityDetail = () => {
                           style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
                       </div>
                     </div>
-                    <div>
-                      <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Probability (%)</label>
-                      <div className="relative">
-                        <input type="number" min="0" max="100" value={editForm.probability ?? ''} onChange={e => setEditForm(f => ({ ...f, probability: e.target.value }))}
-                          className="w-full rounded-lg p-2.5 outline-none transition-all pr-8"
-                          style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
-                        <span className="absolute inset-y-0 right-3 flex items-center" style={{ fontSize: 14, color: TEXT_MUTED }}>%</span>
-                      </div>
-                    </div>
                   </div>
-                  <div>
-                    <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Expected Close Date</label>
-                    <input type="date" value={editForm.expectedCloseDate ?? ''} onChange={e => setEditForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
-                      className="w-full rounded-lg p-2.5 outline-none transition-all"
-                      style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Expected Close Date</label>
+                      <input type="date" value={editForm.expectedCloseDate ?? ''} onChange={e => setEditForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
+                        className="w-full rounded-lg p-2.5 outline-none transition-all"
+                        style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }} />
+                    </div>
+                    <div>
+                      <label className="block font-bold uppercase tracking-widest mb-1" style={{ fontSize: 11, color: TEXT_SEC }}>Forecast Category</label>
+                      <select value={editForm.forecastCategory ?? 'PIPELINE'} onChange={e => setEditForm(f => ({ ...f, forecastCategory: e.target.value }))}
+                        className="w-full rounded-lg p-2.5 outline-none transition-all"
+                        style={{ border: `1px solid ${BORDER}`, fontSize: 14, background: SURFACE_LOW, fontFamily: 'Inter, sans-serif' }}>
+                        <option value="PIPELINE">Pipeline</option>
+                        <option value="BEST_CASE">Best Case</option>
+                        <option value="COMMIT">Commit</option>
+                        <option value="OMITTED">Omit</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
