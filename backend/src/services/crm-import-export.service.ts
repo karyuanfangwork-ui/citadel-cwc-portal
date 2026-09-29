@@ -485,7 +485,7 @@ export async function executeImport(jobId: string, userId: string, visibleOwnerI
   }
 
   // Get default pipeline for opportunities
-  let defaultPipeline: { id: string; stages: { id: string; name: string; displayOrder: number; isWonStage: boolean; isLostStage: boolean }[] } | null = null;
+  let defaultPipeline: { id: string; stages: { id: string; name: string; displayOrder: number; probability: number; isWonStage: boolean; isLostStage: boolean }[] } | null = null;
   if (job.entity === 'OPPORTUNITY') {
     defaultPipeline = await prisma.crmPipeline.findFirst({
       where: { isDefault: true, isActive: true },

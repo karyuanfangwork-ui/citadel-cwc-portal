@@ -7,7 +7,8 @@ import { generateWinLossDebrief } from './crm-ai.service';
 import { logger } from '../utils/logger';
 
 type Actor = { id: string; email: string };
-type Transaction = Prisma.TransactionClient;
+type Transaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+type LifecycleUpdate = Pick<Prisma.CrmOpportunityUpdateInput, 'wonAt' | 'lostAt' | 'lostReason'>;
 
 const stageInclude = {
   stage: true,
@@ -44,7 +45,7 @@ async function recordTransition(
   actor: Actor,
   action: string,
   description: string,
-  update: Prisma.CrmOpportunityUpdateInput,
+  update: LifecycleUpdate,
   auditValues: Record<string, unknown>,
 ) {
   const updated = await tx.crmOpportunity.update({

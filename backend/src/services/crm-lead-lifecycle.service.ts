@@ -1,4 +1,4 @@
-import { LeadStatus, Prisma } from '@prisma/client';
+import { LeadStatus } from '@prisma/client';
 import { AppError } from '../middleware/error.middleware';
 import { applyOwnerScope } from './crm-scope.service';
 import prisma from '../utils/prisma';
@@ -10,7 +10,7 @@ const ADVANCE_TARGET_STATUSES: LeadStatus[] = ['CONTACTED', 'QUALIFIED'];
 export const isActiveLeadStatus = (status: LeadStatus) => ACTIVE_LEAD_STATUSES.includes(status);
 
 type Actor = { id: string; email?: string | null };
-type DbClient = typeof prisma | Prisma.TransactionClient;
+type DbClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 async function findVisibleLead(tx: DbClient, leadId: string, visibleOwnerIds: string[] | null) {
   const lead = await tx.crmLead.findFirst({

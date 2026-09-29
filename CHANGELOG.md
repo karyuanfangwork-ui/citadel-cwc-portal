@@ -1,5 +1,11 @@
 # Change Log
 
+## 2026-09-29
+
+### CRM backend build typing
+
+- Corrected CRM lifecycle transaction and update-payload typing plus imported-stage probability typing for production Docker build validation; runtime lifecycle, import behavior, Prisma schema, migrations, and dependencies remain unchanged.
+
 ## 2026-09-28
 
 ### CRM regression validation — fixture cleanup
