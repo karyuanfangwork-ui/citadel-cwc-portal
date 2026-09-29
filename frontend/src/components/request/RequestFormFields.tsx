@@ -27,6 +27,7 @@ interface RequestFormFieldsProps {
     completedAt?: string | null;
     resolvedAt?: string | null;
     customFields?: Record<string, any>;
+    customFieldDisplay?: Record<string, string>;
     serviceDesk?: { code: string; name?: string };
     requestType?: { code?: string; name?: string; formConfig?: any };
     itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
@@ -85,6 +86,17 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
 
 const formatStatusLabel = (status: string) => getRequestStatusLabel(status);
 
+function displayDescription(request: RequestFormFieldsProps['request']): string {
+  let description = request.description || '';
+  for (const [fieldId, displayName] of Object.entries(request.customFieldDisplay || {})) {
+    const selectedId = request.customFields?.[fieldId];
+    if (typeof selectedId === 'string' && selectedId) {
+      description = description.split(selectedId).join(displayName);
+    }
+  }
+  return description;
+}
+
 const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
   request,
   activities,
@@ -99,6 +111,7 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
 
   const priorityStyle = PRIORITY_STYLES[request.priority || ''] || PRIORITY_STYLES.MEDIUM;
   const statusStyle = STATUS_STYLES[request.status] || { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400' };
+  const requestDescription = displayDescription(request);
 
   return (
     <>
@@ -250,11 +263,11 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
           <span className="text-[11px] font-semibold text-[#8993a4] uppercase tracking-wider block mb-2">
             Description
           </span>
-          {request.serviceDesk?.code === 'IT' && request.description ? (
+          {request.serviceDesk?.code === 'IT' && requestDescription ? (
             <div
               className="text-[#101418] leading-relaxed text-sm tiptap-content"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(request.description, {
+                __html: DOMPurify.sanitize(requestDescription, {
                   ALLOWED_TAGS: ['b', 'i', 'strong', 'em', 'ul', 'ol', 'li', 'a', 'p', 'br'],
                   ALLOWED_ATTR: ['href', 'target', 'rel'],
                 }),
@@ -262,7 +275,7 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
             />
           ) : (
             <p className="text-[#101418] leading-relaxed text-sm">
-              {request.description || 'No detailed description provided.'}
+              {requestDescription || 'No detailed description provided.'}
             </p>
           )}
         </div>
@@ -274,6 +287,7 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
             ...(request.itHardwareRequest?.assetTag ? { assetTag: request.itHardwareRequest.assetTag } : {}),
             ...(request.itHardwareRequest?.serialNumber ? { serialNumber: request.itHardwareRequest.serialNumber } : {}),
           }}
+          customFieldDisplay={request.customFieldDisplay}
           serviceDeskCode={request.serviceDesk?.code || ''}
           formConfig={request.requestType?.formConfig}
           requestId={request.id}

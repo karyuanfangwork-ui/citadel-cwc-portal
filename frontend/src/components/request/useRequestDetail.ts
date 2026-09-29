@@ -147,6 +147,7 @@ export interface Request {
     approvals?: { id: string; approverId: string; approverType: string; status: string }[];
     attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
     customFields?: Record<string, any>;
+    customFieldDisplay?: Record<string, string>;
     // P5-04: Form config snapshot preserved at submission time
     formConfigSnapshot?: any[] | null;
     formConfigVersion?: number | null;

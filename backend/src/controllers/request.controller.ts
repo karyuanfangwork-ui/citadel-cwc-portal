@@ -23,6 +23,7 @@ import prisma from '../utils/prisma';
 import { resolveRequestId, UUID_RE } from '../utils/resolve';
 import { transitionHttpRequest } from '../utils/httpRequestTransition';
 import { getAvailableTransitionsForRequest } from '../services/availableTransitions.service';
+import { resolveCustomFieldDisplayValues } from '../services/requestCustomFieldDisplay.service';
 
 /** Extract a display-safe string from a custom field value, handling file objects gracefully. */
 function cfStr(val: any): string {
@@ -1638,6 +1639,12 @@ class RequestController {
         // for unauthorized access to avoid leaking resource existence.
         await assertRequestAccess(req.user, request.id, {
             requireConfidential: true,
+        });
+
+        (request as any).customFieldDisplay = await resolveCustomFieldDisplayValues({
+            tenantId: request.tenantId,
+            customFields: request.customFields,
+            formConfig: (request as any).formConfigSnapshot ?? request.requestType?.formConfig,
         });
 
         // Audit: log access to confidential requests (only for non-requesters)

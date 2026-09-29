@@ -8,6 +8,7 @@ const API_BASE = (import.meta as any).env.VITE_API_URL || (import.meta as any).e
 
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
+  customFieldDisplay?: Record<string, string>;
   serviceDeskCode: string;
   formConfig?: any;
   requestId?: string;
@@ -228,7 +229,7 @@ function formatCandidateDocuments(value: Record<string, Record<string, any>>, re
   );
 }
 
-function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>, requestId?: string): React.ReactNode {
+function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>, requestId?: string, customFieldDisplay?: Record<string, string>): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   // File array: multiple files in a single field
@@ -256,6 +257,7 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
   }
   // If fieldType is 'file' but the value is a plain string (legacy data), display it as-is
   if (fieldType === 'file') return String(value);
+  if (fieldType === 'ceo-select') return customFieldDisplay?.[key] || 'Unavailable approver';
   // Detect and format ISO date strings or plain date strings (YYYY-MM-DD)
   if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}/.test(value)) {
     const d = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00Z');
@@ -285,6 +287,7 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
 
 const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
   customFields,
+  customFieldDisplay,
   serviceDeskCode,
   formConfig,
   requestId,
@@ -438,7 +441,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
                     </div>
                   ) : (
                     <>
-                      <span>{formatValue(key, value, getFieldType(key), entityNameMap, requestId)}</span>
+                      <span>{formatValue(key, value, getFieldType(key), entityNameMap, requestId, customFieldDisplay)}</span>
                       {editable && (
                         <button
                           onClick={() => startEdit(key)}

@@ -23,7 +23,7 @@ export const FINANCE_RECTIFICATION_TRANSITIONS: readonly ScopedTransitionDefinit
       toStatus: "PENDING_CEO_APPROVAL_FIN",
       transitionLabel: "SUBMIT",
       requiresComment: false,
-      allowedRoles: [],
+      allowedRoles: ["AGENT", "ADMIN"],
       allowedExecutiveRoles: [],
     },
     {
@@ -40,7 +40,7 @@ export const FINANCE_RECTIFICATION_TRANSITIONS: readonly ScopedTransitionDefinit
       transitionLabel: "REJECT",
       requiresComment: true,
       allowedRoles: [],
-      allowedExecutiveRoles: [],
+      allowedExecutiveRoles: ["CEO"],
     },
   ];
 
