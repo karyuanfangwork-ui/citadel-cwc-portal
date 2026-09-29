@@ -1,5 +1,4 @@
 import { Prisma } from '@prisma/client';
-import { logger } from '../utils/logger';
 import { AppError } from '../middleware/error.middleware';
 import { applyOwnerScope } from './crm-scope.service';
 import { isActiveLeadStatus } from './crm-lead-lifecycle.service';
