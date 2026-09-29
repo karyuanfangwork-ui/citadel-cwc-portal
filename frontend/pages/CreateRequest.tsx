@@ -169,6 +169,7 @@ const CreateRequest = () => {
                                     selectedRequestType={wizard.selectedRequestType}
                                     entityOptions={wizard.entityOptions}
                                     ceoOptions={wizard.ceoOptions}
+                                    ceoOptionsError={wizard.ceoOptionsError}
                                     uploadingFields={wizard.uploadingFields}
                                     setUploadingFields={wizard.setUploadingFields}
                                     isRoleBlocked={wizard.isRoleBlocked}

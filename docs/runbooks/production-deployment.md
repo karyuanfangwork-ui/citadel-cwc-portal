@@ -1,10 +1,15 @@
 # CWC Production Deployment Runbook
 
-Status: operational. This runbook documents the full workflow for deploying the latest `dev2.0` changes to the CWC production server.
+Status: operational. This runbook documents the workflow for deploying `dev2.0`
+changes to the CWC production server. The preferred path uses GitHub Actions-built
+immutable images; the server does not compile application code.
 
 ## Purpose
 
-Deploy new code to production safely. The critical constraint is that **code is baked into Docker images** — there is no host-mounted source and no Node.js on the prod host. A `git pull + restart` will NOT pick up code changes. You must rebuild the images, then recreate the containers.
+Deploy new code to production safely. **Code is baked into Docker images** —
+there is no host-mounted source and no Node.js on the prod host. GitHub Actions
+builds and publishes the images to GHCR; the server must pull the exact images
+and recreate the application containers.
 
 ## Server facts
 
@@ -14,6 +19,7 @@ Deploy new code to production safely. The critical constraint is that **code is 
 | Repo path | `/var/www/citadel-cwc-portal` |
 | Branch | `dev2.0` |
 | Compose file | `docker-compose.prod.yml` |
+| Image registry | `ghcr.io/cgt-tech-admin` |
 | Domain | `https://cwc.citadelgroup.com.my` |
 | RAM | 2GB total (~960MB usable) — **build backend and frontend separately or OOM** |
 | CPU | 1 vCPU |
@@ -41,8 +47,8 @@ The `backend/Dockerfile` is a multi-stage build that compiles TypeScript into `d
 ## Quick deploy checklist
 
 1. **DB backup** — always dump before touching prod
-2. **Commit & push** — push to `origin/dev2.0`
-3. **Run `deploy.sh`** — automated full deploy, or manual steps below
+2. **Commit & push** — push to `origin/dev2.0` and wait for `Production Images` to pass
+3. **Deploy immutable images** — run `deploy-prebuilt.sh --sha <40-char-commit-sha>`
 4. **Verify** — health check + spot-check in browser
 
 ## Standard deployment procedure
@@ -93,6 +99,29 @@ ls -lh backups/prod_full_*.sql
 
 ### 3. Choose the deployment path
 
+#### Preferred: GitHub Actions-built images
+
+The `Production Images` workflow builds and publishes backend and frontend
+images tagged with the commit SHA and `dev2.0-latest`. Use the immutable SHA
+tag for deployment:
+
+```bash
+./deploy-prebuilt.sh --sha <40-character-commit-sha>
+```
+
+This takes a backup, verifies the production checkout is exactly that SHA,
+pulls both GHCR images, starts them with `--no-build`, runs Prisma migrations
+unless `--no-migrate` is supplied, and performs health/schema verification.
+Production must have read-only GHCR access configured. Thus the server-side
+application step is pull + `docker compose up --no-build`, not a source-only
+`git pull` + restart.
+
+Use `--no-migrate` only after confirming the release has no database changes.
+
+#### Legacy: build images on production
+
+Use the following path only when the prebuilt workflow is unavailable.
+
 Check whether the release changes Prisma schema or migrations:
 
 ```bash
@@ -119,8 +148,9 @@ For releases containing schema or migration changes, use:
 Before this path, run the pre-deploy database audit described in the manual
 procedure below when the release affects `tenant_id`, `CHECK` constraints, or
 existing production data. If migration status reports a failed migration,
-stop and resolve that migration deliberately; do not blindly use
-`prisma db push --accept-data-loss`.
+stop and resolve that migration deliberately. Do not blindly use
+`prisma db push --accept-data-loss`; it can discard data and is not the
+normal recovery path.
 
 ### 4. Seed only when explicitly required
 
@@ -295,11 +325,16 @@ docker exec -i citadel-cwc-portal-postgres-1 psql -U cwc_admin -d help_center -f
 
 If `migrate deploy` fails on a specific migration, see "Prisma Migration Failures" in Pitfalls.
 
-### 4b. Fallback: db push (only if migrate deploy fails)
+### 4b. Fallback: db push (exception-only recovery)
 
 ```bash
-docker exec citadel-cwc-portal-backend-1 npx prisma db push --accept-data-loss
+docker exec citadel-cwc-portal-backend-1 npx prisma db push
 ```
+
+Use `--accept-data-loss` only after reviewing Prisma's proposed changes,
+confirming the backup is valid, and explicitly approving the destructive
+operation. `deploy.sh` currently uses plain `prisma db push` as its
+schema-sync fallback.
 
 After `db push`, backfill NULL `tenant_id` rows:
 
@@ -311,8 +346,12 @@ docker exec citadel-cwc-portal-postgres-1 psql -U cwc_admin -d help_center \
 ### 5. Run seed (if seed data changed)
 
 ```bash
-docker exec citadel-cwc-portal-backend-1 npx tsx prisma/seed.ts
+docker exec citadel-cwc-portal-backend-1 sh -lc \
+  'RETAIN_ADMIN_CONFIG=true npx tsx prisma/seed.ts'
 ```
+
+This matches `deploy.sh` and keeps production-managed configuration intact.
+Do not run the seed without `RETAIN_ADMIN_CONFIG=true` in production.
 
 Watch for:
 - `Notification templates created` — new templates added
@@ -417,10 +456,11 @@ If deploy goes wrong:
    ssh root@152.42.246.217 "cd /var/www/citadel-cwc-portal && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d"
    ```
 
-4. **Restore DB if needed:**
+4. **Restore DB only if needed:**
 
    ```bash
-   # On prod, terminate connections then restore
+   # Destructive recovery: use only when the approved rollback requires a DB restore.
+   # Confirm the exact backup first; this drops and recreates help_center.
    ssh root@152.42.246.217
    docker exec -i citadel-cwc-portal-postgres-1 psql -U postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'help_center' AND pid <> pg_backend_pid();"
    docker exec -i citadel-cwc-portal-postgres-1 psql -U postgres -c "DROP DATABASE help_center;"
@@ -544,7 +584,7 @@ ssh root@152.42.246.217 "docker exec citadel-cwc-portal-postgres-1 pg_dump -U cw
 - **Environment-specific UUIDs:** Production user IDs, territory IDs, and other FK targets differ from local dev. Always query and verify before seeding.
 - **Prisma `upsert` requires schema-level `@@unique`, not SQL partial unique indexes:** If a model's uniqueness is enforced by a partial unique index (e.g. `CREATE UNIQUE INDEX … WHERE tenant_id IS NOT NULL`), Prisma's `upsert({ where: { key } })` will fail with `Argument 'where' needs at least one of 'id' arguments`. The `where` clause in `upsert` can only use fields that are `@id`, `@unique`, or part of a `@@unique` constraint in the Prisma schema — database-level partial indexes are invisible to it. Fix: replace `upsert` with `findFirst + create/update` (check-then-act) for any model that lacks a Prisma-level unique constraint on the desired field. **Hit in production:** FeatureFlag seed used `upsert({ where: { key } })` but `key` has no `@unique` — only a partial SQL unique index. Replaced with `findFirst({ where: { key, tenantId } })` + `create`/`update` pattern.
 - **Deploy script code verification is a false positive:** Step 2b ("Verifying container has the latest code") runs `git rev-parse HEAD` inside the backend container, but the backend Docker image doesn't include `git`. The step prints a success marker even though the actual output is `exec: "git": executable file not found`. To verify code actually deployed, grep for a unique string from your changes in the compiled JS: `docker exec citadel-cwc-portal-backend-1 grep -r "YOUR_UNIQUE_STRING" /app/dist/`.
-- **Migrations referencing not-yet-added columns will fail with `42703`:** ESM production-readiness migrations (tenant_department_rls, etc.) reference columns (`department_id`, `tenant_id` on `requests`, `service_desks`) and tables (`departments`) that don't exist in the production DB yet. `prisma migrate deploy` will fail with `ERROR: column r.department_id does not exist` or `ERROR: relation "departments" does not exist`. Fix: mark each failed migration as applied (`prisma migrate resolve --applied <name>`), then use `prisma db push --accept-data-loss` to sync the full schema. See "ESM Migration Deployment" below for the full recovery procedure.
+- **Migrations referencing not-yet-added columns will fail with `42703`:** ESM production-readiness migrations (tenant_department_rls, etc.) reference columns (`department_id`, `tenant_id` on `requests`, `service_desks`) and tables (`departments`) that don't exist in the production DB yet. `prisma migrate deploy` will fail with `ERROR: column r.department_id does not exist` or `ERROR: relation "departments" does not exist`. Fix: stop, back up, and resolve the migration deliberately; only use `prisma db push --accept-data-loss` after reviewing the proposed changes and receiving explicit approval. See "ESM Migration Deployment" below for the full recovery procedure.
 - **`prisma db push --accept-data-loss` requires NOT NULL columns to have no NULL rows:** If the Prisma schema adds a required (`NOT NULL`) column to a table with existing rows, `db push` will refuse unless all rows have values. Backfill first: `UPDATE table SET col = default_value WHERE col IS NULL;`, then retry `db push`. For `request_attachments.tenant_id` and `department_id`, backfill from the parent `requests` row joined with `service_desks`.
 - **`_prisma_migrations` accumulates entries with `finished_at IS NULL`:** These block new migrations from applying. After resolving all failed migrations with `prisma migrate resolve --applied`, also run: `UPDATE _prisma_migrations SET finished_at = NOW() WHERE finished_at IS NULL;` Duplicate entries (same migration_name appearing multiple times) are harmless once `finished_at` is set.
 - **ESM Migration Deployment recovery procedure:** When `prisma migrate deploy` fails on ESM migrations that reference columns/tables not yet in the DB:
@@ -552,8 +592,8 @@ ssh root@152.42.246.217 "docker exec citadel-cwc-portal-postgres-1 pg_dump -U cw
   2. Fix NULL `finished_at` entries: `docker exec citadel-cwc-portal-postgres-1 psql -U cwc_admin -d help_center -c "UPDATE _prisma_migrations SET finished_at = NOW() WHERE finished_at IS NULL;"`
   3. Backfill required columns that `db push` will make NOT NULL: `ALTER TABLE request_attachments ADD COLUMN IF NOT EXISTS tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'; ALTER TABLE request_attachments ADD COLUMN IF NOT EXISTS department_id UUID;`
   4. Backfill FK values: `UPDATE request_attachments ra SET department_id = sd.department_id FROM requests r JOIN service_desks sd ON sd.id = r.service_desk_id WHERE ra.request_id = r.id AND ra.department_id IS NULL;` (similarly for `requests.department_id` from `service_desks`)
-  5. Run `prisma db push --accept-data-loss` to sync the full schema
-  6. Run the seed: `docker exec citadel-cwc-portal-backend-1 npx tsx prisma/seed.ts`
+  5. After explicit approval, run `prisma db push --accept-data-loss` to sync the full schema
+  6. Run the guarded seed: `docker exec citadel-cwc-portal-backend-1 sh -lc 'RETAIN_ADMIN_CONFIG=true npx tsx prisma/seed.ts'`
   7. Verify: `docker exec citadel-cwc-portal-backend-1 npx prisma migrate status`
 - **On-disk `backend/logs/` volume contains stale local dev logs:** The `backend_logs` Docker volume mounts to `/app/logs/` inside the container and persists across container restarts. In production, this volume often contains old `combined.log` and `error.log` files from local development runs (April-May era) that are NOT current. Docker container logs (`docker compose logs backend`) are the canonical source for production diagnostics. Do not `docker exec cat /app/logs/error.log` and assume those are recent production errors — check timestamps carefully.
 - **Tenant-scope deprecation warnings will become hard errors:** Prisma logs `[TENANT_SCOPE] Unscoped findMany on tenant-scoped model X` when a query on a `@@tenant` model lacks a tenant filter. Currently a warning, but Prisma will reject these in a future release. Models flagged in production: `request`, `escalationRule`. Fix by adding `where: { tenantId }` to all findMany/findFirst calls on these models, or using `prisma.$runWithExecutionScope()`.

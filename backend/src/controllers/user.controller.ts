@@ -539,6 +539,37 @@ class UserController {
     });
 
     /**
+     * List minimal Purchase Requisition CEO approver options for any authenticated
+     * requester. Tenant scope is supplied by authenticate middleware.
+     */
+    getFinanceApprovers = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const executives = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                roles: { some: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } } },
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                roles: { where: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } }, select: { role: { select: { name: true } } } },
+                entity: { select: { id: true, code: true, name: true } },
+            },
+            orderBy: [{ entity: { code: 'asc' } }, { firstName: 'asc' }],
+        });
+
+        res.json({
+            success: true,
+            data: {
+                executives: executives.map((executive) => ({
+                    ...executive,
+                    executiveRole: executive.roles[0]?.role.name ?? null,
+                })),
+            },
+        });
+    });
+
+    /**
      * Get active users assigned the requested executive RBAC role
      * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
      * agent override the auto-selected approver before routing.

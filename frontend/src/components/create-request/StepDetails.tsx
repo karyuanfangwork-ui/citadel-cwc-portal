@@ -10,6 +10,7 @@ interface StepDetailsProps {
   selectedRequestType: any;
   entityOptions: { code: string; name: string }[];
   ceoOptions: { id: string; name: string; entity: string; role?: string }[];
+  ceoOptionsError?: string | null;
   uploadingFields: Record<string, boolean>;
   setUploadingFields: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   isRoleBlocked: boolean;
@@ -31,6 +32,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
   selectedRequestType,
   entityOptions,
   ceoOptions,
+  ceoOptionsError,
   uploadingFields,
   setUploadingFields,
   isRoleBlocked,
@@ -512,6 +514,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               ))}
             </select>
             <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none">expand_more</span>
+            {ceoOptionsError && <p role="alert" className="mt-2 text-sm text-red-600">{ceoOptionsError}</p>}
           </div>
         );
       }

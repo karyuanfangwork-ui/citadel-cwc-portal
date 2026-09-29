@@ -337,18 +337,24 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   // Fetch CEO / Group DCEO list for CEO approver dropdown
   const [ceoOptions, setCeoOptions] = useState<{id: string; name: string; entity: string; role: string}[]>([]);
+  const [ceoOptionsError, setCeoOptionsError] = useState<string | null>(null);
   useEffect(() => {
-    apiClient.get('/users/executives?role=CEO,GROUP_DCEO')
+    apiClient.get('/users/finance-approvers')
       .then(res => {
-        const execs = res.data?.data?.executives || res.data?.data || [];
+        const execs = res.data?.data?.executives;
+        if (!Array.isArray(execs)) throw new Error('Unexpected approver response');
         setCeoOptions(execs.map((e: any) => ({
           id: e.id,
-          name: `${e.firstName} ${e.lastName}`,
+          name: `${e.firstName} ${e.lastName}`.trim(),
           entity: e.entity?.name || e.entity?.code || '',
-          role: e.executiveRole || e.roles?.find((r: any) => ['CEO', 'GROUP_DCEO'].includes(r.role?.name))?.role?.name || '',
+          role: e.executiveRole || e.roles?.[0]?.role?.name || '',
         })));
+        setCeoOptionsError(execs.length ? null : 'No active CEO approvers are configured for this tenant. Contact your administrator.');
       })
-      .catch(() => setCeoOptions([]));
+      .catch(() => {
+        setCeoOptions([]);
+        setCeoOptionsError('Could not load CEO approvers. Please refresh or contact your administrator.');
+      });
   }, []);
 
   const fetchData = async () => {
@@ -496,6 +502,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     setError,
     entityOptions,
     ceoOptions,
+    ceoOptionsError,
     uploadingFields,
     setUploadingFields,
     isRoleBlocked,

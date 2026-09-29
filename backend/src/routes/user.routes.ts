@@ -56,6 +56,7 @@ router.get('/staff', authorize('ADMIN', 'AGENT'), userController.getStaff);
  *          Used by workflow modals so the routing agent can override the auto-selected approver.
  * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_DCEO)
  */
+router.get('/finance-approvers', authenticate, userController.getFinanceApprovers);
 router.get(
     '/executives',
     authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),
