@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { scorecardController } from '../controllers/scorecard.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validateUUID } from '../../middleware/uuidValidate.middleware';
+import { validate } from '../../middleware/validate.middleware';
+import { activateScorecardVersionSchema } from '../validators/scorecard.validator';
 
 const router = Router();
 
@@ -24,6 +26,7 @@ router.post(
   '/:id/activate',
   requirePermission('credit:admin'),
   validateUUID('id'),
+  validate(activateScorecardVersionSchema),
   scorecardController.activateVersion,
 );
 

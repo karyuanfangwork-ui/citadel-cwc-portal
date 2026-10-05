@@ -17,6 +17,7 @@ import {
   submitBandSetForApproval,
   approveBandSet,
   activateBandSet,
+  listRatingBandSets,
   validateActiveBandSet,
 } from '../controllers/ratingBandConfig.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
@@ -27,7 +28,7 @@ import {
   updateRatingBandSchema,
   upsertRiskFactorMatrixSchema,
   createDraftBandSetRouteSchema,
-  bandIdsSchema,
+  activateBandSetRouteSchema,
 } from '../validators/ratingBandConfig.validator';
 
 const router = Router();
@@ -42,10 +43,17 @@ router.get('/active', getActiveBands);
 // ── LOS-010 — Governed lifecycle: DRAFT → SUBMITTED → APPROVED → ACTIVE ──
 // ratingBandService implemented these from the start but no route reached them,
 // so the only way to change bands was the ungoverned legacy CRUD below.
+router.get('/band-sets', requirePermission('credit:admin'), listRatingBandSets);
 router.post('/band-sets', requirePermission('credit:admin'), validate(createDraftBandSetRouteSchema), createDraftBandSet);
-router.post('/band-sets/submit', requirePermission('credit:admin'), validate(bandIdsSchema), submitBandSetForApproval);
-router.post('/band-sets/approve', requirePermission('credit:admin'), validate(bandIdsSchema), approveBandSet);
-router.post('/band-sets/activate', requirePermission('credit:admin'), validate(bandIdsSchema), activateBandSet);
+router.post('/band-sets/:id/submit', requirePermission('credit:admin'), validateUUID('id'), submitBandSetForApproval);
+router.post('/band-sets/:id/approve', requirePermission('credit:admin'), validateUUID('id'), approveBandSet);
+router.post(
+  '/band-sets/:id/activate',
+  requirePermission('credit:admin'),
+  validateUUID('id'),
+  validate(activateBandSetRouteSchema),
+  activateBandSet,
+);
 router.get('/band-sets/validate', requirePermission('credit:read'), validateActiveBandSet);
 
 // Legacy CRUD (DRAFT-only mutation via LOS-010 guard in controller)

@@ -22,6 +22,10 @@ jest.mock('../../../utils/prisma', () => {
   };
 });
 
+jest.mock('../ratingResolution.service', () => ({
+  resolveRatingOrFail: jest.fn(),
+}));
+
 jest.mock('../qualitativeAssessment.service', () => ({
   getQualitativeAssessment: jest.fn().mockResolvedValue(null),
   toFactorScores: jest.fn().mockReturnValue({
@@ -81,6 +85,9 @@ import prisma from '../../../utils/prisma';
 const productScorecardVersion: any = {
   id: 'sv-prod',
   scorecardId: 'sc-prod',
+  isActive: true,
+  effectiveFrom: new Date(Date.now() - 60_000),
+  effectiveTo: null,
   factorWeights: {
     financial_performance: 15, leverage: 15, liquidity: 10, cashflow: 15,
     management: 10, industry: 10, collateral: 10, relationship: 10, market_conditions: 5,
@@ -91,6 +98,9 @@ const productScorecardVersion: any = {
 const genericScorecardVersion: any = {
   id: 'sv-generic',
   scorecardId: 'sc-generic',
+  isActive: true,
+  effectiveFrom: new Date(Date.now() - 60_000),
+  effectiveTo: null,
   factorWeights: {
     financial_performance: 15, leverage: 15, liquidity: 10, cashflow: 15,
     management: 10, industry: 10, collateral: 10, relationship: 10, market_conditions: 5,
@@ -99,7 +109,12 @@ const genericScorecardVersion: any = {
 };
 
 describe('executeScore product-specific scorecard selection', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (jest.requireMock('../ratingResolution.service').resolveRatingOrFail as jest.Mock).mockResolvedValue({
+      rating: 'BBB', ratingBandVersion: 1, usedFallback: false,
+    });
+  });
 
   it('prefers a product-specific scorecard when the application has a productType', async () => {
     (prisma.creditApplication.findUnique as jest.Mock).mockResolvedValue({
@@ -118,7 +133,7 @@ describe('executeScore product-specific scorecard selection', () => {
 
     // The first findMany call should filter by productType
     const firstCall = (prisma.creditScorecardVersion.findMany as jest.Mock).mock.calls[0][0];
-    expect(firstCall.where.scorecard).toEqual({ productType: 'TERM_LOAN' });
+    expect(firstCall.where.scorecard).toEqual({ is: { productType: 'TERM_LOAN', isActive: true } });
     // Should only have been called once (product-specific found, no fallback)
     expect(prisma.creditScorecardVersion.findMany).toHaveBeenCalledTimes(1);
   });
@@ -142,6 +157,34 @@ describe('executeScore product-specific scorecard selection', () => {
 
     expect(findManyMock).toHaveBeenCalledTimes(2);
     const secondCall = findManyMock.mock.calls[1][0];
-    expect(secondCall.where.scorecard).toBeUndefined();
+    expect(secondCall.where.scorecard).toEqual({ is: { productType: null, isActive: true } });
+  });
+
+  it('fails closed when multiple effective versions match the product scope', async () => {
+    (prisma.creditApplication.findUnique as jest.Mock).mockResolvedValue({
+      borrowerProfileId: 'bp-1', productType: 'TERM_LOAN', borrowerProfile: { borrowerType: 'CORPORATE' },
+    });
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([
+      productScorecardVersion,
+      { ...productScorecardVersion, id: 'sv-prod-duplicate', version: 2 },
+    ]);
+
+    await expect(scoringService.executeScore('app-1')).rejects.toThrow(/multiple effective scorecard versions/i);
+    expect(prisma.creditScoreRun.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not persist a score run when active rating-band governance is missing', async () => {
+    (prisma.creditApplication.findUnique as jest.Mock).mockResolvedValue({
+      borrowerProfileId: 'bp-1', productType: 'TERM_LOAN', borrowerProfile: { borrowerType: 'CORPORATE' },
+    });
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([productScorecardVersion]);
+    (jest.requireMock('../ratingResolution.service').resolveRatingOrFail as jest.Mock)
+      .mockRejectedValue(new Error('No active rating bands configured for application app-1'));
+
+    await expect(scoringService.executeScore('app-1')).rejects.toThrow(/No active rating bands configured/i);
+    expect(prisma.creditScoreRun.create).not.toHaveBeenCalled();
+    expect(prisma.creditApplication.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

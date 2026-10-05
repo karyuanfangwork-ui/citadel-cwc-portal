@@ -125,6 +125,7 @@ import amlRescreenRoutes from './amlRescreen.routes';
 // §6.2 — Credit Policy Limits
 import policyLimitRoutes from './policyLimit.routes';
 import creditRuleConfigRoutes from './creditRuleConfig.routes';
+import configurationReadinessRoutes from './configurationReadiness.routes';
 
 // §F23 — FX Rate Admin
 import fxRateRoutes from './fxRate.routes';
@@ -216,6 +217,9 @@ router.get('/health', requirePermission('credit:read'), async (_req: Request, re
     },
   });
 });
+
+// Admin-only methodology readiness; public liveness remains independent.
+router.use('/configuration-readiness', configurationReadinessRoutes);
 
 // Sprint 1 — Borrower + Documents
 router.use('/borrowers/duplicate-exceptions', borrowerDuplicateExceptionRoutes);

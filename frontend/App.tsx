@@ -97,6 +97,7 @@ import FinancialSpreading from './pages/FinancialSpreading';
 import FinancialAnalysis from './pages/FinancialAnalysis';
 import ScorecardManagement from './pages/ScorecardManagement';
 import RatingBandAdmin from './pages/RatingBandAdmin';
+import CreditRequiredFieldAdmin from './pages/CreditRequiredFieldAdmin';
 import CommitteeMeetings from './pages/CommitteeMeetings';
 import CommitteeMeetingDetail from './pages/credit/CommitteeMeetingDetail';
 import CommitteeMobileVote from './pages/credit/CommitteeMobileVote';
@@ -318,6 +319,7 @@ const AppShell = () => {
                 <Route path="analysis" element={<FinancialAnalysis />} />
                 <Route path="scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
                 <Route path="rating-bands" element={<ProtectedRoute requirePermission="credit:admin"><RatingBandAdmin /></ProtectedRoute>} />
+                <Route path="required-fields" element={<ProtectedRoute requirePermission="credit:admin"><CreditRequiredFieldAdmin /></ProtectedRoute>} />
                 <Route path="committee" element={<CommitteeMeetings />} />
                 <Route path="committee/:meetingId" element={<CommitteeMeetingDetail />} />
                 <Route path="m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />

@@ -4309,6 +4309,7 @@ model BorrowerRiskRun {
   reasonCodes         Json?      @map("reason_codes")
   missingInputs       Json?      @map("missing_inputs")
   ratingBandVersion   Int?       @map("rating_band_version")
+  policyVersion       String?    @map("policy_version") @db.VarChar(50)
 
   calculationSource String  @default("SYSTEM") @map("calculation_source") @db.VarChar(20)
   calculatedById    String? @map("calculated_by_id") @db.Uuid
@@ -5097,6 +5098,31 @@ model CreditPolicyParameter {
   @@map("credit_policy_parameters")
 }
 
+model CreditRuleConfigSet {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @db.VarChar(200)
+  version       Int
+  status        String    @default("DRAFT") @db.VarChar(20)
+  reason        String    @db.Text
+  policyApprovalReference String? @map("policy_approval_reference") @db.VarChar(200)
+  createdById   String    @map("created_by_id") @db.Uuid
+  submittedById String?   @map("submitted_by_id") @db.Uuid
+  approvedById  String?   @map("approved_by_id") @db.Uuid
+  activatedById String?   @map("activated_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamp(6)
+  approvedAt    DateTime? @map("approved_at") @db.Timestamp(6)
+  activatedAt   DateTime? @map("activated_at") @db.Timestamp(6)
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamp(6)
+
+  rules CreditRuleConfig[]
+
+  @@unique([name, version])
+  @@index([status, effectiveFrom, effectiveTo])
+  @@map("credit_rule_config_sets")
+}
+
 model CreditRuleConfig {
   id String @id @default(uuid()) @db.Uuid
 
@@ -5106,6 +5132,7 @@ model CreditRuleConfig {
   productType  CreditProductType? @map("product_type")
   lane         ProcessingLane?    @map("lane")
   borrowerType BorrowerType?      @map("borrower_type")
+  configSetId  String?            @map("config_set_id") @db.Uuid
 
   // For REQUIRED_DOCUMENT rows
   documentClass DocumentClass? @map("document_class")
@@ -5122,8 +5149,11 @@ model CreditRuleConfig {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  configSet CreditRuleConfigSet? @relation(fields: [configSetId], references: [id], onDelete: Restrict)
+
   @@index([kind, isActive])
   @@index([productType, lane, borrowerType])
+  @@index([configSetId])
   @@map("credit_rule_configs")
 }
 
@@ -5978,6 +6008,31 @@ model CreditMemoVersion {
   @@map("credit_memo_versions")
 }
 
+model RatingBandSet {
+  id                    String    @id @default(uuid()) @db.Uuid
+  name                  String    @db.VarChar(200)
+  description           String?   @db.Text
+  reason                String    @db.Text
+  version               Int
+  status                String    @default("DRAFT") @db.VarChar(20)
+  createdById           String    @map("created_by_id") @db.Uuid
+  submittedById         String?   @map("submitted_by_id") @db.Uuid
+  approvedById          String?   @map("approved_by_id") @db.Uuid
+  activatedById         String?   @map("activated_by_id") @db.Uuid
+  policyApprovalReference String? @map("policy_approval_reference") @db.VarChar(200)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  submittedAt           DateTime? @map("submitted_at") @db.Timestamp(6)
+  approvedAt            DateTime? @map("approved_at") @db.Timestamp(6)
+  activatedAt           DateTime? @map("activated_at") @db.Timestamp(6)
+  effectiveFrom         DateTime  @default(now()) @map("effective_from") @db.Timestamp(6)
+  effectiveTo           DateTime? @map("effective_to") @db.Timestamp(6)
+  bands                 RatingBandConfig[]
+
+  @@unique([name, version])
+  @@index([status, effectiveFrom, effectiveTo])
+  @@map("rating_band_sets")
+}
+
 model RatingBandConfig {
   id           String     @id @default(uuid()) @db.Uuid
   scoreMin     Int        @map("score_min")
@@ -5994,16 +6049,19 @@ model RatingBandConfig {
   effectiveTo   DateTime? @map("effective_to") @db.Timestamp(6)
   version       Int       @default(1)
   approvedById  String?   @map("approved_by_id") @db.Uuid
+  bandSetId     String?   @map("band_set_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  approvedBy User? @relation("RatingBandConfigApprovedBy", fields: [approvedById], references: [id])
+  approvedBy User?          @relation("RatingBandConfigApprovedBy", fields: [approvedById], references: [id])
+  bandSet    RatingBandSet? @relation(fields: [bandSetId], references: [id], onDelete: Restrict)
 
   @@index([effectiveFrom, effectiveTo])
   @@index([rating])
   @@index([status])
+  @@index([bandSetId])
   @@map("rating_band_configs")
 }
 
@@ -6021,6 +6079,12 @@ model CreditScorecardVersion {
   retailFactorWeights Json?     @map("retail_factor_weights")
   isActive            Boolean   @default(false) @map("is_active")
   effectiveFrom       DateTime  @map("effective_from") @db.Timestamp(6)
+  effectiveTo         DateTime? @map("effective_to") @db.Timestamp(6)
+  activatedById       String?   @map("activated_by_id") @db.Uuid
+  activatedAt         DateTime? @map("activated_at") @db.Timestamp(6)
+  changeReason        String?   @map("change_reason") @db.Text
+  policyApprovalReference String? @map("policy_approval_reference") @db.VarChar(200)
+  marketConditionsAcknowledged Boolean @default(false) @map("market_conditions_acknowledged")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)

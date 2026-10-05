@@ -9,18 +9,29 @@ jest.mock('../../../utils/prisma', () => ({
   },
 }));
 
-import { getActiveRatingBands, mapScoreToRatingFromBands, seedDefaultRatingBands } from '../ratingBand.service';
+import { getActiveRatingBands, mapScoreToRatingFromBands, ratingBandService, seedDefaultRatingBands } from '../ratingBand.service';
 import { mapTotalScoreToRiskRating } from '../scoring.service';
 import prisma from '../../../utils/prisma';
 
 describe('RatingBandConfig fallback parity', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('falls back to hardcoded bands when no DB bands exist', async () => {
+  it('returns no configured active bands when the database has no effective rows', async () => {
     (prisma.ratingBandConfig.findMany as jest.Mock).mockResolvedValue([]);
-    const bands = await getActiveRatingBands();
-    expect(bands.length).toBe(10);
-    expect(bands[0]).toMatchObject({ scoreMin: 85, rating: 'AAA' });
+    expect(await getActiveRatingBands()).toEqual([]);
+    expect(prisma.ratingBandConfig.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: { in: ['ACTIVE'] },
+        effectiveFrom: { lte: expect.any(Date) },
+      }),
+    }));
+  });
+
+  it('uses static bands only through the explicit fallback helper', async () => {
+    (prisma.ratingBandConfig.findMany as jest.Mock).mockResolvedValue([]);
+    const fallback = await ratingBandService.getActiveRatingBandsWithFallback();
+    expect(fallback).toHaveLength(10);
+    expect(fallback[0]).toMatchObject({ scoreMin: 85, rating: 'AAA' });
   });
 
   it.each([

@@ -17,6 +17,12 @@ const baseVersion = {
   retailFactorWeights: null,
   isActive: false,
   effectiveFrom: '2026-08-30T00:00:00.000Z',
+  effectiveTo: null,
+  changeReason: 'Legacy baseline',
+  policyApprovalReference: null,
+  marketConditionsAcknowledged: false,
+  activatedById: null,
+  activatedAt: null,
   createdAt: '2026-08-30T00:00:00.000Z',
   updatedAt: '2026-08-30T00:00:00.000Z',
 };
@@ -58,10 +64,11 @@ describe('scorecard version API contract', () => {
       .mockResolvedValueOnce({ data: { data: { version: baseVersion } } })
       .mockResolvedValueOnce({ data: { data: { version: baseVersion } } });
 
+    const approval = { policyApprovalReference: 'POLICY-12345', marketConditionsAcknowledged: true as const };
     await scorecardApi.approveVersion('version-1');
-    await scorecardApi.activateVersion('version-1');
+    await scorecardApi.activateVersion('version-1', approval);
 
     expect(mockApiClient.post).toHaveBeenNthCalledWith(1, '/credit/scorecard-versions/version-1/approve');
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(2, '/credit/scorecard-versions/version-1/activate');
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(2, '/credit/scorecard-versions/version-1/activate', approval);
   });
 });

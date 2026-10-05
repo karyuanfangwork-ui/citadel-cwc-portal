@@ -1147,11 +1147,15 @@ export interface BorrowerExposurePresentation {
 
 // ── Sprint 3: Scorecard Types ─────────────────────────────────
 
+export type ScorecardProductType =
+  | 'TERM_LOAN' | 'REVOLVING_FACILITY' | 'TRADE_FINANCE' | 'OVERDRAFT'
+  | 'PROJECT_FINANCE' | 'SYNDICATED' | 'BRIDGING' | 'HIRE_PURCHASE';
+
 export interface CreditScorecard {
   id: string;
   name: string;
   description: string | null;
-  productType: CreditProductType | null;
+  productType: ScorecardProductType | null;
   activeVersionId: string | null;
   isActive: boolean;
   createdAt: string;
@@ -1169,6 +1173,12 @@ export interface CreditScorecardVersion {
   factors: ScorecardFactor[];
   retailFactors: ScorecardFactor[];
   effectiveFrom: string | null;
+  effectiveTo: string | null;
+  changeReason: string | null;
+  policyApprovalReference: string | null;
+  marketConditionsAcknowledged: boolean;
+  activatedById: string | null;
+  activatedAt: string | null;
   createdById: string | null;
   createdBy?: CreditUserRef | null;
   approvedById: string | null;
@@ -2189,7 +2199,7 @@ export const scorecardApi = {
     })) as CreditScorecard[];
   },
 
-  async create(data: { name: string; description?: string; productType?: CreditProductType }) {
+  async create(data: { name: string; description?: string; productType?: ScorecardProductType }) {
     const res = await apiClient.post('/credit/scorecards', data);
     return res.data.data.scorecard as CreditScorecard;
   },
@@ -2239,6 +2249,12 @@ export const scorecardApi = {
       factors: toFactors(v.factorWeights),
       retailFactors: toFactors(v.retailFactorWeights),
       effectiveFrom: v.effectiveFrom ?? null,
+      effectiveTo: v.effectiveTo ?? null,
+      changeReason: v.changeReason ?? null,
+      policyApprovalReference: v.policyApprovalReference ?? null,
+      marketConditionsAcknowledged: v.marketConditionsAcknowledged === true,
+      activatedById: v.activatedById ?? null,
+      activatedAt: v.activatedAt ?? null,
       createdById: v.createdById ?? null,
       createdBy: v.createdBy ?? null,
       approvedById: v.approvedById ?? null,
@@ -2253,21 +2269,23 @@ export const scorecardApi = {
 
   async createVersion(scorecardId: string, data: {
     factors: Array<{ key: string; label: string; weight: number }>;
-    retailFactors?: Array<{ key: string; label: string; weight: number }>;
+    retailFactors: Array<{ key: string; label: string; weight: number }>;
+    changeReason: string;
   }) {
     // Transform factors array to { factorWeights: { key: weight, ... } } for backend
     const factorWeights: Record<string, number> = {};
     for (const f of data.factors) {
       factorWeights[f.key] = f.weight;
     }
-    const payload: Record<string, unknown> = { factorWeights };
-    if (data.retailFactors) {
-      const retailFactorWeights: Record<string, number> = {};
-      for (const f of data.retailFactors) {
-        retailFactorWeights[f.key] = f.weight;
-      }
-      payload.retailFactorWeights = retailFactorWeights;
+    const retailFactorWeights: Record<string, number> = {};
+    for (const f of data.retailFactors) {
+      retailFactorWeights[f.key] = f.weight;
     }
+    const payload: Record<string, unknown> = {
+      factorWeights,
+      retailFactorWeights,
+      changeReason: data.changeReason,
+    };
     const res = await apiClient.post(`/credit/scorecards/${scorecardId}/versions`, payload);
     return res.data.data.version as CreditScorecardVersion;
   },
@@ -2277,8 +2295,8 @@ export const scorecardApi = {
     return res.data.data.version as CreditScorecardVersion;
   },
 
-  async activateVersion(versionId: string) {
-    const res = await apiClient.post(`/credit/scorecard-versions/${versionId}/activate`);
+  async activateVersion(versionId: string, approval: { policyApprovalReference: string; marketConditionsAcknowledged: true }) {
+    const res = await apiClient.post(`/credit/scorecard-versions/${versionId}/activate`, approval);
     return res.data.data.version as CreditScorecardVersion;
   },
 };

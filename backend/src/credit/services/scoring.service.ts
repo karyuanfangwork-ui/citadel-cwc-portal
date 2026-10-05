@@ -8,7 +8,6 @@ import { getRetailIncome } from './retailIncome.service';
 import { AuditChainService } from './auditChain.service';
 import { ratingToOrdinal } from './approvalMatrix.service';
 import { resolveMissingFactorScore, getMissingDataPolicies, MissingInputRecord } from './missingDataPolicy.service';
-import { ratingBandService } from './ratingBand.service';
 import { resolveRatingOrFail } from './ratingResolution.service';
 import { persistApplicationRiskRating } from './applicationRating.service';
 import { getNumberPolicy } from './policyParameter.service';
@@ -373,62 +372,69 @@ class ScoringService {
       throw new Error('Credit application not found');
     }
 
-    // Step 1b: Find active scorecard version
+    // Step 1b: Find exactly one active scorecard version valid for this
+    // application's product scope. Product-specific versions take precedence;
+    // generic versions are considered only when no specific version exists.
     let scorecardVersion;
     const now = new Date();
+    const effectiveVersionWindow = {
+      isActive: true,
+      effectiveFrom: { lte: now },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+    };
+    const productType = application.productType;
+    const versionInclude = { scorecard: { select: { id: true, name: true, productType: true } } };
+
     if (scorecardId) {
-      scorecardVersion = await prisma.creditScorecardVersion.findFirst({
+      const matches = await prisma.creditScorecardVersion.findMany({
         where: {
+          ...effectiveVersionWindow,
           scorecardId,
-          isActive: true,
-          effectiveFrom: { lte: now },
+          scorecard: {
+            is: {
+              isActive: true,
+              ...(productType ? { OR: [{ productType }, { productType: null }] } : { productType: null }),
+            },
+          },
         },
-        orderBy: { version: 'desc' },
+        include: versionInclude,
       });
-      if (!scorecardVersion) {
-        throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
+      if (matches.length === 0) {
+        throw new AppError('No active scorecard version is valid for this application and product scope.', 409);
       }
+      if (matches.length !== 1) {
+        throw new AppError('Multiple effective versions exist for the selected scorecard; scoring is blocked until the ambiguity is resolved.', 409);
+      }
+      scorecardVersion = matches[0];
     } else {
-      // Phase 5 — prefer product-specific scorecard. If the application has a
-      // productType, try to find an active scorecard version for that product
-      // first. Fall back to the generic (productType = null) scorecard set.
-      const productType = application.productType as string | null;
+      let matches = productType
+        ? await prisma.creditScorecardVersion.findMany({
+            where: {
+              ...effectiveVersionWindow,
+              scorecard: { is: { productType, isActive: true } },
+            },
+            include: versionInclude,
+          })
+        : [];
 
-      // Try product-specific active versions first
-      let activeVersions: any[] = [];
-      if (productType) {
-        activeVersions = await prisma.creditScorecardVersion.findMany({
+      if (matches.length === 0) {
+        matches = await prisma.creditScorecardVersion.findMany({
           where: {
-            isActive: true,
-            effectiveFrom: { lte: now },
-            scorecard: { productType: productType as any },
+            ...effectiveVersionWindow,
+            scorecard: { is: { productType: null, isActive: true } },
           },
-          orderBy: { version: 'desc' },
-          include: { scorecard: { select: { id: true, name: true, productType: true } } },
+          include: versionInclude,
         });
       }
-
-      // Fall back to generic (no product type filter) if no product-specific scorecard
-      if (activeVersions.length === 0) {
-        activeVersions = await prisma.creditScorecardVersion.findMany({
-          where: {
-            isActive: true,
-            effectiveFrom: { lte: now },
-          },
-          orderBy: { version: 'desc' },
-          include: { scorecard: { select: { id: true, name: true, productType: true } } },
-        });
+      if (matches.length === 0) {
+        throw new AppError('No active scorecard version is valid for this application and product scope.', 409);
       }
-
-      if (activeVersions.length === 0) {
-        throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
+      if (matches.length !== 1) {
+        throw new AppError('Multiple effective scorecard versions match this application. Scoring is blocked until exactly one valid version remains.', 409);
       }
-      const distinctScorecards = new Set(activeVersions.map((v) => v.scorecardId));
-      if (distinctScorecards.size > 1) {
-        throw new AppError('Multiple scorecards have an active version. Specify a scorecardId, or deactivate the others so exactly one scorecard is active.', 409);
-      }
-      scorecardVersion = activeVersions[0];
+      scorecardVersion = matches[0];
     }
+
 
     // Step 2: Application already fetched in step 1a
 
@@ -616,7 +622,7 @@ class ScoringService {
     let baseRiskRating: RiskRating;
 
     // LOS-014 — Capture the rating band version for provenance.
-    const ratingBandVersion = await ratingBandService.getActiveBandSetVersion();
+    const ratingBandVersion = resolution.ratingBandVersion;
 
     if (resolution.warning) {
       governanceWarnings.push(resolution.warning);

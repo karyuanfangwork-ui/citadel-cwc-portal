@@ -3,7 +3,7 @@ import {
   updateRatingBandSchema,
   upsertRiskFactorMatrixSchema,
   createDraftBandSetRouteSchema,
-  bandIdsSchema,
+  activateBandSetRouteSchema,
 } from '../ratingBandConfig.validator';
 
 const validBand = { scoreMin: 0, scoreMax: 10, rating: 'AAA', riskCategory: 'LOW' };
@@ -28,8 +28,14 @@ describe('rating-band admin route validators', () => {
     expect(upsertRiskFactorMatrixSchema.safeParse({ body: { factor: 'FRAUD', weight: 101 } }).success).toBe(false);
   });
 
-  it('validates band-set payloads and UUID lists', () => {
-    expect(createDraftBandSetRouteSchema.safeParse({ body: { name: 'Set', bands: [{ ...validBand, scoreMax: 100 }] } }).success).toBe(true);
-    expect(bandIdsSchema.safeParse({ body: { bandIds: ['not-a-uuid'] } }).success).toBe(false);
+  it('validates versioned-set creation reason and activation reference', () => {
+    expect(createDraftBandSetRouteSchema.safeParse({ body: {
+      name: 'Set', reason: 'Policy review', bands: [{ ...validBand, scoreMax: 100 }],
+    } }).success).toBe(true);
+    expect(createDraftBandSetRouteSchema.safeParse({ body: {
+      name: 'Set', bands: [{ ...validBand, scoreMax: 100 }],
+    } }).success).toBe(false);
+    expect(activateBandSetRouteSchema.safeParse({ body: { policyApprovalReference: 'POLICY-12345' } }).success).toBe(true);
+    expect(activateBandSetRouteSchema.safeParse({ body: { policyApprovalReference: 'x' } }).success).toBe(false);
   });
 });

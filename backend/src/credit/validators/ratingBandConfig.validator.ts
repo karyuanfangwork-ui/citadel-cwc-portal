@@ -167,5 +167,12 @@ export const upsertRiskFactorMatrixSchema = z.object({
   }),
 });
 
-export const createDraftBandSetRouteSchema = z.object({ body: createRatingBandSetSchema });
-export const bandIdsSchema = z.object({ body: z.object({ bandIds: z.array(z.string().uuid()).min(1) }) });
+export const createDraftBandSetRouteSchema = z.object({
+  body: createRatingBandSetSchema.extend({
+    name: z.string().trim().min(1).max(200),
+    reason: z.string().trim().min(5).max(1000),
+  }),
+});
+export const activateBandSetRouteSchema = z.object({
+  body: z.object({ policyApprovalReference: z.string().trim().min(5).max(200) }),
+});

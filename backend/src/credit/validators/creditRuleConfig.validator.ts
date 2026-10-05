@@ -76,3 +76,24 @@ export const updateRuleConfigSchema = z.object({
     isActive: z.boolean().optional(),
   }),
 });
+
+export const createRequiredFieldRuleSetSchema = z.object({
+  body: z.object({
+    reason: z.string().trim().min(5).max(1000),
+    rules: z.array(z.object({
+      fieldPath: z.string().trim().min(1).max(255),
+      fieldLabel: z.string().trim().min(1).max(255),
+      isMandatory: z.boolean(),
+      sortOrder: z.number().int().min(0).max(10000),
+      productType: productTypeEnum.nullable().optional(),
+      lane: laneEnum.nullable().optional(),
+      borrowerType: borrowerTypeEnum.nullable().optional(),
+    })).min(1).max(250),
+  }),
+});
+
+export const activateRequiredFieldRuleSetSchema = z.object({
+  body: z.object({
+    policyApprovalReference: z.string().trim().min(5).max(200),
+  }),
+});

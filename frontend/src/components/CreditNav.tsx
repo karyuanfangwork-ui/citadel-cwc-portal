@@ -18,6 +18,7 @@ const ALL_ITEMS: CreditNavItem[] = [
   { to: '/credit/group-exposure', label: 'Group Exposure', icon: 'scatter_plot', permission: 'credit:read' },
   { to: '/credit/approvals', label: 'My Approvals', icon: 'approval', permission: 'credit:approve' },
   { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
+  { to: '/credit/required-fields', label: 'Required Fields', icon: 'rule', permission: 'credit:admin' },
   { to: '/credit/analysis', label: 'Analysis', icon: 'query_stats', permission: 'credit:read' },
   { to: '/credit/financials', label: 'Spreading', icon: 'table_chart', permission: 'credit:read' },
   { to: '/credit/collateral', label: 'Collateral', icon: 'shield', permission: 'credit:read' },

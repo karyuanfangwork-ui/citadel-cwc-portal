@@ -11,6 +11,7 @@ import {
 } from './scoring.service';
 import { applyBureauCaps, BureauCapInput } from './bureauCheck.service';
 import { resolveRatingOrFail } from './ratingResolution.service';
+import { getPolicySetVersion } from './policySet.service';
 import { logBorrowerActivity } from './borrowerActivity.service';
 
 const NEUTRAL_SCORE = 50;
@@ -157,10 +158,19 @@ export function computeBorrowerTotalScore(
 
 async function getActiveScorecardVersion() {
   const now = new Date();
-  return prisma.creditScorecardVersion.findFirst({
-    where: { isActive: true, effectiveFrom: { lte: now } },
+  const versions = await prisma.creditScorecardVersion.findMany({
+    where: {
+      isActive: true,
+      effectiveFrom: { lte: now },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      scorecard: { is: { isActive: true, productType: null } },
+    },
     orderBy: { version: 'desc' },
   });
+  if (versions.length > 1) {
+    throw new AppError('Multiple effective generic scorecard versions exist; borrower scoring is blocked until the ambiguity is resolved.', 409);
+  }
+  return versions[0] ?? null;
 }
 
 export async function executeBorrowerScore(
@@ -221,6 +231,8 @@ export async function executeBorrowerScore(
   const { totalScore, factorScores } = computeBorrowerTotalScore(inputs, weights);
   const resolution = await resolveRatingOrFail(totalScore, { scope: 'BORROWER', subjectId: borrowerId });
   const baseRiskRating = resolution.rating;
+  const ratingBandVersion = resolution.ratingBandVersion;
+  const policyVersion = await getPolicySetVersion();
   const caps = deriveBorrowerBureauCaps(creditScore, facilityConductStatuses);
   const { effectiveRating, capsApplied } = applyBureauCaps(baseRiskRating, caps);
   const reasonCodes = deriveReasonCodes(inputs, baseRiskRating, capsApplied);
@@ -240,6 +252,8 @@ export async function executeBorrowerScore(
       missingInputs: missingInputs.length > 0 ? missingInputs : Prisma.JsonNull,
       calculationSource: 'SYSTEM',
       calculatedById: calculatedById ?? null,
+      ratingBandVersion: ratingBandVersion ?? null,
+      policyVersion: policyVersion ?? null,
       runAt: new Date(),
     },
   });

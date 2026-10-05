@@ -3,10 +3,11 @@
  * score-to-rating bands.
  */
 import { Request, Response } from 'express';
-import { getActiveRatingBands, seedDefaultRatingBands, ratingBandService } from '../services/ratingBand.service';
+import { seedDefaultRatingBands, ratingBandService } from '../services/ratingBand.service';
 import { MUTABLE_BAND_STATUSES } from '../services/ratingBand.service';
 import prisma from '../../utils/prisma';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
+import { AuthRequest } from '../../middleware/auth.middleware';
 
 /** GET /credit/rating-bands — list all band configs */
 export const listRatingBands = asyncHandler(async (_req: Request, res: Response) => {
@@ -21,7 +22,7 @@ export const listRatingBands = asyncHandler(async (_req: Request, res: Response)
 
 /** GET /credit/rating-bands/active — list currently effective bands */
 export const getActiveBands = asyncHandler(async (_req: Request, res: Response) => {
-  const bands = await getActiveRatingBands();
+  const bands = await ratingBandService.getActiveRatingBands();
   res.json({ status: 'success', data: { bands } });
 });
 
@@ -37,6 +38,7 @@ export const createRatingBand = asyncHandler(async (req: Request, res: Response)
       scoreMax,
       rating,
       riskCategory,
+      status: 'DRAFT',
       effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
       // LOS-010 — a newly created band is a DRAFT and has no approver yet.
       // approvedById is set by approveBandSet() when a checker actually approves.
@@ -55,10 +57,13 @@ export const updateRatingBand = asyncHandler(async (req: Request, res: Response)
   // draft/submit/approve/activate lifecycle and without a maker-checker record.
   const existing = await prisma.ratingBandConfig.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, bandSetId: true },
   });
   if (!existing) {
     throw new AppError('Rating band not found', 404);
+  }
+  if (existing.bandSetId) {
+    throw new AppError('Bands inside a versioned set are immutable; create a new draft version to change methodology.', 409);
   }
   if (!MUTABLE_BAND_STATUSES.includes(existing.status)) {
     throw new AppError(
@@ -120,49 +125,54 @@ export const upsertRiskFactorMatrix = asyncHandler(async (req: Request, res: Res
   res.status(201).json({ status: 'success', data: { matrix } });
 });
 
-// ── LOS-010 — Governed lifecycle: DRAFT → SUBMITTED → APPROVED → ACTIVE ──
+function ratingBandGovernanceContext(req: Request) {
+  const actor = (req as AuthRequest).user;
+  if (!actor?.id || !actor.email || !actor.tenantId) {
+    throw new AppError('Tenant and authenticated actor context are required for rating-band governance.', 500);
+  }
+  return {
+    actorId: actor.id,
+    actorEmail: actor.email,
+    tenantId: actor.tenantId,
+    correlationId: req.get('x-correlation-id'),
+  };
+}
 
-/** POST /credit/rating-bands/band-sets — create a draft band set */
+/** GET /credit/rating-bands/band-sets — list immutable versioned sets */
+export const listRatingBandSets = asyncHandler(async (_req: Request, res: Response) => {
+  const sets = await ratingBandService.listBandSets();
+  res.json({ status: 'success', data: { sets } });
+});
+
+/** POST /credit/rating-bands/band-sets — create a complete human-owned draft */
 export const createDraftBandSet = asyncHandler(async (req: Request, res: Response) => {
-  const actorId = (req as any).user?.id;
-  const { name, description, bands } = req.body;
-  if (!name || !Array.isArray(bands) || bands.length === 0) {
-    throw new AppError('name and a non-empty bands array are required', 400);
-  }
-  const result = await ratingBandService.createDraftBandSet({ name, description, bands, makerId: actorId });
-  res.status(201).json({ status: 'success', data: result });
+  const { name, description, reason, bands } = req.body;
+  const set = await ratingBandService.createDraftBandSet({
+    name,
+    description,
+    reason,
+    bands,
+    context: ratingBandGovernanceContext(req),
+  });
+  res.status(201).json({ status: 'success', data: { set } });
 });
 
-/** POST /credit/rating-bands/band-sets/submit — submit a draft band set for approval */
 export const submitBandSetForApproval = asyncHandler(async (req: Request, res: Response) => {
-  const actorId = (req as any).user?.id;
-  const { bandIds } = req.body;
-  if (!Array.isArray(bandIds) || bandIds.length === 0) {
-    throw new AppError('bandIds must be a non-empty array', 400);
-  }
-  const count = await ratingBandService.submitBandSetForApproval(bandIds, actorId);
-  res.json({ status: 'success', data: { submitted: count } });
+  const set = await ratingBandService.submitBandSetForApproval(String(req.params.id), ratingBandGovernanceContext(req));
+  res.json({ status: 'success', data: { set } });
 });
 
-/** POST /credit/rating-bands/band-sets/approve — approve a submitted band set */
 export const approveBandSet = asyncHandler(async (req: Request, res: Response) => {
-  const actorId = (req as any).user?.id;
-  const { bandIds } = req.body;
-  if (!Array.isArray(bandIds) || bandIds.length === 0) {
-    throw new AppError('bandIds must be a non-empty array', 400);
-  }
-  const count = await ratingBandService.approveBandSet(bandIds, actorId);
-  res.json({ status: 'success', data: { approved: count } });
+  const set = await ratingBandService.approveBandSet(String(req.params.id), ratingBandGovernanceContext(req));
+  res.json({ status: 'success', data: { set } });
 });
 
-/** POST /credit/rating-bands/band-sets/activate — activate an approved band set */
 export const activateBandSet = asyncHandler(async (req: Request, res: Response) => {
-  const actorId = (req as any).user?.id;
-  const { bandIds } = req.body;
-  if (!Array.isArray(bandIds) || bandIds.length === 0) {
-    throw new AppError('bandIds must be a non-empty array', 400);
-  }
-  const result = await ratingBandService.activateBandSet(bandIds, actorId);
+  const result = await ratingBandService.activateBandSet(
+    String(req.params.id),
+    ratingBandGovernanceContext(req),
+    String(req.body.policyApprovalReference ?? ''),
+  );
   res.json({ status: 'success', data: result });
 });
 

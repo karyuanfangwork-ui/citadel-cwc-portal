@@ -1,7 +1,7 @@
 import { config } from '../../config';
 import { RiskRating } from '../types/credit.types';
 import { GovernanceWarning } from './scoreFactorDefinition.service';
-import { mapScoreToRatingFromBands } from './ratingBand.service';
+import { resolveScoreToRatingWithVersion } from './ratingBand.service';
 
 export class RatingBandsUnconfiguredError extends Error {
   readonly scope: 'APPLICATION' | 'BORROWER';
@@ -17,6 +17,7 @@ export class RatingBandsUnconfiguredError extends Error {
 
 export interface RatingResolution {
   rating: RiskRating;
+  ratingBandVersion: number | null;
   usedFallback: boolean;
   warning?: GovernanceWarning & { code: string; scope: string; subjectId: string };
 }
@@ -26,15 +27,16 @@ export async function resolveRatingOrFail(
   totalScore: number,
   context: { scope: 'APPLICATION' | 'BORROWER'; subjectId: string },
 ): Promise<RatingResolution> {
-  const configured = await mapScoreToRatingFromBands(totalScore);
-  if (configured !== null) {
-    return { rating: configured, usedFallback: false };
+  const configured = await resolveScoreToRatingWithVersion(totalScore);
+  if (configured.rating !== null) {
+    return { rating: configured.rating, ratingBandVersion: configured.version, usedFallback: false };
   }
   if (config.env === 'production') {
     throw new RatingBandsUnconfiguredError(context.scope, context.subjectId);
   }
   return {
     rating: mapStaticRating(totalScore),
+    ratingBandVersion: null,
     usedFallback: true,
     warning: {
       code: 'STATIC_RATING_BAND_FALLBACK',

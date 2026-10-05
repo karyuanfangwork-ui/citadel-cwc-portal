@@ -51,9 +51,20 @@ const MUTATIONS: Array<[string, string]> = [
   ['patch', '/rating-bands/11111111-1111-4111-8111-111111111111'],
   ['post', '/rating-bands/seed'],
   ['post', '/rating-bands/risk-factors'],
+  ['post', '/rating-bands/band-sets'],
+  ['post', '/rating-bands/band-sets/11111111-1111-4111-8111-111111111111/submit'],
+  ['post', '/rating-bands/band-sets/11111111-1111-4111-8111-111111111111/approve'],
+  ['post', '/rating-bands/band-sets/11111111-1111-4111-8111-111111111111/activate'],
 ];
 
 describe('LOS-003 rating band config RBAC', () => {
+  it('requires credit:admin to list versioned band sets', async () => {
+    currentUser = { id: 'u1', permissions: ['credit:read'] };
+    const res = await request(buildApp()).get('/rating-bands/band-sets');
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/credit:admin/);
+  });
+
   it.each(MUTATIONS)('%s %s returns 403 without credit:admin', async (method, path) => {
     currentUser = { id: 'u1', permissions: ['credit:read', 'credit:write', 'credit:approve'] };
     const res = await (request(buildApp()) as any)[method](path).send({});

@@ -221,8 +221,12 @@ describe('Operation Control Registry', () => {
       const isAssetDelete = op.path.startsWith('/assets') && op.method === 'DELETE';
       const isCreditSensitiveOp = op.path.startsWith('/credit/borrowers/duplicate-exceptions')
         || op.path === '/credit/borrowers/identity-check';
+      const isCreditGovernanceTransition = op.method === 'POST'
+        && (op.path.includes('/credit/rating-bands/band-sets/')
+          || op.path.includes('/credit/rule-config-sets/')
+          || op.path.includes('/credit/scorecard-versions/'));
       expect(
-        isDelete || isExport || isFileUpload || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete || isCreditSensitiveOp,
+        isDelete || isExport || isFileUpload || isFileDownload || isAdminDelete || isDeptDelete || isPrivilegeOp || isAdminRead || isAssetDelete || isCreditSensitiveOp || isCreditGovernanceTransition,
       ).toBe(true);
     }
   });

@@ -67,7 +67,7 @@ export function parseCreditConfigBaselineMode(argv: string[]): CreditConfigBasel
   return applyDraft ? 'apply-draft' : 'dry-run';
 }
 
-function proposal() {
+export function creditConfigBaselineProposal() {
   return {
     requiredFields: REQUIRED_FIELDS.map((field) => ({
       kind: 'REQUIRED_FIELD',
@@ -101,69 +101,211 @@ function proposal() {
   };
 }
 
-async function inspectExisting() {
-  const [requiredFields, draftBands, scorecard] = await Promise.all([
-    prisma.creditRuleConfig.count({
+export interface ExistingBaselineState {
+  requiredFields: Array<{
+    id: string;
+    fieldPath: string | null;
+    fieldLabel: string | null;
+    isMandatory: boolean;
+    sortOrder: number;
+    isActive: boolean;
+  }>;
+  ratingBands: Array<{
+    id: string;
+    scoreMin: number;
+    scoreMax: number;
+    rating: string;
+    riskCategory: string;
+    status: string;
+  }>;
+  scorecard: null | {
+    id: string;
+    isActive: boolean;
+    productType: string | null;
+    versions: Array<{
+      id: string;
+      version: number;
+      isActive: boolean;
+      approvedById: string | null;
+      approvedAt: Date | null;
+      factorWeights: unknown;
+      retailFactorWeights: unknown;
+    }>;
+  };
+}
+
+export interface CreditConfigBaselinePlan {
+  requiredFieldsToCreate: typeof REQUIRED_FIELDS[number][];
+  ratingBandsToCreate: typeof RATING_BANDS[number][];
+  createScorecard: boolean;
+  createScorecardVersion: boolean;
+  conflicts: string[];
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function buildCreditConfigBaselinePlan(existing: ExistingBaselineState): CreditConfigBaselinePlan {
+  const conflicts: string[] = [];
+  const requiredFieldsToCreate: typeof REQUIRED_FIELDS[number][] = [];
+  for (const field of REQUIRED_FIELDS) {
+    const rows = existing.requiredFields.filter((row) => row.fieldPath === field.fieldPath);
+    if (rows.length > 1) {
+      conflicts.push(`Required field ${field.fieldPath} has ${rows.length} matching global rows; review duplicates.`);
+      continue;
+    }
+    const row = rows[0];
+    if (!row) {
+      requiredFieldsToCreate.push(field);
+      continue;
+    }
+    if (row.isActive) {
+      conflicts.push(`Required field ${field.fieldPath} already has an active global row; do not create a duplicate draft.`);
+    } else if (row.fieldLabel !== field.fieldLabel || !row.isMandatory || row.sortOrder !== field.sortOrder) {
+      conflicts.push(`Required field ${field.fieldPath} exists with values that differ from the candidate baseline.`);
+    }
+  }
+
+  const ratingBandsToCreate: typeof RATING_BANDS[number][] = [];
+  for (const band of RATING_BANDS) {
+    const rows = existing.ratingBands.filter((row) => row.rating === band.rating);
+    if (rows.length > 1) {
+      conflicts.push(`Rating ${band.rating} has ${rows.length} rows in ${BAND_SET_NAME}; review duplicates.`);
+      continue;
+    }
+    const row = rows[0];
+    if (!row) {
+      ratingBandsToCreate.push(band);
+      continue;
+    }
+    if (
+      row.status !== 'DRAFT' || row.scoreMin !== band.scoreMin || row.scoreMax !== band.scoreMax ||
+      row.riskCategory !== band.riskCategory
+    ) {
+      conflicts.push(`Rating ${band.rating} in ${BAND_SET_NAME} differs from the inactive candidate; review instead of overwriting.`);
+    }
+  }
+
+  const unexpectedBands = existing.ratingBands.filter(
+    (row) => !RATING_BANDS.some((band) => band.rating === row.rating),
+  );
+  for (const row of unexpectedBands) {
+    conflicts.push(`Unexpected rating ${row.rating} exists in ${BAND_SET_NAME}; review the set before applying.`);
+  }
+
+  let createScorecard = false;
+  let createScorecardVersion = false;
+  if (!existing.scorecard) {
+    createScorecard = true;
+    createScorecardVersion = true;
+  } else {
+    if (existing.scorecard.isActive || existing.scorecard.productType !== null) {
+      conflicts.push(`Scorecard ${SCORECARD_NAME} is active or scoped; the generator will not modify it.`);
+    }
+    const versions = existing.scorecard.versions.filter((version) => version.version === 1);
+    if (versions.length > 1) {
+      conflicts.push(`Scorecard ${SCORECARD_NAME} has duplicate v1 versions.`);
+    } else if (versions.length === 0) {
+      createScorecardVersion = true;
+    } else {
+      const version = versions[0];
+      const weightsMatch = stableJson(version.factorWeights) === stableJson(CORPORATE_WEIGHTS);
+      const retailWeightsMatch = stableJson(version.retailFactorWeights) === stableJson(RETAIL_WEIGHTS);
+      if (version.isActive || version.approvedById || version.approvedAt || !weightsMatch || !retailWeightsMatch) {
+        conflicts.push(`Scorecard ${SCORECARD_NAME} v1 is active, approved, or differs from the candidate; review instead of overwriting.`);
+      }
+    }
+  }
+
+  return { requiredFieldsToCreate, ratingBandsToCreate, createScorecard, createScorecardVersion, conflicts };
+}
+
+async function inspectExisting(client: any = prisma): Promise<ExistingBaselineState> {
+  const [requiredFields, ratingBands, scorecard] = await Promise.all([
+    client.creditRuleConfig.findMany({
       where: {
         kind: 'REQUIRED_FIELD',
         productType: null,
         lane: null,
         borrowerType: null,
-        isActive: false,
         fieldPath: { in: REQUIRED_FIELDS.map((field) => field.fieldPath) },
       },
+      select: { id: true, fieldPath: true, fieldLabel: true, isMandatory: true, sortOrder: true, isActive: true },
     }),
-    prisma.ratingBandConfig.count({
-      where: { name: BAND_SET_NAME, version: 1, status: 'DRAFT' },
+    client.ratingBandConfig.findMany({
+      where: { name: BAND_SET_NAME, version: 1 },
+      select: { id: true, scoreMin: true, scoreMax: true, rating: true, riskCategory: true, status: true },
     }),
-    prisma.creditScorecard.findUnique({
+    client.creditScorecard.findUnique({
       where: { name: SCORECARD_NAME },
-      select: { id: true, isActive: true, versions: { select: { id: true, version: true, isActive: true } } },
+      select: {
+        id: true,
+        isActive: true,
+        productType: true,
+        versions: {
+          select: {
+            id: true,
+            version: true,
+            isActive: true,
+            approvedById: true,
+            approvedAt: true,
+            factorWeights: true,
+            retailFactorWeights: true,
+          },
+        },
+      },
     }),
   ]);
 
-  return {
-    requiredFields,
-    draftBands,
-    scorecard,
-  };
+  return { requiredFields, ratingBands, scorecard };
 }
 
 export async function generateCreditConfigBaseline(mode: CreditConfigBaselineMode): Promise<void> {
   const existing = await inspectExisting();
-  const candidate = proposal();
+  const reconciliation = buildCreditConfigBaselinePlan(existing);
+  const candidate = creditConfigBaselineProposal();
 
   if (mode === 'dry-run') {
     console.log(JSON.stringify({
       mode,
       candidate,
       existing,
-      wouldCreate: {
-        requiredFields: REQUIRED_FIELDS.length - existing.requiredFields,
-        ratingBands: RATING_BANDS.length - existing.draftBands,
-        scorecard: existing.scorecard ? 0 : 1,
-        scorecardVersion: existing.scorecard?.versions.some((version) => version.version === 1) ? 0 : 1,
+      reconciliation: {
+        wouldCreate: {
+          requiredFields: {
+            count: reconciliation.requiredFieldsToCreate.length,
+            items: reconciliation.requiredFieldsToCreate,
+          },
+          ratingBands: {
+            count: reconciliation.ratingBandsToCreate.length,
+            items: reconciliation.ratingBandsToCreate,
+          },
+          scorecard: reconciliation.createScorecard,
+          scorecardVersion: reconciliation.createScorecardVersion,
+        },
+        conflicts: reconciliation.conflicts,
       },
     }, null, 2));
     return;
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const createdRequiredFields: string[] = [];
-    for (const field of REQUIRED_FIELDS) {
-      const existingRule = await tx.creditRuleConfig.findFirst({
-        where: {
-          kind: 'REQUIRED_FIELD',
-          productType: null,
-          lane: null,
-          borrowerType: null,
-          fieldPath: field.fieldPath,
-          isActive: false,
-        },
-        select: { id: true },
-      });
-      if (existingRule) continue;
+    // Re-read inside the transaction so a concurrent change cannot turn a reviewed
+    // dry-run into a duplicate or overwrite after the operator approves apply.
+    const current = await inspectExisting(tx);
+    const plan = buildCreditConfigBaselinePlan(current);
+    if (plan.conflicts.length > 0) {
+      throw new Error(`Credit configuration baseline apply refused: ${plan.conflicts.join(' ')}`);
+    }
 
+    const createdRequiredFields: string[] = [];
+    for (const field of plan.requiredFieldsToCreate) {
       const rule = await tx.creditRuleConfig.create({
         data: {
           kind: 'REQUIRED_FIELD',
@@ -181,32 +323,27 @@ export async function generateCreditConfigBaseline(mode: CreditConfigBaselineMod
       createdRequiredFields.push(rule.id);
     }
 
-    const existingBands = await tx.ratingBandConfig.findMany({
-      where: { name: BAND_SET_NAME, version: 1, status: 'DRAFT' },
-      select: { id: true },
-    });
-    const createdRatingBands = existingBands.length === RATING_BANDS.length
-      ? []
-      : await Promise.all(RATING_BANDS.map(async (band) => {
-        const created = await tx.ratingBandConfig.create({
-          data: {
-            ...band,
-            status: 'DRAFT',
-            version: 1,
-            name: BAND_SET_NAME,
-            description: 'Candidate canonical 0–100 rating bands; review before activation.',
-            approvedById: null,
-            effectiveFrom: new Date(),
-          },
-          select: { id: true },
-        });
-        return created.id;
-      }));
+    const createdRatingBands: string[] = [];
+    for (const band of plan.ratingBandsToCreate) {
+      const created = await tx.ratingBandConfig.create({
+        data: {
+          ...band,
+          status: 'DRAFT',
+          version: 1,
+          name: BAND_SET_NAME,
+          description: 'Candidate canonical 0–100 rating bands; review before activation.',
+          approvedById: null,
+          effectiveFrom: new Date(),
+        },
+        select: { id: true },
+      });
+      createdRatingBands.push(created.id);
+    }
 
-    let scorecard = await tx.creditScorecard.findUnique({ where: { name: SCORECARD_NAME } });
+    let scorecardId = current.scorecard?.id ?? null;
     let createdScorecard = false;
-    if (!scorecard) {
-      scorecard = await tx.creditScorecard.create({
+    if (!scorecardId && plan.createScorecard) {
+      const scorecard = await tx.creditScorecard.create({
         data: {
           name: SCORECARD_NAME,
           description: 'Candidate canonical v1 scorecard; inactive pending policy approval.',
@@ -214,18 +351,15 @@ export async function generateCreditConfigBaseline(mode: CreditConfigBaselineMod
           productType: null,
         },
       });
+      scorecardId = scorecard.id;
       createdScorecard = true;
     }
 
-    const existingVersion = await tx.creditScorecardVersion.findUnique({
-      where: { scorecardId_version: { scorecardId: scorecard.id, version: 1 } },
-      select: { id: true },
-    });
     let createdScorecardVersion: string | null = null;
-    if (!existingVersion) {
+    if (scorecardId && plan.createScorecardVersion) {
       const version = await tx.creditScorecardVersion.create({
         data: {
-          scorecardId: scorecard.id,
+          scorecardId,
           version: 1,
           factorWeights: CORPORATE_WEIGHTS,
           retailFactorWeights: RETAIL_WEIGHTS,
@@ -242,7 +376,7 @@ export async function generateCreditConfigBaseline(mode: CreditConfigBaselineMod
     return {
       createdRequiredFields,
       createdRatingBands,
-      createdScorecard: createdScorecard ? scorecard.id : null,
+      createdScorecard: createdScorecard ? scorecardId : null,
       createdScorecardVersion,
     };
   });

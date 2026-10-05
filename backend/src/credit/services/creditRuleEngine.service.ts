@@ -109,6 +109,14 @@ export async function resolveRequiredFields(scope: RuleScope): Promise<ResolvedF
   const rows = await fetchRows('REQUIRED_FIELD');
 
   if (rows.length === 0) {
+    logger.warn({
+      code: 'REQUIRED_FIELD_POLICY_SOURCE',
+      source: 'CODE_DEFAULTS',
+      reason: 'NO_ACTIVE_GOVERNED_RULES',
+      scope,
+      ruleCount: DEFAULT_FIELD_RULES.length,
+      message: 'Required-field validation is using built-in defaults rather than a governed rule set.',
+    });
     return DEFAULT_FIELD_RULES.map((field) => ({
       fieldPath: field.fieldPath,
       label: field.label,
@@ -116,11 +124,19 @@ export async function resolveRequiredFields(scope: RuleScope): Promise<ResolvedF
     }));
   }
 
-  return rows
+  const resolved = rows
     .filter((row) => matchesScope(row, scope) && row.fieldPath)
     .map((row) => ({
       fieldPath: row.fieldPath as string,
       label: row.fieldLabel ?? row.fieldPath ?? 'Field',
       isMandatory: row.isMandatory,
     }));
+  logger.info({
+    code: 'REQUIRED_FIELD_POLICY_SOURCE',
+    source: 'GOVERNED_DATABASE_RULES',
+    reason: 'ACTIVE_RULES_FOUND',
+    scope,
+    ruleCount: resolved.length,
+  });
+  return resolved;
 }

@@ -35,6 +35,7 @@ describe('CreditNav', () => {
     renderNav();
     expect(screen.queryByRole('link', { name: /My Approvals/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Scorecards/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Required Fields/ })).not.toBeInTheDocument();
   });
 
   it('exposes an accessible More menu control when items overflow', () => {

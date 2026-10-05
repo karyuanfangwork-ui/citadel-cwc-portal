@@ -75,7 +75,7 @@ class ScorecardController {
    */
   deleteScorecard = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const scorecard = await scorecardService.deleteScorecard(id);
+    const scorecard = await scorecardService.deleteScorecard(id, auditContext(req));
 
     if (!scorecard) {
       throw new AppError('Scorecard not found', 404);
@@ -110,7 +110,7 @@ class ScorecardController {
     }
 
     try {
-      const version = await scorecardService.createVersion(scorecardId, req.body, actor.id);
+      const version = await scorecardService.createVersion(scorecardId, req.body, auditContext(req));
       res.status(201).json({ status: 'success', data: { version } });
     } catch (err: any) {
       if (err.message.includes('Factor weights must sum to 100') ||
@@ -152,7 +152,7 @@ class ScorecardController {
     }
 
     try {
-      const version = await scorecardService.activateVersion(versionId, secondApproverId, auditContext(req));
+      const version = await scorecardService.activateVersion(versionId, auditContext(req), req.body);
       res.json({ status: 'success', data: { version } });
     } catch (err: any) {
       if (err.message === 'Scorecard version not found') {

@@ -1143,23 +1143,28 @@ export const remainingOperationControls: OperationControl[] = [
     responseSchema: 'WorkflowGraphDto', rateTier: 'write', auditEvent: 'workflow.graph.update', auditFindingIds: [],
   },
   {
+    method: 'GET', path: '/credit/rating-bands/band-sets', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:list', validation: 'none',
+    responseSchema: 'RatingBandSetDto[]', rateTier: 'read', auditEvent: 'credit.ratingBandSet.list', auditFindingIds: [],
+  },
+  {
     method: 'POST', path: '/credit/rating-bands/band-sets', owner: 'Credit', authentication: 'user',
-    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:create', validation: 'none',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:create', validation: 'createDraftBandSetRouteSchema',
     responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.create', auditFindingIds: [],
   },
   {
-    method: 'POST', path: '/credit/rating-bands/band-sets/activate', owner: 'Credit', authentication: 'user',
-    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:activate', validation: 'pathParams',
-    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.activate', auditFindingIds: [],
+    method: 'POST', path: '/credit/rating-bands/band-sets/:id/activate', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:activate', validation: 'uuidParams + activateBandSetRouteSchema',
+    responseSchema: 'RatingBandSetDto', rateTier: 'sensitive', auditEvent: 'credit.ratingBandSet.activate', auditFindingIds: [],
   },
   {
-    method: 'POST', path: '/credit/rating-bands/band-sets/approve', owner: 'Credit', authentication: 'user',
-    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:approve', validation: 'pathParams',
-    responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.approve', auditFindingIds: [],
+    method: 'POST', path: '/credit/rating-bands/band-sets/:id/approve', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:approve', validation: 'uuidParams',
+    responseSchema: 'RatingBandSetDto', rateTier: 'sensitive', auditEvent: 'credit.ratingBandSet.approve', auditFindingIds: [],
   },
   {
-    method: 'POST', path: '/credit/rating-bands/band-sets/submit', owner: 'Credit', authentication: 'user',
-    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:submit', validation: 'pathParams',
+    method: 'POST', path: '/credit/rating-bands/band-sets/:id/submit', owner: 'Credit', authentication: 'user',
+    coarsePermission: 'credit:admin', resourcePolicy: 'credit:rating-bands:submit', validation: 'uuidParams',
     responseSchema: 'RatingBandSetDto', rateTier: 'write', auditEvent: 'credit.ratingBandSet.submit', auditFindingIds: [],
   },
   {

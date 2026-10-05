@@ -24,12 +24,17 @@ const factorWeightsSchema = z.object({
   collateral: factorWeightSchema,
   relationship: factorWeightSchema,
   market_conditions: factorWeightSchema,
-}).refine((data) => {
+}).strict().refine((data) => {
   const total = Object.values(data).reduce((sum, val) => sum + val, 0);
   return Math.abs(total - 100) <= 0.01;
 }, {
   message: 'Factor weights must sum to 100',
 });
+
+const creditProductTypeEnum = z.enum([
+  'TERM_LOAN', 'REVOLVING_FACILITY', 'TRADE_FINANCE', 'OVERDRAFT',
+  'PROJECT_FINANCE', 'SYNDICATED', 'BRIDGING', 'HIRE_PURCHASE',
+]);
 
 // ============================================================================
 // Scorecard CRUD schemas
@@ -39,6 +44,7 @@ export const createScorecardSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(200),
     description: z.string().optional(),
+    productType: creditProductTypeEnum.nullable().optional(),
   }),
 });
 
@@ -46,8 +52,7 @@ export const updateScorecardSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(200).optional(),
     description: z.string().optional().nullable(),
-    isActive: z.boolean().optional(),
-  }),
+  }).strict(),
 });
 
 export const listScorecardsQuerySchema = z.object({
@@ -65,7 +70,15 @@ export const listScorecardsQuerySchema = z.object({
 export const createVersionSchema = z.object({
   body: z.object({
     factorWeights: factorWeightsSchema,
-    retailFactorWeights: factorWeightsSchema.optional(),
+    retailFactorWeights: factorWeightsSchema,
+    changeReason: z.string().trim().min(5).max(1000),
+  }),
+});
+
+export const activateScorecardVersionSchema = z.object({
+  body: z.object({
+    policyApprovalReference: z.string().trim().min(5).max(200),
+    marketConditionsAcknowledged: z.literal(true),
   }),
 });
 

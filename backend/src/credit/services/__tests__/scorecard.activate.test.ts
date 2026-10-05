@@ -1,85 +1,159 @@
-jest.mock('../../../utils/prisma', () => ({
-  __esModule: true,
-  default: {
-    creditScorecardVersion: { findUnique: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+jest.mock('../../../utils/prisma', () => {
+  const mockPrisma: any = {
+    creditScorecardVersion: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      updateMany: jest.fn(),
+    },
     creditScorecard: { update: jest.fn() },
-    $transaction: jest.fn(),
-  },
+    $queryRaw: jest.fn(),
+  };
+  mockPrisma.$transaction = jest.fn(async (callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma));
+  return { __esModule: true, default: mockPrisma };
+});
+
+jest.mock('../../../services/platformAuditChain.service', () => ({
+  PlatformAuditChainService: { appendEvent: jest.fn().mockResolvedValue('audit-1') },
 }));
 
 import { scorecardService } from '../scorecard.service';
 import prisma from '../../../utils/prisma';
+import { PlatformAuditChainService } from '../../../services/platformAuditChain.service';
 
-describe('activateVersion ambiguity guard', () => {
+const weights = {
+  financial_performance: 100,
+  leverage: 0,
+  liquidity: 0,
+  cashflow: 0,
+  management: 0,
+  industry: 0,
+  collateral: 0,
+  relationship: 0,
+  market_conditions: 0,
+};
+const context = { tenantId: 'tenant-1', actorId: 'operator-1', actorEmail: 'operator@example.test' };
+const policyApproval = { policyApprovalReference: 'POLICY-12345', marketConditionsAcknowledged: true as const };
+const makeVersion = (overrides: Record<string, unknown> = {}) => ({
+  id: 'version-2',
+  scorecardId: 'scorecard-a',
+  version: 2,
+  createdById: 'maker-1',
+  approvedById: 'checker-1',
+  approvedAt: new Date(Date.now() - 60_000),
+  factorWeights: weights,
+  retailFactorWeights: weights,
+  isActive: false,
+  effectiveFrom: new Date(Date.now() - 60_000),
+  effectiveTo: null,
+  scorecard: { id: 'scorecard-a', name: 'Term Loan', productType: 'TERM_LOAN', isActive: true },
+  ...overrides,
+});
+
+describe('scorecard version activation governance', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.$transaction as jest.Mock).mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
-    (prisma.creditScorecardVersion.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
-    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue({ id: 'v2', isActive: true });
-    (prisma.creditScorecard.update as jest.Mock).mockResolvedValue({ id: 'sc-A', isActive: true });
+    (prisma.$queryRaw as jest.Mock).mockResolvedValue([]);
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.creditScorecardVersion.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    (prisma.creditScorecard.update as jest.Mock).mockResolvedValue({ id: 'scorecard-a', isActive: true });
   });
 
-  it('rejects activation when a different scorecard is already active', async () => {
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-B', approvedById: 'u-maker', approvedAt: new Date(),
-    });
-    (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue({
-      id: 'v1', scorecardId: 'sc-A',
-    });
-    await expect(scorecardService.activateVersion('v2', 'u-checker')).rejects.toThrow(
-      /already has an active version/i,
-    );
+  it('requires a policy reference and explicit market_conditions acknowledgment', async () => {
+    await expect(scorecardService.activateVersion('version-2', context, {
+      policyApprovalReference: '', marketConditionsAcknowledged: true,
+    })).rejects.toThrow(/policy-owner approval reference/i);
+    await expect(scorecardService.activateVersion('version-2', context, {
+      policyApprovalReference: 'POLICY-12345', marketConditionsAcknowledged: false as true,
+    })).rejects.toThrow(/market_conditions treatment/i);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('allows activation when the only active version belongs to the same scorecard', async () => {
-    // The guard query is `scorecardId: { not: version.scorecardId }`, so an
-    // active version of the SAME scorecard does not appear in findFirst.
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
-    });
-    (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue(null);
-    const txResult = { id: 'v2', isActive: true };
-    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue(txResult);
+  it('rejects legacy, unapproved, self-approved, and non-independent operator attempts', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ createdById: null }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/no verified maker/i);
 
-    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toMatchObject(txResult);
-    expect(prisma.$transaction).toHaveBeenCalled();
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ approvedById: null, approvedAt: null }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/must be approved/i);
+
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ approvedById: 'maker-1' }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/self-approved/i);
+
+    (prisma.creditScorecardVersion.findUnique as jest.Mock)
+      .mockResolvedValueOnce(makeVersion())
+      .mockResolvedValueOnce(makeVersion());
+    await expect(scorecardService.activateVersion('version-2', { ...context, actorId: 'maker-1' }, policyApproval)).rejects.toThrow(/distinct from the maker and checker/i);
+    await expect(scorecardService.activateVersion('version-2', { ...context, actorId: 'checker-1' }, policyApproval)).rejects.toThrow(/distinct from the maker and checker/i);
   });
 
-  it('allows activation when no other active version exists', async () => {
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v2', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
-    });
-    (prisma.creditScorecardVersion.findFirst as jest.Mock).mockResolvedValue(null);
-    const txResult = { id: 'v2', isActive: true };
-    (prisma.creditScorecardVersion.update as jest.Mock).mockResolvedValue(txResult);
+  it('rejects future-effective and expired versions', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ effectiveFrom: new Date(Date.now() + 60_000) }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/outside its effective period/i);
 
-    await expect(scorecardService.activateVersion('v2', 'u-checker')).resolves.toMatchObject(txResult);
-    expect(prisma.$transaction).toHaveBeenCalled();
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ effectiveTo: new Date(Date.now() - 60_000) }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/outside its effective period/i);
   });
 
-  it('throws 404 when the version is not found', async () => {
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue(null);
-    await expect(scorecardService.activateVersion('missing', 'u-checker')).rejects.toThrow(
-      /not found/i,
-    );
+  it('blocks invalid or missing corporate and retail maps before mutation', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ retailFactorWeights: null }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/retail factor map/i);
+
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion({ factorWeights: { ...weights, invalid_factor: 5 } }));
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/unsupported factor weight keys/i);
+    expect(prisma.creditScorecardVersion.updateMany).not.toHaveBeenCalled();
   });
 
-  it('rejects activation when the version has no approvedById (maker)', async () => {
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v3', scorecardId: 'sc-A', approvedById: null,
-    });
-    await expect(scorecardService.activateVersion('v3', 'u-checker')).rejects.toThrow(
-      /approved before it can be activated/i,
-    );
+  it('fails closed on a second active scorecard in the same product scope', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion());
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([{ id: 'active-v1', scorecardId: 'scorecard-other' }]);
+
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/active version for this product scope/i);
+    expect(prisma.creditScorecardVersion.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        scorecard: { is: { isActive: true, productType: 'TERM_LOAN' } },
+      }),
+    }));
+    expect(prisma.creditScorecardVersion.updateMany).not.toHaveBeenCalled();
+    expect(PlatformAuditChainService.appendEvent).not.toHaveBeenCalled();
   });
 
-  it('rejects activation when the second approver is the same as the maker', async () => {
-    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValue({
-      id: 'v4', scorecardId: 'sc-A', approvedById: 'u-maker', approvedAt: new Date(),
-    });
-    await expect(scorecardService.activateVersion('v4', 'u-maker')).rejects.toThrow(
-      /different.*approver/i,
-    );
+  it('allows generic and product-specific scopes to have independent active versions', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock)
+      .mockResolvedValueOnce(makeVersion())
+      .mockResolvedValueOnce(makeVersion({ isActive: true, activatedById: 'operator-1' }));
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await scorecardService.activateVersion('version-2', context, policyApproval);
+
+    expect(result).toMatchObject({ id: 'version-2', isActive: true });
+    expect(prisma.creditScorecardVersion.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'version-2', isActive: false, approvedById: 'checker-1' }),
+      data: expect.objectContaining({
+        isActive: true,
+        activatedById: 'operator-1',
+        policyApprovalReference: 'POLICY-12345',
+        marketConditionsAcknowledged: true,
+      }),
+    }));
+    expect(PlatformAuditChainService.appendEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'SCORECARD_VERSION_ACTIVATED',
+      actorId: 'operator-1',
+      newValues: expect.objectContaining({ policyApprovalReference: 'POLICY-12345' }),
+    }), prisma);
+  });
+
+  it('rejects activation if more than one version in the target scope is already active', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(makeVersion());
+    (prisma.creditScorecardVersion.findMany as jest.Mock).mockResolvedValue([
+      { id: 'active-v1', scorecardId: 'scorecard-a' },
+      { id: 'active-v1b', scorecardId: 'scorecard-a' },
+    ]);
+    await expect(scorecardService.activateVersion('version-2', context, policyApproval)).rejects.toThrow(/multiple active versions/i);
+    expect(prisma.creditScorecardVersion.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 for an unknown version', async () => {
+    (prisma.creditScorecardVersion.findUnique as jest.Mock).mockResolvedValueOnce(null);
+    await expect(scorecardService.activateVersion('missing', context, policyApproval)).rejects.toThrow(/not found/i);
   });
 });

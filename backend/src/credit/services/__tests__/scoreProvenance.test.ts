@@ -8,6 +8,7 @@
 
 jest.mock('../../../utils/prisma', () => {
   const mockFindFirst = jest.fn();
+  const mockFindMany = jest.fn();
   const mockFindUnique = jest.fn();
   const mockCreate = jest.fn();
   const mockTx = {
@@ -18,7 +19,7 @@ jest.mock('../../../utils/prisma', () => {
     __esModule: true,
     default: {
       creditApplication: { findUnique: mockFindUnique, update: jest.fn().mockResolvedValue({}) },
-      creditScorecardVersion: { findFirst: mockFindFirst },
+      creditScorecardVersion: { findFirst: mockFindFirst, findMany: mockFindMany },
       creditScoreRun: { create: mockCreate },
       financialStatement: { findFirst: jest.fn().mockResolvedValue(null) },
       ratingBandConfig: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -49,12 +50,7 @@ jest.mock('../retailIncome.service', () => ({
 }));
 
 jest.mock('../ratingBand.service', () => ({
-  mapScoreToRatingFromBands: jest.fn().mockResolvedValue('BBB'),
-  ratingBandService: {
-    getActiveBandSetVersion: jest.fn().mockResolvedValue(3),
-    getActiveRatingBands: jest.fn().mockResolvedValue([]),
-    getActiveRatingBandsWithFallback: jest.fn().mockResolvedValue([]),
-  },
+  resolveScoreToRatingWithVersion: jest.fn().mockResolvedValue({ rating: 'BBB', version: 3 }),
 }));
 
 jest.mock('../missingDataPolicy.service', () => {
@@ -107,11 +103,11 @@ jest.mock('../applicationRating.service', () => ({
 
 import prisma from '../../../utils/prisma';
 import { scoringService } from '../scoring.service';
-import { ratingBandService } from '../ratingBand.service';
+import { resolveScoreToRatingWithVersion } from '../ratingBand.service';
 
 const mockedPrisma = prisma as unknown as {
   creditApplication: { findUnique: jest.Mock; update: jest.Mock };
-  creditScorecardVersion: { findFirst: jest.Mock };
+  creditScorecardVersion: { findMany: jest.Mock };
   creditScoreRun: { create: jest.Mock };
 };
 
@@ -125,20 +121,25 @@ describe('score run provenance (LOS-014)', () => {
       lane: 'CORPORATE',
       borrowerProfile: { borrowerType: 'CORPORATE' },
     });
-    mockedPrisma.creditScorecardVersion.findFirst.mockResolvedValue({
+    mockedPrisma.creditScorecardVersion.findMany.mockResolvedValue([{
       id: 'scv-1',
+      scorecardId: 'sc-1',
       version: 1,
+      isActive: true,
+      effectiveFrom: new Date(Date.now() - 60_000),
+      effectiveTo: null,
       factorWeights: {
         financial_performance: 0.15, leverage: 0.10, liquidity: 0.10,
         cashflow: 0.20, management: 0.10, industry: 0.10,
         collateral: 0.10, relationship: 0.10, market_conditions: 0.05,
       },
-    });
+      scorecard: { isActive: true, productType: 'TERM_LOAN' },
+    }]);
     mockedPrisma.creditScoreRun.create.mockImplementation(async (args: any) => ({
       id: 'run-1',
       ...args.data,
     }));
-    (ratingBandService.getActiveBandSetVersion as jest.Mock).mockResolvedValue(3);
+    (resolveScoreToRatingWithVersion as jest.Mock).mockResolvedValue({ rating: 'BBB', version: 3 });
   });
 
   it('persists the rating band version that produced the rating', async () => {
@@ -157,7 +158,7 @@ describe('score run provenance (LOS-014)', () => {
   });
 
   it('sets ratingBandVersion to null when no active band set exists', async () => {
-    (ratingBandService.getActiveBandSetVersion as jest.Mock).mockResolvedValue(null);
+    (resolveScoreToRatingWithVersion as jest.Mock).mockResolvedValue({ rating: 'BBB', version: null });
 
     await scoringService.executeScore('app-1', 'scv-1', { actorId: 'user-1', source: 'MANUAL' });
 

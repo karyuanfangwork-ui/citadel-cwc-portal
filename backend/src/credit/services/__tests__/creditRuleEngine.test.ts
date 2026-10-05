@@ -9,6 +9,8 @@ jest.mock('../../../utils/prisma', () => ({
 
 import prisma from '../../../utils/prisma';
 import { resolveRequiredDocuments, resolveRequiredFields } from '../creditRuleEngine.service';
+import { DEFAULT_FIELD_RULES } from '../creditRuleDefaults';
+import { logger } from '../../../utils/logger';
 
 const mockedFindMany = prisma.creditRuleConfig.findMany as jest.Mock;
 
@@ -59,6 +61,21 @@ describe('creditRuleEngine', () => {
 
     expect(docs.length).toBeGreaterThan(0);
     expect(docs.some((d) => d.documentClass === 'NRIC_PASSPORT')).toBe(true);
+  });
+
+  it('logs when built-in required-field defaults are used', async () => {
+    mockedFindMany.mockResolvedValue([]);
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+
+    const fields = await resolveRequiredFields({ productType: 'TERM_LOAN', lane: 'CORPORATE', borrowerType: 'CORPORATE' });
+
+    expect(fields).toHaveLength(DEFAULT_FIELD_RULES.length);
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'REQUIRED_FIELD_POLICY_SOURCE',
+      source: 'CODE_DEFAULTS',
+      reason: 'NO_ACTIVE_GOVERNED_RULES',
+    }));
+    warn.mockRestore();
   });
 
   it('resolves required fields from DB rows', async () => {
