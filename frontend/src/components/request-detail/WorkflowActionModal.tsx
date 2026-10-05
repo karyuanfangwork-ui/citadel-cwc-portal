@@ -356,7 +356,12 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
       await config.onSubmit(requestId, values);
       onSuccess();
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Action failed. Please try again.');
+      setError(
+        err?.response?.data?.error
+        || err?.response?.data?.message
+        || err?.message
+        || 'Action failed. Please try again.',
+      );
     } finally {
       setSubmitting(false);
     }

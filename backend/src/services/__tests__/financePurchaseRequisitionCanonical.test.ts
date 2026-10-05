@@ -37,6 +37,28 @@ describe('Finance Purchase Requisition canonical graph', () => {
     ]));
   });
 
+  it('allows the requester-selected Group DCEO to act at the CEO gate while preserving exact-approver checks', () => {
+    const graph = buildCanonicalFinancePurchaseRequisitionGraph();
+    const byId = new Map(graph.nodes.map((node) => [node.id, node.statusCode]));
+    const approvalEdges = graph.edges.filter((edge) =>
+      byId.get(edge.fromNodeId) === 'PENDING_CEO_APPROVAL_FIN'
+      || byId.get(edge.fromNodeId) === 'CEO_APPROVED_FIN',
+    );
+
+    expect(approvalEdges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        transitionLabel: 'APPROVE',
+        allowedExecutiveRoles: ['CEO', 'GROUP_DCEO'],
+      }),
+      expect.objectContaining({
+        transitionLabel: 'REJECT',
+        allowedExecutiveRoles: ['CEO', 'GROUP_DCEO'],
+        requiresComment: true,
+      }),
+    ]));
+    expect(approvalEdges.every((edge) => edge.allowedExecutiveRoles.includes('GROUP_DCEO'))).toBe(true);
+  });
+
   it('produces a stable hash and counts independent of array order and node ids', () => {
     const graph = buildCanonicalFinancePurchaseRequisitionGraph();
     const reordered = {

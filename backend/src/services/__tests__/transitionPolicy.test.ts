@@ -95,6 +95,30 @@ describe('canActorTransition', () => {
     })).resolves.toEqual({ allowed: true });
   });
 
+  it('allows a GROUP_DCEO on the Finance CEO gate when explicitly listed', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: ['CEO', 'GROUP_DCEO'],
+    });
+    await expect(canActorTransition({
+      actor: { userId: 'u6', roles: ['NORMAL_STAFF', 'GROUP_DCEO'], executiveRole: null },
+      ...base,
+      fromStatus: 'PENDING_CEO_APPROVAL_FIN',
+      toStatus: 'PENDING_CFO_APPROVAL_FIN',
+    })).resolves.toEqual({ allowed: true });
+  });
+
+  it('denies a GROUP_DCEO when the scoped Finance CEO rule still lists only CEO', async () => {
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({
+      allowedRoles: [], allowedExecutiveRoles: ['CEO'],
+    });
+    await expect(canActorTransition({
+      actor: { userId: 'u6', roles: ['NORMAL_STAFF', 'GROUP_DCEO'], executiveRole: null },
+      ...base,
+      fromStatus: 'PENDING_CEO_APPROVAL_FIN',
+      toStatus: 'PENDING_CFO_APPROVAL_FIN',
+    })).resolves.toEqual(expect.objectContaining({ allowed: false }));
+  });
+
   it('denies when no transition row matches the scope', async () => {
     mockPrisma.workflowTransition.findFirst.mockResolvedValue(null);
     const result = await canActorTransition({ actor: admin, ...base });

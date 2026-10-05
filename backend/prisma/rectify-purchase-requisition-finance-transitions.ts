@@ -32,7 +32,23 @@ export const FINANCE_RECTIFICATION_TRANSITIONS: readonly ScopedTransitionDefinit
       transitionLabel: "ADVANCE",
       requiresComment: false,
       allowedRoles: [],
-      allowedExecutiveRoles: ["CEO"],
+      allowedExecutiveRoles: ["CEO", "GROUP_DCEO"],
+    },
+    {
+      fromStatus: "PENDING_CEO_APPROVAL_FIN",
+      toStatus: "CEO_APPROVED_FIN",
+      transitionLabel: "ADVANCE",
+      requiresComment: false,
+      allowedRoles: [],
+      allowedExecutiveRoles: ["CEO", "GROUP_DCEO"],
+    },
+    {
+      fromStatus: "CEO_APPROVED_FIN",
+      toStatus: "PENDING_CFO_APPROVAL_FIN",
+      transitionLabel: "ADVANCE",
+      requiresComment: false,
+      allowedRoles: [],
+      allowedExecutiveRoles: ["CEO", "GROUP_DCEO"],
     },
     {
       fromStatus: "PENDING_CEO_APPROVAL_FIN",
@@ -40,7 +56,7 @@ export const FINANCE_RECTIFICATION_TRANSITIONS: readonly ScopedTransitionDefinit
       transitionLabel: "REJECT",
       requiresComment: true,
       allowedRoles: [],
-      allowedExecutiveRoles: ["CEO"],
+      allowedExecutiveRoles: ["CEO", "GROUP_DCEO"],
     },
   ];
 
