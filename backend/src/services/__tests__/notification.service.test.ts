@@ -41,6 +41,17 @@ jest.mock('../email.service', () => ({
   renderTemplate: jest.fn((template: string, vars: Record<string, string>) =>
     template.replace(/\{\{(\w+)\}\}/g, (_match, key) => vars[key] ?? ''),
   ),
+  renderHtmlTemplate: jest.fn((template: string, vars: Record<string, string>) =>
+    template.replace(/\{\{(\w+)\}\}/g, (_match, key) => (vars[key] ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')),
+  ),
+}));
+
+jest.mock('../requestStatusDefinition.service', () => ({
+  getStatusDefinitionForRuntime: jest.fn(async (code: string) => ({
+    label: code === 'PENDING' ? 'Awaiting Review' : code,
+  })),
 }));
 
 jest.mock('../../utils/sseClients', () => ({
@@ -208,7 +219,7 @@ describe('notification.service durable pipeline', () => {
       pushTitle: 'Approval Reminder',
       pushBody: 'Approval is still pending for request #{{requestId}} ({{hours}} hours).',
       emailSubject: 'Approval Reminder — Request #{{requestId}}',
-      emailBody: 'Approval is still pending for request <strong>#{{requestId}} — {{requestTitle}}</strong> after {{hours}} hours. <a href="{{appUrl}}/request/{{requestUuid}}">Review &amp; Approve</a>',
+      emailBody: 'Approval is pending for {{status}} on request <strong>#{{requestId}} — {{requestTitle}}</strong> after {{hours}} hours. <a href="{{appUrl}}/request/{{requestUuid}}">Review &amp; Approve</a>',
     });
     mockPrisma.request.findUnique.mockResolvedValue({
       referenceNumber: 'IT-00007',
@@ -228,6 +239,12 @@ describe('notification.service durable pipeline', () => {
       'Approval Reminder — Request #IT-00007',
       expect.stringContaining('#IT-00007 — M365 License Renewal'),
       { wrapInLayout: true },
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining('Awaiting Review'),
+      expect.any(Object),
     );
     expect(sendEmail).toHaveBeenCalledWith(
       expect.any(String),

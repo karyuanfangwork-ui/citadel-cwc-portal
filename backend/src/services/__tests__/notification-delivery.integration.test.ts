@@ -13,6 +13,11 @@ jest.mock('../email.service', () => ({
   renderTemplate: jest.fn((template: string, vars: Record<string, string>) =>
     template.replace(/\{\{(\w+)\}\}/g, (_match, key) => vars[key] ?? ''),
   ),
+  renderHtmlTemplate: jest.fn((template: string, vars: Record<string, string>) =>
+    template.replace(/\{\{(\w+)\}\}/g, (_match, key) => (vars[key] ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')),
+  ),
 }));
 
 jest.mock('../../utils/sseClients', () => ({

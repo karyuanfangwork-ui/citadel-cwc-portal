@@ -1,10 +1,11 @@
 import prisma from '../utils/prisma';
 import crypto from 'crypto';
-import { sendEmail, renderTemplate } from './email.service';
+import { sendEmail, renderTemplate, renderHtmlTemplate } from './email.service';
 import { logger } from '../utils/logger';
 import { pushToUser } from '../utils/sseClients';
 import { config } from '../config';
 import { registerEmailEnabledCacheInvalidator } from '../controllers/systemSetting.controller';
+import { getStatusDefinitionForRuntime } from './requestStatusDefinition.service';
 import { enqueueNotificationDelivery } from '../queues/notification.queue';
 
 // Global email toggle — 30-second TTL cache to avoid a DB hit on every notification
@@ -253,6 +254,30 @@ async function loadRelatedRequestVars(relatedRequestId?: string | null): Promise
   };
 }
 
+async function resolveDisplayStatusValues(variables: Record<string, string>): Promise<Record<string, string>> {
+  const keys = ['status', 'oldStatus', 'newStatus'];
+  const codes = [...new Set(keys.map((key) => variables[key]).filter((value): value is string => Boolean(value)))];
+  const labels = new Map<string, string>();
+
+  await Promise.all(codes.map(async (code) => {
+    try {
+      const definition = await getStatusDefinitionForRuntime(code);
+      labels.set(code, definition.label);
+    } catch {
+      const acronyms = new Set(['CEO', 'CFO', 'DCEO', 'VP', 'IT', 'HR', 'SLA']);
+      const readable = code.split('_').map((part) => acronyms.has(part)
+        ? part
+        : `${part.charAt(0)}${part.slice(1).toLowerCase()}`).join(' ');
+      labels.set(code, readable);
+    }
+  }));
+
+  return Object.fromEntries(keys.flatMap((key) => {
+    const code = variables[key];
+    return code && labels.has(code) ? [[key, labels.get(code)!]] : [];
+  }));
+}
+
 async function materializeContent(delivery: any): Promise<MaterializedNotificationContent> {
   const event = delivery.event;
   const payload = (event.payload ?? {}) as Record<string, unknown>;
@@ -272,11 +297,17 @@ async function materializeContent(delivery: any): Promise<MaterializedNotificati
   const recipientUser = delivery.recipient;
   const userName = recipientUser ? `${recipientUser.firstName} ${recipientUser.lastName}` : '';
   const requestVars = await loadRelatedRequestVars(relatedRequestId);
+  const templateText = [template?.emailSubject, template?.emailBody, template?.pushTitle, template?.pushBody].join(' ');
+  const needsStatusLabels = ['status', 'oldStatus', 'newStatus'].some((key) => templateText.includes(`{{${key}}}`));
+  const statusVars = needsStatusLabels
+    ? await resolveDisplayStatusValues({ ...variables, ...requestVars })
+    : {};
   const approverRole = variables.approverRole || variables.role || '';
   const approvalLevel = variables.approvalLevel || approverRole || '';
   const enrichedVars: Record<string, string> = {
     ...variables,
     ...requestVars,
+    ...statusVars,
     approverRole,
     approvalLevel,
     approvalPolicyReason: variables.approvalPolicyReason || 'Please review this request and approve or reject it.',
@@ -305,7 +336,7 @@ async function materializeContent(delivery: any): Promise<MaterializedNotificati
     ? renderTemplate(template.emailSubject ?? '', enrichedVars)
     : crmReminderFallback?.emailSubject ?? fallbackSubject;
   const emailBodyHtml = template
-    ? renderTemplate(template.emailBody ?? '', enrichedVars)
+    ? renderHtmlTemplate(template.emailBody ?? '', enrichedVars)
     : crmReminderFallback?.emailBodyHtml ?? fallbackBody;
 
   return { pushSubject, pushBodyText, emailSubject, emailBodyHtml, relatedRequestId, wrapInLayout };
