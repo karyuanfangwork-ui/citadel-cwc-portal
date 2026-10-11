@@ -60,7 +60,7 @@ describe('AgentDashboard', () => {
     get.mockResolvedValue({ ...dashboardResponse, availableScopes: ['mine'] });
     renderPage();
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Your team queue is unavailable because no team is configured.');
+    expect(await screen.findByText('Your team queue is unavailable because no team is configured. My work remains available.')).toHaveAttribute('role', 'status');
     expect(screen.queryByRole('option', { name: 'My team' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Unassigned/ })).not.toBeInTheDocument();
   });
@@ -143,6 +143,6 @@ describe('AgentDashboard', () => {
     await user.click(await screen.findByRole('checkbox', { name: 'Select IT-001' }));
     await user.click(screen.getByRole('button', { name: 'Export 1 selected tickets on this page' }));
     await waitFor(() => expect(exportXlsx).toHaveBeenCalledWith(['ticket-1']));
-    expect(await screen.findByRole('status')).toHaveTextContent('Export downloaded.');
+    expect(await screen.findByText('Export downloaded.')).toHaveAttribute('role', 'status');
   });
 });

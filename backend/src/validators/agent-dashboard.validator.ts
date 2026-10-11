@@ -12,7 +12,7 @@ export const agentDashboardQuerySchema = z.object({
     requestTypeId: z.string().uuid().optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     slaState: z.enum(slaStates).optional(),
-    sort: z.enum(['urgency', 'created-desc', 'created-asc', 'updated-desc']).default('urgency'),
+    sort: z.enum(['urgency', 'created-desc', 'created-asc', 'updated-desc']).default('updated-desc'),
   }).strict(),
 });
 

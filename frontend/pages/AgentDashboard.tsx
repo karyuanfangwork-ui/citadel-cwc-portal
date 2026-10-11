@@ -24,7 +24,7 @@ export default function AgentDashboard() {
   const [requestTypeId, setRequestTypeId] = useState('');
   const [priority, setPriority] = useState<DashboardPriority | ''>('');
   const [slaState, setSlaState] = useState<DashboardSlaState | ''>('');
-  const [sort, setSort] = useState<DashboardSort>('urgency');
+  const [sort, setSort] = useState<DashboardSort>('updated-desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -33,7 +33,7 @@ export default function AgentDashboard() {
     scope, queue, page, limit, search: search || undefined, requestTypeId: requestTypeId || undefined,
     priority: priority || undefined, slaState: slaState || undefined, sort,
   }), [scope, queue, page, limit, search, requestTypeId, priority, slaState, sort]);
-  const { data, initialLoading, refreshing, error, stale, refresh } = useAgentDashboard(query);
+  const { data, initialLoading, refreshing, searching, error, stale, refresh } = useAgentDashboard(query);
   const canExport = user?.permissions?.includes('request:export') ?? false;
   const unassignedAllowed = scope !== 'mine';
   const filterIdentity = JSON.stringify(query);
@@ -107,7 +107,7 @@ export default function AgentDashboard() {
       <AttentionQueue total={data.attention.total} tickets={data.attention.tickets} onViewOpen={() => setCardFilter()} onNavigate={(ticket) => navigate(`/request/${ticket.reference}`)} />
       <DashboardFilters
         scope={scope} availableScopes={data.availableScopes} search={search} requestTypeId={requestTypeId} priority={priority} slaState={slaState} sort={sort}
-        requestTypes={data.requestTypes} hasFilters={Boolean(search || requestTypeId || priority || slaState)}
+        requestTypes={data.requestTypes} hasFilters={Boolean(search || requestTypeId || priority || slaState)} searching={searching}
         onScope={(value) => { setScope(value); if (value === 'mine' && queue === 'unassigned') setQueue('open'); setPage(1); }}
         onSearch={(value) => { setSearch(value.slice(0, 200)); setPage(1); }}
         onRequestType={(value) => { setRequestTypeId(value); setPage(1); }}

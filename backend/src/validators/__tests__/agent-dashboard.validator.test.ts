@@ -7,7 +7,7 @@ function parse(query: Record<string, unknown>) {
 describe('agentDashboardQuerySchema', () => {
   it('applies defaults and trims search input', () => {
     expect(parse({ search: '  laptop ' })).toMatchObject({
-      scope: 'mine', queue: 'open', page: 1, limit: 25, search: 'laptop', sort: 'urgency',
+      scope: 'mine', queue: 'open', page: 1, limit: 25, search: 'laptop', sort: 'updated-desc',
     });
   });
 

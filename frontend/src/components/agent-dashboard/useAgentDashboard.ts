@@ -3,6 +3,13 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { AgentDashboardResponse, agentDashboardService, DashboardQuery } from '../../services/agent-dashboard.service';
 
 const REFRESH_INTERVAL_MS = 60_000;
+const SEARCH_DEBOUNCE_MS = 700;
+
+function sameQueryExceptSearch(left: DashboardQuery, right: DashboardQuery): boolean {
+  const { search: _leftSearch, ...leftFilters } = left;
+  const { search: _rightSearch, ...rightFilters } = right;
+  return JSON.stringify(leftFilters) === JSON.stringify(rightFilters);
+}
 
 function errorStatus(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
@@ -11,7 +18,7 @@ function errorStatus(error: unknown): number | undefined {
 }
 
 export function useAgentDashboard(query: DashboardQuery) {
-  const debouncedSearch = useDebouncedValue(query.search ?? '', 300);
+  const debouncedSearch = useDebouncedValue(query.search ?? '', SEARCH_DEBOUNCE_MS);
   const queryKey = JSON.stringify({ ...query, search: debouncedSearch || undefined });
   const effectiveQuery = useMemo(() => JSON.parse(queryKey) as DashboardQuery, [queryKey]);
   const [stored, setStored] = useState<{ key: string; data: AgentDashboardResponse } | null>(null);
@@ -67,9 +74,16 @@ export function useAgentDashboard(query: DashboardQuery) {
     };
   }, [pollingDisabledKey, queryKey, refresh]);
 
-  const data = stored?.key === queryKey ? stored.data : null;
+  const data = stored?.key === queryKey
+    ? stored.data
+    : stored && sameQueryExceptSearch(effectiveQuery, JSON.parse(stored.key) as DashboardQuery)
+      ? stored.data
+      : null;
+  const storedQuery = stored ? JSON.parse(stored.key) as DashboardQuery : null;
+  const searching = Boolean(data && (query.search ?? '') !== (storedQuery?.search ?? ''));
   return {
     data,
+    searching,
     initialLoading: !data && loadingKey === queryKey,
     refreshing: Boolean(data) && refreshingKey === queryKey,
     error: errorState?.key === queryKey ? errorState.error : null,

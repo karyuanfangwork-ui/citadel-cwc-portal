@@ -2,7 +2,7 @@ import { DashboardPriority, DashboardSlaState, DashboardSort, DashboardScope } f
 
 interface Props {
   scope: DashboardScope; availableScopes: DashboardScope[]; search: string; requestTypeId: string; priority: DashboardPriority | ''; slaState: DashboardSlaState | '';
-  sort: DashboardSort; requestTypes: { id: string; name: string }[]; hasFilters: boolean;
+  sort: DashboardSort; requestTypes: { id: string; name: string }[]; hasFilters: boolean; searching: boolean;
   onScope: (value: DashboardScope) => void; onSearch: (value: string) => void; onRequestType: (value: string) => void;
   onPriority: (value: DashboardPriority | '') => void; onSla: (value: DashboardSlaState | '') => void; onSort: (value: DashboardSort) => void; onClear: () => void;
 }
@@ -40,6 +40,7 @@ export function DashboardFilters(props: Props) {
         <option value="urgency">SLA urgency</option><option value="created-desc">Latest created</option><option value="created-asc">Oldest created</option><option value="updated-desc">Latest updated</option>
       </select>
     </label>
+    {props.searching && <span className="self-center text-xs text-gray-500" role="status">Searching…</span>}
     {props.hasFilters && <button type="button" onClick={props.onClear} className="h-10 rounded-lg px-3 text-sm font-medium text-blue-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">Clear filters</button>}
   </div>;
 }

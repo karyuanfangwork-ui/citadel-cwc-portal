@@ -46,20 +46,40 @@ describe('useAgentDashboard', () => {
     await act(async () => { await Promise.resolve(); });
 
     expect(result.current.error).toBeTruthy();
-    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });
     expect(vi.getTimerCount()).toBe(0);
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
     expect(get).toHaveBeenCalledTimes(1);
   });
 
-  it('debounces search before issuing the replacement query', async () => {
+  it('debounces a burst of search edits, keeps current results visible, and reports pending search', async () => {
     get.mockResolvedValue(response('loaded'));
-    const { rerender } = renderHook(({ value }) => useAgentDashboard({ ...query, search: value }), { initialProps: { value: '' } });
+    const { rerender, result } = renderHook(({ value }) => useAgentDashboard({ ...query, search: value }), { initialProps: { value: '' } });
     await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
-    rerender({ value: 'laptop' });
+    let resolveSearch!: (value: AgentDashboardResponse) => void;
+    get.mockImplementationOnce(() => new Promise((resolve) => { resolveSearch = resolve; }));
+    vi.useFakeTimers();
+
+    rerender({ value: 'l' });
+    expect(result.current.searching).toBe(true);
+    expect(result.current.data?.asOf).toBe('loaded');
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    rerender({ value: 'la' });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    rerender({ value: 'lap' });
     expect(get).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2), { timeout: 1500 });
-    expect(get.mock.calls[1][0].search).toBe('laptop');
+    expect(result.current.data?.asOf).toBe('loaded');
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(699); });
+    expect(get).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls[1][0].search).toBe('lap');
+    expect(result.current.data?.asOf).toBe('loaded');
+    expect(result.current.searching).toBe(true);
+    await act(async () => { resolveSearch(response('searched')); });
+    expect(result.current.searching).toBe(false);
+    expect(result.current.data?.asOf).toBe('searched');
   });
 
   it('aborts the prior request and ignores its late result after query changes', async () => {
