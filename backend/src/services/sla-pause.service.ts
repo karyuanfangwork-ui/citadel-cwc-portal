@@ -176,8 +176,9 @@ export async function shouldResumeOnTransition(
 }
 
 /**
- * Compute the effective SLA deadline, accounting for pause time.
- * If currently paused, the "remaining time" is frozen (effective due date = due + accumulated pause).
+ * The persisted slaDueAt is extended when a paused clock resumes. While a
+ * request is currently paused, add only the current pause duration so the
+ * displayed remaining time stays frozen instead of counting down.
  */
 export function getEffectiveSlaDueAt(request: {
   slaDueAt: Date | null;
@@ -185,17 +186,18 @@ export function getEffectiveSlaDueAt(request: {
   slaPauseDurationMs: bigint;
 }): Date | null {
   if (!request.slaDueAt) return null;
+  const dueAtMs = request.slaDueAt.getTime();
+  if (!Number.isFinite(dueAtMs)) return null;
 
-  // Base: slaDueAt + accumulated pause duration from previous pauses
-  const base = new Date(request.slaDueAt.getTime() + Number(request.slaPauseDurationMs));
+  // Completed pauses have already been applied to slaDueAt by resumeSla.
+  // Adding slaPauseDurationMs here would apply those pauses a second time.
+  if (!request.slaPausedAt) return new Date(dueAtMs);
 
-  // If currently paused, add current pause duration too
-  if (request.slaPausedAt) {
-    const currentPauseMs = Date.now() - request.slaPausedAt.getTime();
-    return new Date(base.getTime() + currentPauseMs);
-  }
+  const pausedAtMs = request.slaPausedAt.getTime();
+  if (!Number.isFinite(pausedAtMs)) return null;
 
-  return base;
+  const currentPauseMs = Math.max(0, Date.now() - pausedAtMs);
+  return new Date(dueAtMs + currentPauseMs);
 }
 
 /**

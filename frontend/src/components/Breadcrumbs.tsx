@@ -15,7 +15,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items }) => (
     {items.map((item, i) => (
       <React.Fragment key={i}>
         {i > 0 && (
-          <span className="material-symbols-outlined text-text-tertiary" style={{ fontSize: 16 }}>
+          <span className="material-symbols-outlined text-text-secondary" style={{ fontSize: 16 }} aria-hidden="true">
             chevron_right
           </span>
         )}

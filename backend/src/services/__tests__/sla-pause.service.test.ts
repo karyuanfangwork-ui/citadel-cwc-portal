@@ -375,7 +375,7 @@ describe('getEffectiveSlaDueAt', () => {
     expect(result).toBeNull();
   });
 
-  it('returns slaDueAt + accumulated pause when not currently paused', () => {
+  it('does not re-apply completed pause duration already reflected in slaDueAt', () => {
     const dueAt = new Date('2026-05-01T00:00:00Z');
     const pauseMs = BigInt(3 * ONE_HOUR_MS);
 
@@ -385,14 +385,13 @@ describe('getEffectiveSlaDueAt', () => {
       slaPauseDurationMs: pauseMs,
     });
 
-    // effective = dueAt + 3h
-    expect(result!.getTime()).toBe(dueAt.getTime() + Number(pauseMs));
+    expect(result!.getTime()).toBe(dueAt.getTime());
   });
 
-  it('adds current pause duration when currently paused', () => {
+  it('adds only the current pause duration when currently paused', () => {
     const dueAt = new Date('2026-05-01T00:00:00Z');
     const previousPauseMs = BigInt(2 * ONE_HOUR_MS);
-    const pausedAt = new Date(Date.now() - ONE_HOUR_MS); // 1h ago
+    const pausedAt = new Date(Date.now() - ONE_HOUR_MS);
 
     const result = getEffectiveSlaDueAt({
       slaDueAt: dueAt,
@@ -400,8 +399,7 @@ describe('getEffectiveSlaDueAt', () => {
       slaPauseDurationMs: previousPauseMs,
     });
 
-    // effective = dueAt + 2h (previous) + ~1h (current) ≈ dueAt + 3h
-    const expectedMs = dueAt.getTime() + Number(previousPauseMs) + ONE_HOUR_MS;
+    const expectedMs = dueAt.getTime() + ONE_HOUR_MS;
     expect(Math.abs(result!.getTime() - expectedMs)).toBeLessThan(1000);
   });
 
@@ -471,6 +469,33 @@ describe('checkStalePauses', () => {
 });
 
 // ── Multiple pause/resume cycles ─────────────────────────────────────────────
+
+describe('fixed-time SLA deadline lifecycle invariants', () => {
+  const fixedNow = new Date('2026-10-10T12:00:00.000Z');
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(fixedNow);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it.each([
+    ['no pause', fixedNow.getTime() + ONE_HOUR_MS, BigInt(0), null, fixedNow.getTime() + ONE_HOUR_MS],
+    ['one completed pause already applied', fixedNow.getTime() + 2 * ONE_HOUR_MS, BigInt(ONE_HOUR_MS), null, fixedNow.getTime() + 2 * ONE_HOUR_MS],
+    ['repeated completed pauses already applied', fixedNow.getTime() + 4 * ONE_HOUR_MS, BigInt(3 * ONE_HOUR_MS), null, fixedNow.getTime() + 4 * ONE_HOUR_MS],
+    ['current pause adds only elapsed current interval', fixedNow.getTime() + 2 * ONE_HOUR_MS, BigInt(ONE_HOUR_MS), new Date(fixedNow.getTime() - 30 * 60_000), fixedNow.getTime() + 2.5 * ONE_HOUR_MS],
+    ['overdue deadline remains overdue by frozen amount during pause', fixedNow.getTime() - ONE_HOUR_MS, BigInt(0), new Date(fixedNow.getTime() - 30 * 60_000), fixedNow.getTime() - 30 * 60_000],
+  ] as const)('%s', (_label, dueMs, pauseDuration, pausedAt, expectedMs) => {
+    const effective = getEffectiveSlaDueAt({
+      slaDueAt: new Date(dueMs),
+      slaPausedAt: pausedAt,
+      slaPauseDurationMs: pauseDuration,
+    });
+    expect(effective?.getTime()).toBe(expectedMs);
+  });
+});
 
 describe('multiple pause/resume cycles', () => {
   it('cumulative duration is correct after 2+ cycles', async () => {

@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { CREDIT_ANALYST, login } from '../credit/support/auth';
 
 const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
 
@@ -20,7 +21,7 @@ const PUBLIC_ROUTES = [
 const AUTH_ROUTES = [
   { name: 'Dashboard', path: '/dashboard' },
   { name: 'My Requests', path: '/my-requests' },
-  { name: 'Agent Dashboard', path: '/agent-dashboard' },
+  { name: 'Agent Dashboard', path: '/agent' },
   { name: 'Knowledge Base', path: '/knowledge-base' },
   { name: 'Reports', path: '/reports' },
 ];
@@ -42,16 +43,7 @@ test.describe('Public routes', () => {
 
 test.describe('Authenticated routes', () => {
   test.beforeEach(async ({ page }) => {
-    // Login via API
-    const apiURL = baseURL.replace(/:\d+/, ':3000');
-    const response = await page.request.post(`${apiURL}/api/v1/auth/login`, {
-      data: { email: 'admin@test.local', password: 'Admin123!' },
-    });
-
-    if (response.ok()) {
-      const { token } = await response.json();
-      await page.evaluate((t) => localStorage.setItem('token', t), token);
-    }
+    await login(page, CREDIT_ANALYST);
   });
 
   for (const route of AUTH_ROUTES) {
@@ -67,6 +59,11 @@ test.describe('Authenticated routes', () => {
       const isOnTargetPage = currentUrl.includes(route.path);
       const isOnLoginPage = currentUrl.includes('/login');
       expect(isOnTargetPage || isOnLoginPage).toBeTruthy();
+      if (route.name === 'Agent Dashboard') {
+        expect(isOnTargetPage).toBe(true);
+        await expect(page.getByRole('heading', { name: 'Agent Dashboard' })).toBeVisible();
+        await expect(page.getByRole('searchbox', { name: 'Search tickets' })).toBeVisible();
+      }
 
       // No unhandled JS errors (allow network errors from API calls)
       const jsErrors = errors.filter((e) => !e.includes('fetch') && !e.includes('network'));

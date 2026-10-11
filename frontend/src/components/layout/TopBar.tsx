@@ -125,7 +125,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
                   <div className="h-8 w-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-sm font-bold">
                     {user.firstName?.[0]}{user.lastName?.[0]}
                   </div>
-                  <span className={`hidden md:inline material-symbols-outlined text-gray-400 text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                  <span className={`hidden md:inline material-symbols-outlined text-gray-600 text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
                 </button>
 
               {userMenuOpen && (

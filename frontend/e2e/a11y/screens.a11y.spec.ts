@@ -11,36 +11,13 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-
-// Login helper — posts to the auth endpoint and stores the JWT.
-async function login(page) {
-  const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
-  const apiURL = baseURL.replace(/:\d+/, ':3000');
-
-  // Attempt login via API
-  const response = await page.request.post(`${apiURL}/api/v1/auth/login`, {
-    data: { email: 'admin@test.local', password: 'Admin123!' },
-  });
-
-  if (response.ok()) {
-    const { token } = await response.json();
-    // Inject token into localStorage
-    await page.evaluate((t) => localStorage.setItem('token', t), token);
-  } else {
-    // Fallback: use UI login
-    await page.goto(`${baseURL}/login`);
-    await page.fill('[name="email"], input[type="email"]', 'admin@test.local');
-    await page.fill('[name="password"], input[type="password"]', 'Admin123!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/dashboard', { timeout: 10000 }).catch(() => {});
-  }
-}
+import { CREDIT_ANALYST, login } from '../credit/support/auth';
 
 // Screens to audit — these are the top ESM priority screens
 const SCREENS = [
   { name: 'Dashboard', path: '/dashboard' },
   { name: 'My Requests', path: '/my-requests' },
-  { name: 'Agent Dashboard', path: '/agent-dashboard' },
+  { name: 'Agent Dashboard', path: '/agent' },
   { name: 'Knowledge Base', path: '/knowledge-base' },
   { name: 'Reports', path: '/reports' },
 ];
@@ -48,7 +25,7 @@ const SCREENS = [
 for (const screen of SCREENS) {
   test.describe(screen.name, () => {
     test.beforeEach(async ({ page }) => {
-      await login(page);
+      await login(page, CREDIT_ANALYST);
       await page.goto(screen.path);
       // Wait for content to render
       await page.waitForLoadState('networkidle').catch(() => {});
@@ -81,6 +58,10 @@ for (const screen of SCREENS) {
       const h1 = page.locator('h1');
       const count = await h1.count();
       expect(count).toBeGreaterThanOrEqual(1);
+      if (screen.name === 'Agent Dashboard') {
+        await expect(page.getByRole('heading', { name: 'Agent Dashboard' })).toBeVisible();
+        await expect(page.getByRole('searchbox', { name: 'Search tickets' })).toBeVisible();
+      }
     });
   });
 }

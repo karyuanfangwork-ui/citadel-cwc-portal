@@ -120,13 +120,13 @@ import { buildNavLinks } from './src/components/layout/navConfig';
 const Footer = () => (
   <footer className="mt-auto min-w-0 border-t border-gray-100 bg-white py-4">
     <div className="mx-auto flex min-w-0 max-w-[1440px] flex-col items-center justify-between gap-4 px-6 md:flex-row">
-      <div className="flex min-w-0 w-full items-center justify-center gap-2 text-center opacity-50 md:w-auto md:justify-start md:text-left">
-        <span className="material-symbols-outlined text-xl">corporate_fare</span>
+      <div className="flex min-w-0 w-full items-center justify-center gap-2 text-center text-gray-600 md:w-auto md:justify-start md:text-left">
+        <span className="material-symbols-outlined text-xl" aria-hidden="true">corporate_fare</span>
         <span className="min-w-0 break-words text-xs font-bold uppercase tracking-widest">© 2026 Citadel Group Technologies Sdn Bhd</span>
       </div>
       <div className="flex w-full flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-gray-500 md:w-auto md:flex-nowrap md:justify-end md:gap-8">
-        <span className="opacity-60" title="Coming soon">Privacy Policy</span>
-        <span className="opacity-60" title="Coming soon">Terms of Service</span>
+        <span title="Coming soon">Privacy Policy</span>
+        <span title="Coming soon">Terms of Service</span>
         <a href="mailto:support@citadelgroup.com.my" className="hover:text-[#0052cc]">Contact Support</a>
       </div>
     </div>

@@ -15,8 +15,8 @@ import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
 import { getAuthorizedAttachment, registerUpload } from '../services/attachmentAccess.service';
 import { resolveRequestCreationPolicy } from '../services/requestCreationPolicy.service';
-import { policyService } from '../security/policy.service';
 import { principalFromAuth } from '../security/resource-scope.service';
+import { buildRequestListScope } from '../security/request-list-scope';
 import { CLOSED_STATUSES } from '../constants/requestStatuses';
 
 import prisma from '../utils/prisma';
@@ -84,44 +84,10 @@ class RequestController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
-        // Build where clause starting with soft-delete filter
-        const where: any = {
-            deletedAt: null,
-        };
-
-        // P02-09: Use policy service for visibility scoping instead of
-        // hardcoded ADMIN/AGENT bypasses. buildVisibleWhere produces a
-        // tenant-aware, team-scoped, ownership-based Prisma filter that
-        // respects all policy rules including department grants.
+        // One shared predicate keeps tenant/policy visibility, confidentiality,
+        // and soft-delete rules identical across dashboard/list queries.
         const principal = principalFromAuth(req.user!);
-        const visibleWhere = policyService.buildVisibleWhere(principal, 'request');
-        if (visibleWhere.AND || visibleWhere.OR) {
-            // Merge the policy visibility conditions into our where clause
-            where.AND = [
-                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-                visibleWhere,
-            ];
-        }
-
-        // Confidentiality gate: users without request:confidential permission
-        // cannot see confidential requests unless they own, are assigned, are an
-        // approver, or are a participant. ADMIN within their tenant can see all.
-        const canSeeConfidential = principal.roles.includes('ADMIN') || principal.permissions.includes('request:confidential');
-        if (!canSeeConfidential) {
-            const confFilter = {
-                OR: [
-                    { isConfidential: false },
-                    { requesterId: req.user!.id },
-                    { assignedToId: req.user!.id },
-                    { approvals: { some: { approverId: req.user!.id } } },
-                    { participants: { some: { userId: req.user!.id } } },
-                ],
-            };
-            where.AND = [
-                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-                confFilter,
-            ];
-        }
+        const where: any = buildRequestListScope(principal);
 
         // Status codes are catalog-backed strings. Keep filters syntactically
         // bounded here; runtime transition paths perform catalog validation.

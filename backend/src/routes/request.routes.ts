@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
+import { getAgentDashboardController } from '../controllers/agent-dashboard.controller';
 import { exportRequestPdf } from '../controllers/requestPdf.controller';
 import { exportRequestsXlsx } from '../controllers/requestExport.controller';
 import participantRoutes from './participant.routes';
@@ -7,16 +8,16 @@ import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { uploadSingleFile } from '../middleware/upload.middleware';
 import { authorizeResource, loadRequestScopeFromParam } from '../middleware/authorizeResource.middleware';
-import {
-    createRequestSchema,
-    updateRequestSchema,
-    addActivitySchema,
-} from '../validators/request.validator';
+import { createRequestSchema, updateRequestSchema, addActivitySchema } from '../validators/request.validator';
+import { agentDashboardQuerySchema } from '../validators/agent-dashboard.validator';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+// Static dashboard path must precede the request-id route.
+router.get('/agent-dashboard', validate(agentDashboardQuerySchema), getAgentDashboardController);
 
 /**
  * @route   GET /api/v1/requests
