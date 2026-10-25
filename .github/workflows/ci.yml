@@ -89,20 +89,13 @@ jobs:
         run: echo "REDIS_URL=redis://localhost:6379" >> "$GITHUB_ENV"
       - name: Generate ephemeral test-only auth secrets
         run: |
-          node -e "const fs = require('fs'); const crypto = require('crypto'); const keys = {JWT_SECRET: 64, JWT_REFRESH_SECRET: 64, CREDIT_ENCRYPTION_KEY: 32, CREDIT_HMAC_KEY: 32}; fs.appendFileSync(process.env.GITHUB_ENV, Object.entries(keys).map(([name, bytes]) => name + '=' + crypto.randomBytes(bytes).toString('hex')).join('\n') + '\n')"
+          node -e "const fs = require('fs'); const crypto = require('crypto'); const keys = {JWT_SECRET: 64, JWT_REFRESH_SECRET: 64, CREDIT_ENCRYPTION_KEY: 32, CREDIT_HMAC_KEY: 32}; const lines = Object.entries(keys).map(([name, bytes]) => { const value = crypto.randomBytes(bytes).toString('hex'); process.stdout.write('::add-mask::' + value + '\n'); return name + '=' + value; }); fs.appendFileSync(process.env.GITHUB_ENV, lines.join('\n') + '\n')"
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma db push
+      - name: Restore DB-only guards in disposable CI database
+        run: npx prisma db execute --file scripts/prepare-ci-db.sql --schema prisma/schema.prisma
       - run: npm run prisma:seed
-      - name: Create CI-only non-owner RLS role
-        run: |
-          npx prisma db execute --stdin --schema prisma/schema.prisma <<'SQL'
-          DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cwc_app_rls') THEN
-              CREATE ROLE cwc_app_rls NOLOGIN NOBYPASSRLS;
-            END IF;
-          END $$;
-          SQL
       - run: npm test -- --forceExit
       - name: Upload coverage
         if: always()
