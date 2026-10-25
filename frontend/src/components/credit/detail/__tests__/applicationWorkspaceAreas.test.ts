@@ -23,13 +23,17 @@ describe('application workspace area metadata', () => {
   });
 
   it('filters local tabs by borrower type and lane without using readiness', () => {
-    expect(getVisibleWorkspaceLocalTabs('financials', 'INDIVIDUAL', 'PERSONAL_FAST', {} ).map(tab => tab.id))
+    expect(getVisibleWorkspaceLocalTabs('financials', 'INDIVIDUAL', 'PERSONAL_FAST', {}).map(tab => tab.id))
+      .toEqual(['income']);
+    expect(getVisibleWorkspaceLocalTabs('financials', 'INDIVIDUAL', 'RETAIL', {}).map(tab => tab.id))
       .toEqual(['income', 'repayment-capacity']);
     expect(getVisibleWorkspaceLocalTabs('financials', 'SOLE_PROPRIETOR', 'SME', {}).map(tab => tab.id))
       .toEqual(['statements', 'spreading', 'ratios-trends', 'repayment-capacity']);
     expect(getVisibleWorkspaceLocalTabs('financials', 'CORPORATE', 'CORPORATE', {}).map(tab => tab.id))
       .toEqual(['statements', 'spreading', 'ratios-trends', 'repayment-capacity']);
     expect(getVisibleWorkspaceLocalTabs('application-parties', 'INDIVIDUAL', 'PERSONAL_FAST', {}).map(tab => tab.id))
+      .toEqual(['application', 'borrower']);
+    expect(getVisibleWorkspaceLocalTabs('application-parties', 'INDIVIDUAL', 'RETAIL', {}).map(tab => tab.id))
       .toEqual(['application', 'facilities', 'borrower']);
   });
   it('exposes six primary areas followed by Documents and Activity & Audit utilities', () => {

@@ -85,6 +85,9 @@ jobs:
         run: echo "DATABASE_URL=postgresql://ci_test:ci_test_pw@localhost:5432/help_center_test?schema=public" >> "$GITHUB_ENV"
       - name: Set REDIS_URL
         run: echo "REDIS_URL=redis://localhost:6379" >> "$GITHUB_ENV"
+      - name: Generate ephemeral test-only auth secrets
+        run: |
+          node -e "const fs = require('fs'); const crypto = require('crypto'); fs.appendFileSync(process.env.GITHUB_ENV, ['JWT_SECRET', 'JWT_REFRESH_SECRET'].map(name => name + '=' + crypto.randomBytes(64).toString('hex')).join('\n') + '\n')"
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma db push
