@@ -143,6 +143,7 @@ describe('AuditChainService', () => {
       const now = new Date('2026-01-01T00:00:00Z');
       const event1: any = {
               id: 'e1',
+              sequence: 1,
               applicationId: 'app-1',
               eventType: 'STATE_CHANGE',
               actorId: 'user-1',
@@ -158,6 +159,7 @@ describe('AuditChainService', () => {
 
       const event2: any = {
         id: 'e2',
+        sequence: 2,
         applicationId: 'app-1',
         eventType: 'SCORE_OVERRIDE',
         actorId: 'user-2',
@@ -181,6 +183,7 @@ describe('AuditChainService', () => {
       const now = new Date('2026-01-01T00:00:00Z');
       const event: any = {
         id: 'e1',
+        sequence: 1,
         applicationId: 'app-1',
         eventType: 'STATE_CHANGE',
         actorId: 'user-1',
@@ -206,6 +209,7 @@ describe('AuditChainService', () => {
       const now = new Date('2026-01-01T00:00:00Z');
       const event1: any = {
         id: 'e1',
+        sequence: 1,
         applicationId: 'app-1',
         eventType: 'CREATE',
         actorId: 'user-1',
@@ -220,6 +224,7 @@ describe('AuditChainService', () => {
 
       const event2: any = {
         id: 'e2',
+        sequence: 2,
         applicationId: 'app-1',
         eventType: 'STATE_CHANGE',
         actorId: 'user-2',
@@ -240,6 +245,35 @@ describe('AuditChainService', () => {
       const result = await AuditChainService.verifyChain('app-1');
       expect(result.valid).toBe(false);
       expect(result.brokenAt).toBe('e2');
+    });
+
+    it('detects a missing first or middle sequence even if remaining hashes are valid', async () => {
+      const event: any = {
+        id: 'e2', sequence: 2, applicationId: 'app-1', eventType: 'CREATE',
+        actorId: null, action: 'CREATE_APP', oldState: null, newState: 'DRAFT',
+        metadata: null, createdAt: new Date('2026-01-01T00:00:00Z'), hashVersion: 2,
+      };
+      event.hash = await AuditChainService.computeHash({ ...event, previousHash: '' });
+      mockedPrisma.creditAuditEvent.findMany.mockResolvedValue([event]);
+      await expect(AuditChainService.verifyChain('app-1')).resolves.toEqual({ valid: false, brokenAt: 'e2' });
+
+      const first = { ...event, id: 'e1', sequence: 1 };
+      first.hash = await AuditChainService.computeHash({ ...first, previousHash: '' });
+      const third = { ...event, id: 'e3', sequence: 3 };
+      third.hash = await AuditChainService.computeHash({ ...third, previousHash: first.hash });
+      mockedPrisma.creditAuditEvent.findMany.mockResolvedValue([first, third]);
+      await expect(AuditChainService.verifyChain('app-1')).resolves.toEqual({ valid: false, brokenAt: 'e3' });
+    });
+
+    it('verifies a legacy version-1 event with its original formula', async () => {
+      const event: any = {
+        id: 'legacy', sequence: 1, applicationId: 'app-1', eventType: 'CREATE',
+        actorId: 'ignored-by-v1', action: 'CREATE_APP', oldState: null, newState: 'DRAFT',
+        metadata: { legacy: true }, createdAt: new Date('2026-01-01T00:00:00Z'), hashVersion: 1,
+      };
+      event.hash = await AuditChainService.computeHash({ ...event, previousHash: '' });
+      mockedPrisma.creditAuditEvent.findMany.mockResolvedValue([event]);
+      await expect(AuditChainService.verifyChain('app-1')).resolves.toEqual({ valid: true });
     });
   });
 

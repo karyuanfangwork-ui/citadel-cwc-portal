@@ -1,5 +1,7 @@
 import * as crypto from 'crypto';
 import prisma from '../../utils/prisma';
+import { AppError } from '../../middleware/error.middleware';
+import { legacyV2SourceMetadata } from './legacyAuditMetadata';
 
 // TransactionClient accepts both raw PrismaClient and the extended tenant-aware client.
 // Using `any` here avoids excessive stack depth when comparing Prisma's complex generic types.
@@ -8,9 +10,24 @@ type TransactionClient = any;
 /**
  * Hash payload for v2 includes actorId, oldState, newState, metadata.
  * v1 (legacy) only included id|applicationId|eventType|action|createdAt|previousHash.
+ * v3 retains the v2 fields but canonicalizes JSON metadata recursively.
  * The hashVersion column (default 1) tracks which formula was used.
  */
-const HASH_VERSION = 2;
+const HASH_VERSION = 3;
+
+function canonicalMetadata(metadata: unknown): string {
+  // Normalize to the same JSON value Prisma persists (Date.toJSON, omitted
+  // undefined object properties, etc.) before sorting keys at every depth.
+  const json = JSON.parse(JSON.stringify(metadata ?? null));
+  function sorted(value: any): any {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]));
+    }
+    return value;
+  }
+  return JSON.stringify(sorted(json));
+}
 
 /**
  * Convert an applicationId (UUID string) to a signed int64 for use with
@@ -53,8 +70,11 @@ export class AuditChainService {
       return crypto.createHash('sha256').update(payload).digest('hex');
     }
 
-    // v2 formula: id|applicationId|eventType|actorId|action|oldState|newState|metadata|createdAt|previousHash
-    const metadataStr = typeof event.metadata === 'string'
+    if (version !== 2 && version !== 3) throw new Error(`Unsupported audit hash version: ${version}`);
+
+    // v2 retains the original insertion-order behavior for historical hashes.
+    const metadataStr = version === 3 ? canonicalMetadata(event.metadata)
+      : typeof event.metadata === 'string'
       ? event.metadata
       : JSON.stringify(event.metadata ?? null);
     const payload = [
@@ -182,6 +202,23 @@ export class AuditChainService {
   static async verifyChain(
     applicationId: string,
   ): Promise<{ valid: boolean; brokenAt?: string }> {
+    return this.verifyChainInternal(applicationId, false);
+  }
+
+  /** Diagnostic only: never used by the booking gate or scheduled integrity job.
+   * Accepts only source-order v2 shapes documented in legacyAuditMetadata.ts.
+   * A successful result does not establish that no historical event is missing.
+   */
+  static async verifyChainWithLegacyCompatibility(
+    applicationId: string,
+  ): Promise<{ valid: boolean; brokenAt?: string; legacyCompatibleEvents?: number }> {
+    return this.verifyChainInternal(applicationId, true);
+  }
+
+  private static async verifyChainInternal(
+    applicationId: string,
+    allowLegacy: boolean,
+  ): Promise<{ valid: boolean; brokenAt?: string; legacyCompatibleEvents?: number }> {
     // LOS-013 — Walk the chain in the same order it was written: by sequence.
     // Ordering by createdAt tied on millisecond-precision timestamps and broke
     // verification for any application with two appends in the same millisecond.
@@ -190,7 +227,14 @@ export class AuditChainService {
       orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
     });
     let previousHash = '';
+    let expectedSequence = 1;
+    let legacyCompatibleEvents = 0;
     for (const event of events) {
+      // A valid hash on each remaining row does not prove that a row was not
+      // removed. Detect missing positions in the append-only sequence too.
+      if (event.sequence !== expectedSequence++) {
+        return { valid: false, brokenAt: event.id };
+      }
       const expected = await this.computeHash({
         id: event.id,
         applicationId: event.applicationId,
@@ -205,11 +249,19 @@ export class AuditChainService {
         hashVersion: (event as any).hashVersion ?? 1, // v1 for rows that predate the column
       });
       if (event.hash !== expected) {
-        return { valid: false, brokenAt: event.id };
+        const metadata = allowLegacy && event.hashVersion === 2
+          ? legacyV2SourceMetadata(event)
+          : undefined;
+        if (!metadata || event.hash !== await this.computeHash({
+          ...event, metadata, previousHash, hashVersion: 2,
+        })) {
+          return { valid: false, brokenAt: event.id };
+        }
+        legacyCompatibleEvents++;
       }
       previousHash = event.hash;
     }
-    return { valid: true };
+    return allowLegacy ? { valid: true, legacyCompatibleEvents } : { valid: true };
   }
 
   /**
@@ -222,13 +274,9 @@ export class AuditChainService {
   static async assertChainIntact(applicationId: string): Promise<void> {
     const result = await this.verifyChain(applicationId);
     if (!result.valid) {
-      throw Object.assign(
-        new Error(
-          `Audit chain verification failed for application ${applicationId} ` +
-          `(first discontinuity at event ${result.brokenAt}). Refusing to proceed: ` +
-          `the decision record cannot be evidenced.`,
-        ),
-        { statusCode: 409 },
+      throw new AppError(
+        'Audit chain verification failed. Refusing to proceed: the decision record cannot be evidenced.',
+        409,
       );
     }
   }

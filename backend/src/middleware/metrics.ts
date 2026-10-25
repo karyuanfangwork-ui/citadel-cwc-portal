@@ -58,6 +58,23 @@ export const activeConnections = new client.Gauge({
     registers: [register],
 });
 
+// No application/event IDs in metric labels: integrity evidence stays restricted.
+export const auditBrokenApplications = new client.Gauge({
+    name: 'credit_audit_broken_applications',
+    help: 'Applications with a broken credit audit chain at the last completed check',
+    registers: [register],
+});
+export const auditCheckSuccess = new client.Gauge({
+    name: 'credit_audit_check_success',
+    help: 'Whether the last credit audit check completed successfully (1 or 0)',
+    registers: [register],
+});
+export const auditAlertDeliverySuccess = new client.Gauge({
+    name: 'credit_audit_alert_delivery_success',
+    help: 'Whether the last attempted audit alert was accepted by the email provider (1 or 0)',
+    registers: [register],
+});
+
 // ── Middleware ───────────────────────────────────────────────────────────────
 
 /**

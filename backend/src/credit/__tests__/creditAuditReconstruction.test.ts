@@ -110,6 +110,7 @@ async function buildEventChain(
 
     const event = {
       id,
+      sequence: i + 1,
       applicationId,
       eventType: t.eventType,
       actorId: t.actorId,

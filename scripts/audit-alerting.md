@@ -1,0 +1,13 @@
+# Credit audit integrity alert handoff (not activated)
+
+The backend's daily audit retention check remains strict: it reports broken chains even when the separate legacy-v2 diagnostic can reconstruct original source-order hashes. It does not close warning signals or permit disbursement. A broken-chain run sends one aggregate email; a failed run sends an "unknown integrity status" email. Neither email contains application IDs, event IDs, hashes, metadata, or customer data. Email delivery failure is logged and does not turn a broken report green.
+
+Activation requires a separately approved deployment and operational setup:
+
+1. Set `AUDIT_ALERT_EMAIL` to the approved on-call mailbox in the production environment through the normal secret/configuration mechanism. The Compose file passes it through; its default is empty. Do not commit an address or credentials to `.env` or this document. Confirm `RESEND_API_KEY` and the verified sender already work, without printing secret values. Ensure `EMAIL_DEV_RECIPIENT` is unset in production so delivery is not redirected. Do not use a user inbox as a substitute for a named acknowledgement owner.
+2. Name the primary operator and backup who will check the mailbox and acknowledge alerts; define escalation time. The previously supplied mailbox is an intended destination, not proof of delivery or acknowledgement. Record a ticket/evidence handle for every active audit incident. Do not send a test to that mailbox without the owner's approval.
+3. In staging, induce a synthetic broken audit event in a dedicated test database (never in production or the restored dev database). Verify one email per run, aggregate-only content, a CRITICAL warning signal and deduplication across runs, plus an email on failed database query. Verify no email on an intact run and a visible error when delivery fails.
+4. After authorized deployment, configure the mailbox, perform one approved end-to-end delivery and acknowledgement test, and read back both the received message and scheduler/metrics state. Alerting is not complete on a successful `sendEmail()` return alone. Monitor `credit_audit_broken_applications`, `credit_audit_check_success`, absence of a recent check, and the mail-provider delivery/bounce status through an independent monitor; a backend unable to run cannot send its own failure email.
+5. Keep the twelve historical `AUDIT_CHAIN_BROKEN` signals open under the reviewer’s diagnostic-only decision. Do not close them merely because an email was delivered. A future runtime acceptance or repair requires a new explicit decision and separate production approval.
+
+No production alert email was sent or configured by this repository change.

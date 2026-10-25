@@ -1,6 +1,7 @@
 import { createOrder } from '../disbursement.service';
 import { ApplicationState } from '@prisma/client';
 import prisma from '../../../utils/prisma';
+import { AuditChainService } from '../auditChain.service';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 jest.mock('../../../utils/prisma', () => {
@@ -70,6 +71,16 @@ describe('createOrder — disbursement amount vs approved facility total (F22)',
   beforeEach(() => {
     jest.clearAllMocks();
     setupReadinessPasses();
+  });
+
+  it('refuses an order before readiness queries or booking if the audit chain is broken', async () => {
+    (AuditChainService.assertChainIntact as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('Audit chain verification failed'), { statusCode: 409 }),
+    );
+    await expect(createOrder(APP_ID, USER_ID, { totalAmount: 100 })).rejects.toThrow('Audit chain verification failed');
+    expect(AuditChainService.assertChainIntact).toHaveBeenCalledWith(APP_ID);
+    expect(prisma.creditApplication.findUnique).not.toHaveBeenCalled();
+    expect(prisma.disbursementOrder.create).not.toHaveBeenCalled();
   });
 
   // ── Reject when totalAmount exceeds sum of approved facility amounts ──

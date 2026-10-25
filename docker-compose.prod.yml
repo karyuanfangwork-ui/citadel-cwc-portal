@@ -86,6 +86,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-Citadel Help Center <noreply-cwc@citadelgroup.com.my>}
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-help@citadelgroup.com.my}
+      AUDIT_ALERT_EMAIL: ${AUDIT_ALERT_EMAIL:-}
       # ── S3 / DigitalOcean Spaces ──
       S3_ENDPOINT: ${S3_ENDPOINT:-https://sgp1.digitaloceanspaces.com}
       S3_REGION: ${S3_REGION:-sgp1}

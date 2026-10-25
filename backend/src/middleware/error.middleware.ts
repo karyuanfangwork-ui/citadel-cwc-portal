@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { logger } from '../utils/logger';
 
 export class AppError extends Error {
@@ -31,6 +32,12 @@ export const errorHandler = (
     if (err instanceof AppError) {
         statusCode = err.statusCode;
         message = err.message;
+    } else if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        statusCode = 413;
+        message = 'Uploaded file exceeds the permitted size';
+    } else if ('type' in err && err.type === 'entity.too.large') {
+        statusCode = 413;
+        message = 'Request body exceeds the permitted size';
     } else if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
         statusCode = 404;
         message = 'Resource not found';

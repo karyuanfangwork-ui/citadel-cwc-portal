@@ -18,6 +18,8 @@
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { AuditChainService } from '../services/auditChain.service';
+import { auditBrokenApplications, auditCheckSuccess, auditAlertDeliverySuccess } from '../../middleware/metrics';
+import { sendEmail } from '../../services/email.service';
 
 const RETENTION_YEARS = 7;
 const RETENTION_MS = RETENTION_YEARS * 365.25 * 24 * 60 * 60 * 1000;
@@ -29,7 +31,8 @@ interface RetentionReport {
   eventsOlderThan7Years: number;
   chainValid: boolean;
   applicationsWithBrokenChains: number;
-  totalBrokenEvents: number;
+  /** One first failing event per affected application; not every event in that chain. */
+  firstBrokenEvents: number;
   checkedAt: Date;
 }
 
@@ -63,22 +66,18 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
   });
 
   let applicationsWithBrokenChains = 0;
-  let totalBrokenEvents = 0;
+  let firstBrokenEvents = 0;
   const brokenApplicationIds: string[] = [];
 
   for (const { applicationId } of applicationIds) {
     const result = await AuditChainService.verifyChain(applicationId);
     if (!result.valid) {
       applicationsWithBrokenChains++;
+      firstBrokenEvents++;
       brokenApplicationIds.push(applicationId);
       logger.warn(
         `[AuditRetention] Hash-chain broken for application ${applicationId} at event ${result.brokenAt}`,
       );
-      // Count broken events for this application
-      const brokenCount = await prisma.creditAuditEvent.count({
-        where: { applicationId },
-      });
-      totalBrokenEvents += brokenCount;
     }
   }
 
@@ -91,7 +90,7 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
     eventsOlderThan7Years,
     chainValid,
     applicationsWithBrokenChains,
-    totalBrokenEvents,
+    firstBrokenEvents,
     checkedAt: new Date(),
   };
 
@@ -119,13 +118,15 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
           severity: 'CRITICAL',
           description:
             'Audit chain verification failed. The decision record for this application ' +
-            'cannot be evidenced until the chain is investigated and resealed ' +
-            '(npm run audit:reseal).',
+            'cannot be evidenced. Preserve the original records and investigate ' +
+            'with the credit and compliance owners; do not reseal without approval.',
         },
       });
     }
   }
 
+  auditBrokenApplications.set(applicationsWithBrokenChains);
+  auditCheckSuccess.set(1);
   logger.info(`[AuditRetention] Check complete: ${totalEvents} events, ${eventsOlderThan7Years} past retention, hash ${chainValid ? 'INTACT' : 'BROKEN'}`);
   return report;
 }
@@ -134,7 +135,7 @@ export async function checkAuditRetention(): Promise<RetentionReport> {
  * CLI entry point — run standalone for ad-hoc checks.
  */
 async function main() {
-  const report = await checkAuditRetention();
+  const report = await runAuditRetentionCheck();
   console.log('\n📋 Audit Retention Report');
   console.log('─'.repeat(50));
   console.log(`  Total events:        ${report.totalEvents}`);
@@ -165,6 +166,33 @@ import cron, { ScheduledTask } from 'node-cron';
 
 let cronTask: ScheduledTask | null = null;
 
+async function deliverAuditAlert(kind: 'BROKEN' | 'FAILED', count?: number): Promise<void> {
+  const recipient = process.env.AUDIT_ALERT_EMAIL?.trim();
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    auditAlertDeliverySuccess.set(0);
+    logger.error('[AuditRetention] No valid AUDIT_ALERT_EMAIL configured; critical alert was not delivered');
+    return;
+  }
+  const subject = `[CWC] Credit audit integrity ${kind}`;
+  const body = kind === 'BROKEN'
+    ? `<p>Credit audit hash verification failed for ${count} applications.</p><p>Preserve evidence; investigate and acknowledge the incident. Do not reseal without approval.</p>`
+    : '<p>Credit audit integrity check did not complete. Integrity status is unknown; investigate and acknowledge the incident.</p>';
+  try {
+    const sent = await sendEmail(recipient, subject, body, { wrapInLayout: false });
+    auditAlertDeliverySuccess.set(sent ? 1 : 0);
+    if (!sent) logger.error('[AuditRetention] Critical alert email was not delivered');
+  } catch (error) {
+    auditAlertDeliverySuccess.set(0);
+    logger.error('[AuditRetention] Critical alert delivery failed', { error });
+  }
+}
+
+function runScheduledCheck(): void {
+  void runAuditRetentionCheck().catch((error) => {
+    logger.error('[AuditRetention] Scheduled check requires operator attention', { error });
+  });
+}
+
 /**
  * Start the audit retention job on a cron schedule.
  * Default: daily at 3:00 AM. Configurable via AUDIT_RETENTION_CRON env var.
@@ -182,18 +210,18 @@ export function startAuditRetentionJob(cfg?: JobConfig): void {
 
   if (!cron.validate(expression)) {
     logger.error(`[AuditRetention] Invalid cron expression: "${expression}". Falling back to daily 03:00.`);
-    cronTask = cron.schedule('0 3 * * *', () => checkAuditRetention());
+    cronTask = cron.schedule('0 3 * * *', runScheduledCheck);
   } else {
     cronTask = cron.schedule(expression, () => {
       logger.info(`[AuditRetention] Running (cron: ${expression})`);
-      checkAuditRetention();
+      runScheduledCheck();
     });
   }
 
   logger.info(`[AuditRetention] Job started (cron: ${expression})`);
 
   // Run immediately on start
-  checkAuditRetention();
+  runScheduledCheck();
 }
 
 /**
@@ -211,7 +239,16 @@ export function stopAuditRetentionJob(): void {
  * Run a single audit retention check (for manual trigger from scheduler).
  */
 export async function runAuditRetentionCheck(): Promise<RetentionReport> {
-  return checkAuditRetention();
+  try {
+    const report = await checkAuditRetention();
+    if (!report.chainValid) await deliverAuditAlert('BROKEN', report.applicationsWithBrokenChains);
+    return report;
+  } catch (error) {
+    auditCheckSuccess.set(0);
+    logger.error('[AuditRetention] Integrity check failed to complete', { error });
+    await deliverAuditAlert('FAILED');
+    throw error;
+  }
 }
 
 // Run only when executed as a script, not when imported by the app or tests.
