@@ -7159,7 +7159,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit',
+    path: '/credit/applications',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7172,7 +7172,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/summary',
+    path: '/credit/applications/summary',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7185,7 +7185,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/draft',
+    path: '/credit/applications/draft',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:create',
@@ -7198,7 +7198,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'PUT',
-    path: '/credit/draft',
+    path: '/credit/applications/draft',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:create',
@@ -7211,7 +7211,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'DELETE',
-    path: '/credit/draft',
+    path: '/credit/applications/draft',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:create',
@@ -7224,7 +7224,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id',
+    path: '/credit/applications/:id',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7237,7 +7237,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'POST',
-    path: '/credit',
+    path: '/credit/applications',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:create',
@@ -7250,7 +7250,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'PATCH',
-    path: '/credit/:id',
+    path: '/credit/applications/:id',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:write',
@@ -7263,7 +7263,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'DELETE',
-    path: '/credit/:id',
+    path: '/credit/applications/:id',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:admin',
@@ -7276,7 +7276,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'POST',
-    path: '/credit/:id/transition',
+    path: '/credit/applications/:id/transition',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7289,7 +7289,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id/transitions',
+    path: '/credit/applications/:id/transitions',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7302,7 +7302,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id/audit',
+    path: '/credit/applications/:id/audit',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7315,7 +7315,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id/evidence-mapping',
+    path: '/credit/applications/:id/evidence-mapping',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7328,7 +7328,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'POST',
-    path: '/credit/:id/evidence-mapping',
+    path: '/credit/applications/:id/evidence-mapping',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:write',
@@ -7341,7 +7341,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id/readiness',
+    path: '/credit/applications/:id/readiness',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7354,7 +7354,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'GET',
-    path: '/credit/:id/esign-readiness',
+    path: '/credit/applications/:id/esign-readiness',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:read',
@@ -7367,7 +7367,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'PATCH',
-    path: '/credit/:id/connected-party-flag',
+    path: '/credit/applications/:id/connected-party-flag',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:admin',
@@ -7380,7 +7380,7 @@ export const operationControls: OperationControl[] = [
   },
   {
     method: 'POST',
-    path: '/credit/:id/clone',
+    path: '/credit/applications/:id/clone',
     owner: 'Credit',
     authentication: 'user',
     coarsePermission: 'credit:create',

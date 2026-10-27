@@ -586,7 +586,6 @@ describe('CRM parent entity authorization', () => {
         accountId: otherOwnersAccountId,
         contactId: otherOwnersContactId,
         pipelineId,
-        stageId: validStageId,
         value: 3000,
       });
 

@@ -81,7 +81,8 @@ const CREDIT_SUB_MOUNTS: Record<string, string> = {
   'relatedPartyGroup.routes': '/related-party-groups',
   'branch.routes': '/branches',
   'creditDocument.routes': '',          // router.use(creditDocumentRoutes) — no path prefix
-  'application.routes': '/applications',
+  'creditApplication.routes': '/applications',
+  'configurationReadiness.routes': '/configuration-readiness',
   'applicationFacility.routes': '/applications',
   'applicationParty.routes': '/applications',
   'requestItem.routes': '/applications',

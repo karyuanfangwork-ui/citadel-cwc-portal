@@ -1093,7 +1093,7 @@ export const remainingOperationControls: OperationControl[] = [
     auditFindingIds: [6, 29, 35],
   },
   {
-    method: 'GET', path: '/credit/:id/return-diff', owner: 'Credit', authentication: 'user',
+    method: 'GET', path: '/credit/applications/:id/return-diff', owner: 'Credit', authentication: 'user',
     coarsePermission: 'credit:read', resourcePolicy: 'credit:application:read', validation: 'uuidParams',
     responseSchema: 'ReturnDiffDto', rateTier: 'read', auditEvent: 'credit.returnDiff.get', auditFindingIds: [],
   },
@@ -1176,5 +1176,45 @@ export const remainingOperationControls: OperationControl[] = [
     method: 'POST', path: '/finance-workflow/requests/:id/reassign-ceo-approver', owner: 'Finance', authentication: 'user',
     coarsePermission: 'request:approve', resourcePolicy: 'request:update', validation: 'pathParams',
     responseSchema: 'RequestDto', rateTier: 'write', auditEvent: 'finance.ceoApprover.reassign', auditFindingIds: [],
+  },
+  {
+    method: 'GET', path: '/requests/agent-dashboard', owner: 'Requests', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'request:list', validation: 'agentDashboardQuerySchema',
+    responseSchema: 'AgentDashboardDto', rateTier: 'read', auditEvent: 'request.agentDashboard.list', auditFindingIds: [8, 10, 12],
+  },
+  {
+    method: 'GET', path: '/users/finance-approvers', owner: 'IAM', authentication: 'user',
+    coarsePermission: null, resourcePolicy: 'user:list-finance-approvers', validation: 'none',
+    responseSchema: 'UserSummaryDto[]', rateTier: 'read', auditEvent: 'user.financeApprovers.list', auditFindingIds: [6, 35],
+  },
+  {
+    method: 'POST', path: '/crm/leads/:id/advance-status', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:leads:update', validation: 'advanceLeadStatusSchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.leads.advanceStatus', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/crm/leads/:id/mark-lost', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:leads:update', validation: 'markLeadLostSchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.leads.markLost', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/crm/leads/:id/mark-unqualified', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:leads:update', validation: 'markLeadUnqualifiedSchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.leads.markUnqualified', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/crm/leads/:id/reopen', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:leads:update', validation: 'reopenLeadSchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.leads.reopen', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/crm/opportunities/:id/mark-lost', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:opportunities:update', validation: 'markOpportunityLostSchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.opportunities.markLost', auditFindingIds: [],
+  },
+  {
+    method: 'POST', path: '/crm/opportunities/:id/reopen', owner: 'CRM', authentication: 'user',
+    coarsePermission: 'crm:write', resourcePolicy: 'crm:opportunities:update', validation: 'reopenOpportunitySchema',
+    responseSchema: 'CrmDto', rateTier: 'write', auditEvent: 'crm.opportunities.reopen', auditFindingIds: [],
   },
 ];

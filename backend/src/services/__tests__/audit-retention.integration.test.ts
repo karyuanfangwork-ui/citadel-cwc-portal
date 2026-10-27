@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import prisma from '../../utils/prisma';
 import { PlatformAuditChainService } from '../platformAuditChain.service';
 import { RetentionPolicyService } from '../retentionPolicy.service';
@@ -11,14 +12,24 @@ describe('Task 20 audit and retention controls', () => {
   const createdEventIds = new Set<string>();
 
   beforeAll(async () => {
-    const request = await (prisma as any).request.findFirst({
-      where: { tenantId: { not: null }, departmentId: { not: null } },
-      select: { id: true, summary: true, requesterId: true, tenantId: true, departmentId: true },
+    const department = await prisma.department.findFirstOrThrow({
+      select: { id: true, tenantId: true },
     });
-
-    if (!request) {
-      throw new Error('Task 20 integration test requires at least one seeded request with tenant and department ownership');
-    }
+    const requester = await prisma.user.findFirstOrThrow({
+      where: { tenantId: department.tenantId },
+      select: { id: true, email: true },
+    });
+    const request = await prisma.request.create({
+      data: {
+        tenantId: department.tenantId,
+        departmentId: department.id,
+        requesterId: requester.id,
+        requesterEmail: requester.email,
+        referenceNumber: `TASK20-${crypto.randomUUID()}`,
+        summary: 'Task 20 audit retention fixture',
+        tags: [],
+      },
+    });
 
     requestId = request.id;
     originalSummary = request.summary;
@@ -57,6 +68,9 @@ describe('Task 20 audit and retention controls', () => {
         BEFORE UPDATE OR DELETE ON platform_audit_events
         FOR EACH ROW EXECUTE FUNCTION prevent_platform_audit_event_mutation()
       `).catch(() => undefined);
+    }
+    if (requestId) {
+      await prisma.request.deleteMany({ where: { id: requestId } });
     }
     await prisma.$disconnect();
   });

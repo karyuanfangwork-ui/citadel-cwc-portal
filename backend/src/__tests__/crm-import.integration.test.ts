@@ -267,8 +267,13 @@ describe('CRM controller broad write coverage', () => {
     const leadPatchRes = await request(app)
       .patch(`/api/v1/crm/leads/${leadId}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ status: 'CONTACTED', followUpDate: `${today}T12:00:00.000Z`, followUpNote: `Follow ${suffix}` });
+      .send({ followUpDate: `${today}T12:00:00.000Z`, followUpNote: `Follow ${suffix}` });
     expectStatus(leadPatchRes, 200);
+    const leadAdvanceRes = await request(app)
+      .post(`/api/v1/crm/leads/${leadId}/advance-status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'CONTACTED' });
+    expectStatus(leadAdvanceRes, 200);
 
     const leadDetailRes = await request(app)
       .get(`/api/v1/crm/leads/${leadId}`)
@@ -288,7 +293,6 @@ describe('CRM controller broad write coverage', () => {
       });
     expectStatus(pipelineRes, 201);
     const pipeline = pipelineRes.body.data.pipeline;
-    const stageId = pipeline.stages[0].id;
 
     const pipelinePatchRes = await request(app)
       .patch(`/api/v1/crm/pipelines/${pipeline.id}`)
@@ -309,7 +313,6 @@ describe('CRM controller broad write coverage', () => {
         accountId,
         contactId,
         pipelineId: pipeline.id,
-        stageId,
         value: 125000,
         currency: 'MYR',
         expectedCloseDate: today,

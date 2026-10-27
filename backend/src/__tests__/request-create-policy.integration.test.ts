@@ -19,6 +19,7 @@ let itFormVersion: number;
 let hrFormVersion: number;
 let itCategoryId: string;
 let draftTypeId: string | undefined;
+let publishedHrTypeId: string | undefined;
 const createdRequestIds: string[] = [];
 
 beforeAll(async () => {
@@ -35,10 +36,24 @@ beforeAll(async () => {
     itDeskId = itType.serviceCategory.serviceDesk.id;
     hrDeskId = hrType.serviceCategory.serviceDesk.id;
     itTypeId = itType.id;
-    hrTypeId = hrType.id;
     itFormVersion = itType.formConfigVersion!;
-    hrFormVersion = hrType.formConfigVersion!;
     itCategoryId = itType.serviceCategoryId;
+
+    const publishedHrType = await prisma.requestType.create({
+        data: {
+            tenantId,
+            serviceCategoryId: hrType.serviceCategoryId,
+            code: `POLICY_HR_${crypto.randomUUID()}`,
+            name: 'Published HR policy test type',
+            isActive: true,
+            lifecycleStatus: 'PUBLISHED',
+            formConfig: hrType.formConfig ?? undefined,
+            formConfigVersion: hrType.formConfigVersion,
+        },
+    });
+    publishedHrTypeId = publishedHrType.id;
+    hrTypeId = publishedHrType.id;
+    hrFormVersion = publishedHrType.formConfigVersion!;
 
     const user = await prisma.user.upsert({
         where: { email: TEST_EMAIL },
@@ -63,16 +78,23 @@ beforeAll(async () => {
 afterAll(async () => {
     if (createdRequestIds.length > 0) {
         await prisma.requestActivity.deleteMany({ where: { requestId: { in: createdRequestIds } } });
-        const desk = await prisma.serviceDesk.findUnique({ where: { id: itDeskId }, select: { departmentId: true } });
-        if (desk?.departmentId) {
+        const desks = await prisma.serviceDesk.findMany({
+            where: { id: { in: [itDeskId, hrDeskId] } },
+            select: { departmentId: true },
+        });
+        const departmentIds = desks.flatMap((desk) => desk.departmentId ? [desk.departmentId] : []);
+        if (departmentIds.length > 0) {
             await withDatabaseScope(
-                { tenantId, departmentIds: [desk.departmentId], actorId: userId },
+                { tenantId, departmentIds, actorId: userId },
                 async (tx: any) => tx.request.deleteMany({ where: { id: { in: createdRequestIds } } }),
             );
         }
     }
     if (draftTypeId) {
         await prisma.requestType.deleteMany({ where: { id: draftTypeId } });
+    }
+    if (publishedHrTypeId) {
+        await prisma.requestType.deleteMany({ where: { id: publishedHrTypeId } });
     }
     await prisma.session.deleteMany({ where: { userId } });
     await prisma.userRole.deleteMany({ where: { userId } });
