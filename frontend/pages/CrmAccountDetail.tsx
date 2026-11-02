@@ -9,6 +9,7 @@ import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateAccount, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import CrmAccountDocuments from '../src/components/crm/CrmAccountDocuments';
 import { useNextBestAction } from '../src/hooks/useCrmAi';
 import ReactMarkdown from 'react-markdown';
 import creditService from '../src/services/credit.service';
@@ -97,6 +98,7 @@ const CrmAccountDetail = () => {
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [openDocumentPicker, setOpenDocumentPicker] = useState(false);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL', callCategory: 'NEW_CALL' });
@@ -404,7 +406,7 @@ const CrmAccountDetail = () => {
     { icon: 'history_edu', label: 'Log Call', onClick: () => { setActivityForm({ activityType: 'CALL', callCategory: 'NEW_CALL' }); setShowAddActivity(true); } },
     { icon: 'chat', label: 'WhatsApp', onClick: () => { setActivityForm({ activityType: 'WHATSAPP' }); setShowAddActivity(true); } },
     { icon: 'send', label: 'Send Email', onClick: () => { setActivityForm({ activityType: 'EMAIL' }); setShowAddActivity(true); } },
-    { icon: 'upload_file', label: 'Upload Document', onClick: () => { setShowAddNote(true); } },
+    ...(hasPermission(user, 'crm:write') ? [{ icon: 'upload_file', label: 'Upload Document', onClick: () => { setActiveTab('documents'); setOpenDocumentPicker(true); } }] : []),
     { icon: 'event', label: 'Schedule Meeting', onClick: () => { setActivityForm({ activityType: 'MEETING' }); setShowAddActivity(true); } },
   ];
 
@@ -789,8 +791,14 @@ const CrmAccountDetail = () => {
             {/* Documents tab (was Notes) */}
             {activeTab === 'documents' && (
               <div id="panel-documents" role="tabpanel" aria-labelledby="tab-documents" className="space-y-3">
+                <CrmAccountDocuments
+                  accountId={account.id}
+                  canWrite={hasPermission(user, 'crm:write')}
+                  openPickerRequested={openDocumentPicker}
+                  onPickerOpened={() => setOpenDocumentPicker(false)}
+                />
                 <div className="flex items-center justify-between">
-                  <h3 className="text-[16px] font-semibold" style={{ color: T.textPrimary }}>Documents & Notes</h3>
+                  <h3 className="text-[16px] font-semibold" style={{ color: T.textPrimary }}>Notes</h3>
                   {hasPermission(user, 'crm:write') && (
                     <button onClick={() => setShowAddNote(true)}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white hover:opacity-90 transition-opacity"

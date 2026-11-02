@@ -105,3 +105,9 @@ backups/
 
 # Always ignore macOS metadata (must come after negation rules)
 .DS_Store
+
+# Local development environment files
+docker-compose.local.yml
+
+# Claude Output
+Claude outputs/

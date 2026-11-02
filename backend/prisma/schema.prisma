@@ -173,6 +173,7 @@ model User {
   assetAssignedBy                      AssetAssignment[]             @relation("AssetAssignmentAssignedBy")
   // CRM Relations
   crmOwnedAccounts                     CrmAccount[]                  @relation("CrmAccountOwner")
+  crmAccountDocuments                  CrmAccountDocument[]          @relation("CrmAccountDocumentUploader")
   crmOwnedLeads                        CrmLead[]                     @relation("CrmLeadOwner")
   crmLeadDocuments                     CrmLeadDocument[]             @relation("CrmLeadDocumentUploader")
   crmOwnedOpportunities                CrmOpportunity[]              @relation("CrmOpportunityOwner")
@@ -2566,6 +2567,7 @@ model CrmAccount {
   children            CrmAccount[]            @relation("AccountHierarchy")
   customFields        Json?                   @map("custom_fields")
   contactAccountRoles CrmContactAccountRole[]
+  documents           CrmAccountDocument[]
 
   @@index([ownerId])
   @@index([name])
@@ -2573,6 +2575,31 @@ model CrmAccount {
   @@index([parentAccountId])
   @@index([tenantId])
   @@map("crm_accounts")
+}
+
+// CRM Account Documents — private PDF documents attached to a client account
+model CrmAccountDocument {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  accountId    String    @map("account_id") @db.Uuid
+  uploadedById String    @map("uploaded_by_id") @db.Uuid
+  fileName     String    @map("file_name") @db.VarChar(255)
+  storageKey   String    @map("storage_key") @db.VarChar(500)
+  mimeType     String    @map("mime_type") @db.VarChar(100)
+  fileSize     Int       @map("file_size")
+  contentHash  String    @map("content_hash") @db.Char(64)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  account    CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  uploadedBy User       @relation("CrmAccountDocumentUploader", fields: [uploadedById], references: [id])
+
+  @@index([accountId, deletedAt])
+  @@index([accountId, contentHash])
+  @@index([tenantId])
+  @@index([uploadedById])
+  @@map("crm_account_documents")
 }
 
 // CRM Contacts — people at external accounts

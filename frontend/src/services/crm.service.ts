@@ -255,6 +255,15 @@ export interface CrmLeadDocumentList {
   documents: CrmLeadDocument[]; count: number; maxCount: number;
 }
 
+export interface CrmAccountDocument {
+  id: string; accountId: string; fileName: string; mimeType: 'application/pdf';
+  fileSize: number; createdAt: string; uploadedBy?: UserRef;
+}
+
+export interface CrmAccountDocumentList {
+  documents: CrmAccountDocument[]; pagination: Pagination;
+}
+
 export interface Pagination { page: number; limit: number; total: number; totalPages: number; }
 
 export interface DashboardStats {
@@ -502,6 +511,29 @@ const crmService = {
     return res.data.data.account as CrmAccount;
   },
   async deleteAccount(id: string) { await api.delete(`/crm/accounts/${id}`); },
+
+  async listAccountDocuments(accountId: string, params: { page?: number; limit?: number } = {}) {
+    const res = await api.get(`/crm/accounts/${accountId}/documents`, { params });
+    return res.data.data as CrmAccountDocumentList;
+  },
+  async uploadAccountDocuments(accountId: string, files: File[], onUploadProgress?: (progress: number) => void) {
+    const formData = new FormData();
+    files.forEach(file => formData.append('documents', file));
+    const res = await api.post(`/crm/accounts/${accountId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: event => {
+        if (event.total) onUploadProgress?.(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+    return res.data.data as { documents: CrmAccountDocument[] };
+  },
+  async deleteAccountDocument(accountId: string, documentId: string) {
+    await api.delete(`/crm/accounts/${accountId}/documents/${documentId}`);
+  },
+  async downloadAccountDocument(accountId: string, documentId: string) {
+    const res = await api.get(`/crm/accounts/${accountId}/documents/${documentId}/download`, { responseType: 'blob' });
+    return res.data as Blob;
+  },
 
   // Customers (Unified)
   async listCustomers(params: Record<string, any> = {}) {

@@ -30,6 +30,7 @@ import * as customFieldsService from '../services/crm-custom-fields.service';
 import * as duplicateService from '../services/crm-duplicate.service';
 import { broadcast } from '../utils/sseClients';
 import * as leadDocumentService from '../services/crm-lead-document.service';
+import * as accountDocumentService from '../services/crm-account-document.service';
 import * as crmHierarchyService from '../services/crm-hierarchy.service';
 import * as leadLifecycleService from '../services/crm-lead-lifecycle.service';
 import * as opportunityLifecycleService from '../services/crm-opportunity-lifecycle.service';
@@ -367,6 +368,76 @@ class CrmController {
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmAccount', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Account deactivated' });
     broadcast('crm_update', { type: 'account.deleted', entityType: 'account', id: req.params.id as string, changedBy: req.user!.id });
+  });
+
+  listAccountDocuments = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const pagination = parsePagination(req.query);
+    const data = await accountDocumentService.listAccountDocuments(req.params.id as string, visibleOwnerIds, pagination, req.user!.tenantId ?? null);
+    res.json({ status: 'success', data });
+  });
+
+  uploadAccountDocuments = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const files = Array.isArray(req.files) ? req.files as Express.Multer.File[] : [];
+    const data = await accountDocumentService.uploadAccountDocuments(req.params.id as string, req.user!.id, files, visibleOwnerIds, req.user!.tenantId ?? null);
+    await prisma.auditLog.createMany({
+      data: data.documents.map((document) => ({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'CREATE',
+        resourceType: 'CrmAccountDocument',
+        resourceId: document.id,
+        newValues: { accountId: document.accountId, mimeType: document.mimeType, fileSize: document.fileSize },
+      })),
+    });
+    res.status(201).json({ status: 'success', data });
+    broadcast('crm_update', { type: 'account.documents.created', entityType: 'account', id: req.params.id as string, changedBy: req.user!.id });
+  });
+
+  downloadAccountDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const accountId = req.params.id as string;
+    const documentId = req.params.documentId as string;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const { document, stream } = await accountDocumentService.getAccountDocumentStream(accountId, documentId, visibleOwnerIds, req.user!.tenantId ?? null);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'DOWNLOAD',
+        resourceType: 'CrmAccountDocument',
+        resourceId: document.id,
+        newValues: { accountId },
+      },
+    });
+    const safeFileName = document.fileName.replace(/[^\x20-\x7e]|[\\"]/g, '_');
+    res.status(200);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', document.fileSize);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(502);
+      res.end();
+    });
+    stream.pipe(res);
+  });
+
+  deleteAccountDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const document = await accountDocumentService.deleteAccountDocument(req.params.id as string, req.params.documentId as string, visibleOwnerIds, req.user!.tenantId ?? null);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'DELETE',
+        resourceType: 'CrmAccountDocument',
+        resourceId: document.id,
+        newValues: { accountId: document.accountId },
+      },
+    });
+    res.json({ status: 'success', message: 'Document deleted' });
+    broadcast('crm_update', { type: 'account.documents.deleted', entityType: 'account', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== CONTACTS ========

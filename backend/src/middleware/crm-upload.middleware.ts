@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import { AppError } from './error.middleware';
 
 // Backend file limits are not wire-body limits. The production /api/ proxy
 // currently rejects multipart requests exceeding 10m, including the envelope.
@@ -14,6 +15,16 @@ export const crmLeadDocumentUpload = multer({
   fileFilter: (_req, file, cb) => {
     const validPdf = file.mimetype === 'application/pdf' && path.extname(file.originalname).toLowerCase() === '.pdf';
     if (!validPdf) return cb(new Error('Only PDF documents are allowed'));
+    cb(null, true);
+  },
+});
+
+export const crmAccountDocumentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (_req, file, cb) => {
+    const validPdf = file.mimetype === 'application/pdf' && path.extname(file.originalname).toLowerCase() === '.pdf';
+    if (!validPdf) return cb(new AppError('Only PDF documents are allowed', 400));
     cb(null, true);
   },
 });

@@ -137,7 +137,11 @@ router.use('/ai', crmAiRoutes);
 router.get('/audit/:entityType/:entityId', requirePermission('crm:read'), crmController.getEntityAuditTrail);
 
 // ======== IMPORT / EXPORT ========
-import { crmImportUpload, crmLeadDocumentUpload } from '../middleware/crm-upload.middleware';
+import { crmAccountDocumentUpload, crmImportUpload, crmLeadDocumentUpload } from '../middleware/crm-upload.middleware';
+router.get('/accounts/:id/documents', requirePermission('crm:read'), crmController.listAccountDocuments);
+router.post('/accounts/:id/documents', requirePermission('crm:write'), crmAccountDocumentUpload.array('documents', 5), crmController.uploadAccountDocuments);
+router.get('/accounts/:id/documents/:documentId/download', requirePermission('crm:read'), crmController.downloadAccountDocument);
+router.delete('/accounts/:id/documents/:documentId', requirePermission('crm:write'), crmController.deleteAccountDocument);
 router.get('/leads/:id/documents', requirePermission('crm:read'), crmController.listLeadDocuments);
 router.post('/leads/:id/documents', requirePermission('crm:write'), crmLeadDocumentUpload.array('documents', 5), crmController.uploadLeadDocuments);
 router.get('/leads/:id/documents/:documentId/download', requirePermission('crm:read'), crmController.downloadLeadDocument);

@@ -6,6 +6,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support, HR Services, and Group Finance workflows. Monorepo with separate `backend/` and `frontend/` directories.
 
+## Change Documentation
+
+- For every user-requested code change, add a concise entry to the top of `CHANGELOG.md` under the current date before reporting completion. Include the affected area, user-visible behavior, and any preserved scope or safeguards.
+
 ## Commands
 
 ### Backend (run from `backend/`)
