@@ -1,5 +1,16 @@
 # Change Log
 
+## 2026-10-05
+
+### Finance Purchase Requisition catalog visibility
+
+- Published the seeded Finance Purchase Requisition catalog item so newly initialized local environments expose it in the New Request flow; other request types, workflows, permissions, and catalog configuration remain unchanged.
+- Added the required CEO approver selector to the seeded Finance Purchase Requisition form after the quotation upload field, preserving all other catalog fields and the separate confidentiality control.
+
+### Local attachment storage
+
+- Replaced the unpinned local MinIO development service with pinned LocalStack S3, automatic `helpdesk-uploads` bucket initialization, and matching local path-style configuration; production S3/Spaces configuration and unrelated local services remain unchanged.
+
 ## 2026-09-29
 
 ### CRM backend build typing

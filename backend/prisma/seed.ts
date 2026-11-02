@@ -1294,13 +1294,14 @@ async function main() {
             name: 'Purchase Requisition', description: 'Submit a request to purchase goods or services',
             icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
             requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION', workflowType: 'FINANCE',
-            requiresApproval: true, slaHours: 72,
+            requiresApproval: true, slaHours: 72, lifecycleStatus: 'PUBLISHED',
             formConfig: [
                 { id: 'itemName', label: 'Type Of Purchase', type: 'select', required: true, options: ['IT Hardware / Equipment', 'Marketing & Advertising Services', 'Office Supplies', 'Miscellaneous'] },
                 { id: 'field_1778810317886', label: 'Request under which Business Unit', type: 'entity', required: true },
                 { id: 'estimatedCost', label: 'Estimated Cost (RM)', type: 'currency', required: true },
                 { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
                 { id: 'field_1778810278691', label: 'Quotation/Files/Docs', type: 'file', required: true },
+                { id: 'approverId', label: 'Approver', type: 'ceo-select', required: true },
             ],
         },
         {
@@ -1394,6 +1395,7 @@ async function main() {
                         formConfig: cat.formConfig,
                         slaHours: (cat as any).slaHours ?? 72,
                         requiresApproval: (cat as any).requiresApproval ?? false,
+                        ...((cat as any).lifecycleStatus ? { lifecycleStatus: (cat as any).lifecycleStatus } : {}),
                     },
             });
         } else if (existingLegacy) {
@@ -1414,6 +1416,7 @@ async function main() {
                     isActive: true,
                     requiresApproval: (cat as any).requiresApproval ?? false,
                     formConfig: cat.formConfig,
+                    ...((cat as any).lifecycleStatus ? { lifecycleStatus: (cat as any).lifecycleStatus } : {}),
                 },
             });
         }

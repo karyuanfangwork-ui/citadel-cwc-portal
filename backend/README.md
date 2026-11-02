@@ -9,7 +9,7 @@ Backend API for the Enterprise Help Center application, providing service manage
 - **Database**: PostgreSQL 15+ (via Prisma ORM)
 - **Cache**: Redis 7+
 - **Search**: Elasticsearch 8+
-- **Storage**: AWS S3 / MinIO
+- **Storage**: AWS S3 / LocalStack (local development)
 - **Authentication**: JWT + Passport.js
 - **Validation**: Zod
 
@@ -25,7 +25,7 @@ Backend API for the Enterprise Help Center application, providing service manage
 ### Option 1: Using Docker Compose (Recommended)
 
 ```bash
-# Start all services (PostgreSQL, Redis, Elasticsearch, MinIO, Mailhog)
+# Start all services (PostgreSQL, Redis, ClamAV, LocalStack S3, Mailhog)
 docker-compose up -d
 
 # Install dependencies
@@ -136,16 +136,15 @@ When using `docker-compose up`, the following services are available:
 |---------|------|-------------|
 | PostgreSQL | 5432 | Main database |
 | Redis | 6379 | Cache & sessions |
-| Elasticsearch | 9200 | Search engine |
-| MinIO | 9000 | S3-compatible storage |
-| MinIO Console | 9001 | MinIO web interface |
+| LocalStack S3 | 4566 | S3-compatible storage |
 | Mailhog SMTP | 1025 | Email testing (SMTP) |
 | Mailhog UI | 8025 | Email testing (Web UI) |
 
-### Access MinIO Console
-- URL: http://localhost:9001
-- Username: `minioadmin`
-- Password: `minioadmin`
+### Local S3-compatible storage
+
+LocalStack creates the `helpdesk-uploads` bucket automatically. The checked-in local
+environment settings use `http://localhost:4566`, `test` credentials, and path-style
+S3 addressing. Production continues to use its separately supplied S3/Spaces settings.
 
 ### Access Mailhog (Email Testing)
 - URL: http://localhost:8025
@@ -219,9 +218,12 @@ NODE_ENV=production
 DATABASE_URL=postgresql://user:pass@host:5432/dbname
 REDIS_URL=redis://host:6379
 JWT_SECRET=your-super-secret-key
-AWS_ACCESS_KEY_ID=your-key
-AWS_SECRET_ACCESS_KEY=your-secret
-S3_BUCKET_NAME=your-bucket
+S3_ENDPOINT=https://your-s3-endpoint
+S3_REGION=your-region
+S3_BUCKET=your-bucket
+S3_ACCESS_KEY=your-key
+S3_SECRET_KEY=your-secret
+S3_FORCE_PATH_STYLE=false
 ```
 
 ## 🤝 Contributing

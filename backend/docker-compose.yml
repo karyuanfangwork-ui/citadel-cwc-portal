@@ -53,25 +53,28 @@ services:
       retries: 10
       start_period: 120s
 
-  # MinIO (S3-compatible object storage for local development)
-  minio:
-    image: minio/minio:latest
-    container_name: help-center-minio
+  # S3-compatible object storage for local development.
+  localstack:
+    image: localstack/localstack:2026.08.2
+    container_name: help-center-localstack
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      SERVICES: s3
+      DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      PERSISTENCE: "1"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:4566:4566"
     volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
+      - localstack_data:/var/lib/localstack
+      - ./scripts/localstack/init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      test: ["CMD", "curl", "-fs", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   # Mailhog (Email testing - catches all emails)
   mailhog:
@@ -94,7 +97,7 @@ volumes:
     driver: local
   clamav_data:
     driver: local
-  minio_data:
+  localstack_data:
     driver: local
 
 networks:
