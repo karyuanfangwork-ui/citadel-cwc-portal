@@ -9,7 +9,7 @@ Backend API for the Enterprise Help Center application, providing service manage
 - **Database**: PostgreSQL 15+ (via Prisma ORM)
 - **Cache**: Redis 7+
 - **Search**: Elasticsearch 8+
-- **Storage**: AWS S3 / LocalStack (local development)
+- **Storage**: AWS S3 / SeaweedFS (local development)
 - **Authentication**: JWT + Passport.js
 - **Validation**: Zod
 
@@ -25,7 +25,7 @@ Backend API for the Enterprise Help Center application, providing service manage
 ### Option 1: Using Docker Compose (Recommended)
 
 ```bash
-# Start all services (PostgreSQL, Redis, ClamAV, LocalStack S3, Mailhog)
+# Start all services (PostgreSQL, Redis, ClamAV, SeaweedFS S3, Mailhog)
 docker-compose up -d
 
 # Install dependencies
@@ -136,15 +136,47 @@ When using `docker-compose up`, the following services are available:
 |---------|------|-------------|
 | PostgreSQL | 5432 | Main database |
 | Redis | 6379 | Cache & sessions |
-| LocalStack S3 | 4566 | S3-compatible storage |
+| SeaweedFS S3 | 8333 (127.0.0.1 only) | Persistent S3-compatible storage |
 | Mailhog SMTP | 1025 | Email testing (SMTP) |
 | Mailhog UI | 8025 | Email testing (Web UI) |
 
 ### Local S3-compatible storage
 
-LocalStack creates the `helpdesk-uploads` bucket automatically. The checked-in local
-environment settings use `http://localhost:4566`, `test` credentials, and path-style
-S3 addressing. Production continues to use its separately supplied S3/Spaces settings.
+The official open-source `chrislusf/seaweedfs:4.51` image runs `weed mini` with a
+dedicated `seaweedfs_data` volume. It seeds `helpdesk-uploads` idempotently from
+`S3_BUCKET` and local-only credentials from `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY`. See the [official mini guide](https://github.com/seaweedfs/seaweedfs/wiki/Quick-Start-with-weed-mini).
+
+From `backend/`, start storage alone without recreating the database or Redis:
+
+```sh
+docker compose up -d seaweedfs
+docker compose ps seaweedfs
+node scripts/verify-local-s3.cjs
+npx tsx scripts/verify-local-crm-storage.ts
+```
+
+Set local `.env` to `S3_ENDPOINT=http://localhost:8333`, `S3_REGION=us-east-1`,
+`S3_BUCKET=helpdesk-uploads`, `S3_ACCESS_KEY=cwc-local`,
+`S3_SECRET_KEY=cwc-local-development-only`, and `S3_FORCE_PATH_STYLE=true`.
+Restart the local backend after editing `.env`. These credentials are development
+fixtures only. Only the S3 port is published, bound to loopback; internal admin,
+filer, and volume ports are not published. The healthcheck checks master readiness;
+the verification script also checks authenticated bucket and object operations.
+
+LocalStack's obsolete init hook has been removed after confirming its only consumer
+was the replaced local service. Existing LocalStack volumes are retained, and their
+objects are not automatically migrated. Do not use `docker compose down -v` to
+switch storage. Production continues to use separately supplied S3/Spaces settings.
+No migration is run by storage setup. CRM account-document end-to-end verification
+requires the account-document table to already exist in the local database.
+
+The CRM verification script creates dedicated `[TEST]` account/lead records,
+checks document list/download byte equality and account soft deletion through the
+existing services, then removes only its own randomly identified fixtures and
+objects. It does not exercise browser UI or HTTP authentication. Verified locally:
+SeaweedFS remained healthy, bucket access and object upload/download/delete passed,
+and both account and lead document service flows passed without applying migrations.
 
 ### Access Mailhog (Email Testing)
 - URL: http://localhost:8025

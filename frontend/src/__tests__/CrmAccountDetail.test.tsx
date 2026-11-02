@@ -9,6 +9,7 @@ const mockListAccounts = vi.fn();
 const mockListNotes = vi.fn();
 const mockCreateActivity = vi.fn();
 const mockUpdateActivity = vi.fn();
+const mockListAccountDocuments = vi.fn();
 const mockUseNextBestAction = vi.fn();
 const mockListBorrowerProfiles = vi.fn();
 
@@ -20,6 +21,10 @@ vi.mock('../services/crm.service', () => ({
     listNotes: (...args: unknown[]) => mockListNotes(...args),
     createActivity: (...args: unknown[]) => mockCreateActivity(...args),
     updateActivity: (...args: unknown[]) => mockUpdateActivity(...args),
+    listAccountDocuments: (...args: unknown[]) => mockListAccountDocuments(...args),
+    uploadAccountDocuments: vi.fn(),
+    downloadAccountDocument: vi.fn(),
+    deleteAccountDocument: vi.fn(),
   },
 }));
 
@@ -57,6 +62,7 @@ describe('CrmAccountDetail', () => {
     mockListCrmUsers.mockResolvedValue([]);
     mockListAccounts.mockResolvedValue({ accounts: [] });
     mockListNotes.mockResolvedValue({ notes: [] });
+    mockListAccountDocuments.mockResolvedValue({ documents: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } });
     mockListBorrowerProfiles.mockResolvedValue({ profiles: [], pagination: { total: 0 } });
     mockGetAccount.mockResolvedValue({
       id: 'account-1',
@@ -100,5 +106,17 @@ describe('CrmAccountDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: /schedule meeting/i }));
     expect(screen.getByText('Scheduled At')).toBeInTheDocument();
     expect(document.querySelector('input[type="datetime-local"]')).toBeInTheDocument();
+  });
+
+  it('opens client document selection instead of the Add Note modal', async () => {
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click');
+    await renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /upload document/i }));
+
+    await waitFor(() => expect(mockListAccountDocuments).toHaveBeenCalledWith('account-1', { page: 1, limit: 20 }));
+    expect(inputClick).toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Add Note' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add note/i })).toBeInTheDocument();
+    inputClick.mockRestore();
   });
 });

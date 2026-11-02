@@ -1,5 +1,20 @@
 # Change Log
 
+## 2026-11-02
+
+### Local development S3 storage
+
+- Replaced LocalStack with pinned open-source SeaweedFS 4.51, loopback-only S3 on port 8333, automatic `helpdesk-uploads` initialization, local-only credentials, and a dedicated persistent volume. Updated local environment/setup instructions; production Compose, Spaces credentials, CRM business logic, existing data volumes, and pending feature changes are preserved. No database migrations are applied.
+- Verified healthy startup, authenticated bucket/object round trip, CRM account upload/list/download byte equality/soft deletion, and existing lead document upload/list/download/delete using isolated local fixtures; cleaned only the dedicated test data. Added repeatable local verification scripts; browser/HTTP authentication was not exercised by these service checks.
+
+### CRM client account documents
+
+- Added private, account-scoped PDF upload, paginated listing, authenticated download, and soft deletion for CRM client accounts, including audit events and owner/team/tenant authorization; existing Client Notes, Lead Documents, lead scanning, profiles, activities, and workflows remain unchanged.
+- Added the additive `crm_account_documents` migration and reused the existing S3-compatible storage configuration with opaque `crm/accounts/{accountId}/{UUID}.pdf` keys; files are limited to validated PDFs of 10 MB each with no per-account document-count limit.
+- Added the Client Documents interface and corrected the Account "Upload Document" action to open PDF selection instead of Add Note, while preserving Add Note as a separate action and hiding upload/delete controls without `crm:write`.
+- Added focused backend and frontend regression coverage. Malware scanning and quarantine for account documents are explicitly not included in this approved scope.
+- Documented endpoints, migration, storage reuse, permissions, verification results, proxy request-size prerequisites, and rollback considerations in `CRM_ACCOUNT_DOCUMENTS.md`.
+
 ## 2026-10-05
 
 ### Finance Purchase Requisition catalog visibility
