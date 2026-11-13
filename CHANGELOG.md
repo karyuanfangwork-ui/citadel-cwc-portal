@@ -1,5 +1,50 @@
 # Change Log
 
+## 2026-11-13
+
+### HR hiring-manager decision visibility
+
+- Keep the candidate-review action visible to the requester's HIRING_MANAGER account while the request remains pending, including recovery from an earlier partial attempt that marked the approval row approved. Visibility remains limited to the assigned requester with the HIRING_MANAGER role; no request data was changed.
+
+### HR interview-feedback handoff
+
+- Show interview feedback only to the requester's HIRING_MANAGER account at `INTERVIEW_SCHEDULED`, require both published decision outcomes before exposing the action, and tell HR agents to wait for manager feedback. Persist feedback/activity atomically with the final status transition, preserve authorization errors, and safely resume same-manager partial feedback. Created local HR Recruitment v6 as an unpublished draft with HIRING_MANAGER on both feedback outcomes; active v5 and HR-00013 remain unchanged.
+
+### HR hiring-manager LOA approval
+
+- Limit LOA decisions to the request's HIRING_MANAGER requester, expose the action only when both published outcomes are available, and show HR agents that they must wait for the manager before issuing the LOA. Commit the LOA approval fields and activity with the status transition and preserve authorization errors. Created local HR Recruitment v7 with HIRING_MANAGER on the LOA decision edges; v7 is now active. The guard reads roles from the HTTP adapter's `actor.roles`, preventing a false denial; HR-00013 data remains unchanged.
+
+## 2026-11-12
+
+### HR reference-check action banner restore
+
+- Restored the missing agent action banner for `INTERVIEW_FEEDBACK_PENDING` from the existing admin-config backup so HR can start reference screening; the banner-only restore is restricted to local `help_center` and does not restore unrelated admin/user data. Full admin-config restores now also restore backed-up banner configurations.
+
+### LOA issuance transition guard
+
+- Load LOA approval/signature preconditions from the LOA record instead of relying on an unselected relation in the central request snapshot for issuance and final completion. Move `issuedDate` and `acceptedDate` updates into their status transition transactions and preserve expected `AppError` status codes so failed transitions do not leave misleading LOA metadata or return a generic 500.
+
+### HR candidate document upload confirmation
+
+- Allow up to two minutes for the three-file upload endpoint, show progress and a success toast, and verify candidate document records after an ambiguous network failure before asking HR to retry. This prevents a committed upload from appearing failed or encouraging duplicate submissions.
+
+### HR hiring-manager candidate decision
+
+- Make manager approval, candidate selection, assignment, and activity writes atomic; allow the same manager to resume a prior partial attempt while the request remains pending, and preserve expected transition error codes. Created an unpublished local HR Recruitment v5 draft permitting the HIRING_MANAGER decision paths; active v4 and request records remain unchanged pending review/publication.
+
+## 2026-11-11
+
+### Workflow designer validation layout
+
+- Collapsed advisory warning details by default while keeping warning/blocker counts visible; blockers remain expanded and warning details are available on demand in a bounded scroll area so numerous legacy warnings no longer crowd out the graph canvas.
+
+### HR recruitment requester-selected executive approval
+
+- New Hiring submissions require a named, active, same-tenant CEO or Group Deputy CEO choice with an explicit matching role; the choice is persisted separately from editable form fields and does not assign the executive or create an approval until HR routes. Other request types keep their existing creation behavior.
+- Added an authenticated, tenant-scoped candidate lookup that exposes only names, IDs, and eligible roles. The additive nullable schema/migration preserves existing requests without backfill. After a verified local backup, applied this migration to the restored local `help_center` to restore request-list availability; no request data was changed and production remains untouched.
+- Requesters can choose an executive on older unrouted hiring requests with versioned, tenant-safe updates; the request detail displays the saved name, and HR agents route only to that person. CEO or Group Deputy CEO decisions are exclusive and atomic with approval, assignment, audit and outbox intent; either approved branch can proceed to job posting without a second executive. Generic transition paths cannot bypass the saved choice.
+- The create/review/draft and detail/action UI now show the requester choice and hide missing or graph-disallowed routes. Finance, ESM and IT approval paths remain scoped separately. The HR graph changes are authored as a local draft; no restored ticket, production workflow version or production database was changed.
+
 ## 2026-11-02
 
 ### Local development S3 storage

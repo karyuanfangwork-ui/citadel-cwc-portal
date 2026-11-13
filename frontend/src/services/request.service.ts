@@ -14,6 +14,8 @@ interface RequestFilters {
 }
 
 interface CreateRequestData {
+    executiveApproverId?: string;
+    executiveApproverRole?: 'CEO' | 'GROUP_DCEO';
     serviceDeskId: string;
     requestTypeId: string;
     formVersion: number;

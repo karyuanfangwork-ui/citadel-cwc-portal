@@ -569,6 +569,36 @@ class UserController {
         });
     });
 
+    /** Minimal HR recruiter choice options, including one option per authorized role. */
+    getEligibleHrExecutives = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) throw new AppError('Tenant context is required', 403);
+        const executives = await prisma.user.findMany({
+            where: {
+                tenantId,
+                isActive: true,
+                id: { not: req.user!.id },
+                roles: { some: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } } },
+            },
+            select: {
+                id: true, firstName: true, lastName: true,
+                roles: {
+                    where: { role: { name: { in: ['CEO', 'GROUP_DCEO'] } } },
+                    select: { role: { select: { name: true } } },
+                },
+            },
+            orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
+        });
+        res.json({ success: true, data: {
+            executives: executives.flatMap((user) =>
+                (['CEO', 'GROUP_DCEO'] as const)
+                    .filter((role) => user.roles.some((assignment) => assignment.role.name === role))
+                    .map((executiveApproverRole) => ({
+                        id: user.id, firstName: user.firstName, lastName: user.lastName, executiveApproverRole,
+                    }))),
+        } });
+    });
+
     /**
      * Get active users assigned the requested executive RBAC role
      * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the

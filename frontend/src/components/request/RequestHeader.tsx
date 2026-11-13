@@ -77,6 +77,11 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     requestStatus: request.status,
     serviceDeskCode: request.serviceDesk?.code || '',
   });
+  const waitingForHiringManagerAction = currentRole === 'agent'
+    && user?.id !== request.requesterId
+    && request.serviceDesk?.code === 'HR'
+    && request.requestType?.code === 'NEW_HIRING'
+    && ['INTERVIEW_SCHEDULED', 'LOA_PENDING_APPROVAL'].includes(request.status);
 
   const handleActionClick = () => {
     if (currentRole === 'hiring_manager' && request.status === 'PENDING_MANAGER_REVIEW') {
@@ -121,12 +126,28 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         )}
       </nav>
 
-      <ActionBanner
-        role={currentRole}
-        status={request.status}
-        assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
-        onActionClick={handleActionClick}
-      />
+      {waitingForHiringManagerAction ? (
+        <div role="status" className="mb-8 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+          {request.status === 'LOA_PENDING_APPROVAL' ? (
+            <>
+              <h3 className="font-bold">Waiting for hiring-manager LOA decision</h3>
+              <p className="mt-1 text-blue-800">The hiring manager must approve or reject the uploaded LOA. HR can issue it after approval.</p>
+            </>
+          ) : (
+            <>
+              <h3 className="font-bold">Waiting for hiring-manager feedback</h3>
+              <p className="mt-1 text-blue-800">The hiring manager must submit interview feedback before HR can start reference screening.</p>
+            </>
+          )}
+        </div>
+      ) : (
+        <ActionBanner
+          role={currentRole}
+          status={request.status}
+          assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
+          onActionClick={handleActionClick}
+        />
+      )}
 
       {/* Child Requests Banner (Onboarding Tickets Created) */}
       {request.childRequests && request.childRequests.length > 0 && (

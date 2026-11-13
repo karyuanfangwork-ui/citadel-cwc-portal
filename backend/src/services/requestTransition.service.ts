@@ -19,6 +19,7 @@
  */
 
 import prisma from '../utils/prisma';
+import { assertHrExecutiveTransition } from './hrExecutiveTransitionPolicy';
 import { logger } from '../utils/logger';
 import { isValidTransition, getTransitionMeta } from '../utils/workflowTransitions';
 import { executeWorkflowCommand } from './workflowCommand.service';
@@ -33,7 +34,9 @@ import { getStatusDefinitionForRuntime } from './requestStatusDefinition.service
 // ---------------------------------------------------------------------------
 
 registerOutboxHandler('REQUEST_STATUS_CHANGED', async (event) => {
-  const { requestId, toStatus } = event.payload as { requestId: string; toStatus: string };
+  const { requestId, toStatus, hrExecutiveApproverId, hrExecutiveApproverRole } = event.payload as {
+    requestId: string; toStatus: string; hrExecutiveApproverId?: string; hrExecutiveApproverRole?: string;
+  };
   const request = await prisma.request.findUnique({
     where: { id: requestId },
     select: { requesterId: true, referenceNumber: true },
@@ -52,6 +55,15 @@ registerOutboxHandler('REQUEST_STATUS_CHANGED', async (event) => {
       userId,
       eventType: 'STATUS_CHANGED',
       variables: { referenceNumber: request.referenceNumber, newStatus: toStatus },
+      relatedRequestId: requestId,
+    });
+  }
+  if (hrExecutiveApproverId && hrExecutiveApproverRole &&
+      hrExecutiveApproverRole === (toStatus === 'PENDING_CEO_APPROVAL' ? 'CEO' : 'GROUP_DCEO')) {
+    await notifyDurably({
+      userId: hrExecutiveApproverId,
+      eventType: 'APPROVAL_REQUIRED',
+      variables: { requestId, role: hrExecutiveApproverRole },
       relatedRequestId: requestId,
     });
   }
@@ -262,6 +274,9 @@ export async function transitionRequest(
   }
 
   const fromStatus = currentRequest.status;
+  // Fail closed even when a shared/global transition row permits the edge or
+  // a caller skips graph validation. Generic status/bulk routes use this path.
+  assertHrExecutiveTransition(currentRequest, toStatus, userId ?? '', Boolean(transactionMutations));
 
   const statusCatalogAvailable = Boolean((prisma as any).requestStatusDefinition?.findUnique);
   const targetDefinition = statusCatalogAvailable

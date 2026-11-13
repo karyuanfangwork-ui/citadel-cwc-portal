@@ -8,6 +8,7 @@
 
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { assertHrExecutiveTransition } from './hrExecutiveTransitionPolicy';
 import { RequestStatus } from '../constants/requestStatusCompat';
 
 import { AppError } from '../middleware/error.middleware';
@@ -191,12 +192,16 @@ export async function executeWorkflowCommandInTransaction(
                 departmentId: true,
                 status: true,
                 version: true,
+                executiveApproverId: true,
+                executiveApproverRole: true,
+                requestType: { select: { code: true } },
                 slaPausedAt: true,
                 slaPauseDurationMs: true,
                 slaDueAt: true,
             },
         });
         if (!current) throw new AppError('Request not found', 404);
+        assertHrExecutiveTransition(current, toStatus, actorId ?? '', Boolean(transactionMutations));
 
         const now = new Date();
         const atomicPatch: Record<string, unknown> = { ...requestPatch };
@@ -356,6 +361,10 @@ export async function executeWorkflowCommandInTransaction(
                     actorId: actorId ?? null,
                     source,
                     timestamp: now.toISOString(),
+                    ...(current.requestType?.code === 'NEW_HIRING' && ['PENDING_CEO_APPROVAL', 'PENDING_GROUP_DCEO_APPROVAL'].includes(toStatus) ? {
+                        hrExecutiveApproverId: current.executiveApproverId,
+                        hrExecutiveApproverRole: current.executiveApproverRole,
+                    } : {}),
                 },
             },
         });
@@ -376,6 +385,26 @@ export async function executeWorkflowCommandInTransaction(
                 historyId: history.id,
                 now,
             });
+        }
+
+        // A callback's presence is not evidence that it created/updated the
+        // one selected executive's approval. Verify its effect before commit.
+        if (current.requestType?.code === 'NEW_HIRING' && (
+            ['PENDING_CEO_APPROVAL', 'PENDING_GROUP_DCEO_APPROVAL'].includes(toStatus) ||
+            (['PENDING_CEO_APPROVAL', 'PENDING_GROUP_DCEO_APPROVAL'].includes(fromStatus) &&
+             ['CEO_APPROVED', 'CEO_REJECTED', 'GROUP_DCEO_APPROVED', 'GROUP_DCEO_REJECTED'].includes(toStatus))
+        )) {
+            const role = (toStatus === 'PENDING_CEO_APPROVAL' || fromStatus === 'PENDING_CEO_APPROVAL') ? 'CEO' : 'GROUP_DCEO';
+            const expectedStatus = toStatus.startsWith('PENDING_') ? 'PENDING' : toStatus.endsWith('_REJECTED') ? 'REJECTED' : 'APPROVED';
+            const approvals = await tx.requestApproval.findMany({
+                where: { requestId, approverType: { in: ['CEO', 'GROUP_DCEO'] } },
+                select: { approverId: true, approverType: true, status: true },
+            });
+            if (approvals.filter((approval: { approverId: string | null; approverType: string; status: string }) =>
+                approval.approverId === current.executiveApproverId && approval.approverType === role && approval.status === expectedStatus).length !== 1 ||
+                approvals.some((approval: { approverType: string; status: string }) => approval.approverType !== role && approval.status === 'PENDING')) {
+                throw new AppError('HR executive approval must match the saved choice and current decision', 409);
+            }
         }
 
         const resultPayload = {

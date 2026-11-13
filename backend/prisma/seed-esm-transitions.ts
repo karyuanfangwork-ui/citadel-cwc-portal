@@ -42,9 +42,12 @@ const IT_SIMPLE: TransitionDef[] = [
 // ── HR Recruitment ────────────────────────────────────────────────────────
 const HR_RECRUITMENT: TransitionDef[] = [
   { fromStatus: 'SUBMITTED', toStatus: 'PENDING_CEO_APPROVAL', transitionLabel: 'SUBMIT', requiresComment: false },
+  { fromStatus: 'SUBMITTED', toStatus: 'PENDING_GROUP_DCEO_APPROVAL', transitionLabel: 'ESCALATE', requiresComment: false },
+  { fromStatus: 'IN_REVIEW', toStatus: 'PENDING_CEO_APPROVAL', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'IN_REVIEW', toStatus: 'PENDING_GROUP_DCEO_APPROVAL', transitionLabel: 'ESCALATE', requiresComment: false },
   { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
   { fromStatus: 'PENDING_CEO_APPROVAL', toStatus: 'CEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },
-  { fromStatus: 'CEO_APPROVED', toStatus: 'PENDING_GROUP_DCEO_APPROVAL', transitionLabel: 'ADVANCE', requiresComment: false },
+  { fromStatus: 'CEO_APPROVED', toStatus: 'JOB_POSTED', transitionLabel: 'ADVANCE', requiresComment: false },
   { fromStatus: 'CEO_REJECTED', toStatus: 'SUBMITTED', transitionLabel: 'RETURN', requiresComment: false },
   { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_APPROVED', transitionLabel: 'APPROVE', requiresComment: false },
   { fromStatus: 'PENDING_GROUP_DCEO_APPROVAL', toStatus: 'GROUP_DCEO_REJECTED', transitionLabel: 'REJECT', requiresComment: true },

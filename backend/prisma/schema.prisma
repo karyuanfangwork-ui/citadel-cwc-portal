@@ -48,6 +48,12 @@ enum ExecutiveRole {
   GROUP_DCEO
 }
 
+// One-of-two requester selection for HR recruitment (not the user's full executive hierarchy).
+enum HrExecutiveApproverRole {
+  CEO
+  GROUP_DCEO
+}
+
 enum AssetStatus {
   IN_STOCK
   ASSIGNED
@@ -127,6 +133,7 @@ model User {
   passwordResetTokens                  PasswordResetToken[]
   createdRequests                      Request[]                     @relation("RequestRequester")
   assignedRequests                     Request[]                     @relation("RequestAssignee")
+  selectedHrExecutiveRequests          Request[]                     @relation("RequestHrExecutiveApprover")
   activities                           RequestActivity[]
   attachments                          RequestAttachment[]
   kbArticles                           KnowledgeBaseArticle[]
@@ -1214,6 +1221,8 @@ model Request {
   requesterId    String  @map("requester_id") @db.Uuid
   requesterEmail String  @map("requester_email") @db.VarChar(255)
   requesterPhone String? @map("requester_phone") @db.VarChar(20)
+  executiveApproverId String? @map("executive_approver_id") @db.Uuid
+  executiveApproverRole HrExecutiveApproverRole? @map("executive_approver_role")
 
   // Request Details
   summary     String          @db.VarChar(500)
@@ -1257,6 +1266,7 @@ model Request {
   serviceDesk          ServiceDesk?                 @relation(fields: [serviceDeskId], references: [id])
   requester            User                         @relation("RequestRequester", fields: [requesterId], references: [id])
   assignedTo           User?                        @relation("RequestAssignee", fields: [assignedToId], references: [id])
+  executiveApprover    User?                        @relation("RequestHrExecutiveApprover", fields: [executiveApproverId], references: [id], onDelete: Restrict)
   activities           RequestActivity[]
   attachments          RequestAttachment[]
   itHardwareRequest    ITHardwareRequest?
@@ -1294,6 +1304,7 @@ model Request {
   @@index([status])
   @@index([serviceDeskId])
   @@index([assignedToId])
+  @@index([executiveApproverId])
   @@index([createdAt(sort: Desc)])
   @@index([tenantId])
   @@index([departmentId])

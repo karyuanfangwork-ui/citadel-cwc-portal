@@ -196,7 +196,7 @@ export const batchUploadDocs = async (
     const response = await apiClient.post(
         `/approvals/requests/${requestId}/upload-candidate-docs`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
     );
     return response.data.data;
 };

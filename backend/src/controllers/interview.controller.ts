@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
 import { transitionHttpRequest } from '../utils/httpRequestTransition';
+import { AppError } from '../middleware/error.middleware';
 /**
  * Schedule interview with candidate
  * POST /requests/:id/schedule-interview
@@ -170,7 +171,8 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             feedback,
             concerns
         } = req.body;
-        const userId = (req as any).user?.id;
+        const user = (req as any).user;
+        const userId = user?.id;
 
         // Validate required fields
         if (!decision || !['PROCEED', 'REJECT'].includes(decision)) {
@@ -206,53 +208,45 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             });
         }
 
-        // Verify user is the hiring manager (requester)
-        if (request.requesterId !== userId) {
+        // Only the requester holding the HIRING_MANAGER role may submit this review.
+        const userRoles: string[] = Array.isArray(user?.roles) ? user.roles : [];
+        if (request.requesterId !== userId || !userRoles.some((role) => role.toUpperCase() === 'HIRING_MANAGER')) {
             return res.status(403).json({
                 status: 'error',
                 message: 'Only the hiring manager can submit interview feedback'
             });
         }
 
-        // Create interview feedback
-        const interviewFeedback = await prisma.interviewFeedback.create({
-            data: {
-                requestId: id,
-                candidateId: candidateId || null,
-                decision,
-                overallRating: overallRating || null,
-                technicalSkills: technicalSkills || null,
-                culturalFit: culturalFit || null,
-                communication: communication || null,
-                feedback,
-                concerns: concerns || null,
-                submittedBy: userId
-            },
-            include: {
-                submittedByUser: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true
-                    }
-                }
-            }
-        });
+        const selectedCandidateIds: string[] = Array.isArray((request.customFields as any)?.selectedCandidateIds)
+            ? (request.customFields as any).selectedCandidateIds
+            : [];
+        if (selectedCandidateIds.length > 0 && (!candidateId || !selectedCandidateIds.includes(candidateId))) {
+            return res.status(400).json({ status: 'error', message: 'Feedback must be submitted for a selected candidate' });
+        }
 
-        // Check if all selected candidates have submitted feedback
-        // Determine the selected candidates from customFields
-        const selectedCandidateIds: string[] = (request.customFields as any)?.selectedCandidateIds || [];
-        const totalSelected = selectedCandidateIds.length || 1; // fallback to 1 for legacy single-candidate
-
+        // Read before writing so final feedback, activity, and status transition
+        // share one transaction. This also supports retry after an earlier
+        // feedback write committed without its corresponding status transition.
         const allFeedbacks = await prisma.interviewFeedback.findMany({
             where: { requestId: id }
         });
-
-        // Filter feedback for the selected candidates specifically (or all feedback if no selection)
         const relevantFeedbacks = selectedCandidateIds.length > 0
             ? allFeedbacks.filter(f => f.candidateId && selectedCandidateIds.includes(f.candidateId))
             : allFeedbacks;
+        const priorFeedback = selectedCandidateIds.length > 0
+            ? relevantFeedbacks.find(f => f.candidateId === candidateId)
+            : relevantFeedbacks.find(f => f.candidateId === (candidateId || null)) ?? (!candidateId ? relevantFeedbacks[0] : undefined);
+        if (priorFeedback && priorFeedback.submittedBy !== userId) {
+            return res.status(409).json({ status: 'error', message: 'Interview feedback for this candidate was already submitted' });
+        }
+        const projectedFeedbacks = priorFeedback
+            ? relevantFeedbacks
+            : [...relevantFeedbacks, { candidateId: candidateId || null, decision }];
+        const totalSelected = selectedCandidateIds.length || 1;
+        const feedbackCount = selectedCandidateIds.length > 0
+            ? new Set(projectedFeedbacks.map(f => f.candidateId).filter((value): value is string => Boolean(value))).size
+            : projectedFeedbacks.length;
+        const allFeedbackReceived = feedbackCount >= totalSelected;
 
         // Get candidate info for activity log
         let candidateLabel = 'candidate';
@@ -263,16 +257,49 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             }
         }
 
-        // Determine status transition
         let newStatus: string | null = null;
-        const allFeedbackReceived = relevantFeedbacks.length >= totalSelected;
-
         if (allFeedbackReceived) {
-            // All candidates have feedback — decide the overall status
-            const anyProceed = relevantFeedbacks.some(f => f.decision === 'PROCEED');
+            const anyProceed = projectedFeedbacks.some(f => f.decision === 'PROCEED');
             newStatus = anyProceed ? 'INTERVIEW_FEEDBACK_PENDING' : 'CANDIDATE_REJECTED_INTERVIEW';
         }
-        // If not all feedback received yet, stay in INTERVIEW_SCHEDULED
+
+        let interviewFeedback: any = priorFeedback;
+        const feedbackData = {
+            requestId: id,
+            candidateId: candidateId || null,
+            decision,
+            overallRating: overallRating || null,
+            technicalSkills: technicalSkills || null,
+            culturalFit: culturalFit || null,
+            communication: communication || null,
+            feedback,
+            concerns: concerns || null,
+            submittedBy: userId
+        };
+        const activityMessage = decision === 'PROCEED'
+            ? `Hiring Manager approved ${candidateLabel} to proceed after interview`
+            : `Hiring Manager rejected ${candidateLabel} after interview`;
+        const persistFeedback = async (tx: any) => {
+            interviewFeedback = await tx.interviewFeedback.create({
+                data: feedbackData,
+                include: {
+                    submittedByUser: {
+                        select: { id: true, firstName: true, lastName: true, email: true }
+                    }
+                }
+            });
+            await tx.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: userId,
+                    authorName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Hiring Manager',
+                    authorRole: 'Hiring Manager',
+                    activityType: decision === 'PROCEED' ? 'APPROVAL' : 'REJECTION',
+                    message: activityMessage,
+                    isSystemGenerated: false
+                }
+            });
+        };
 
         const updatedRequest = newStatus
             ? await transitionHttpRequest({
@@ -281,24 +308,15 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
                 toStatus: newStatus,
                 source: 'interview.feedback',
                 comment: feedback,
+                ...(!priorFeedback ? { transactionMutations: async (tx: any) => persistFeedback(tx) } : {}),
             })
-            : request;
-
-        // Create activity log
-        const activityMessage = decision === 'PROCEED'
-            ? `Hiring Manager approved ${candidateLabel} to proceed after interview`
-            : `Hiring Manager rejected ${candidateLabel} after interview`;
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: userId,
-                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                authorRole: 'Hiring Manager',
-                activityType: decision === 'PROCEED' ? 'APPROVAL' : 'REJECTION',
-                message: activityMessage,
-                isSystemGenerated: false
-            }
-        });
+            : await (async () => {
+                if (priorFeedback) {
+                    throw new AppError('Interview feedback is already submitted for this candidate; waiting for remaining feedback', 409);
+                }
+                await prisma.$transaction(async (tx: any) => persistFeedback(tx));
+                return request;
+            })();
 
         res.json({
             status: 'success',
@@ -310,6 +328,9 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error submitting interview feedback:', error);
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({ status: 'error', message: error.message });
+        }
         res.status(500).json({
             status: 'error',
             message: 'Failed to submit interview feedback'

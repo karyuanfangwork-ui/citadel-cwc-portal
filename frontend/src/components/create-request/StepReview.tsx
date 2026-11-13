@@ -2,6 +2,8 @@ import React from 'react';
 import DOMPurify from 'dompurify';
 import { FormData, URGENCY_OPTIONS, WorkflowInfo } from './useCreateRequestWizard';
 import { parseFormConfig } from '../../utils/formConfig';
+import { executiveLabel, hrExecutiveChoiceService, type EligibleExecutive } from '../../services/hrExecutiveChoice.service';
+import { useEffect, useState } from 'react';
 
 interface StepReviewProps {
   formData: FormData;
@@ -118,6 +120,13 @@ const StepReview: React.FC<StepReviewProps> = ({
   isAutoConfidential,
   workflow,
 }) => {
+  const [executives, setExecutives] = useState<EligibleExecutive[]>([]);
+  useEffect(() => {
+    if (selectedRequestType?.code !== 'NEW_HIRING') return;
+    let active = true;
+    hrExecutiveChoiceService.list().then(users => { if (active) setExecutives(users); }).catch(() => {});
+    return () => { active = false; };
+  }, [selectedRequestType?.code]);
   const getUrgencyLabel = (value: string) => {
     const opt = URGENCY_OPTIONS.find(o => o.value === value);
     return opt?.label || value;
@@ -196,6 +205,16 @@ const StepReview: React.FC<StepReviewProps> = ({
           slaHours={selectedRequestType?.slaHours}
           requiresApproval={!!selectedRequestType?.requiresApproval}
         />
+      )}
+
+      {selectedRequestType?.code === 'NEW_HIRING' && (
+        <div className="pb-6 border-b border-cwc-border">
+          <h3 className="text-sm font-bold text-text-tertiary uppercase mb-3">Executive approver</h3>
+          <p>{(() => {
+            const person = executives.find(u => u.id === formData.executiveApproverId && u.executiveApproverRole === formData.executiveApproverRole);
+            return person ? executiveLabel(person) : formData.executiveApproverId ? 'Selected executive (details unavailable)' : 'Not selected';
+          })()}</p>
+        </div>
       )}
 
       {/* Summary */}

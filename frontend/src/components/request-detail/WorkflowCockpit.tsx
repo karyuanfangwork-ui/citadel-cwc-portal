@@ -44,6 +44,8 @@ interface WorkflowCockpitProps {
     serviceDeskCode: string;
     requestTypeName?: string;
     requestTypeCode?: string;
+    executiveApproverId?: string | null;
+    executiveApproverRole?: 'CEO' | 'GROUP_DCEO' | null;
     workflowCode?: string;
     requesterId?: string;
     requesterName?: string;
@@ -98,7 +100,7 @@ interface WorkflowCockpitProps {
   onCompleteOffboarding?: () => void;
   onResolveRequest?: () => void;
   onCancelRequest?: () => void;
-  availableTransitions?: AvailableTransition[];
+  availableTransitions?: AvailableTransition[] | null;
   onWorkflowTransition?: (toStatus: string, comment?: string) => Promise<void>;
 
   /** Offboarding pre-conditions state for gating the Advance button in DecisionPanel */
@@ -140,7 +142,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onCompleteOffboarding,
   onResolveRequest,
   onCancelRequest,
-  availableTransitions = [],
+  availableTransitions = null,
   onWorkflowTransition,
   offboardingPreConditionsMet = true,
   onUploadResume,
@@ -199,6 +201,8 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               approvals={approvals}
               requestTypeName={request.requestTypeName}
               requestTypeCode={request.requestTypeCode}
+              executiveApproverId={request.executiveApproverId}
+              executiveApproverRole={request.executiveApproverRole}
               workflowCode={request.workflowCode}
               serviceDeskCode={request.serviceDeskCode}
               serviceDeskName={request.serviceDeskName}
@@ -341,6 +345,8 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   approvals={approvals}
                   requestTypeName={request.requestTypeName}
                   requestTypeCode={request.requestTypeCode}
+              executiveApproverId={request.executiveApproverId}
+              executiveApproverRole={request.executiveApproverRole}
               workflowCode={request.workflowCode}
                   serviceDeskCode={request.serviceDeskCode}
                   serviceDeskName={request.serviceDeskName}

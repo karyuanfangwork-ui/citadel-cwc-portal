@@ -21,7 +21,8 @@ export function useDraftSave<T extends Record<string, any>>(
   useEffect(() => {
     // Don't save empty/default state — check values, not just keys
     const hasCustomData = Object.values(data.customFields || {}).some(v => v !== '' && v !== null && v !== undefined);
-    const isEmpty = !data.summary && !data.description && !hasCustomData;
+    const isEmpty = !data.summary && !data.description && !hasCustomData &&
+      !(data.executiveApproverId && data.executiveApproverRole);
     if (isEmpty) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -42,12 +43,15 @@ export function useDraftSave<T extends Record<string, any>>(
 
   // Check for existing draft on mount
   useEffect(() => {
+    setHasDraft(false);
+    setLastSaved(null);
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         const hasCustomData = Object.values(parsed.customFields || {}).some((v: any) => v !== '' && v !== null && v !== undefined);
-        if (parsed && (parsed.summary || parsed.description || hasCustomData)) {
+        if (parsed && (parsed.summary || parsed.description || hasCustomData ||
+          (parsed.executiveApproverId && parsed.executiveApproverRole))) {
           setHasDraft(true);
         }
       }

@@ -3,13 +3,13 @@ import { authenticate } from '../middleware/auth.middleware';
 import {
     routeToCEO,
     ceoDecision,
-    markJobPosted,
     routeToManager,
     managerDecision,
     entityDecision,
     routeToGroupDceoHr,
     groupDceoDecisionHr
 } from '../controllers/approval.controller';
+import { markHrJobPosted } from '../controllers/hrJobPosting.controller';
 import {
     uploadResume,
     getResumes,
@@ -48,7 +48,7 @@ router.post('/requests/:id/ceo-decision', ceoDecision);
  * @desc    Mark request as job posted
  * @access  Private (HR Agent)
  */
-router.post('/requests/:id/mark-job-posted', markJobPosted);
+router.post('/requests/:id/mark-job-posted', markHrJobPosted);
 
 /**
  * @route   POST /api/approvals/requests/:id/route-to-manager

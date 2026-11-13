@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 const mockFindUnique = jest.fn();
 const mockFindFirst = jest.fn();
 const mockApprovalUpdate = jest.fn();
+const mockApprovalUpdateMany = jest.fn();
 const mockApprovalCreate = jest.fn();
 const mockApprovalFindUnique = jest.fn();
 const mockActivityCreate = jest.fn();
@@ -19,6 +20,7 @@ jest.mock('../utils/prisma', () => ({
         },
         requestApproval: {
             update: mockApprovalUpdate,
+            updateMany: mockApprovalUpdateMany,
             create: mockApprovalCreate,
             findUnique: mockApprovalFindUnique,
         },
@@ -104,11 +106,15 @@ describe('assertDesignatedApprover', () => {
 });
 
 describe('ceoDecision authorization', () => {
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockUserFindFirst.mockImplementation(async ({ where }: any) => ({ id: where.id || 'hr-agent' }));
+    });
 
     it('returns 403 when the caller is not the designated CEO approver', async () => {
         mockFindUnique.mockResolvedValue({
             id: REQ_ID,
+            tenantId: 'tenant-1', requestType: { code: 'NEW_HIRING' }, executiveApproverId: CEO_USER_ID, executiveApproverRole: 'CEO',
             status: 'PENDING_CEO_APPROVAL',
             requesterId: 'requester-1',
             requester: {},
@@ -123,7 +129,7 @@ describe('ceoDecision authorization', () => {
         const req: any = {
             params: { id: REQ_ID },
             body: { decision: 'REJECTED', comments: 'nope' },
-            user: { id: IMPOSTOR_USER_ID },
+            user: { id: IMPOSTOR_USER_ID, tenantId: 'tenant-1' },
         };
         const res = makeRes();
 
@@ -137,26 +143,27 @@ describe('ceoDecision authorization', () => {
     it('allows the designated CEO approver to reject', async () => {
         mockFindUnique.mockResolvedValue({
             id: REQ_ID,
+            tenantId: 'tenant-1', requestType: { code: 'NEW_HIRING' }, executiveApproverId: CEO_USER_ID, executiveApproverRole: 'CEO',
             referenceNumber: 'HR-1',
             status: 'PENDING_CEO_APPROVAL',
             requesterId: 'requester-1',
             requester: {},
             approvals: [{ id: 'appr-1', approverId: CEO_USER_ID, approverType: 'CEO', status: 'PENDING' }],
         });
-        mockApprovalUpdate.mockResolvedValue({ id: 'appr-1', status: 'REJECTED' });
+        mockUserFindFirst.mockResolvedValue({ id: 'hr-agent' });
         mockTransitionHttpRequest.mockResolvedValue({ id: REQ_ID, status: 'CEO_REJECTED' });
 
         const req: any = {
             params: { id: REQ_ID },
             body: { decision: 'REJECTED', comments: 'not aligned with budget' },
-            user: { id: CEO_USER_ID, firstName: 'C', lastName: 'EO' },
+            user: { id: CEO_USER_ID, tenantId: 'tenant-1', firstName: 'C', lastName: 'EO' },
         };
         const res = makeRes();
 
         await ceoDecision(req, res);
 
         expect(res.status).not.toHaveBeenCalledWith(403);
-        expect(mockApprovalUpdate).toHaveBeenCalled();
+        expect(mockTransitionHttpRequest.mock.calls[0][0].transactionMutations).toEqual(expect.any(Function));
         expect(mockTransitionHttpRequest).toHaveBeenCalled();
     });
 });
@@ -167,6 +174,7 @@ describe('groupDceoDecisionHr authorization', () => {
     it('returns 403 when the caller is not the designated Group Deputy CEO approver', async () => {
         mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
+            tenantId: 'tenant-1', requestType: { code: 'NEW_HIRING' }, executiveApproverId: DCEO_USER_ID, executiveApproverRole: 'GROUP_DCEO',
             referenceNumber: 'HR-2',
             status: 'PENDING_GROUP_DCEO_APPROVAL',
             requesterId: 'requester-1',
@@ -181,7 +189,7 @@ describe('groupDceoDecisionHr authorization', () => {
         const req: any = {
             params: { id: REQ_ID_2 },
             body: { decision: 'REJECTED', comments: 'nope' },
-            user: { id: IMPOSTOR_USER_ID },
+            user: { id: IMPOSTOR_USER_ID, tenantId: 'tenant-1' },
         };
         const res = makeRes();
 
@@ -195,18 +203,20 @@ describe('groupDceoDecisionHr authorization', () => {
     it('allows the designated Group Deputy CEO approver to reject', async () => {
         mockFindUnique.mockResolvedValue({
             id: REQ_ID_2,
+            tenantId: 'tenant-1', requestType: { code: 'NEW_HIRING' }, executiveApproverId: DCEO_USER_ID, executiveApproverRole: 'GROUP_DCEO',
             referenceNumber: 'HR-2',
             status: 'PENDING_GROUP_DCEO_APPROVAL',
             requesterId: 'requester-1',
             approvals: [{ id: 'appr-2', approverId: DCEO_USER_ID, approverType: 'GROUP_DCEO', status: 'PENDING' }],
         });
         mockTransitionHttpRequest.mockResolvedValue({ id: REQ_ID_2, status: 'GROUP_DCEO_REJECTED' });
+        mockUserFindFirst.mockResolvedValue({ id: 'hr-agent' });
         mockApprovalUpdate.mockResolvedValue({ id: 'appr-2', status: 'REJECTED' });
 
         const req: any = {
             params: { id: REQ_ID_2 },
             body: { decision: 'REJECTED', comments: 'final rejection' },
-            user: { id: DCEO_USER_ID, firstName: 'D', lastName: 'CEO' },
+            user: { id: DCEO_USER_ID, tenantId: 'tenant-1', firstName: 'D', lastName: 'CEO' },
         };
         const res = makeRes();
 

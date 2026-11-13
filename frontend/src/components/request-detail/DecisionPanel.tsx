@@ -13,10 +13,11 @@ import {
   getWorkflowActions,
   WorkflowActionType,
 } from '../../utils/workflowActions';
-import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
+import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig, hrRouteConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
 import GenericTransitionModal from './GenericTransitionModal';
 import type { AvailableTransition } from '../../services/request.service';
+
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -42,6 +43,8 @@ interface DecisionPanelProps {
   createdAt?: string;
   slaDueAt?: string | null;
   requesterId?: string;
+  executiveApproverId?: string | null;
+  executiveApproverRole?: 'CEO' | 'GROUP_DCEO' | null;
   requiresApproval?: boolean;
   agentTeam?: string;
   hasResumes?: boolean;
@@ -59,7 +62,7 @@ interface DecisionPanelProps {
   onAssign?: () => void;
   onResolveRequest?: () => void;
   onCancelRequest?: () => void;
-  availableTransitions?: AvailableTransition[];
+  availableTransitions?: AvailableTransition[] | null;
   onWorkflowTransition?: (toStatus: string, comment?: string) => Promise<void>;
   onRouteToManager?: () => void;
   onManagerDecision?: () => void;
@@ -199,6 +202,8 @@ const DIRECT_ACTIONS: Set<WorkflowActionType> = new Set([
 const DecisionPanel: React.FC<DecisionPanelProps> = ({
   requestId,
   status,
+  executiveApproverId,
+  executiveApproverRole,
   userRoles,
   userId,
   assignedTo,
@@ -234,7 +239,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   onCompleteOffboarding,
   onResolveRequest,
   onCancelRequest,
-  availableTransitions = [],
+  availableTransitions = null,
   onWorkflowTransition,
   onUploadResume,
   offboardingPreConditionsMet = true,
@@ -269,15 +274,21 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     userId,
     agentTeam ?? '',
     assignedTeam ?? '',
+    !!(executiveApproverId && executiveApproverRole),
   );
 
   // The published workflow graph is authoritative for whether a transition
   // exists. Keep the specialized cancellation confirmation flow, but do not
   // offer it when the designer has removed the CANCELLED edge.
-  const designerTargets = new Set(availableTransitions.map((transition) => transition.toStatus));
-  // Executive approvers are not AGENT/ADMIN users, but must still see their
-  // designated approval actions (for example CFO on PENDING_CFO_APPROVAL_FIN).
+  const graphLoaded = availableTransitions !== null;
+  const designerTargets = new Set((availableTransitions ?? []).map((transition) => transition.toStatus));
+  // Designated approvers and the requester acting as hiring manager are not
+  // AGENT/ADMIN users, but still own specific decision actions.
+  const isHiringManagerDecisionOwner = isRequester
+    && ['PENDING_MANAGER_REVIEW', 'INTERVIEW_SCHEDULED', 'LOA_PENDING_APPROVAL'].includes(status)
+    && userRoles.some((role) => role.toUpperCase() === 'HIRING_MANAGER');
   const canManageWorkflow = isDesignatedApprover
+    || isHiringManagerDecisionOwner
     || userRoles.some((role) => ['AGENT', 'ADMIN'].includes(role.toUpperCase()));
   const executiveApprovalActions = new Set<WorkflowActionType>([
     'CFO_DECISION',
@@ -291,15 +302,26 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     'GROUP_DCEO_DECISION_FIN',
     'GROUP_DCEO_DECISION_ESM',
   ]);
-  const designerAwareActions = availableTransitions.length > 0
+  const designerAwareActions = graphLoaded
     ? filterActionsByDesignerTargets(workflowActions, designerTargets)
     : workflowActions;
   const actions = canManageWorkflow
     ? designerAwareActions.filter((action) => {
+      if (requestTypeCode === 'NEW_HIRING' && action.type === 'ROUTE_TO_GROUP_DCEO_HR') return false;
+      if (requestTypeCode === 'NEW_HIRING' && graphLoaded && action.type === 'ROUTE_TO_CEO_HR'
+        && !designerTargets.has(executiveApproverRole === 'GROUP_DCEO' ? 'PENDING_GROUP_DCEO_APPROVAL' : 'PENDING_CEO_APPROVAL')) return false;
+      if (requestTypeCode === 'NEW_HIRING' && graphLoaded && action.type === 'MARK_JOB_POSTED'
+        && !designerTargets.has('JOB_POSTED')) return false;
+      if (requestTypeCode === 'NEW_HIRING' && (action.type === 'CEO_DECISION_HR' || action.type === 'GROUP_DCEO_DECISION_HR')) {
+        if (graphLoaded && !designerTargets.has(action.type === 'CEO_DECISION_HR' ? 'CEO_APPROVED' : 'GROUP_DCEO_APPROVED') &&
+            !designerTargets.has(action.type === 'CEO_DECISION_HR' ? 'CEO_REJECTED' : 'GROUP_DCEO_REJECTED')) return false;
+        return !isRequester && isDesignatedApprover && executiveApproverId === userId
+          && executiveApproverRole === (action.type === 'CEO_DECISION_HR' ? 'CEO' : 'GROUP_DCEO');
+      }
       // An executive who submitted the request is the requester, not an
       // independent approver. Never expose an approval action to that user.
       if (isRequester && executiveApprovalActions.has(action.type)) return false;
-      return action.type !== 'CANCEL_REQUEST' || designerTargets.has('CANCELLED');
+      return action.type !== 'CANCEL_REQUEST' || !graphLoaded || designerTargets.has('CANCELLED');
     })
     : [];
 
@@ -313,8 +335,12 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     }),
   );
   const genericTransitions = canManageWorkflow && workflowCode === 'IT_SIMPLE'
-    ? availableTransitions.filter((transition) => !representedTargets.has(transition.toStatus))
+    ? (availableTransitions ?? []).filter((transition) => !representedTargets.has(transition.toStatus))
     : [];
+  const isHiringWaitingForChoice = requestTypeCode === 'NEW_HIRING'
+    && serviceDeskCode === 'HR'
+    && (status === 'SUBMITTED' || status === 'IN_REVIEW')
+    && !(executiveApproverId && executiveApproverRole);
   const humanizeStatus = (value: string) => value.toLowerCase().split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 
   const handleDirectAction = useCallback(
@@ -440,12 +466,13 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     onActionComplete();
   }, [onActionComplete]);
 
-  if (actions.length === 0 && genericTransitions.length === 0) {
+  if (actions.length === 0 && genericTransitions.length === 0 && !isHiringWaitingForChoice) {
     return null;
   }
 
   return (
     <div className="space-y-3">
+      {isHiringWaitingForChoice && canManageWorkflow && <p role="status" className="text-sm text-amber-700">Waiting for requester to select an executive before HR can route this request.</p>}
       {/* Section header */}
       <div className="flex items-center gap-2 mb-2">
         <span className="relative flex size-2.5">
@@ -631,7 +658,9 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         <WorkflowActionModal
           open={!!activeModal}
           requestId={requestId}
-          config={WORKFLOW_MODAL_CONFIG[activeModal]}
+          config={activeModal === 'ROUTE_TO_CEO_HR' && executiveApproverId && executiveApproverRole
+            ? hrRouteConfig({ executiveApproverId, executiveApproverRole })
+            : WORKFLOW_MODAL_CONFIG[activeModal]}
           onSuccess={handleModalSuccess}
           onClose={() => setActiveModal(null)}
         />

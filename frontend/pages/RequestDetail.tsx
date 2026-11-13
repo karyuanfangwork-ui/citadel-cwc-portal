@@ -21,6 +21,7 @@ import LOAApprovalModal from '../src/components/request/modals/LOAApprovalModal'
 import CEODecisionModal from '../src/components/request/modals/CEODecisionModal';
 import ManagerDecisionModal from '../src/components/request/modals/ManagerDecisionModal';
 import BatchUploadModal from '../src/components/request-detail/BatchUploadModal';
+import HrExecutiveChoiceCard from '../src/components/request/HrExecutiveChoiceCard';
 
 const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
@@ -134,6 +135,9 @@ const RequestDetailContainer: React.FC = () => {
             )}
 
             {/* ─── 2-Pane Cockpit Layout ─── */}
+            {request.requestType?.code === 'NEW_HIRING' && request.serviceDesk?.code === 'HR' && (
+                <HrExecutiveChoiceCard request={request} currentUserId={user?.id} onSaved={rq.fetchRequestData} />
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
 
                 {/* ─── LEFT PANE: Content ─── */}
@@ -237,6 +241,8 @@ const RequestDetailContainer: React.FC = () => {
                         serviceDeskCode,
                         requestTypeName: request.requestType?.name,
                         requestTypeCode: request.requestType?.code,
+                        executiveApproverId: request.executiveApproverId,
+                        executiveApproverRole: request.executiveApproverRole,
                         workflowCode: request.requestType?.workflow?.code,
                         requesterId: request.requesterId || request.requester?.id,
                         requesterName: request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : '',

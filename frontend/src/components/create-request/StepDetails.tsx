@@ -1,10 +1,12 @@
 import React from 'react';
+import ExecutiveChoice from '../request/ExecutiveChoice';
 import apiClient from '../../services/api';
 import { type FormData, URGENCY_OPTIONS } from './useCreateRequestWizard';
 import RichTextEditor from '@/src/components/ui/RichTextEditor';
 import { parseFormConfig } from '../../utils/formConfig';
 
 interface StepDetailsProps {
+  currentUserId?: string;
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   selectedRequestType: any;
@@ -27,6 +29,7 @@ interface StepDetailsProps {
 const commonClass = "w-full px-4 py-3 bg-white border border-cwc-border rounded-cwc-md text-base focus:ring-2 focus:ring-brand-500/20 focus:border-brand-700 outline-none transition-all placeholder:text-text-tertiary";
 
 const StepDetails: React.FC<StepDetailsProps> = ({
+  currentUserId,
   formData,
   setFormData,
   selectedRequestType,
@@ -593,6 +596,15 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             aria-describedby={error ? "step-details-error" : undefined}
           />
         </div>
+      )}
+
+      {selectedRequestType?.code === 'NEW_HIRING' && (
+        <ExecutiveChoice
+          excludeUserId={currentUserId}
+          value={formData.executiveApproverId && formData.executiveApproverRole ? { executiveApproverId: formData.executiveApproverId, executiveApproverRole: formData.executiveApproverRole } : null}
+          onChange={choice => setFormData(prev => ({ ...prev, executiveApproverId: choice?.executiveApproverId, executiveApproverRole: choice?.executiveApproverRole }))}
+          disabled={submitting}
+        />
       )}
 
       {/* DYNAMIC FIELDS FROM ADMIN CONFIG */}

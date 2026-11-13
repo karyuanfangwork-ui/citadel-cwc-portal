@@ -180,8 +180,8 @@ for (const target of FINANCE_ONLY_TARGETS) {
   });
 }
 
-// Shared statuses used by both ESM Travel and Finance workflows.
-// Allow transitions from both ESM and FINANCE service desks.
+// Shared statuses used by ESM Travel, Finance and HR recruitment. HR may use
+// only the Group DCEO approval gate and its decision statuses.
 const SHARED_APPROVAL_TARGETS = new Set([
   'PENDING_GROUP_DCEO_APPROVAL',
   'GROUP_DCEO_APPROVED',
@@ -195,6 +195,10 @@ const SHARED_APPROVAL_TARGETS = new Set([
 for (const target of SHARED_APPROVAL_TARGETS) {
   registerTransitionGuard(`*→${target}`, async (request, _from, _to, _options) => {
     const deskCode = request.serviceDesk?.code;
+    if (deskCode === 'HR' && request.requestType?.code === 'NEW_HIRING'
+      && ['PENDING_GROUP_DCEO_APPROVAL', 'GROUP_DCEO_APPROVED', 'GROUP_DCEO_REJECTED'].includes(target)) {
+      return null;
+    }
     if (deskCode && deskCode !== 'FINANCE' && deskCode !== 'ESM') {
       return `Transition to ${target} is only allowed for FINANCE or ESM service desk requests (got: ${deskCode})`;
     }
@@ -239,7 +243,7 @@ const CEO_APPROVAL_TRANSITIONS: Array<[string, string]> = [
 for (const [from, to] of CEO_APPROVAL_TRANSITIONS) {
   registerTransitionGuard(`${from}→${to}`, async (_req, _from, _to, options) => {
     if (isAdmin(options)) return null;
-    const roles = (options.metadata?.userRoles as string[]) || [];
+    const roles = options.actor?.roles ?? (options.metadata?.userRoles as string[]) ?? [];
     if (!roles.includes('CEO')) {
       return 'Only the CEO can make this decision';
     }
@@ -288,7 +292,7 @@ registerTransitionGuard(
   'PENDING_GROUP_DCEO_APPROVAL→GROUP_DCEO_APPROVED',
   async (_req, _from, _to, options) => {
     if (isAdmin(options)) return null;
-    const roles = (options.metadata?.userRoles as string[]) || [];
+    const roles = options.actor?.roles ?? (options.metadata?.userRoles as string[]) ?? [];
     if (!roles.includes('GROUP_DCEO')) {
       return 'Only the Group DCEO can make this decision';
     }
@@ -300,7 +304,7 @@ registerTransitionGuard(
   'PENDING_GROUP_DCEO_APPROVAL→GROUP_DCEO_REJECTED',
   async (_req, _from, _to, options) => {
     if (isAdmin(options)) return null;
-    const roles = (options.metadata?.userRoles as string[]) || [];
+    const roles = options.actor?.roles ?? (options.metadata?.userRoles as string[]) ?? [];
     if (!roles.includes('GROUP_DCEO')) {
       return 'Only the Group DCEO can make this decision';
     }
@@ -347,8 +351,8 @@ registerTransitionGuard(
   'LOA_PENDING_APPROVAL→LOA_APPROVED',
   async (_req, _from, _to, options) => {
     if (isAdmin(options)) return null;
-    const roles = (options.metadata?.userRoles as string[]) || [];
-    if (!roles.includes('HIRING_MANAGER')) {
+    const roles = options.actor?.roles ?? (options.metadata?.userRoles as string[]) ?? [];
+    if (!roles.some((role) => role.toUpperCase() === 'HIRING_MANAGER')) {
       return 'Only a Hiring Manager can approve or reject LOA';
     }
     return null;
@@ -359,8 +363,8 @@ registerTransitionGuard(
   'LOA_PENDING_APPROVAL→HR_SCREENING',
   async (_req, _from, _to, options) => {
     if (isAdmin(options)) return null;
-    const roles = (options.metadata?.userRoles as string[]) || [];
-    if (!roles.includes('HIRING_MANAGER')) {
+    const roles = options.actor?.roles ?? (options.metadata?.userRoles as string[]) ?? [];
+    if (!roles.some((role) => role.toUpperCase() === 'HIRING_MANAGER')) {
       return 'Only a Hiring Manager can approve or reject LOA';
     }
     return null;
@@ -370,12 +374,31 @@ registerTransitionGuard(
 // ---------------------------------------------------------------------------
 // 6. LOA preconditions
 // ---------------------------------------------------------------------------
+export async function isLOAApproved(
+  requestId: string,
+  loadedLoa?: { approvedBy?: string | null } | null,
+): Promise<boolean> {
+  const loa = loadedLoa === undefined
+    ? await prisma.letterOfAcceptance.findUnique({ where: { requestId }, select: { approvedBy: true } })
+    : loadedLoa;
+  return Boolean(loa?.approvedBy);
+}
+
+export async function hasSignedLOA(
+  requestId: string,
+  loadedLoa?: { signedLoaFileUrl?: string | null } | null,
+): Promise<boolean> {
+  const loa = loadedLoa === undefined
+    ? await prisma.letterOfAcceptance.findUnique({ where: { requestId }, select: { signedLoaFileUrl: true } })
+    : loadedLoa;
+  return Boolean(loa?.signedLoaFileUrl);
+}
+
 // LOA_ISSUED requires the LOA to be approved (approvedBy set)
 registerTransitionGuard(
   'LOA_APPROVED→LOA_ISSUED',
   async (request, _from, _to, _options) => {
-    const loa = request.letterOfAcceptance;
-    if (!loa || !loa.approvedBy) {
+    if (!(await isLOAApproved(request.id, request.letterOfAcceptance))) {
       return 'LOA must be approved before marking as issued';
     }
     return null;
@@ -386,8 +409,7 @@ registerTransitionGuard(
 registerTransitionGuard(
   'LOA_ISSUED→LOA_ACCEPTED',
   async (request, _from, _to, _options) => {
-    const loa = request.letterOfAcceptance;
-    if (!loa || !loa.signedLoaFileUrl) {
+    if (!(await hasSignedLOA(request.id, request.letterOfAcceptance))) {
       return 'Signed LOA must be uploaded before marking as accepted';
     }
     return null;
@@ -398,8 +420,7 @@ registerTransitionGuard(
 registerTransitionGuard(
   'LOA_ACCEPTED→COMPLETED',
   async (request, _from, _to, _options) => {
-    const loa = request.letterOfAcceptance;
-    if (!loa || !loa.signedLoaFileUrl) {
+    if (!(await hasSignedLOA(request.id, request.letterOfAcceptance))) {
       return 'Signed LOA must be uploaded before completing the hiring';
     }
     return null;

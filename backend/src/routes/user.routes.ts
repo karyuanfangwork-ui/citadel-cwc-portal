@@ -57,6 +57,8 @@ router.get('/staff', authorize('ADMIN', 'AGENT'), userController.getStaff);
  * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_DCEO)
  */
 router.get('/finance-approvers', authenticate, userController.getFinanceApprovers);
+// Requesters can choose an active named HR executive without access to the broad staff directory.
+router.get('/eligible-executives', userController.getEligibleHrExecutives);
 router.get(
     '/executives',
     authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),

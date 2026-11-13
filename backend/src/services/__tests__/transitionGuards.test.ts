@@ -51,6 +51,9 @@ const mockPrisma: any = {
     findUnique: jest.fn(),
     create: jest.fn(),
   },
+  workflowTransition: {
+    findFirst: jest.fn(),
+  },
   outboxEvent: {
     create: jest.fn(),
     updateMany: jest.fn(),
@@ -145,6 +148,7 @@ describe('P6-04: Transition Guards', () => {
     mockPrisma.workflowHistory.create.mockResolvedValue({ id: 'hist-001' });
     mockPrisma.workflowCommandResult.findUnique.mockResolvedValue(null);
     mockPrisma.workflowCommandResult.create.mockResolvedValue({ id: 'cmd-001' });
+    mockPrisma.workflowTransition.findFirst.mockResolvedValue({ allowedRoles: ['HIRING_MANAGER'], allowedExecutiveRoles: [] });
     mockPrisma.outboxEvent.create.mockResolvedValue({ id: 'out-001' });
     mockPrisma.outboxEvent.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.auditLog.create.mockResolvedValue({ id: 'audit-001' });
@@ -403,6 +407,32 @@ describe('P6-04: Transition Guards', () => {
           skipValidation: true,
         }),
       ).rejects.toThrow(/Only a Hiring Manager/i);
+    });
+
+    it('accepts the HTTP adapter actor role for both LOA decision outcomes without metadata roles', async () => {
+      for (const toStatus of ['LOA_APPROVED', 'HR_SCREENING']) {
+        mockPrisma.request.findUnique.mockResolvedValue(
+          makeRequest({
+            status: 'LOA_PENDING_APPROVAL',
+            tenantId: 'tenant-001',
+            requestType: { code: 'NEW_HIRING', workflowTypeId: 'hr-workflow', workflow: { steps: [] } },
+          }),
+        );
+
+        const result = await transitionRequest('req-001', toStatus, {
+          userId: 'manager-001',
+          userName: 'John Doe',
+          userRole: 'NORMAL_STAFF',
+          actor: { userId: 'manager-001', roles: ['NORMAL_STAFF', 'HIRING_MANAGER'], executiveRole: null },
+          skipValidation: true,
+          skipNotifications: true,
+          skipSlaPause: true,
+          skipAutoAssignment: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.newStatus).toBe(toStatus);
+      }
     });
   });
 

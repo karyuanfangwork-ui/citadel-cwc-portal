@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import { getRedisConnectionConfig } from '../utils/redis';
+import { closeQueueAfterInitialization, registerQueueShutdown } from './shutdown';
 
 export const ATTACHMENT_SCAN_QUEUE_NAME = process.env.ATTACHMENT_SCAN_QUEUE_NAME
     || 'attachment.malware-scan';
@@ -24,11 +25,13 @@ export const attachmentScanQueue = new Queue<AttachmentScanJobData>(ATTACHMENT_S
 /** Close the attachment-scan queue. BullMQ owns the connection, so close() is sufficient. */
 export async function closeAttachmentScanQueue(): Promise<void> {
     try {
-        await attachmentScanQueue.close();
+        await closeQueueAfterInitialization(attachmentScanQueue);
     } catch {
         /* already closed */
     }
 }
+
+registerQueueShutdown('attachment scan queue', closeAttachmentScanQueue);
 
 export async function dispatchAttachmentScan(data: AttachmentScanJobData): Promise<void> {
     const existing = await attachmentScanQueue.getJob(data.scanJobId);

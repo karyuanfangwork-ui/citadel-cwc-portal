@@ -102,6 +102,10 @@ export interface Activity {
 
 export interface Request {
     id: string;
+    version: number;
+    executiveApproverId?: string | null;
+    executiveApproverRole?: 'CEO' | 'GROUP_DCEO' | null;
+    executiveApprover?: { id: string; firstName: string; lastName: string } | null;
     title: string;
     summary: string;
     description?: string | null;
@@ -159,7 +163,7 @@ export interface Request {
 interface UseRequestDetailReturn {
     id: string | undefined;
     request: Request | null;
-    availableTransitions: AvailableTransition[];
+    availableTransitions: AvailableTransition[] | null;
     setRequest: React.Dispatch<React.SetStateAction<Request | null>>;
     activities: Activity[];
     setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
@@ -243,7 +247,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     const toast = useToast();
 
     const [request, setRequest] = useState<Request | null>(null);
-    const [availableTransitions, setAvailableTransitions] = useState<AvailableTransition[]>([]);
+    const [availableTransitions, setAvailableTransitions] = useState<AvailableTransition[] | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [resumes, setResumes] = useState<CandidateResume[]>([]);
     const [candidates, setCandidates] = useState<CandidateType[]>([]);
@@ -283,7 +287,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             const [requestData, activitiesData, transitions] = await Promise.all([
                 requestService.getRequestById(id),
                 requestService.getRequestActivities(id),
-                requestService.getAvailableTransitions(id).catch(() => []),
+                requestService.getAvailableTransitions(id).catch(() => null),
             ]);
             setRequest(requestData);
             setAvailableTransitions(transitions);

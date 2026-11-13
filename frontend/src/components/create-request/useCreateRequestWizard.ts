@@ -10,6 +10,8 @@ import { useAuth } from '../../context/AuthContext';
 export type WizardStep = 'type' | 'details' | 'review';
 
 export interface FormData {
+  executiveApproverId?: string;
+  executiveApproverRole?: 'CEO' | 'GROUP_DCEO';
   summary: string;
   description: string;
   urgency: string;
@@ -420,6 +422,8 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     });
     setFormData(prev => ({
       ...prev,
+      executiveApproverId: undefined,
+      executiveApproverRole: undefined,
       customFields: initialCustom,
       summary: '',
       description: '',
@@ -446,6 +450,12 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   const next = () => {
     if (!canProceed) return;
+
+    if (step === 'details' && selectedRequestType?.code === 'NEW_HIRING' &&
+        (!formData.executiveApproverId || !formData.executiveApproverRole)) {
+      setValidationErrors(['Select an executive approver before continuing.']);
+      return;
+    }
 
     // P03 Task 13: Validate form fields on step transitions using published form schema
     if (step === 'details' && selectedRequestType?.formConfig) {

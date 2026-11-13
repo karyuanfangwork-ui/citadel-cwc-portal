@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import { getRedisConnectionConfig } from '../../utils/redis';
+import { closeQueueAfterInitialization, registerQueueShutdown } from '../../queues/shutdown';
 
 // BullMQ queue names cannot contain colons — use dots as namespace separator
 const QUEUE_NAMES = {
@@ -55,13 +56,15 @@ export async function closeCreditQueues(): Promise<void> {
   await Promise.all(
     Object.values(queues).map(async (queue) => {
       try {
-        await queue.close();
+        await closeQueueAfterInitialization(queue);
       } catch {
         /* already closed */
       }
     }),
   );
 }
+
+registerQueueShutdown('credit queues', closeCreditQueues);
 
 export async function getQueueHealth(): Promise<Record<string, any>> {
   const health: Record<string, any> = {};

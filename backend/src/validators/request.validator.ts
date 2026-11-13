@@ -11,9 +11,13 @@ export const createRequestSchema = z.object({
         description: z.string().optional(),
         priority: z.nativeEnum(RequestPriority).optional(),
         customFields: z.record(z.any()).optional(),
+        executiveApproverId: z.string().uuid().optional(),
+        executiveApproverRole: z.enum(['CEO', 'GROUP_DCEO']).optional(),
         // Accepted only as a compatibility assertion; the server policy ignores it.
         isConfidential: z.boolean().optional(),
-    }).strict(),
+    }).strict().refine((body) => Boolean(body.executiveApproverId) === Boolean(body.executiveApproverRole), {
+        message: 'Executive approver ID and role must be supplied together',
+    }),
 });
 
 export const updateRequestSchema = z.object({

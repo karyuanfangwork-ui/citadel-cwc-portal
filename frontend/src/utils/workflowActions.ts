@@ -99,6 +99,13 @@ export function filterActionsByDesignerTargets(
   designerTargets: ReadonlySet<string>,
 ): WorkflowAction[] {
   return actions.filter((action) => {
+    if (action.type === 'SUBMIT_INTERVIEW_FEEDBACK') {
+      return designerTargets.has('INTERVIEW_FEEDBACK_PENDING')
+        && designerTargets.has('CANDIDATE_REJECTED_INTERVIEW');
+    }
+    if (action.type === 'LOA_APPROVAL') {
+      return designerTargets.has('LOA_APPROVED') && designerTargets.has('HR_SCREENING');
+    }
     const target = DESIGNER_CONTROLLED_ACTION_TARGETS[action.type];
     return !target || designerTargets.has(target);
   });
@@ -141,6 +148,7 @@ export function getWorkflowActions(
   currentUserId = '',
   agentTeam = '',
   assignedTeam = '',
+  hasExecutiveChoice = false,
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
@@ -553,7 +561,7 @@ export function getWorkflowActions(
   }
 
   // Hiring manager actions — must be above the canAct guard as hiring managers are not agents/admins
-  if (isRequester && status === 'PENDING_MANAGER_REVIEW') {
+  if (isRequester && userRoles.some(role => role.toUpperCase() === 'HIRING_MANAGER') && status === 'PENDING_MANAGER_REVIEW') {
     actions.push({
       type: 'MANAGER_DECISION',
       label: 'Review & Select Candidates',
@@ -563,7 +571,8 @@ export function getWorkflowActions(
   }
 
   // Interview feedback — hiring manager submits feedback after interview
-  if (isRequester && status === 'INTERVIEW_SCHEDULED' && isHR && isNewHiring) {
+  if (isRequester && userRoles.some(role => role.toUpperCase() === 'HIRING_MANAGER')
+    && status === 'INTERVIEW_SCHEDULED' && isHR && isNewHiring) {
     actions.push({
       type: 'SUBMIT_INTERVIEW_FEEDBACK',
       label: 'Submit Interview Feedback',
@@ -574,7 +583,8 @@ export function getWorkflowActions(
 
   // LOA approval — only the hiring manager (i.e. the requester) for this specific request,
   // and only when the HR agent has uploaded the LOA and routed it for approval
-  if (isRequester && status === 'LOA_PENDING_APPROVAL' && hasLOA) {
+  if (isRequester && userRoles.some(role => role.toUpperCase() === 'HIRING_MANAGER')
+    && status === 'LOA_PENDING_APPROVAL' && hasLOA) {
     actions.push({
       type: 'LOA_APPROVAL',
       label: 'Approve / Reject LOA',
@@ -740,29 +750,20 @@ export function getWorkflowActions(
     });
   }
 
-  if (canActOnDesk && isHR && isNewHiring && status === 'CEO_APPROVED') {
-    actions.push({
-      type: 'ROUTE_TO_GROUP_DCEO_HR',
-      label: 'Route to Group Deputy CEO for Approval',
-      description: 'CEO has approved. Route this hiring request to the Group Deputy CEO for final sign-off.',
-      variant: 'primary',
-    });
-  }
-
-  if (canActOnDesk && isHR && isNewHiring && status === 'GROUP_DCEO_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && (status === 'CEO_APPROVED' || status === 'GROUP_DCEO_APPROVED')) {
     actions.push({
       type: 'MARK_JOB_POSTED',
       label: 'Mark Job as Posted',
-      description: 'Group Deputy CEO has approved. Record the job posting URL to proceed.',
+      description: 'The selected executive has approved. Record the job posting URL to proceed.',
       variant: 'primary',
     });
   }
 
-  if (canActOnDesk && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
+  if (canActOnDesk && isHR && isNewHiring && hasExecutiveChoice && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
     actions.push({
       type: 'ROUTE_TO_CEO_HR',
       label: 'Route to Executive Approval',
-      description: 'Route this hiring request to the CEO or Group Deputy CEO for approval.',
+      description: 'Route this hiring request to the executive selected by the requester.',
       variant: 'primary',
     });
   }

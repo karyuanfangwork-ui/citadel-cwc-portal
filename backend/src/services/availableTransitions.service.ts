@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma';
 import { canActorTransition, TransitionActor } from './transitionPolicy.service';
+import { assertHrExecutiveTransition } from './hrExecutiveTransitionPolicy';
 
 export interface AvailableTransition {
   id: string;
@@ -25,9 +26,12 @@ export async function getAvailableTransitionsForRequest(
     select: {
       status: true,
       tenantId: true,
+      executiveApproverId: true,
+      executiveApproverRole: true,
       requestType: {
         select: {
           workflowTypeId: true,
+          code: true,
         },
       },
     },
@@ -80,6 +84,13 @@ export async function getAvailableTransitionsForRequest(
 
   const available: AvailableTransition[] = [];
   for (const row of selected.values()) {
+    try {
+      // For visibility the specialized controller supplies the atomic approval
+      // mutation. The actual command rechecks this invariant before writing.
+      assertHrExecutiveTransition(request, row.toStatus, actor.userId, true);
+    } catch {
+      continue;
+    }
     const decision = await canActorTransition({
       actor,
       tenantId: request.tenantId,

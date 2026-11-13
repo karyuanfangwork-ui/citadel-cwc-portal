@@ -15,6 +15,8 @@ import { generateRequestRefNum } from '../services/referenceNumber.service';
 import { assertRequestAccess } from '../services/requestAccess.service';
 import { getAuthorizedAttachment, registerUpload } from '../services/attachmentAccess.service';
 import { resolveRequestCreationPolicy } from '../services/requestCreationPolicy.service';
+import { resolveHrExecutiveApprover } from '../services/hrExecutiveApprover.service';
+import { HrExecutiveApproverRole } from '@prisma/client';
 import { principalFromAuth } from '../security/resource-scope.service';
 import { buildRequestListScope } from '../security/request-list-scope';
 import { CLOSED_STATUSES } from '../constants/requestStatuses';
@@ -592,6 +594,8 @@ class RequestController {
             customFields,
             isConfidential,
             formVersion,
+            executiveApproverId,
+            executiveApproverRole,
         } = req.body;
 
         // Sanitize highest-risk text fields before storing
@@ -605,6 +609,23 @@ class RequestController {
             requestedConfidentiality: isConfidential,
         });
         const { serviceDesk, requestType } = creationPolicy;
+
+        // The selected role is explicit: a dual-role account cannot be inferred
+        // from its first role. Never use customFields as the source of this choice.
+        let hrExecutiveChoice: { id: string; role: HrExecutiveApproverRole } | null = null;
+        if (requestType.code === 'NEW_HIRING') {
+            if (!executiveApproverId || !executiveApproverRole || !creationPolicy.tenantId) {
+                throw new AppError('Select a CEO or Group Deputy CEO approver before submitting this hiring request', 400);
+            }
+            hrExecutiveChoice = await resolveHrExecutiveApprover({
+                executiveApproverId,
+                executiveApproverRole,
+                tenantId: creationPolicy.tenantId,
+                requesterId: req.user!.id,
+            });
+        } else if (executiveApproverId || executiveApproverRole) {
+            throw new AppError('Executive approver choice is only supported for New Hiring requests', 400);
+        }
 
         // IT Support uses rich-text editor — allow safe HTML; others stay plain text
         const description = rawDescription
@@ -1060,6 +1081,10 @@ class RequestController {
                     serviceDeskId,
                     requesterId: req.user!.id,
                     requesterEmail: req.user!.email,
+                    ...(hrExecutiveChoice ? {
+                        executiveApproverId: hrExecutiveChoice.id,
+                        executiveApproverRole: hrExecutiveChoice.role,
+                    } : {}),
                     summary: finalSummary,
                     description: finalDescription,
                     priority,
@@ -1497,6 +1522,7 @@ class RequestController {
                         email: true,
                     },
                 },
+                executiveApprover: { select: { id: true, firstName: true, lastName: true } },
                 serviceDesk: true,
                 requestType: {
                     include: {

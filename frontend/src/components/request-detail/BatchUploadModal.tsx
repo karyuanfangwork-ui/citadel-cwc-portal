@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as approvalService from '../../services/approval.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useToast } from '../../context/ToastContext';
 import ModalPortal from '../ModalPortal';
 
 const DOC_TYPE_CONFIG = [
@@ -34,7 +35,9 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({
   const [candidateName, setCandidateName] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [verifyingUpload, setVerifyingUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   // Files keyed by doc type
   const [files, setFiles] = useState<Record<DocTypeValue, File | null>>({
@@ -72,26 +75,61 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({
 
     try {
       setSubmitting(true);
+      setVerifyingUpload(false);
       setError(null);
 
       const filesToUpload = DOC_TYPE_CONFIG
         .map(dt => ({ docType: dt.value, file: files[dt.value]! }))
         .filter(f => f.file !== null);
 
-      await approvalService.batchUploadDocs(
-        requestId,
-        filesToUpload.map(f => ({ file: f.file, documentType: f.docType })),
-        resolvedCandidateName || 'Unnamed Candidate',
-        resolvedCandidateId,
-        notes || undefined,
-      );
+      const knownCandidate = nameMode === 'select'
+        ? existingCandidates.find(candidate => candidate.id === resolvedCandidateId)
+        : existingCandidates.find(candidate => candidate.fullName.trim() === resolvedCandidateName);
+      const existingDocumentIds = new Set(knownCandidate?.documents.map(document => document.id) || []);
 
+      try {
+        await approvalService.batchUploadDocs(
+          requestId,
+          filesToUpload.map(f => ({ file: f.file, documentType: f.docType })),
+          resolvedCandidateName || 'Unnamed Candidate',
+          resolvedCandidateId,
+          notes || undefined,
+        );
+      } catch (uploadError) {
+        // A client timeout can happen after the server has committed the batch.
+        // Confirm newly-created records before telling the agent to retry.
+        setVerifyingUpload(true);
+        const savedCandidates = await approvalService.getCandidates(requestId).catch(() => []);
+        const savedCandidate = resolvedCandidateId
+          ? savedCandidates.find(candidate => candidate.id === resolvedCandidateId)
+          : savedCandidates.find(candidate => candidate.fullName.trim() === resolvedCandidateName);
+        const newlySavedDocuments = savedCandidate?.documents.filter(document => !existingDocumentIds.has(document.id)) || [];
+        const uploadWasSaved = filesToUpload.every(({ file, docType }) =>
+          newlySavedDocuments.some(document => document.documentType === docType && document.fileName === file.name)
+        );
+
+        if (!uploadWasSaved) throw uploadError;
+        toast.success('Upload confirmed', `All ${filesToUpload.length} documents for ${savedCandidate!.fullName} were saved.`);
+        onSuccess();
+        onClose();
+        return;
+      }
+
+      const candidateLabel = knownCandidate?.fullName || resolvedCandidateName || 'the selected candidate';
+      toast.success('Documents uploaded', `${filesToUpload.length} documents for ${candidateLabel} were saved.`);
       onSuccess();
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to upload documents';
+      onClose();
+    } catch (err: unknown) {
+      const responseMessage = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: unknown } } }).response?.data?.message
+        : undefined;
+      const msg = typeof responseMessage === 'string'
+        ? responseMessage
+        : err instanceof Error ? err.message : 'Failed to upload documents';
       setError(msg);
     } finally {
       setSubmitting(false);
+      setVerifyingUpload(false);
     }
   };
 
@@ -299,6 +337,11 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({
 
               {error && (
                 <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+              )}
+              {(submitting || verifyingUpload) && (
+                <p role="status" aria-live="polite" className="text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg">
+                  {verifyingUpload ? 'Checking whether the documents were saved…' : 'Uploading documents… This may take a little while.'}
+                </p>
               )}
             </div>
 

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { createOnboardingFromHiring } from '../services/onboarding.service';
+import { AppError } from '../middleware/error.middleware';
 
 import prisma from '../utils/prisma';
 import { resolveRequestId } from '../utils/resolve';
@@ -191,7 +193,8 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             return res.status(404).json({ status: 'error', message: 'Request not found' });
         }
         const { decision, comments } = req.body;
-        const userId = (req as any).user?.id;
+        const user = (req as any).user;
+        const userId = user?.id;
 
         if (!decision || !['APPROVE', 'REJECT'].includes(decision)) {
             return res.status(400).json({
@@ -220,12 +223,12 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             });
         }
 
-        // Verify user has HIRING_MANAGER role
-        const userRoles: string[] = (req as any).user?.roles || [];
-        if (!userRoles.includes('HIRING_MANAGER')) {
+        // This approval belongs to the requester who submitted the hiring request.
+        const userRoles: string[] = Array.isArray(user?.roles) ? user.roles : [];
+        if (request.requesterId !== userId || !userRoles.some((role) => role.toUpperCase() === 'HIRING_MANAGER')) {
             return res.status(403).json({
                 status: 'error',
-                message: 'Only a Hiring Manager can approve or reject LOA'
+                message: 'Only the requesting Hiring Manager can approve or reject this LOA'
             });
         }
 
@@ -236,41 +239,38 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             });
         }
 
-        // Update LOA record
-        const updatedLOA = await prisma.letterOfAcceptance.update({
-            where: { id: request.letterOfAcceptance.id },
-            data: {
-                approvedBy: decision === 'APPROVE' ? userId : null,
-                approvalDate: decision === 'APPROVE' ? new Date() : null,
-                approvalComments: comments || null
-            }
-        });
-
-        // Update request status
         const newStatus = decision === 'APPROVE' ? 'LOA_APPROVED' : 'HR_SCREENING';
+        const activityMessage = decision === 'APPROVE'
+            ? `Hiring Manager approved LOA${comments ? ': ' + comments : ''}`
+            : `Hiring Manager rejected LOA${comments ? ': ' + comments : ''}`;
+        let updatedLOA = request.letterOfAcceptance;
         const updatedRequest = await transitionHttpRequest({
             req,
             request,
             toStatus: newStatus,
             source: 'loa.manager-decision',
             comment: comments || `LOA ${decision.toLowerCase()}`,
-        });
-
-        // Create activity log
-        const activityMessage = decision === 'APPROVE'
-            ? `Hiring Manager approved LOA${comments ? ': ' + comments : ''}`
-            : `Hiring Manager rejected LOA${comments ? ': ' + comments : ''}`;
-
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: userId,
-                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                authorRole: 'Hiring Manager',
-                activityType: decision === 'APPROVE' ? 'APPROVAL' : 'REJECTION',
-                message: activityMessage,
-                isSystemGenerated: false
-            }
+            transactionMutations: async (tx) => {
+                updatedLOA = await tx.letterOfAcceptance.update({
+                    where: { id: request.letterOfAcceptance!.id },
+                    data: {
+                        approvedBy: decision === 'APPROVE' ? userId : null,
+                        approvalDate: decision === 'APPROVE' ? new Date() : null,
+                        approvalComments: comments || null,
+                    },
+                });
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorId: userId,
+                        authorName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Hiring Manager',
+                        authorRole: 'Hiring Manager',
+                        activityType: decision === 'APPROVE' ? 'APPROVAL' : 'REJECTION',
+                        message: activityMessage,
+                        isSystemGenerated: false,
+                    },
+                });
+            },
         });
 
         res.json({
@@ -281,6 +281,9 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({ status: 'error', message: error.message });
+        }
         console.error('Error processing LOA approval:', error);
         res.status(500).json({
             status: 'error',
@@ -330,21 +333,20 @@ export const markLOAIssued = async (req: Request, res: Response) => {
             });
         }
 
-        // Update LOA record
-        const updatedLOA = await prisma.letterOfAcceptance.update({
-            where: { id: request.letterOfAcceptance.id },
-            data: {
-                issuedDate: new Date()
-            }
-        });
-
-        // Update request status
+        const loaId = request.letterOfAcceptance.id;
+        let updatedLOA: Prisma.LetterOfAcceptanceGetPayload<Record<string, never>> | null = null;
         const updatedRequest = await transitionHttpRequest({
             req,
             request,
             toStatus: 'LOA_ISSUED',
             source: 'loa.issue',
             comment: notes,
+            transactionMutations: async (tx) => {
+                updatedLOA = await tx.letterOfAcceptance.update({
+                    where: { id: loaId },
+                    data: { issuedDate: new Date() },
+                });
+            },
         });
 
         // Create activity log
@@ -368,6 +370,9 @@ export const markLOAIssued = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({ status: 'error', message: error.message });
+        }
         console.error('Error marking LOA as issued:', error);
         res.status(500).json({
             status: 'error',
@@ -524,15 +529,8 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             });
         }
 
-        // Update LOA record
-        const updatedLOA = await prisma.letterOfAcceptance.update({
-            where: { id: request.letterOfAcceptance.id },
-            data: {
-                acceptedDate: new Date()
-            }
-        });
-
-        // Update request status to final state
+        const loaId = request.letterOfAcceptance.id;
+        let updatedLOA: Prisma.LetterOfAcceptanceGetPayload<Record<string, never>> | null = null;
         const completedAt = new Date();
         const updatedRequest = await transitionHttpRequest({
             req,
@@ -544,6 +542,12 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
                 resolvedAt: completedAt,
                 closedAt: completedAt,
                 completedAt,
+            },
+            transactionMutations: async (tx) => {
+                updatedLOA = await tx.letterOfAcceptance.update({
+                    where: { id: loaId },
+                    data: { acceptedDate: new Date() },
+                });
             },
         });
 
@@ -603,6 +607,9 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({ status: 'error', message: error.message });
+        }
         console.error('Error marking LOA as accepted:', error);
         res.status(500).json({
             status: 'error',

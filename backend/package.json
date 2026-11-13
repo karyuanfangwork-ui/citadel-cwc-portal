@@ -18,6 +18,7 @@
     "workflow:reconstruct:shadow": "tsx prisma/reconstruct-workflow-edges.ts",
     "workflow:reconstruct": "tsx prisma/reconstruct-workflow-edges.ts --write",
     "prisma:seed": "tsx prisma/seed.ts",
+    "admin-config:restore-banners": "tsx scripts/restore_admin_config.ts --only=banners",
     "prisma:rectify:approval-reminder-templates": "tsx prisma/rectify-approval-reminder-templates.ts",
     "prisma:rectify:crm-activity-reminder-template": "tsx prisma/rectify-crm-activity-reminder-template.ts",
     "prisma:rectify:approval-required-template": "tsx prisma/rectify-approval-required-template.ts",

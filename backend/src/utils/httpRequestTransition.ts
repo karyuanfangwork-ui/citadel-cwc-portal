@@ -18,6 +18,7 @@ interface HttpTransitionInput {
   comment?: string;
   requestPatch?: Record<string, unknown>;
   transactionMutations?: TransitionOptions['transactionMutations'];
+  skipAutoAssignment?: boolean;
   skipValidation?: boolean;
   metadata?: Record<string, unknown>;
 }
@@ -37,6 +38,7 @@ export async function transitionHttpRequest({
   comment,
   requestPatch,
   transactionMutations,
+  skipAutoAssignment,
   skipValidation = false,
   metadata,
 }: HttpTransitionInput): Promise<Request> {
@@ -56,6 +58,7 @@ export async function transitionHttpRequest({
     comment,
     requestPatch,
     transactionMutations,
+    skipAutoAssignment,
     skipValidation,
     metadata,
     idempotencyKey: req.get('Idempotency-Key') || undefined,

@@ -75,4 +75,18 @@ describe('getAvailableTransitionsForRequest', () => {
 
     expect(result.map((item) => item.toStatus)).toEqual(['PENDING_CEO_APPROVAL']);
   });
+
+  it('hides a mismatched HR executive route even if a compiled/global row permits it', async () => {
+    mockWorkflowTransitionFindMany.mockResolvedValue([
+      transition('hr-ceo', 'PENDING_CEO_APPROVAL', 'hr-recruitment'),
+      transition('hr-dceo', 'PENDING_GROUP_DCEO_APPROVAL', 'hr-recruitment'),
+    ]);
+    mockRequestFindUnique.mockResolvedValue({
+      status: 'SUBMITTED', tenantId: 'tenant-1',
+      executiveApproverId: 'dceo-1', executiveApproverRole: 'GROUP_DCEO',
+      requestType: { workflowTypeId: 'hr-recruitment', code: 'NEW_HIRING' },
+    });
+    const result = await getAvailableTransitionsForRequest('request-hr', actor);
+    expect(result.map(item => item.toStatus)).toEqual(['PENDING_GROUP_DCEO_APPROVAL']);
+  });
 });

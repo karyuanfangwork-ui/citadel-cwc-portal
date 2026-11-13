@@ -10,6 +10,7 @@ import { uploadSingleFile } from '../middleware/upload.middleware';
 import { authorizeResource, loadRequestScopeFromParam } from '../middleware/authorizeResource.middleware';
 import { createRequestSchema, updateRequestSchema, addActivitySchema } from '../validators/request.validator';
 import { agentDashboardQuerySchema } from '../validators/agent-dashboard.validator';
+import { hrExecutiveChoiceSchema, putHrExecutiveApproverChoice } from '../controllers/hrExecutiveChoice.controller';
 
 const router = Router();
 
@@ -75,6 +76,9 @@ router.post('/export/xlsx', requirePermission('request:export'), exportRequestsX
  *          controller also calls assertRequestAccess for full policy evaluation.
  */
 router.get('/:id', authorizeResource(loadRequestScopeFromParam('id'), 'read'), requestController.getRequestById);
+
+// Requester-only pre-routing choice; authorization is checked against the request itself.
+router.put('/:id/executive-approver-choice', validate(hrExecutiveChoiceSchema), putHrExecutiveApproverChoice);
 
 /**
  * @route   PUT /api/v1/requests/:id

@@ -12,6 +12,7 @@ import StepDetails from '../src/components/create-request/StepDetails';
 import StepReview from '../src/components/create-request/StepReview';
 import RecentServices from '../src/components/create-request/RecentServices';
 import { useDraftSave, DraftSaveChip } from '../src/components/create-request/useDraftSave';
+import { useAuth } from '../src/context/AuthContext';
 
 const WIZARD_STEPS: { id: WizardStep; label: string; icon: string }[] = [
   { id: 'type', label: 'Request Type', icon: 'category' },
@@ -23,11 +24,12 @@ const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
     const navigate = useNavigate();
     const toast = useToast();
+    const { user } = useAuth();
 
     const wizard = useCreateRequestWizard(deskId!, categoryId!, deskType!);
 
     // Draft auto-save with localStorage
-    const draftKey = `request_${deskId}_${categoryId}`;
+    const draftKey = `request_${deskId}_${categoryId}_${wizard.selectedRequestType?.id || 'unselected'}`;
     const { hasDraft, lastSaved, restoreDraft, clearDraft } = useDraftSave(
         draftKey,
         wizard.formData,
@@ -50,6 +52,12 @@ const CreateRequest = () => {
           wizard.setSubmitting(true);
           wizard.setError(null);
 
+          if (wizard.selectedRequestType.code === 'NEW_HIRING' &&
+              (!wizard.formData.executiveApproverId || !wizard.formData.executiveApproverRole)) {
+            wizard.setError('Select an executive approver before submitting.');
+            return;
+          }
+
           // P03 Task 13: Final validation before submit using published form schema
           if (wizard.selectedRequestType?.formConfig) {
             const failures = validateFormValues(
@@ -70,6 +78,10 @@ const CreateRequest = () => {
                 description: wizard.formData.description,
                 priority: wizard.formData.urgency as any,
                 customFields: wizard.formData.customFields,
+                ...(wizard.selectedRequestType.code === 'NEW_HIRING' ? {
+                    executiveApproverId: wizard.formData.executiveApproverId,
+                    executiveApproverRole: wizard.formData.executiveApproverRole,
+                } : {}),
                 isConfidential: wizard.isAutoConfidential ? true : wizard.formData.isConfidential
             });
 
@@ -164,6 +176,7 @@ const CreateRequest = () => {
 
                             {wizard.step === 'details' && (
                                 <StepDetails
+                                    currentUserId={user?.id}
                                     formData={wizard.formData}
                                     setFormData={wizard.setFormData}
                                     selectedRequestType={wizard.selectedRequestType}
